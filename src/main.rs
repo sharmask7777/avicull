@@ -288,62 +288,69 @@ fn main() -> Result<()> {
                 Box::new(MockSpeciesClassifier::new(vec![]))
             };
 
-            println!("Running bird detection and visual classification...");
-            let mut classified_items = Vec::new();
+            use rayon::prelude::*;
+            use std::sync::Arc;
 
-            for bundle in &bundles {
-                let img_res =
-                    load_image_for_inference(&bundle.primary_image, &bundle.companion_images);
-                let (crop_res, det_conf, bbox) = match img_res {
-                    Ok(img) => {
-                        let detections = detector.detect(&img).unwrap_or_default();
-                        match select_and_pad_bird_crop(
-                            &img,
-                            &detections,
-                            args.min_detect,
-                            (224, 224),
-                        ) {
-                            Some((cropped, b, conf)) => (Some(cropped), conf, Some(b)),
-                            None => (None, 0.0, None),
+            let detector = Arc::new(detector);
+            let classifier = Arc::new(classifier);
+
+            println!("Running bird detection and visual classification in parallel...");
+            let classified_items: Vec<ClassifiedBundleItem> = bundles
+                .par_iter()
+                .map(|bundle| {
+                    let img_res =
+                        load_image_for_inference(&bundle.primary_image, &bundle.companion_images);
+                    let (crop_res, det_conf, bbox) = match img_res {
+                        Ok(img) => {
+                            let detections = detector.detect(&img).unwrap_or_default();
+                            match select_and_pad_bird_crop(
+                                &img,
+                                &detections,
+                                args.min_detect,
+                                (224, 224),
+                            ) {
+                                Some((cropped, b, conf)) => (Some(cropped), conf, Some(b)),
+                                None => (None, 0.0, None),
+                            }
+                        }
+                        Err(_) => (None, 0.0, None),
+                    };
+
+                    if let Some(cropped) = crop_res {
+                        let (emb, preds) = classifier
+                            .classify(&cropped, bundle.gps_coords, args.geo_prior_weight)
+                            .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
+
+                        let posteriors: Vec<(String, f32)> = preds
+                            .iter()
+                            .map(|p| (p.taxon_id.clone(), p.combined_score))
+                            .collect();
+
+                        ClassifiedBundleItem {
+                            bundle_id: bundle.bundle_id.clone(),
+                            trip_folder: bundle.trip_folder_name.clone(),
+                            capture_timestamp_ms: bundle.capture_timestamp_ms,
+                            detection_confidence: det_conf,
+                            bbox_norm: bbox,
+                            embedding: emb,
+                            top_predictions: preds,
+                            posteriors,
+                        }
+                    } else {
+                        // No bird detected
+                        ClassifiedBundleItem {
+                            bundle_id: bundle.bundle_id.clone(),
+                            trip_folder: bundle.trip_folder_name.clone(),
+                            capture_timestamp_ms: bundle.capture_timestamp_ms,
+                            detection_confidence: 0.0,
+                            bbox_norm: None,
+                            embedding: vec![0.0; 512],
+                            top_predictions: vec![],
+                            posteriors: vec![],
                         }
                     }
-                    Err(_) => (None, 0.0, None),
-                };
-
-                if let Some(cropped) = crop_res {
-                    let (emb, preds) = classifier
-                        .classify(&cropped, bundle.gps_coords, args.geo_prior_weight)
-                        .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
-
-                    let posteriors: Vec<(String, f32)> = preds
-                        .iter()
-                        .map(|p| (p.taxon_id.clone(), p.combined_score))
-                        .collect();
-
-                    classified_items.push(ClassifiedBundleItem {
-                        bundle_id: bundle.bundle_id.clone(),
-                        trip_folder: bundle.trip_folder_name.clone(),
-                        capture_timestamp_ms: bundle.capture_timestamp_ms,
-                        detection_confidence: det_conf,
-                        bbox_norm: bbox,
-                        embedding: emb,
-                        top_predictions: preds,
-                        posteriors,
-                    });
-                } else {
-                    // No bird detected
-                    classified_items.push(ClassifiedBundleItem {
-                        bundle_id: bundle.bundle_id.clone(),
-                        trip_folder: bundle.trip_folder_name.clone(),
-                        capture_timestamp_ms: bundle.capture_timestamp_ms,
-                        detection_confidence: 0.0,
-                        bbox_norm: None,
-                        embedding: vec![0.0; 512],
-                        top_predictions: vec![],
-                        posteriors: vec![],
-                    });
-                }
-            }
+                })
+                .collect();
 
             println!("Applying burst clustering and consensus smoothing...");
             let decisions = smooth_burst_consensus(

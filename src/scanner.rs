@@ -253,39 +253,45 @@ pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
     let mut max_len = 0;
 
     let len = raw_bytes.len();
+    if len < 4 {
+        return None;
+    }
+
+    // Step 1: Collect all SOI offsets starting with 0xFF, 0xD8
+    let mut sois = Vec::new();
     let mut i = 0;
-
-    while i + 3 < len {
-        // Look for SOI: 0xFF, 0xD8
+    while i + 2 < len {
         if raw_bytes[i] == 0xFF && raw_bytes[i + 1] == 0xD8 {
-            let start = i;
-            let mut j = i + 2;
-            let mut first_eoi = None;
+            sois.push(i);
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
 
-            // Scan until next SOI or EOI
-            while j + 1 < len {
-                if raw_bytes[j] == 0xFF && raw_bytes[j + 1] == 0xD8 {
-                    // Encountered a new SOI before an EOI was found
-                    break;
-                }
-                if raw_bytes[j] == 0xFF && raw_bytes[j + 1] == 0xD9 {
-                    first_eoi = Some(j + 2);
-                    break;
-                }
-                j += 1;
+    // Step 2: For each SOI, find the next matching EOI (0xFF, 0xD9)
+    for (idx, &soi) in sois.iter().enumerate() {
+        // The EOI cannot be after the next SOI
+        let next_soi = sois.get(idx + 1).copied().unwrap_or(len);
+        let mut j = soi + 2;
+        let mut eoi = None;
+
+        while j + 1 < next_soi {
+            if raw_bytes[j] == 0xFF && raw_bytes[j + 1] == 0xD9 {
+                eoi = Some(j + 2);
+                // In JPEGs, EOI terminates the image stream
+                break;
             }
+            j += 1;
+        }
 
-            if let Some(end) = first_eoi {
-                let stream_len = end - start;
-                if stream_len > max_len {
-                    max_len = stream_len;
-                    largest = Some(raw_bytes[start..end].to_vec());
-                }
-                i = end;
-                continue;
+        if let Some(end) = eoi {
+            let stream_len = end - soi;
+            if stream_len > max_len {
+                max_len = stream_len;
+                largest = Some(raw_bytes[soi..end].to_vec());
             }
         }
-        i += 1;
     }
 
     largest

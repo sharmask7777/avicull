@@ -286,7 +286,10 @@ pub fn resolve_locations(
 
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() {
-            let tokens = tokenize_folder_name(&bundle.trip_folder_name);
+            let mut tokens = tokenize_folder_name(&bundle.trip_folder_name);
+            for comp in bundle.primary_image.components() {
+                tokens.extend(tokenize_folder_name(&comp.as_os_str().to_string_lossy()));
+            }
             let mut resolved: Option<(f64, f64)> = None;
 
             // Check toml mapping
