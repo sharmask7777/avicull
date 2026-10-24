@@ -1,0 +1,242 @@
+use crate::db::{HardlinkOperation, ManifestDb};
+use crate::scanner::decompose_filename;
+use crate::types::{AssetBundle, BundleDecision, RoutingTier};
+use anyhow::{Context, Result};
+use chrono::Utc;
+use std::fs;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+
+/// Sanitizes species common names into directory slugs:
+/// Replaces spaces with underscores, strips apostrophes, and replaces non-alphanumerics
+/// (except '-' and '_') with '_'.
+pub fn sanitize_species_slug(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if c == '\'' {
+            // Strip apostrophes
+            continue;
+        } else if c == ' ' {
+            out.push('_');
+        } else if c.is_alphanumeric() || c == '-' || c == '_' {
+            out.push(c);
+        } else {
+            out.push('_');
+        }
+    }
+    out
+}
+
+/// Constructs formatted destination filename: <OriginalStem>_<Confidence:0.2>.<OriginalExt>
+/// Preserves compound sidecar extensions (e.g. DSC_4011.JPG.xmp -> DSC_4011_0.96.JPG.xmp).
+pub fn format_destination_filename(
+    original_filename: &str,
+    confidence: f32,
+    trip_prefix: Option<&str>,
+) -> String {
+    let conf_str = format!("{:.2}", confidence);
+
+    let (stem, remainder) = if let Some((base_stem, _)) = decompose_filename(original_filename) {
+        // Find remainder after base_stem
+        let rem = if original_filename.len() >= base_stem.len() {
+            &original_filename[base_stem.len()..]
+        } else {
+            ""
+        };
+        (base_stem, rem.to_string())
+    } else {
+        // Fallback: split on first dot
+        if let Some(pos) = original_filename.find('.') {
+            (
+                original_filename[..pos].to_string(),
+                original_filename[pos..].to_string(),
+            )
+        } else {
+            (original_filename.to_string(), String::new())
+        }
+    };
+
+    let filename = format!("{}_{}{}", stem, conf_str, remainder);
+
+    if let Some(prefix) = trip_prefix {
+        format!("{}__{}", prefix, filename)
+    } else {
+        filename
+    }
+}
+
+/// Computes the target destination directory inside output_root based on routing tier.
+pub fn compute_target_dir(
+    output_root: &Path,
+    decision: &BundleDecision,
+    min_confidence: f32,
+) -> PathBuf {
+    match decision.routing_tier {
+        RoutingTier::ConfirmedSpecies => {
+            if decision.final_confidence >= min_confidence {
+                output_root.join(&decision.assigned_species_slug)
+            } else {
+                output_root
+                    .join("_Needs_Review")
+                    .join(&decision.assigned_species_slug)
+            }
+        }
+        RoutingTier::NeedsReview => output_root
+            .join("_Needs_Review")
+            .join(&decision.assigned_species_slug),
+        RoutingTier::NoBirdDetected => output_root.join("_No_Bird_Detected"),
+    }
+}
+
+/// Materializes POSIX hard links for an AssetBundle and its companion and sidecar files.
+/// Resolves collisions deterministically and handles re-run idempotency.
+pub fn materialize_bundle_hardlinks(
+    bundle: &AssetBundle,
+    decision: &BundleDecision,
+    output_root: &Path,
+    run_id: &str,
+    dry_run: bool,
+) -> Result<Vec<HardlinkOperation>> {
+    let target_dir = compute_target_dir(output_root, decision, 0.65);
+
+    if !dry_run && !target_dir.exists() {
+        fs::create_dir_all(&target_dir)
+            .with_context(|| format!("Failed to create directory: {}", target_dir.display()))?;
+    }
+
+    // Collect all files in bundle (primary + companions + sidecars)
+    let mut files_to_link = Vec::new();
+    files_to_link.push(bundle.primary_image.clone());
+    for comp in &bundle.companion_images {
+        files_to_link.push(comp.clone());
+    }
+    for sidecar in &bundle.sidecar_files {
+        files_to_link.push(sidecar.clone());
+    }
+
+    // First check if primary file has a collision requiring trip prefix
+    let primary_filename = bundle
+        .primary_image
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_else(|| "image.jpg".to_string());
+
+    let normal_dst_filename =
+        format_destination_filename(&primary_filename, decision.final_confidence, None);
+    let normal_dst_path = target_dir.join(&normal_dst_filename);
+
+    let needs_trip_prefix = if normal_dst_path.exists() {
+        if let Ok(meta) = fs::metadata(&normal_dst_path) {
+            meta.ino() != bundle.source_inode
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    let trip_slug = if needs_trip_prefix {
+        Some(sanitize_species_slug(&bundle.trip_folder_name))
+    } else {
+        None
+    };
+
+    let mut operations = Vec::new();
+    let now = Utc::now().to_rfc3339();
+
+    for src_path in files_to_link {
+        let src_filename = src_path
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_else(|| "file".to_string());
+
+        let dst_filename = format_destination_filename(
+            &src_filename,
+            decision.final_confidence,
+            trip_slug.as_deref(),
+        );
+
+        let dst_path = target_dir.join(dst_filename);
+
+        let src_meta = fs::metadata(&src_path)
+            .with_context(|| format!("Failed to stat source file: {}", src_path.display()))?;
+        let src_ino = src_meta.ino();
+
+        let mut status = "planned".to_string();
+
+        if dst_path.exists() {
+            if let Ok(dst_meta) = fs::metadata(&dst_path) {
+                if dst_meta.ino() == src_ino {
+                    // Exact same file already linked; idempotent no-op
+                    status = "already_linked".to_string();
+                }
+            }
+        }
+
+        if !dry_run && status != "already_linked" {
+            // Create hard link
+            fs::hard_link(&src_path, &dst_path).with_context(|| {
+                format!(
+                    "Failed to create hard link from '{}' to '{}'",
+                    src_path.display(),
+                    dst_path.display()
+                )
+            })?;
+            status = "linked".to_string();
+        }
+
+        operations.push(HardlinkOperation {
+            op_id: None,
+            run_id: run_id.to_string(),
+            bundle_id: bundle.bundle_id.clone(),
+            source_path: src_path,
+            dest_path: dst_path,
+            source_inode: src_ino,
+            status,
+            executed_at: Some(now.clone()),
+        });
+    }
+
+    Ok(operations)
+}
+
+/// Unlinks all generated hard links in output directory for a given run ID,
+/// leaving input files completely untouched.
+pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
+    let ops = db.get_run_operations(run_id)?;
+    let mut unlinked_count = 0usize;
+    let mut affected_dirs = Vec::new();
+
+    for op in ops {
+        if op.status == "linked" || op.status == "already_linked" {
+            if op.dest_path.exists() {
+                // Safety check: ensure destination inode matches source inode
+                if let Ok(meta) = fs::metadata(&op.dest_path) {
+                    if meta.ino() == op.source_inode {
+                        fs::remove_file(&op.dest_path).with_context(|| {
+                            format!("Failed to unlink '{}'", op.dest_path.display())
+                        })?;
+                        unlinked_count += 1;
+                        if let Some(parent) = op.dest_path.parent() {
+                            affected_dirs.push(parent.to_path_buf());
+                        }
+                    }
+                }
+            }
+            if let Some(id) = op.op_id {
+                let _ = db.update_operation_status(id, "unlinked");
+            }
+        }
+    }
+
+    // Clean up empty directories
+    affected_dirs.sort();
+    affected_dirs.dedup();
+    for d in affected_dirs {
+        if d.exists() {
+            let _ = fs::remove_dir(&d);
+        }
+    }
+
+    Ok(unlinked_count)
+}
