@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-C", "split-debuginfo=unpacked"]

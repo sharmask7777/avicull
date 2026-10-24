@@ -13,13 +13,13 @@ anyhow = "1.0"
 walkdir = "2.5"
 blake3 = "1.5"
 rusqlite = { version = "0.32", features = ["bundled"] }
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
 clap = { version = "4.5", features = ["derive"] }
 toml = "0.8"
 nom-exif = "2.0"
 kamadak-exif = "0.6"
 rayon = "1.10"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock", "std"] }
 
 [dev-dependencies]
 tempfile = "3.13"
@@ -31,3 +31,18 @@ path = "src/main.rs"
 [lib]
 name = "avicull"
 path = "src/lib.rs"
+
+# Optimized build profiles
+[profile.dev]
+opt-level = 0
+debug = 1
+split-debuginfo = "unpacked"
+
+# Optimize third-party dependencies so image decoding & math run fast during tests
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 16
