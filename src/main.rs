@@ -45,6 +45,9 @@ enum Commands {
 
     /// Export a CSV/JSON summary of species counts and _Needs_Review items
     Report(ReportArgs),
+
+    /// Inspect status or update local eBird taxonomy and AI models cache (~/.cache/avicull/models)
+    Models(ModelsArgs),
 }
 
 #[derive(Args, Debug)]
@@ -180,6 +183,17 @@ struct ReportArgs {
     /// Output format: json, csv, or table (default: json)
     #[arg(long, default_value = "json")]
     format: String,
+}
+
+#[derive(Args, Debug)]
+struct ModelsArgs {
+    /// Action: [status | update] (default: status)
+    #[arg(default_value = "status")]
+    action: String,
+
+    /// Target cache directory (defaults to ~/.cache/avicull/models)
+    #[arg(long)]
+    cache_dir: Option<PathBuf>,
 }
 
 fn load_image_for_inference(primary: &Path, companions: &[PathBuf]) -> Result<DynamicImage> {
@@ -929,6 +943,79 @@ fn main() -> Result<()> {
                     })
                     .collect();
                 println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+        }
+
+        Commands::Models(args) => {
+            let home = std::env::var("HOME").ok();
+            let default_cache = home.map(|h| PathBuf::from(h).join(".cache/avicull/models"));
+            let cache_dir = args
+                .cache_dir
+                .or(default_cache)
+                .unwrap_or_else(|| PathBuf::from("models"));
+
+            println!("== avicull models ==");
+            println!("Avian Model & Taxonomy Cache: '{}'", cache_dir.display());
+
+            let tax_path = cache_dir.join("taxonomy.json");
+            let emb_path = cache_dir.join("species_embeddings.safetensors");
+            let manifest_path = cache_dir.join("manifest.json");
+
+            if args.action == "update" {
+                println!(
+                    "Fetching latest Cornell eBird global taxonomy and recomputing embeddings..."
+                );
+                std::fs::create_dir_all(&cache_dir)?;
+                let status = std::process::Command::new("uv")
+                    .args([
+                        "run",
+                        "--with",
+                        "torch,open-clip-torch,safetensors,ultralytics",
+                        "python3",
+                        "scripts/build_taxonomy_embeddings.py",
+                        cache_dir.to_str().unwrap(),
+                    ])
+                    .status()?;
+                if status.success() {
+                    println!(
+                        "✓ Successfully updated model and taxonomy cache in '{}'",
+                        cache_dir.display()
+                    );
+                } else {
+                    return Err(anyhow!("Failed to update models"));
+                }
+            } else {
+                let tax_status = if tax_path.exists() {
+                    let sz = std::fs::metadata(&tax_path).map(|m| m.len()).unwrap_or(0);
+                    format!("Present ({:.2} MB)", sz as f64 / 1_048_576.0)
+                } else {
+                    "Missing (run 'avicull models update' to install)".to_string()
+                };
+
+                let emb_status = if emb_path.exists() {
+                    let sz = std::fs::metadata(&emb_path).map(|m| m.len()).unwrap_or(0);
+                    format!("Present ({:.2} MB)", sz as f64 / 1_048_576.0)
+                } else {
+                    "Missing (run 'avicull models update' to install)".to_string()
+                };
+
+                println!("  - Taxonomy (taxonomy.json):             {}", tax_status);
+                println!(
+                    "  - Embeddings (species_embeddings.safetensors): {}",
+                    emb_status
+                );
+
+                if let Ok(meta) = std::fs::metadata(&manifest_path) {
+                    if let Ok(mod_time) = meta.modified() {
+                        if let Ok(dur) = mod_time.elapsed() {
+                            let days = dur.as_secs() / 86400;
+                            println!(
+                                "  - Last Updated:                         {} day(s) ago",
+                                days
+                            );
+                        }
+                    }
+                }
             }
         }
     }

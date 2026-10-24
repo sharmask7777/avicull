@@ -198,6 +198,16 @@ Removes all hard-linked files and empty species directories in the hierarchy dir
 avicull clean --input /Volumes/Photos/Leh
 ```
 
+### 7. `models`: Manage Decoupled ML & eBird Taxonomy Cache
+Inspect cache status or refresh with the latest official Cornell eBird global taxonomy and BioCLIP embeddings without rebuilding the binary:
+```bash
+# Check status and age of local models cache
+avicull models status
+
+# Fetch latest eBird taxonomy and recompute embeddings into ~/.cache/avicull/models
+avicull models update
+```
+
 ---
 
 ## Agent Guidelines & Continuous Model Updates
@@ -209,9 +219,14 @@ avicull clean --input /Volumes/Photos/Leh
 
 ## Testing & Verification
 
-Run the comprehensive unit and integration test suite:
+Run the Rust unit and filesystem integration test suite:
 ```bash
 cargo test
+```
+
+Run the Python inference and taxonomy test suite:
+```bash
+uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python
 ```
 
 Run linter and formatting checks:

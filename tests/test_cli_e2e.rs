@@ -152,3 +152,21 @@ fn test_cli_e2e_full_lifecycle() {
         "Input nlink must be restored to 1"
     );
 }
+
+#[test]
+fn test_models_cli_command_status() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["models", "status"])
+        .output()
+        .expect("failed to execute avicull models");
+
+    assert!(
+        output.status.success(),
+        "avicull models status must exit successfully"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Avian Model & Taxonomy Cache"),
+        "stdout must display cache header"
+    );
+}
