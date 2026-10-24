@@ -89,3 +89,57 @@ fn test_db_lifecycle_record_and_query() {
     assert_eq!(loaded[0].0.assigned_species_slug, "Painted_Stork");
     assert_eq!(loaded[0].1.original_stem, "DSC_4011");
 }
+
+#[test]
+fn test_update_bundle_routing_tier() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open_or_create failed");
+
+    let run_id = "run-002";
+    db.record_run(
+        run_id,
+        &PathBuf::from("/photos/Trips"),
+        &PathBuf::from("/photos/By_Species"),
+        false,
+        "{}",
+    )
+    .unwrap();
+
+    let bundle = AssetBundle {
+        bundle_id: "bundle_xyz".to_string(),
+        source_inode: 1234,
+        trip_folder_name: "Trip".to_string(),
+        original_stem: "IMG_001".to_string(),
+        primary_image: PathBuf::from("/photos/Trips/IMG_001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_xyz".to_string(),
+        burst_id: None,
+        detection_confidence: 0.85,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.60,
+        final_confidence: 0.60,
+        assigned_species_slug: "Common_Merganser".to_string(),
+        routing_tier: RoutingTier::NeedsReview, // Initially NeedsReview
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle]).unwrap();
+
+    // Verify initial routing tier
+    let initial = db.get_all_bundles(Some(run_id)).unwrap();
+    assert_eq!(initial[0].0.routing_tier, RoutingTier::NeedsReview);
+
+    // Update to ConfirmedSpecies (e.g. after relink with lower threshold)
+    db.update_bundle_routing_tier("bundle_xyz", RoutingTier::ConfirmedSpecies)
+        .unwrap();
+
+    let updated = db.get_all_bundles(Some(run_id)).unwrap();
+    assert_eq!(updated[0].0.routing_tier, RoutingTier::ConfirmedSpecies);
+}

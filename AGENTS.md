@@ -25,13 +25,16 @@ Welcome to `avicull`. This document defines the engineering standards, architect
 
 ## 2. Mandatory Engineering Methodologies
 
-### A. Test-Driven Development (TDD) is Mandatory
-- **Never write implementation code before writing tests.**
+### A. Test-Driven Development (TDD) is Mandatory & Non-Negotiable
+- **Iron Law**: **NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.**
+- Never write or edit implementation code before writing tests.
+- This rule applies equally to Rust core code, CLI options, Python inference scripts, and data pipeline helpers.
 - **Workflow**:
-  1. Write failing unit/integration tests that define the expected behavior.
-  2. Run `cargo test` and confirm the tests fail for the intended reason.
-  3. Write the minimal implementation code to make tests pass.
-  4. Refactor and ensure all 27+ existing tests remain green.
+  1. **RED**: Write a failing unit or integration test that reproduces the defect, tests the edge case, or defines the new behavior.
+  2. **Verify Failure**: Run `cargo test` (or `pytest`) and verify the test fails for the expected reason. Do not proceed until you have observed the failure.
+  3. **GREEN**: Write the minimal implementation code necessary to make the test pass.
+  4. **Verify Green**: Re-run the test suite and confirm the new test passes and all existing tests stay green.
+  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy -- -D warnings`), and document while keeping all tests passing.
 
 ### B. Multi-Pronged Testing Strategy
 Every pull request or enhancement must be verified across four distinct tiers:

@@ -138,3 +138,58 @@ fn test_burst_split_when_camera_pans_to_different_bird() {
         "Streak-throated_Swallow"
     );
 }
+
+#[test]
+fn test_burst_consensus_fallback_when_winner_not_in_frame_posteriors() {
+    let mut items = Vec::new();
+    let embedding = vec![1.0; 512];
+
+    // Frame 0: Strongly predicts Chukar (0.95)
+    items.push(ClassifiedBundleItem {
+        bundle_id: "b0".to_string(),
+        trip_folder: "Trip".to_string(),
+        capture_timestamp_ms: Some(1000),
+        detection_confidence: 0.95,
+        bbox_norm: None,
+        embedding: embedding.clone(),
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "chukar1".to_string(),
+            common_name: "Chukar".to_string(),
+            folder_slug: "Chukar".to_string(),
+            scientific_name: "Alectoris chukar".to_string(),
+            visual_prob: 0.95,
+            geo_prior: 1.0,
+            combined_score: 0.95,
+        }],
+        posteriors: vec![("chukar1".to_string(), 0.95)],
+    });
+
+    // Frame 1: 100ms later in same burst, but top predictions were noisy and didn't include chukar1
+    items.push(ClassifiedBundleItem {
+        bundle_id: "b1".to_string(),
+        trip_folder: "Trip".to_string(),
+        capture_timestamp_ms: Some(1100),
+        detection_confidence: 0.40,
+        bbox_norm: None,
+        embedding: embedding.clone(),
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "noisy1".to_string(),
+            common_name: "Unknown".to_string(),
+            folder_slug: "Unknown".to_string(),
+            scientific_name: "Unknown sp".to_string(),
+            visual_prob: 0.30,
+            geo_prior: 1.0,
+            combined_score: 0.30,
+        }],
+        posteriors: vec![("noisy1".to_string(), 0.30)], // chukar1 is completely absent
+    });
+
+    let decisions = smooth_burst_consensus(&items, 3000, 0.80, ConfidenceMode::PerFrame, 0.65);
+    assert_eq!(decisions.len(), 2);
+    // Frame 0 has chukar1 with 0.95
+    assert_eq!(decisions[0].assigned_species_slug, "Chukar");
+    assert_eq!(decisions[0].final_confidence, 0.95);
+    // Frame 1 was smoothed to Chukar, but under PerFrame mode fallback to 0.0 because chukar1 is not in its posteriors
+    assert_eq!(decisions[1].assigned_species_slug, "Chukar");
+    assert_eq!(decisions[1].final_confidence, 0.0);
+}

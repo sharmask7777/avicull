@@ -445,6 +445,86 @@ fn run_fallback_parallel_classification(
         .collect()
 }
 
+fn resolve_or_prompt_models_dir(requested: Option<PathBuf>) -> Result<Option<PathBuf>> {
+    if let Some(r) = requested {
+        return Ok(Some(r));
+    }
+
+    // 1. Check local ./models
+    let local_models = PathBuf::from("models");
+    if local_models.join("species_embeddings.safetensors").exists() {
+        return Ok(Some(local_models));
+    }
+
+    // 2. Check persistent user cache ~/.cache/avicull/models
+    let home = std::env::var("HOME").ok();
+    let cache_dir = home.map(|h| PathBuf::from(h).join(".cache/avicull/models"));
+    if let Some(ref c_dir) = cache_dir {
+        if c_dir.join("species_embeddings.safetensors").exists() {
+            // Check periodic update age (30 days)
+            let manifest_path = c_dir.join("manifest.json");
+            if let Ok(meta) = std::fs::metadata(&manifest_path) {
+                if let Ok(modified) = meta.modified() {
+                    if let Ok(elapsed) = modified.elapsed() {
+                        if elapsed.as_secs() > 30 * 86400 {
+                            println!(
+                                "[avicull] Note: Model cache is over 30 days old. You can update the eBird taxonomy anytime."
+                            );
+                        }
+                    }
+                }
+            }
+            return Ok(Some(c_dir.clone()));
+        }
+    }
+
+    // 3. Prompt user if interactive or in terminal
+    if let Some(ref c_dir) = cache_dir {
+        use std::io::{self, Write};
+        print!(
+            "\n[avicull] Avian neural weights and 11,000-species eBird taxonomy (~30 MB) not found in cache.\nWould you like to download & initialize them into '{}' now? [Y/n]: ",
+            c_dir.display()
+        );
+        let _ = io::stdout().flush();
+
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_ok() {
+            let choice = input.trim().to_lowercase();
+            if choice.is_empty() || choice == "y" || choice == "yes" {
+                println!(
+                    "[avicull] Initializing eBird taxonomy & BioCLIP embeddings on Apple Silicon GPU..."
+                );
+                std::fs::create_dir_all(c_dir)?;
+                let status = std::process::Command::new("uv")
+                    .args([
+                        "run",
+                        "--with",
+                        "torch,open-clip-torch,safetensors,ultralytics",
+                        "python3",
+                        "scripts/build_taxonomy_embeddings.py",
+                        c_dir.to_str().unwrap(),
+                    ])
+                    .status()?;
+                if status.success() {
+                    println!(
+                        "[avicull] ✓ Models successfully installed to '{}' and ready for reuse across all future runs.",
+                        c_dir.display()
+                    );
+                    return Ok(Some(c_dir.clone()));
+                } else {
+                    eprintln!(
+                        "[avicull] Warning: Failed to download models. Falling back to mock classifier."
+                    );
+                }
+            } else {
+                println!("[avicull] Skipping model download. Falling back to mock classifier.");
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -571,13 +651,7 @@ fn main() -> Result<()> {
             let conf_mode: ConfidenceMode =
                 args.confidence_mode.parse().map_err(|e| anyhow!("{}", e))?;
 
-            let models_dir = args.models_dir.or_else(|| {
-                if Path::new("models").exists() {
-                    Some(PathBuf::from("models"))
-                } else {
-                    None
-                }
-            });
+            let models_dir = resolve_or_prompt_models_dir(args.models_dir)?;
 
             // Initialize models only if we have new bundles to process
             let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = models_dir {

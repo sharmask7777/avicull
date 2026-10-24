@@ -152,21 +152,26 @@ pub fn materialize_bundle_hardlinks(
         let mut status = "planned".to_string();
         let mut counter = 1;
 
+        let base_stem = dst_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("file")
+            .to_string();
+        let base_ext = dst_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_string());
+
         while dst_path.exists() {
             if let Ok(dst_meta) = fs::metadata(&dst_path) {
                 if dst_meta.ino() == src_ino {
                     status = "already_linked".to_string();
                     break;
                 } else {
-                    // Different file with same name: append numbered counter
-                    let stem = dst_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("file");
-                    let ext = dst_path.extension().and_then(|e| e.to_str());
-                    let new_name = match ext {
-                        Some(e) => format!("{}_{}.{}", stem, counter, e),
-                        None => format!("{}_{}", stem, counter),
+                    // Different file with same name: append clean numbered counter from base
+                    let new_name = match &base_ext {
+                        Some(e) => format!("{}_{}.{}", base_stem, counter, e),
+                        None => format!("{}_{}", base_stem, counter),
                     };
                     dst_path = target_dir.join(new_name);
                     counter += 1;

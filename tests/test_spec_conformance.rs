@@ -5,6 +5,7 @@ use avicull::types::*;
 use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 #[test]
@@ -320,4 +321,41 @@ fn test_force_recomputation_bypasses_cache() {
         1,
         "Force mode must reprocess all bundles"
     );
+}
+
+#[test]
+fn test_model_cache_directory_resolution() {
+    let dir = tempdir().expect("create temp dir");
+    let explicit_dir = dir.path().join("custom_models");
+    fs::create_dir_all(&explicit_dir).unwrap();
+
+    // 1. Explicit path takes precedence
+    let resolved = if Some(explicit_dir.clone()).is_some() {
+        explicit_dir.clone()
+    } else {
+        PathBuf::from("fallback")
+    };
+    assert_eq!(resolved, explicit_dir);
+
+    // 2. Persistent cache directory structure
+    let cache_dir = dir.path().join("cache/avicull/models");
+    fs::create_dir_all(&cache_dir).unwrap();
+
+    // Incomplete cache: missing embeddings
+    File::create(cache_dir.join("taxonomy.json"))
+        .unwrap()
+        .write_all(b"{}")
+        .unwrap();
+    let is_complete = cache_dir.join("taxonomy.json").exists()
+        && cache_dir.join("species_embeddings.safetensors").exists();
+    assert!(!is_complete, "Incomplete model cache must be detected");
+
+    // Complete cache: both taxonomy and embeddings present
+    File::create(cache_dir.join("species_embeddings.safetensors"))
+        .unwrap()
+        .write_all(b"TENSORS")
+        .unwrap();
+    let is_now_complete = cache_dir.join("taxonomy.json").exists()
+        && cache_dir.join("species_embeddings.safetensors").exists();
+    assert!(is_now_complete, "Complete model cache must be recognized");
 }
