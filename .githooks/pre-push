@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -e
+
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "\n${BOLD}${BLUE}==============================================${NC}"
+echo -e "${BOLD}${BLUE}  avicull Pre-Push Verification Suite         ${NC}"
+echo -e "${BOLD}${BLUE}==============================================${NC}\n"
+
+# 1. Rust Code Formatting
+echo -e "${BOLD}[1/4] Checking Rust code formatting (cargo fmt)...${NC}"
+if cargo fmt --check; then
+    echo -e "${GREEN}✓ cargo fmt passed.${NC}\n"
+else
+    echo -e "${RED}✗ cargo fmt failed. Run 'cargo fmt' to fix.${NC}\n"
+    exit 1
+fi
+
+# 2. Rust Linter (Clippy)
+echo -e "${BOLD}[2/4] Running Rust linter (cargo clippy -- -D warnings)...${NC}"
+if cargo clippy -- -D warnings; then
+    echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
+else
+    echo -e "${RED}✗ cargo clippy reported warnings or errors.${NC}\n"
+    exit 1
+fi
+
+# 3. Rust Unit, Integration & E2E Tests
+echo -e "${BOLD}[3/4] Running Rust unit, integration & E2E tests (cargo test)...${NC}"
+if cargo test; then
+    echo -e "${GREEN}✓ cargo test passed (all Rust unit & E2E tests green).${NC}\n"
+else
+    echo -e "${RED}✗ cargo test failed.${NC}\n"
+    exit 1
+fi
+
+# 4. Python Unit & Inference Tests
+echo -e "${BOLD}[4/4] Running Python unit & inference tests (tests_python)...${NC}"
+if uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python; then
+    echo -e "${GREEN}✓ Python test suite passed.${NC}\n"
+else
+    echo -e "${RED}✗ Python tests failed.${NC}\n"
+    exit 1
+fi
+
+echo -e "${BOLD}${GREEN}==============================================${NC}"
+echo -e "${BOLD}${GREEN}  All Pre-Push Verifications Succeeded!       ${NC}"
+echo -e "${BOLD}${GREEN}==============================================${NC}\n"
+exit 0
