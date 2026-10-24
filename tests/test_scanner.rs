@@ -4,22 +4,31 @@ use std::io::Write;
 use tempfile::tempdir;
 
 #[test]
-fn test_validate_volume_and_disjointness_nested_rejected() {
+fn test_validate_volume_and_disjointness_same_dir_or_input_inside_output_rejected() {
     let dir = tempdir().expect("create temp dir");
-    let input = dir.path().join("trips");
-    let output = input.join("by_species"); // output nested inside input!
+    let output = dir.path().join("output_root");
+    let input = output.join("trips"); // input nested inside output!
 
     fs::create_dir_all(&input).unwrap();
     fs::create_dir_all(&output).unwrap();
 
     let res = validate_volume_and_disjointness(&input, &output);
-    assert!(res.is_err(), "Nested output inside input must fail");
-    let err_msg = res.unwrap_err().to_string();
-    assert!(
-        err_msg.contains("ancestor") || err_msg.contains("nested"),
-        "Unexpected error: {}",
-        err_msg
-    );
+    assert!(res.is_err(), "Input nested inside output must fail");
+
+    // Also identical input and output must fail
+    let res_same = validate_volume_and_disjointness(&input, &input);
+    assert!(res_same.is_err(), "Identical input and output must fail");
+}
+
+#[test]
+fn test_validate_volume_and_disjointness_nested_output_subdir_allowed() {
+    let dir = tempdir().expect("create temp dir");
+    let input = dir.path().join("trips");
+    let output = input.join("birds_hierarchy"); // output subfolder inside input
+
+    fs::create_dir_all(&input).unwrap();
+    let res = validate_volume_and_disjointness(&input, &output);
+    assert!(res.is_ok(), "Subdirectory output inside input must succeed");
 }
 
 #[test]

@@ -360,4 +360,16 @@ impl ManifestDb {
 
         Ok(results)
     }
+
+    /// Returns a map of bundle_id -> (BundleDecision, AssetBundle) of all previously recorded bundles.
+    pub fn get_existing_bundle_map(
+        &self,
+    ) -> Result<std::collections::HashMap<String, (BundleDecision, AssetBundle)>> {
+        let all = self.get_all_bundles(None)?;
+        let mut map = std::collections::HashMap::new();
+        for (dec, bundle) in all {
+            map.insert(bundle.bundle_id.clone(), (dec, bundle));
+        }
+        Ok(map)
+    }
 }

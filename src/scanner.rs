@@ -37,13 +37,14 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
         .canonicalize()
         .with_context(|| format!("Failed to canonicalize output path: {}", output.display()))?;
 
-    // Disjointness check
-    if can_output.starts_with(&can_input) {
-        return Err(crate::types::AvicullError::NestedPathDisjointness {
-            nested: can_output,
-            parent: can_input,
-        }
-        .into());
+    // Disjointness check:
+    // Output cannot be identical to input, and input cannot be nested inside output
+    if can_output == can_input {
+        return Err(anyhow!(
+            "Output directory '{}' cannot be the same as input directory '{}'. Paths must be distinct.",
+            can_output.display(),
+            can_input.display()
+        ));
     }
     if can_input.starts_with(&can_output) {
         return Err(crate::types::AvicullError::NestedPathDisjointness {
@@ -121,12 +122,23 @@ pub fn decompose_filename(filename: &str) -> Option<(String, bool)> {
 
 /// Scans the input tree recursively and groups related photo and sidecar files into `AssetBundle`s.
 pub fn scan_input_tree(input_dir: &Path) -> Result<Vec<AssetBundle>> {
+    scan_input_tree_with_skip(input_dir, None)
+}
+
+/// Recursively traverses input directory, skipping hidden directories, `.avicull`,
+/// `birds_hierarchy`, `*.photoslibrary`, and any designated output skip directory.
+pub fn scan_input_tree_with_skip(
+    input_dir: &Path,
+    skip_dir: Option<&Path>,
+) -> Result<Vec<AssetBundle>> {
     let can_input = input_dir.canonicalize().with_context(|| {
         format!(
             "Failed to canonicalize input directory: {}",
             input_dir.display()
         )
     })?;
+
+    let can_skip = skip_dir.and_then(|p| p.canonicalize().ok());
 
     // Group files by (canonical_dir, stem_lowercase)
     struct GroupAcc {
@@ -143,8 +155,19 @@ pub fn scan_input_tree(input_dir: &Path) -> Result<Vec<AssetBundle>> {
         .into_iter()
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
-            if name.starts_with('.') || name == "@eaDir" {
+            if name.starts_with('.')
+                || name == "@eaDir"
+                || name == "birds_hierarchy"
+                || name.ends_with(".photoslibrary")
+            {
                 return false;
+            }
+            if let Some(ref skip) = can_skip {
+                if let Ok(entry_path) = entry.path().canonicalize() {
+                    if &entry_path == skip || entry_path.starts_with(skip) {
+                        return false;
+                    }
+                }
             }
             true
         });
