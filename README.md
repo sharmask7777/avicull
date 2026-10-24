@@ -297,4 +297,4 @@ cargo clippy -- -D warnings
 ---
 
 ## License
-MIT
+GNU General Public License v3.0 (GPL-3.0-or-later). See [LICENSE](LICENSE) for details.
