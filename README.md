@@ -16,6 +16,41 @@ The architecture combines the multi-stage detection and transactional manifest d
 
 ---
 
+## Filesystem Portability & Backup Nuances (UNIX, NTFS, & the exFAT Trap)
+
+### 1. Inode Hard Link Extensibility to UNIX & Linux
+The inode hard link mechanism in `avicull` relies on the standard POSIX `link(2)` system call (`std::fs::hard_link`). This is **not an APFS-specific feature**; it is universally supported by the Virtual Filesystem (VFS) layer of all POSIX-compliant UNIX and Linux operating systems:
+- **Fully Supported Native Filesystems**: **ext4, Btrfs, XFS, ZFS, F2FS, UFS, and HFS+**. Directory entries map to an existing inode number (`st_ino`), incrementing `st_nlink` with 0 additional disk payload.
+- **Network Storage (NAS)**:
+  - **NFS (v3/v4)**: Supports hard links within the same export/mount point.
+  - **SMB / CIFS**: Supported when backing Samba servers have UNIX extensions enabled.
+- **The Invariant (`EXDEV`)**: A hard link can **never cross filesystem boundaries or mount points** (`EXDEV: Cross-device link`) because inode numbers are only unique within a specific filesystem instance (`st_dev`).
+
+### 2. Copying to NTFS (Windows)
+**NTFS natively supports hard links** (via the Master File Table / MFT record reference count, supporting up to 1,024 links per file):
+- **The Copy Trap**: Dragging and dropping in macOS Finder or running a standard `cp -r` treats each link as an independent file and will **duplicate all payload bytes** on the target NTFS drive (e.g., 50 GB expands to 100 GB).
+- **How to Copy Preserving Zero-Byte Hard Links**:
+  Use `rsync` with the `-H` (`--hard-links`) flag:
+  ```bash
+  rsync -avH /Volumes/Photos/Leh /Volumes/NTFS_Drive/Photos/
+  ```
+  `rsync -H` tracks source inodes and reconstructs native hard links on the destination NTFS volume without duplicating bytes. Alternatively, pipe POSIX `tar`:
+  ```bash
+  tar -cf - -C /Volumes/Photos Leh | tar -xf - -C /Volumes/NTFS_Drive/Photos/
+  ```
+  Or run `avicull organize` directly against the mounted NTFS volume (using a writable NTFS driver like NTFS-3G or Paragon).
+
+### 3. Crucial Warning for Photographers: The exFAT Trap
+Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards come formatted as **exFAT** out of the box for cross-platform plug-and-play compatibility.
+- **exFAT does NOT support hard links** (no inode table or link reference counts).
+- If you copy a `birds_hierarchy` to an exFAT drive, every hard link will inflate into a duplicate physical file, doubling disk consumption.
+- **Rule of Thumb**:
+  - Keep Mac drives formatted as **APFS**.
+  - For Windows-compatible external drives with zero-byte links, format as **NTFS** and transfer with `rsync -avH`.
+
+
+---
+
 ## Target Transformation
 
 ### Input State (Immutable Trip-Based Directory Tree)

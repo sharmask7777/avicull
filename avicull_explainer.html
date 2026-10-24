@@ -108,6 +108,12 @@
       border: 1px solid rgba(6, 182, 212, 0.3);
     }
 
+    .brand-text .badge-ebird {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-bird);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
     .brand-text p {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -274,22 +280,22 @@
     .scene-timeline {
       display: flex;
       align-items: center;
-      max-width: 1200px;
+      max-width: 1300px;
       margin: 0 auto;
-      gap: 0.5rem;
+      gap: 0.45rem;
       list-style: none;
     }
 
     .step-item {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 0.7rem;
+      gap: 0.45rem;
+      padding: 0.35rem 0.65rem;
       border-radius: 20px;
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-dim);
-      font-size: 0.75rem;
+      font-size: 0.74rem;
       font-weight: 500;
       cursor: pointer;
       white-space: nowrap;
@@ -508,7 +514,7 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1rem;
-      min-width: 170px;
+      min-width: 155px;
       text-align: center;
       position: relative;
       transition: all 0.3s;
@@ -587,12 +593,6 @@
       background: rgba(16, 185, 129, 0.15);
       border: 1px solid rgba(16, 185, 129, 0.4);
       color: #34d399;
-    }
-
-    .tree-line.parent-link {
-      background: rgba(6, 182, 212, 0.15);
-      border: 1px solid rgba(6, 182, 212, 0.4);
-      color: #38bdf8;
     }
 
     .inode-chip {
@@ -756,6 +756,93 @@
       border-radius: 2px;
     }
 
+    /* Cache Hierarchy Diagram */
+    .cache-hierarchy {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .cache-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .cache-card.primary {
+      border-color: var(--accent-bird);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+    }
+
+    .cache-card-priority {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .cache-card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 0.3rem 0;
+    }
+
+    .cache-card-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Filesystem Portability Matrix */
+    .fs-matrix {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .fs-card {
+      background: #0d1424;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-size: 0.78rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .fs-card.supported {
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .fs-card.caution {
+      border-color: rgba(245, 158, 11, 0.5);
+    }
+
+    .fs-card.unsupported {
+      border-color: rgba(244, 63, 94, 0.5);
+    }
+
+    .fs-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.2rem;
+    }
+
+    .fs-card-name {
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.82rem;
+    }
+
     /* Bottom Sticky Narration & Playback Bar */
     .narration-bar {
       position: fixed;
@@ -845,7 +932,7 @@
       background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      max-width: 750px;
+      max-width: 780px;
       width: 100%;
       max-height: 80vh;
       overflow-y: auto;
@@ -878,6 +965,8 @@
     @media (max-width: 900px) {
       .perspective-grid { grid-template-columns: 1fr; }
       .inode-viz { grid-template-columns: 1fr; }
+      .cache-hierarchy { grid-template-columns: 1fr; }
+      .fs-matrix { grid-template-columns: 1fr; }
       header { flex-wrap: wrap; }
       .audio-controls { margin-left: auto; }
       .subtitle-box { display: none; }
@@ -895,8 +984,8 @@
         </svg>
       </div>
       <div class="brand-text">
-        <h1>avicull <span class="badge">Apple Silicon • Rust</span></h1>
-        <p>Local AI Bird Photo Organizer & APFS Hard-Link Engine</p>
+        <h1>avicull <span class="badge">Apple Silicon • Rust</span> <span class="badge badge-ebird">11,167 eBird Species</span></h1>
+        <p>Local AI Bird Photo Organizer, Decoupled Cache & APFS Hard-Link Engine</p>
       </div>
     </div>
 
@@ -955,7 +1044,7 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 1 of 8 • Overview</span>
+            <span class="scene-tag">Scene 1 of 9 • Overview</span>
             <span class="scene-duration">⏱ ~65 sec audio</span>
           </div>
           <h2 class="scene-title">The Avian Photo Crisis & The Zero-Byte Solution</h2>
@@ -988,7 +1077,7 @@
             <ul>
               <li><strong>Strict Source Immutability:</strong> The input trip directory (<code>--input</code>) is strictly read-only. Source files are never moved, renamed, or modified.</li>
               <li><strong>APFS Zero-Byte Hard Links:</strong> Projects files into species folders using POSIX hard links (<code>std::fs::hard_link</code>), pointing to the identical disk inode.</li>
-              <li><strong>Neural Pipeline:</strong> Multi-stage YOLO11m detector + BioCLIP 2 vision embeddings + SINR spatio-temporal Bayesian prior.</li>
+              <li><strong>Decoupled Neural Pipeline:</strong> Multi-stage YOLO11m detector + BioCLIP 2 vision embeddings + SINR spatio-temporal prior against 11,167 eBird species.</li>
             </ul>
           </div>
         </div>
@@ -1019,7 +1108,7 @@
           <div class="pipeline-node">
             <div class="node-icon">🧬</div>
             <div class="node-title">BioCLIP + SINR</div>
-            <div class="node-subtitle">Bayesian Geo-Prior</div>
+            <div class="node-subtitle">11,167 eBird Species</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node">
@@ -1037,16 +1126,16 @@
       </div>
     </section>
 
-    <!-- SCENE 2: APFS Inodes & Zero-Byte Projection -->
+    <!-- SCENE 2: Inode Magic, UNIX Extensibility & The exFAT Trap -->
     <section class="scene-slide" id="scene-1" data-index="1">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 2 of 8 • Core Invariant</span>
-            <span class="scene-duration">⏱ ~70 sec audio</span>
+            <span class="scene-tag">Scene 2 of 9 • Core Invariant & Portability</span>
+            <span class="scene-duration">⏱ ~85 sec audio</span>
           </div>
-          <h2 class="scene-title">The APFS Inode Magic: Zero-Byte Projections</h2>
-          <p class="scene-desc">How POSIX hard links allow your photos to live in two (or three!) places at once without eating up any additional storage space.</p>
+          <h2 class="scene-title">The Inode Magic: Zero-Byte Projections, UNIX & The exFAT Trap</h2>
+          <p class="scene-desc">How POSIX hard links extend across UNIX filesystems and Windows NTFS—and the critical storage trap every photographer must know before copying to external drives.</p>
         </div>
       </div>
 
@@ -1054,29 +1143,31 @@
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
             <h3><span>🔭</span> For the Photographer</h3>
-            <span class="pill pill-green">Storage Freedom</span>
+            <span class="pill pill-green">Storage & Portability</span>
           </div>
           <div class="perspective-card-body">
             Normally, duplicating a 50MB Sony or Canon RAW file into another folder costs another 50MB.
             With <code>avicull</code>, opening the photo from <code>Trips/Bharatpur/DSC_4011.CR2</code> or from <code>birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2</code> opens the <em>exact same physical bits</em> on your Mac's SSD!
             <ul>
-              <li>Edits in your original .XMP sidecar stay automatically connected.</li>
-              <li>You can even organize an individual trip folder and your entire photo archive simultaneously!</li>
+              <li>Edits in your original .XMP sidecar stay automatically connected across both locations.</li>
+              <li>You can organize an individual trip folder and your entire photo archive simultaneously!</li>
+              <li><strong>⚠️ The exFAT Danger:</strong> Most portable SSDs (SanDisk, Samsung T7) come formatted as <strong>exFAT</strong> for Mac/PC plug-and-play. But exFAT does <em>not</em> support hard links! Drag-and-drop copying to exFAT doubles your storage footprint. Keep external Mac drives formatted as <strong>APFS</strong>, or format as <strong>NTFS</strong> and use <code>rsync -avH</code>!</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> Under The Hood: POSIX Inodes</h3>
-            <span class="pill pill-blue">APFS & Inode Math</span>
+            <h3><span>⚡</span> Under The Hood: POSIX Inodes & NTFS</h3>
+            <span class="pill pill-blue">VFS & Filesystem Internals</span>
           </div>
           <div class="perspective-card-body">
-            APFS implements directory entries as pointers to inode metadata records:
+            Hard links are a universal POSIX VFS concept (<code>link(2)</code>), not unique to APFS:
             <ul>
-              <li><code>std::fs::hard_link(src, dst)</code> creates an additional directory entry sharing <code>st_ino</code>.</li>
-              <li>The inode's reference counter <code>st_nlink</code> increments from 1 to 2 (or 3 in multi-level hierarchies). Disk payload allocated: <strong>0 bytes</strong>.</li>
-              <li><strong>Preflight Safety:</strong> <code>avicull</code> checks <code>st_dev</code> upfront. If input and output are on different volumes, it halts before running AI inference to avoid mid-run <code>EXDEV</code> errors.</li>
+              <li><strong>UNIX Extensibility:</strong> ext4, Btrfs, XFS, ZFS, F2FS, and UFS all implement directory entries as mappings to an inode number (<code>st_ino</code>), incrementing <code>st_nlink</code> with <strong>0 additional disk payload</strong>.</li>
+              <li><strong>NTFS Support:</strong> Windows NTFS natively supports hard links via Master File Table (MFT) record reference counts (up to 1,024 links per file).</li>
+              <li><strong>The Copy Trap:</strong> Standard <code>cp -r</code> or macOS Finder reads each dentry as a new file, inflating links into duplicates. To preserve zero-byte links across drives, use <code>rsync -avH</code> (which maintains an in-memory inode map to hard-link on destination) or pipe <code>tar</code>.</li>
+              <li><strong>The `EXDEV` Boundary:</strong> Hard links can never cross filesystem devices (<code>st_dev</code> mismatch).</li>
             </ul>
           </div>
         </div>
@@ -1143,6 +1234,48 @@
             </div>
           </div>
         </div>
+
+        <!-- Filesystem Portability Matrix -->
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.5rem;">
+          Cross-Filesystem Portability & Backup Compatibility Matrix
+        </h4>
+        <div class="fs-matrix">
+          <div class="fs-card supported">
+            <div class="fs-card-head">
+              <span class="fs-card-name">APFS (macOS Native)</span>
+              <span class="pill pill-green">Native</span>
+            </div>
+            <div style="color:#34d399; font-weight:600;">Zero-Byte Hard Links</div>
+            <p style="color:var(--text-muted);">Default target for avicull. Directory entries share <code>st_ino</code>. Up to 2^31 links per inode.</p>
+          </div>
+
+          <div class="fs-card supported">
+            <div class="fs-card-head">
+              <span class="fs-card-name">ext4 / Btrfs / ZFS (Linux)</span>
+              <span class="pill pill-green">Full POSIX</span>
+            </div>
+            <div style="color:#34d399; font-weight:600;">link(2) VFS Architecture</div>
+            <p style="color:var(--text-muted);">Fully supported. Extensible to Linux workstations, NAS (NFSv4), and SAN storage without payload duplication.</p>
+          </div>
+
+          <div class="fs-card caution">
+            <div class="fs-card-head">
+              <span class="fs-card-name">NTFS (Windows)</span>
+              <span class="pill pill-yellow">Requires rsync -H</span>
+            </div>
+            <div style="color:#fbbf24; font-weight:600;">MFT Record Hard Links</div>
+            <p style="color:var(--text-muted);">NTFS natively supports hard links (max 1,024). Copying via Finder inflates files; use <code>rsync -avH</code> or <code>tar</code> pipe to preserve links!</p>
+          </div>
+
+          <div class="fs-card unsupported">
+            <div class="fs-card-head">
+              <span class="fs-card-name">exFAT / FAT32</span>
+              <span class="pill" style="background:rgba(244,63,94,0.2); color:#f43f5e;">No Hard Links</span>
+            </div>
+            <div style="color:#f43f5e; font-weight:600;">Inflates to Duplicates</div>
+            <p style="color:var(--text-muted);">Common format on portable SSDs & SD cards. Has no inode table. Copying here doubles storage!</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -1151,7 +1284,7 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 3 of 8 • Discovery & Geo</span>
+            <span class="scene-tag">Scene 3 of 9 • Discovery & Geo</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
           <h2 class="scene-title">Stage 1 & 2: Discovery, RAW Previews & Location Fallbacks</h2>
@@ -1224,7 +1357,7 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 4 of 8 • Detection</span>
+            <span class="scene-tag">Scene 4 of 9 • Detection</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
           <h2 class="scene-title">Stage 3: Ultralytics YOLO11 & 15% Context Padding</h2>
@@ -1311,16 +1444,16 @@
       </div>
     </section>
 
-    <!-- SCENE 5: Stage 4 - BioCLIP 2 & SINR Bayesian Prior -->
+    <!-- SCENE 5: Stage 4 - BioCLIP 2 & SINR Bayesian Prior across 11,167 Species -->
     <section class="scene-slide" id="scene-4" data-index="4">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 5 of 8 • AI & Bayesian Math</span>
+            <span class="scene-tag">Scene 5 of 9 • AI & Bayesian Math</span>
             <span class="scene-duration">⏱ ~85 sec audio</span>
           </div>
-          <h2 class="scene-title">Stage 4: BioCLIP 2 Visuals + SINR Spatio-Temporal Prior</h2>
-          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors eliminate out-of-range false positives.</p>
+          <h2 class="scene-title">Stage 4: BioCLIP 2 + SINR Prior Across 11,167 Species</h2>
+          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors eliminate out-of-range false positives across global eBird taxonomy.</p>
         </div>
       </div>
 
@@ -1346,7 +1479,7 @@
             <span class="pill pill-blue">Probabilistic Formulation</span>
           </div>
           <div class="perspective-card-body">
-            We fuse multimodal embeddings with neural range estimation (ICML 2023):
+            We fuse multimodal embeddings with neural range estimation (ICML 2023) across 11,167 precomputed species embeddings:
             <ul>
               <li><strong>BioCLIP 2:</strong> Computes $L_2$-normalized image vector $v \in \mathbb{R}^d$ and temperature-scaled logits over precomputed taxonomic text matrix $T$:
                 <div class="formula-box">P_vis(s | I) = softmax(τ · v T^T)_s</div>
@@ -1418,7 +1551,7 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 6 of 8 • Burst Engine</span>
+            <span class="scene-tag">Scene 6 of 9 • Burst Engine</span>
             <span class="scene-duration">⏱ ~80 sec audio</span>
           </div>
           <h2 class="scene-title">Stage 5: Burst Consensus Smoothing (Anti-Flicker)</h2>
@@ -1535,7 +1668,7 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 7 of 8 • Storage & DB</span>
+            <span class="scene-tag">Scene 7 of 9 • Storage & DB</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
           <h2 class="scene-title">Stage 6: Routing Tiers, Collisions & Instant Relink</h2>
@@ -1569,7 +1702,7 @@
             All operations are backed by <code>.avicull/manifest.sqlite</code>:
             <ul>
               <li><strong>Cross-Trip Collision Handling:</strong> If two different cameras or trips named a file <code>DSC_4011.JPG</code>, avicull detects differing inodes and prefixes the trip: <code>Leh__DSC_4011_0.94.JPG</code>.</li>
-              <li><strong>Idempotency:</strong> Re-running <code>organize</code> skips existing inodes with zero duplicate work.</li>
+              <li><strong>Idempotency & Force:</strong> Re-running <code>organize</code> reuses cached predictions. Pass <code>--force</code> to bypass SQLite cache and recompute predictions completely.</li>
               <li><strong>Instant Relink:</strong> Reads cached predictions from SQLite and executes filesystem <code>unlink()</code> and <code>hard_link()</code> in milliseconds without loading neural nets.</li>
             </ul>
           </div>
@@ -1615,30 +1748,109 @@
       </div>
     </section>
 
-    <!-- SCENE 8: How to Use It - Interactive CLI Simulator -->
+    <!-- SCENE 8: Decoupled AI Models & 11,167-Species eBird Taxonomy -->
     <section class="scene-slide" id="scene-7" data-index="7">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 8 of 8 • Hands-On CLI</span>
-            <span class="scene-duration">⏱ ~80 sec audio</span>
+            <span class="scene-tag">Scene 8 of 9 • Models & Taxonomy</span>
+            <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
-          <h2 class="scene-title">How to Use avicull: CLI & Complete Workflow</h2>
-          <p class="scene-desc">Building the binary, exporting models, running your first organization, generating reports, and rolling back safely.</p>
+          <h2 class="scene-title">`avicull models`: Decoupled System Cache & eBird Taxonomy</h2>
+          <p class="scene-desc">Separating heavy neural weights and the 11,167-species global eBird taxonomy from the binary into a shared, auto-updating cache.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> 3 Simple Commands for Photographers</h3>
+            <h3><span>🔭</span> Global eBird Coverage (11,167 Birds)</h3>
+            <span class="pill pill-green">Official Cornell Data</span>
+          </div>
+          <div class="perspective-card-body">
+            You are never locked into outdated bird names or limited regional species lists:
+            <ul>
+              <li><strong>Official Cornell eBird API:</strong> Includes 11,167 species worldwide—from Keoladeo to Costa Rica, Antarctica to Alaska.</li>
+              <li><strong>One-Command Updates:</strong> Run <code>avicull models update</code> anytime ornithologists split or lump species to refresh your database in seconds.</li>
+              <li><strong>Shared Machine Cache:</strong> Downloaded weights live in <code>~/.cache/avicull/models</code>, shared by all photo folders without re-downloading.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> SafeTensors & 3-Tier Cache Resolver</h3>
+            <span class="pill pill-blue">Zero-Shot Text Projection</span>
+          </div>
+          <div class="perspective-card-body">
+            <code>src/main.rs</code> and <code>scripts/build_taxonomy_embeddings.py</code> decouple weights cleanly:
+            <ul>
+              <li><strong>BioCLIP Text Embeddings:</strong> Encodes prompts (<code>"a photo of a {common} ({scientific}), a type of bird."</code>) into $L_2$-normalized 512-dim vectors on Apple Silicon Metal (<code>mps</code>), stored in a compact 23MB <code>species_embeddings.safetensors</code>.</li>
+              <li><strong>3-Tier Resolution:</strong> <code>--models-dir &lt;PATH&gt;</code> ➔ <code>./models/</code> ➔ <code>~/.cache/avicull/models/</code>.</li>
+              <li><strong>Automatic Maintenance:</strong> <code>avicull models status</code> inspects cache sizes, and alerts you if the cache is older than 30 days.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cache Hierarchy Diagram -->
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
+          Decoupled Model Cache Architecture & Resolution Cascade
+        </h4>
+        <div class="cache-hierarchy">
+          <div class="cache-card">
+            <div class="cache-card-priority">Priority 1</div>
+            <div class="cache-card-title">--models-dir &lt;PATH&gt;</div>
+            <div class="cache-card-desc">Explicit command-line override for air-gapped or customized models.</div>
+          </div>
+          <div class="cache-card">
+            <div class="cache-card-priority">Priority 2</div>
+            <div class="cache-card-title">./models/</div>
+            <div class="cache-card-desc">Local project models folder for development or offline testing.</div>
+          </div>
+          <div class="cache-card primary">
+            <div class="cache-card-priority">Priority 3 (Default)</div>
+            <div class="cache-card-title">~/.cache/avicull/models/</div>
+            <div class="cache-card-desc">Persistent macOS user cache, shared across all photo trips with zero duplication.</div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.25rem; background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); border-radius:8px; padding:0.75rem 1.25rem;">
+          <div style="font-size:0.85rem; color:#e2e8f0;">
+            <strong>Cache Assets:</strong> <code>taxonomy.json</code> (11,167 species, 1.8MB) + <code>species_embeddings.safetensors</code> (22.8MB) + <code>manifest.json</code>.
+          </div>
+          <span class="pill pill-blue">Apple Silicon Metal MPS</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 9: How to Use It - Interactive CLI Simulator -->
+    <section class="scene-slide" id="scene-8" data-index="8">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 9 of 9 • Hands-On CLI</span>
+            <span class="scene-duration">⏱ ~80 sec audio</span>
+          </div>
+          <h2 class="scene-title">How to Use avicull: CLI & Complete Workflow</h2>
+          <p class="scene-desc">Building the binary, managing the model cache, organizing trips, instant relinking, and safe rollback.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> Everyday Commands for Photographers</h3>
             <span class="pill pill-green">Effortless</span>
           </div>
           <div class="perspective-card-body">
             You don't need to be a developer to run <code>avicull</code>:
             <ol style="margin-left:1.2rem; margin-top:0.4rem; line-height:1.6;">
+              <li><strong>Models:</strong> <code>avicull models status</code> (verify your 11,167-species cache)</li>
               <li><strong>Scan:</strong> <code>avicull scan -i /Volumes/Photos/Leh</code> (dry run inspection)</li>
               <li><strong>Organize:</strong> <code>avicull organize -i /Volumes/Photos/Leh</code> (creates <code>birds_hierarchy</code>)</li>
+              <li><strong>Force Recompute:</strong> <code>avicull organize -i /Volumes/Photos/Leh --force</code> (re-run all photos)</li>
               <li><strong>Report:</strong> <code>avicull report -i /Volumes/Photos/Leh</code> (see your species checklist!)</li>
             </ol>
           </div>
@@ -1646,16 +1858,17 @@
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> Tunable Parameters for Power Users</h3>
+            <h3><span>⚡</span> Complete Subcommand Suite</h3>
             <span class="pill pill-blue">High Customizability</span>
           </div>
           <div class="perspective-card-body">
-            Configure every stage of the pipeline to match your hardware and goals:
+            Fine-tune every parameter to match your workflow and hardware:
             <ul>
+              <li><code>avicull models [status | update]</code> (manage decoupled cache)</li>
+              <li><code>avicull organize --force</code> (bypass SQLite cache and recompute)</li>
               <li><code>--min-confidence &lt;FLOAT&gt;</code> (default: 0.65)</li>
               <li><code>--burst-window-ms &lt;INT&gt;</code> (default: 3000 ms)</li>
               <li><code>--geo-prior-weight &lt;0.0..2.0&gt;</code> (default: 1.0)</li>
-              <li><code>--confidence-mode [burst-consensus | per-frame]</code></li>
               <li><code>--threads &lt;INT&gt;</code> (Rayon thread pool allocation)</li>
             </ul>
           </div>
@@ -1664,31 +1877,31 @@
 
       <!-- Interactive Terminal -->
       <div class="interactive-stage">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
           <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
             Interactive CLI Simulator (Click to Test Subcommands)
           </h4>
-          <div style="display:flex; gap:0.4rem;">
+          <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+            <button class="btn" onclick="runSimCommand('status')">models status</button>
+            <button class="btn" onclick="runSimCommand('update')">models update</button>
             <button class="btn" onclick="runSimCommand('scan')">scan</button>
             <button class="btn" onclick="runSimCommand('organize')">organize</button>
+            <button class="btn" onclick="runSimCommand('force')">organize --force</button>
             <button class="btn" onclick="runSimCommand('relink')">relink</button>
             <button class="btn" onclick="runSimCommand('report')">report</button>
             <button class="btn" onclick="runSimCommand('clean')">clean</button>
+            <button class="btn" onclick="runSimCommand('rsync')" style="border-color:#38bdf8; color:#38bdf8;">rsync -avH (NTFS Backup)</button>
           </div>
         </div>
 
         <div class="code-term" id="termOutput" style="min-height: 220px; white-space: pre-wrap;">
-<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[1/6] Preflight: Verified same APFS volume (st_dev: 16777220)</span>
-<span class="term-comment">[2/6] Scanned 1,420 bundles (skipped .avicull, birds_hierarchy)</span>
-<span class="term-comment">[3/6] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
-<span class="term-comment">[4/6] YOLO11m CoreML: 1,392 birds detected, 28 no-bird-detected</span>
-<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified</span>
-<span class="term-comment">[6/6] Burst consensus: Smoothed across 210 clusters</span>
-<span class="term-success">✔ Hard-linked 1,420 files to /Volumes/Photos/Leh/birds_hierarchy (0 disk bytes added)</span>
-<span class="term-success">  - Confirmed: 1,280 files</span>
-<span class="term-warn">  - _Needs_Review: 112 files</span>
-<span class="term-comment">  - _No_Bird_Detected: 28 files</span>
+<span class="term-prompt">$ avicull models status</span>
+== avicull models ==
+Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
+  - Taxonomy (taxonomy.json):             <span class="term-success">Present (1.82 MB, 11,167 species)</span>
+  - Embeddings (species_embeddings.safetensors): <span class="term-success">Present (22.84 MB, BioCLIP Metal MPS)</span>
+  - Last Updated:                         4 day(s) ago
+<span class="term-success">✓ Cache healthy and ready for zero-copy organization.</span>
         </div>
       </div>
     </section>
@@ -1736,7 +1949,7 @@
   </div>
 
   <script>
-    /* Narration Script Data for All 8 Scenes */
+    /* Narration Script Data for All 9 Scenes */
     const SCENES = [
       {
         id: "scene-0",
@@ -1747,20 +1960,22 @@
           "Every bird photographer knows the fundamental archive dilemma: you return from a trip with thousands of high-speed burst shots and huge RAW files.",
           "You want to keep your trip chronology intact, but you also want a clean species catalog showing all your Painted Storks or Hornbills in one place.",
           "Traditionally, copying these files doubles your storage and wastes hundreds of gigabytes.",
-          "avicull solves this with zero additional disk bytes using APFS POSIX hard links, keeping your source photo archive completely immutable while organizing your birds through cutting-edge neural networks."
+          "avicull solves this with zero additional disk bytes using APFS POSIX hard links, keeping your source photo archive completely immutable while organizing your birds through cutting-edge neural networks across eleven thousand species."
         ]
       },
       {
         id: "scene-1",
-        tag: "Scene 2 • Core Invariant",
-        title: "The APFS Inode Magic: Zero-Byte Projections",
+        tag: "Scene 2 • Inodes & Portability",
+        title: "The Inode Magic: Zero-Byte Projections, UNIX & The exFAT Trap",
         narration: [
           "Let's look at the core filesystem invariant that makes avicull truly zero-byte.",
-          "On Apple's APFS filesystem, files are represented by inodes on disk.",
-          "Instead of copying image data, avicull creates POSIX hard links pointing to the exact same physical inode.",
-          "The link count increments, but zero additional disk bytes are allocated.",
-          "This also allows multi-level coexistence: you can have a birds hierarchy inside a specific trip folder, and another in your parent Pictures archive simultaneously.",
-          "Before running any models, avicull verifies device IDs upfront to guarantee hard links cannot fail mid-run."
+          "In modern UNIX filesystems, a file is defined by its inode on disk, not its directory path.",
+          "Instead of duplicating multi-megabyte RAW files, avicull creates POSIX hard links pointing to the exact same physical inode.",
+          "The link count increments, but zero additional storage bytes are consumed.",
+          "Importantly, this mechanism extends across all UNIX storage: ext4, Btrfs, XFS, and ZFS natively support hard links.",
+          "Even Windows NTFS natively supports hard links through its Master File Table reference counts.",
+          "However, photographers must beware the exFAT trap: exFAT portable SSDs do not support hard links, and naive drag-and-drop copies will inflate and duplicate your files.",
+          "To copy to an external NTFS drive while preserving zero-byte links, always use rsync with the hyphen H flag."
         ]
       },
       {
@@ -1791,11 +2006,11 @@
       {
         id: "scene-4",
         tag: "Scene 5 • AI & Bayesian Math",
-        title: "Stage 4: BioCLIP 2 Visuals + SINR Spatio-Temporal Prior",
+        title: "Stage 4: BioCLIP 2 + SINR Prior Across 11,167 Species",
         narration: [
-          "Now comes species classification. Why do visual AI models fail on cryptic birds?",
-          "Because many species look virtually identical: a Blyth's Reed Warbler in Asia looks just like a European Reed Warbler.",
-          "avicull uses BioCLIP 2 to compute vision transformer embeddings matched against global taxonomy text vectors.",
+          "Now comes species classification across the complete global taxonomy.",
+          "Because many species look virtually identical, a Blyth's Reed Warbler in Asia looks just like a European Reed Warbler.",
+          "avicull uses BioCLIP 2 to compute vision transformer embeddings matched against eleven thousand one hundred and sixty-seven global bird species.",
           "Then, it combines this with SINR, an implicit neural representation network from ICML 2023 that predicts species presence given latitude, longitude, and week.",
           "Using Bayesian posterior math with a vagrant probability floor, avicull down-ranks out-of-range lookalikes and elevates native species with mathematical rigor."
         ]
@@ -1823,18 +2038,30 @@
           "Photos are routed into three transparent tiers: Confirmed Species for scores sixty-five percent and above, Needs Review for borderline identifications, and No Bird Detected for empty frames.",
           "If two trips contain identical file stems, avicull automatically prefixes the trip folder name to prevent collisions.",
           "Everything is logged transactionally in an SQLite manifest.",
-          "This enables instant relinking: you can change your confidence threshold in milliseconds without re-running any neural networks."
+          "This enables instant relinking: you can change your confidence threshold in milliseconds without re-running any neural networks, or pass force to recompute all predictions."
         ]
       },
       {
         id: "scene-7",
-        tag: "Scene 8 • Hands-On CLI",
+        tag: "Scene 8 • Models & Taxonomy",
+        title: "avicull models: Decoupled System Cache & eBird Taxonomy",
+        narration: [
+          "To keep the binary lightweight and portable, avicull decouples heavy neural weights and the global eBird taxonomy into a shared system cache in ~/.cache/avicull/models.",
+          "With over eleven thousand bird species from Cornell eBird, text embeddings are calculated once on Apple Silicon Metal Performance Shaders and stored in an efficient SafeTensors file.",
+          "Use avicull models status to inspect your model health and cache age.",
+          "And whenever ornithologists update taxonomy, simply run avicull models update to pull fresh data without rebuilding your software.",
+          "On first launch, avicull automatically offers an interactive download so you are up and running in moments."
+        ]
+      },
+      {
+        id: "scene-8",
+        tag: "Scene 9 • Hands-On CLI",
         title: "How to Use avicull: CLI & Complete Workflow",
         narration: [
           "Using avicull in your daily workflow is fast and intuitive.",
-          "Compile the release binary with cargo build release, and export model weights using the Python script.",
-          "Run avicull scan to inspect your bundles and verify APFS volume compatibility.",
+          "Run avicull scan to inspect your photo bundles and verify APFS volume compatibility.",
           "Run avicull organize to execute the full pipeline and populate your species directory tree.",
+          "Use the force flag if you ever want to bypass the SQLite cache and recompute predictions across all photos.",
           "Use avicull report to view species totals and inspect items needing review.",
           "And if you ever want to reset, avicull clean safely unlinks the output tree while leaving your precious source RAW archives completely untouched.",
           "Experience the future of local, private, zero-copy avian photo curation on Apple Silicon!"
@@ -2251,6 +2478,34 @@
       playChime(580, 'sine', 0.08);
 
       switch (cmd) {
+        case 'status':
+          term.innerHTML = `<span class="term-prompt">$ avicull models status</span>
+== avicull models ==
+Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
+  - Taxonomy (taxonomy.json):             <span class="term-success">Present (1.82 MB, 11,167 species)</span>
+  - Embeddings (species_embeddings.safetensors): <span class="term-success">Present (22.84 MB, BioCLIP Metal MPS)</span>
+  - Last Updated:                         4 day(s) ago
+<span class="term-success">✓ Cache healthy and ready for zero-copy organization.</span>`;
+          break;
+
+        case 'update':
+          term.innerHTML = `<span class="term-prompt">$ avicull models update</span>
+== avicull models ==
+Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
+Fetching latest Cornell eBird global taxonomy from https://api.ebird.org/v2/ref/taxonomy/ebird...
+Loaded 11,167 valid avian species.
+Saved taxonomy to /Users/photographer/.cache/avicull/models/taxonomy.json
+Loading BioCLIP model (imageomics/bioclip)...
+Computing embeddings for 11,167 species on Apple Silicon Metal (mps)...
+  Processed 2560/11167 species...
+  Processed 5120/11167 species...
+  Processed 7680/11167 species...
+  Processed 10240/11167 species...
+Finished embedding calculation in 8.42s. Shape: torch.Size([11167, 512])
+Saved embeddings to species_embeddings.safetensors (22.84 MB)
+<span class="term-success">✓ Successfully updated model and taxonomy cache in '~/.cache/avicull/models'</span>`;
+          break;
+
         case 'scan':
           term.innerHTML = `<span class="term-prompt">$ avicull scan --input /Volumes/Photos/Leh</span>
 <span class="term-comment">[Preflight] Checking filesystem volume compatibility...</span>
@@ -2262,16 +2517,26 @@
 
         case 'organize':
           term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
+<span class="term-comment">[Models] Resolved cache from '~/.cache/avicull/models' (11,167 species)</span>
 <span class="term-comment">[1/6] Preflight: Verified same APFS volume (st_dev: 16777220)</span>
 <span class="term-comment">[2/6] Scanned 1,420 bundles (skipped .avicull, birds_hierarchy)</span>
 <span class="term-comment">[3/6] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
 <span class="term-comment">[4/6] YOLO11m CoreML: 1,392 birds detected, 28 no-bird-detected</span>
-<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified</span>
+<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified from 11,167 global taxonomy</span>
 <span class="term-comment">[6/6] Burst consensus: Smoothed across 210 clusters</span>
 <span class="term-success">✔ Hard-linked 1,420 files to /Volumes/Photos/Leh/birds_hierarchy (0 disk bytes added)</span>
 <span class="term-success">  - Confirmed: 1,280 files</span>
 <span class="term-warn">  - _Needs_Review: 112 files</span>
 <span class="term-comment">  - _No_Bird_Detected: 28 files</span>`;
+          break;
+
+        case 'force':
+          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh --force</span>
+<span class="term-comment">[Cache Bypass] --force specified: Bypassing cached SQLite predictions</span>
+<span class="term-comment">[Inference] Re-running YOLO11m & BioCLIP 2 on all 1,420 bundles...</span>
+<span class="term-comment">[Inference] 100% computed across 11,167 species taxonomy on Apple Silicon Metal</span>
+<span class="term-comment">[Database] Updated .avicull/manifest.sqlite with fresh predictions</span>
+<span class="term-success">✔ Re-materialized 1,420 hard links according to fresh inference results.</span>`;
           break;
 
         case 'relink':
@@ -2304,6 +2569,23 @@
 <span class="term-comment">[Filesystem] Pruned empty species directories</span>
 <span class="term-success">✔ Clean complete. Hierarchy removed.</span>
 <span class="term-success">✔ Source photo archive /Volumes/Photos/Leh is 100% untouched.</span>`;
+          break;
+
+        case 'rsync':
+          term.innerHTML = `<span class="term-prompt">$ rsync -avH /Volumes/Photos/Leh /Volumes/NTFS_Drive/Photos/</span>
+<span class="term-comment">sending incremental file list (with -H: maintaining inode hard link table)</span>
+Photos/Leh/
+Photos/Leh/birds_hierarchy/
+Photos/Leh/birds_hierarchy/Painted_Stork/
+<span class="term-success">Photos/Leh/birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2 => Photos/Leh/DSC_4011.CR2 (hardlink created on NTFS)</span>
+<span class="term-success">Photos/Leh/birds_hierarchy/Painted_Stork/DSC_4011_0.96.xmp => Photos/Leh/DSC_4011.xmp (hardlink created on NTFS)</span>
+Photos/Leh/birds_hierarchy/Streak-throated_Swallow/
+<span class="term-success">Photos/Leh/birds_hierarchy/Streak-throated_Swallow/DSC_4015_0.91.ARW => Photos/Leh/DSC_4015.ARW (hardlink created on NTFS)</span>
+...
+sent 48.20M bytes  received 1.42K bytes  18.40M bytes/sec
+total size is 96.40G  speedup is 1.99 (<span class="term-success">50% storage saved via native NTFS MFT hard links!</span>)
+<span class="term-success">✔ Successfully preserved zero-byte hard links on target NTFS volume!</span>
+<span class="term-warn">⚠ Note: If target were exFAT, all 48.2 GB would have been duplicated as separate files.</span>`;
           break;
       }
     }
