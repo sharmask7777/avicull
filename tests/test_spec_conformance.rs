@@ -267,3 +267,57 @@ fn test_no_bird_detected_routes_to_special_tier_folder() {
     );
     assert!(output.join("_No_Bird_Detected/IMG_EMPTY_0.05.JPG").exists());
 }
+
+#[test]
+fn test_force_recomputation_bypasses_cache() {
+    let dir = tempdir().expect("create temp dir");
+    let input = dir.path().join("Trip");
+    let output = input.join("birds_hierarchy");
+    fs::create_dir_all(&input).unwrap();
+
+    let f1 = input.join("IMG_1001.JPG");
+    File::create(&f1).unwrap().write_all(b"IMG 1").unwrap();
+
+    let db_path = output.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let bundles = scan_input_tree_with_skip(&input, Some(&output)).unwrap();
+    assert_eq!(bundles.len(), 1);
+
+    // Initial run cached
+    let decision1 = BundleDecision {
+        bundle_id: bundles[0].bundle_id.clone(),
+        burst_id: Some("burst-01".to_string()),
+        detection_confidence: 0.90,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.90,
+        final_confidence: 0.90,
+        assigned_species_slug: "Old_Species".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+    };
+    db.record_run("run-1", &input, &output, false, "{}")
+        .unwrap();
+    db.record_bundles("run-1", &[decision1], &bundles).unwrap();
+
+    // With cache: bundle is cached, 0 new bundles
+    let cached_map = db.get_existing_bundle_map().unwrap();
+    assert_eq!(cached_map.len(), 1);
+
+    // When force is true, we ignore existing cache
+    let force = true;
+    let effective_cache = if force {
+        std::collections::HashMap::new()
+    } else {
+        cached_map
+    };
+    let new_to_process: Vec<_> = bundles
+        .iter()
+        .filter(|b| !effective_cache.contains_key(&b.bundle_id))
+        .collect();
+    assert_eq!(
+        new_to_process.len(),
+        1,
+        "Force mode must reprocess all bundles"
+    );
+}

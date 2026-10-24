@@ -201,6 +201,21 @@ impl ManifestDb {
         Ok(())
     }
 
+    /// Updates the routing tier of a specific bundle in the database.
+    pub fn update_bundle_routing_tier(&self, bundle_id: &str, tier: RoutingTier) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let tier_str = match tier {
+            RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
+            RoutingTier::NeedsReview => "NeedsReview",
+            RoutingTier::NoBirdDetected => "NoBirdDetected",
+        };
+        conn.execute(
+            "UPDATE bundles SET routing_tier = ?1 WHERE bundle_id = ?2",
+            params![tier_str, bundle_id],
+        )?;
+        Ok(())
+    }
+
     /// Records hardlink operations in the database.
     pub fn record_hardlink_operations(&self, ops: &[HardlinkOperation]) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();

@@ -84,6 +84,10 @@ struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     dry_run: bool,
 
+    /// Force re-running ML detection and classification on all bundles, bypassing SQLite cache
+    #[arg(long, default_value_t = false)]
+    force: bool,
+
     /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
     #[arg(long, default_value_t = 0.65)]
     min_confidence: f32,
@@ -127,7 +131,11 @@ struct OrganizeArgs {
 
 #[derive(Args, Debug)]
 struct RelinkArgs {
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to ./birds_hierarchy)
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -142,7 +150,11 @@ struct RelinkArgs {
 
 #[derive(Args, Debug)]
 struct CleanArgs {
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to ./birds_hierarchy)
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -153,7 +165,11 @@ struct CleanArgs {
 
 #[derive(Args, Debug)]
 struct ReportArgs {
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to ./birds_hierarchy)
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -161,7 +177,7 @@ struct ReportArgs {
     #[arg(long)]
     run_id: Option<String>,
 
-    /// Output format: json or csv (default: json)
+    /// Output format: json, csv, or table (default: json)
     #[arg(long, default_value = "json")]
     format: String,
 }
@@ -211,6 +227,222 @@ fn load_image_for_inference(primary: &Path, companions: &[PathBuf]) -> Result<Dy
 
     // Fallback: Attempt standard image::open
     image::open(primary).with_context(|| format!("Failed to decode image {}", primary.display()))
+}
+
+fn prepare_image_for_inference(
+    bundle: &avicull::types::AssetBundle,
+    temp_dir: &Path,
+    idx: usize,
+) -> Option<PathBuf> {
+    for comp in &bundle.companion_images {
+        let ext = comp
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        if ext == "jpg" || ext == "jpeg" {
+            return Some(comp.clone());
+        }
+    }
+
+    let prim_ext = bundle
+        .primary_image
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    if prim_ext == "jpg" || prim_ext == "jpeg" || prim_ext == "png" {
+        return Some(bundle.primary_image.clone());
+    }
+
+    // Try extracting embedded preview for RAW
+    if let Ok(mut f) = File::open(&bundle.primary_image) {
+        let mut buffer = Vec::new();
+        if f.read_to_end(&mut buffer).is_ok() {
+            if let Some(preview_bytes) = extract_embedded_jpeg_preview(&buffer) {
+                let out_path = temp_dir.join(format!("preview_{}.jpg", idx));
+                if std::fs::write(&out_path, preview_bytes).is_ok() {
+                    return Some(out_path);
+                }
+            }
+        }
+    }
+
+    Some(bundle.primary_image.clone())
+}
+
+fn run_batch_inference(
+    bundles: &[&avicull::types::AssetBundle],
+    models_dir: &Path,
+    min_detect: f32,
+    geo_prior_weight: f32,
+) -> Result<std::collections::HashMap<String, ClassifiedBundleItem>> {
+    let infer_script = Path::new("scripts/infer.py");
+    let embeddings_file = models_dir.join("species_embeddings.safetensors");
+
+    if !infer_script.exists() || !embeddings_file.exists() {
+        return Err(anyhow!("Real models or infer.py script not found"));
+    }
+
+    let temp_dir = tempfile::tempdir()?;
+    let batch_file = temp_dir.path().join("batch_tasks.json");
+    let output_file = temp_dir.path().join("batch_results.json");
+
+    #[derive(serde::Serialize)]
+    struct BatchTask {
+        bundle_id: String,
+        primary_image: PathBuf,
+        trip_folder_name: String,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
+    }
+
+    let mut tasks = Vec::with_capacity(bundles.len());
+
+    for (idx, bundle) in bundles.iter().enumerate() {
+        let img_path = prepare_image_for_inference(bundle, temp_dir.path(), idx)
+            .unwrap_or_else(|| bundle.primary_image.clone());
+        let (lat, lon) = match bundle.gps_coords {
+            Some(coords) => (Some(coords.latitude), Some(coords.longitude)),
+            None => (None, None),
+        };
+
+        tasks.push(BatchTask {
+            bundle_id: bundle.bundle_id.clone(),
+            primary_image: img_path,
+            trip_folder_name: bundle.trip_folder_name.clone(),
+            latitude: lat,
+            longitude: lon,
+        });
+    }
+
+    std::fs::write(&batch_file, serde_json::to_string(&tasks)?)?;
+
+    let output = std::process::Command::new("uv")
+        .args([
+            "run",
+            "--with",
+            "torch,open-clip-torch,safetensors,ultralytics,pillow",
+            "python3",
+            "scripts/infer.py",
+            "--models-dir",
+            models_dir.to_str().unwrap_or("models"),
+            "--batch-file",
+            batch_file.to_str().unwrap(),
+            "--output-file",
+            output_file.to_str().unwrap(),
+            "--min-detect",
+            &min_detect.to_string(),
+            "--geo-prior-weight",
+            &geo_prior_weight.to_string(),
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("Python inference runner failed: {}", err_msg));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct InferResultItem {
+        bundle_id: String,
+        detection_confidence: f32,
+        top_predictions: Vec<avicull::types::SpeciesPrediction>,
+        embedding: Vec<f32>,
+    }
+
+    let results_data = std::fs::read(&output_file)?;
+    let parsed: Vec<InferResultItem> = serde_json::from_slice(&results_data)?;
+
+    let mut map = std::collections::HashMap::new();
+    let bundle_map: std::collections::HashMap<_, _> =
+        bundles.iter().map(|b| (&b.bundle_id, *b)).collect();
+
+    for item in parsed {
+        if let Some(bundle) = bundle_map.get(&item.bundle_id) {
+            let posteriors: Vec<(String, f32)> = item
+                .top_predictions
+                .iter()
+                .map(|p| (p.taxon_id.clone(), p.combined_score))
+                .collect();
+
+            map.insert(
+                item.bundle_id.clone(),
+                ClassifiedBundleItem {
+                    bundle_id: item.bundle_id,
+                    trip_folder: bundle.trip_folder_name.clone(),
+                    capture_timestamp_ms: bundle.capture_timestamp_ms,
+                    detection_confidence: item.detection_confidence,
+                    bbox_norm: None,
+                    embedding: item.embedding,
+                    top_predictions: item.top_predictions,
+                    posteriors,
+                },
+            );
+        }
+    }
+
+    Ok(map)
+}
+
+fn run_fallback_parallel_classification(
+    new_bundles: &[&avicull::types::AssetBundle],
+    detector: &std::sync::Arc<Box<dyn BirdDetector>>,
+    classifier: &std::sync::Arc<Box<dyn SpeciesClassifier>>,
+    min_detect: f32,
+    geo_prior_weight: f32,
+) -> std::collections::HashMap<String, ClassifiedBundleItem> {
+    use rayon::prelude::*;
+    new_bundles
+        .par_iter()
+        .map(|bundle| {
+            let img_res = load_image_for_inference(&bundle.primary_image, &bundle.companion_images);
+            let (crop_res, det_conf, bbox) = match img_res {
+                Ok(img) => {
+                    let detections = detector.detect(&img).unwrap_or_default();
+                    match select_and_pad_bird_crop(&img, &detections, min_detect, (224, 224)) {
+                        Some((cropped, b, conf)) => (Some(cropped), conf, Some(b)),
+                        None => (None, 0.0, None),
+                    }
+                }
+                Err(_) => (None, 0.0, None),
+            };
+
+            let item = if let Some(cropped) = crop_res {
+                let (emb, preds) = classifier
+                    .classify(&cropped, bundle.gps_coords, geo_prior_weight)
+                    .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
+
+                let posteriors: Vec<(String, f32)> = preds
+                    .iter()
+                    .map(|p| (p.taxon_id.clone(), p.combined_score))
+                    .collect();
+
+                ClassifiedBundleItem {
+                    bundle_id: bundle.bundle_id.clone(),
+                    trip_folder: bundle.trip_folder_name.clone(),
+                    capture_timestamp_ms: bundle.capture_timestamp_ms,
+                    detection_confidence: det_conf,
+                    bbox_norm: bbox,
+                    embedding: emb,
+                    top_predictions: preds,
+                    posteriors,
+                }
+            } else {
+                ClassifiedBundleItem {
+                    bundle_id: bundle.bundle_id.clone(),
+                    trip_folder: bundle.trip_folder_name.clone(),
+                    capture_timestamp_ms: bundle.capture_timestamp_ms,
+                    detection_confidence: 0.0,
+                    bbox_norm: None,
+                    embedding: vec![0.0; 512],
+                    top_predictions: vec![],
+                    posteriors: vec![],
+                }
+            };
+            (bundle.bundle_id.clone(), item)
+        })
+        .collect()
 }
 
 fn main() -> Result<()> {
@@ -267,7 +499,11 @@ fn main() -> Result<()> {
 
             let db_path = output_dir.join(".avicull/manifest.sqlite");
             let db = ManifestDb::open_or_create(&db_path)?;
-            let existing_bundle_map = db.get_existing_bundle_map().unwrap_or_default();
+            let existing_bundle_map = if args.force {
+                std::collections::HashMap::new()
+            } else {
+                db.get_existing_bundle_map().unwrap_or_default()
+            };
 
             let mut all_discovered = scan_input_tree_with_skip(&args.input, Some(&output_dir))?;
             println!(
@@ -335,8 +571,16 @@ fn main() -> Result<()> {
             let conf_mode: ConfidenceMode =
                 args.confidence_mode.parse().map_err(|e| anyhow!("{}", e))?;
 
+            let models_dir = args.models_dir.or_else(|| {
+                if Path::new("models").exists() {
+                    Some(PathBuf::from("models"))
+                } else {
+                    None
+                }
+            });
+
             // Initialize models only if we have new bundles to process
-            let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = args.models_dir {
+            let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = models_dir {
                 let yolo_path = m_dir.join("yolo11m.onnx");
                 if yolo_path.exists() {
                     Box::new(OrtBirdDetector::new(&yolo_path)?)
@@ -347,82 +591,71 @@ fn main() -> Result<()> {
                 Box::new(MockBirdDetector::new(vec![]))
             };
 
-            let classifier: Box<dyn SpeciesClassifier> = if let Some(ref m_dir) = args.models_dir {
+            let classifier: Box<dyn SpeciesClassifier> = if let Some(ref m_dir) = models_dir {
                 Box::new(OrtSpeciesClassifier::new(m_dir)?)
             } else {
                 Box::new(MockSpeciesClassifier::new(vec![]))
             };
 
-            use rayon::prelude::*;
             use std::sync::Arc;
-
             let detector = Arc::new(detector);
             let classifier = Arc::new(classifier);
 
-            println!(
-                "Running detection and classification on {} new bundles in parallel...",
-                new_bundles.len()
-            );
-            let new_classified: std::collections::HashMap<String, ClassifiedBundleItem> =
-                new_bundles
-                    .par_iter()
-                    .map(|bundle| {
-                        let img_res = load_image_for_inference(
-                            &bundle.primary_image,
-                            &bundle.companion_images,
-                        );
-                        let (crop_res, det_conf, bbox) = match img_res {
-                            Ok(img) => {
-                                let detections = detector.detect(&img).unwrap_or_default();
-                                match select_and_pad_bird_crop(
-                                    &img,
-                                    &detections,
-                                    args.min_detect,
-                                    (224, 224),
-                                ) {
-                                    Some((cropped, b, conf)) => (Some(cropped), conf, Some(b)),
-                                    None => (None, 0.0, None),
-                                }
-                            }
-                            Err(_) => (None, 0.0, None),
-                        };
-
-                        let item = if let Some(cropped) = crop_res {
-                            let (emb, preds) = classifier
-                                .classify(&cropped, bundle.gps_coords, args.geo_prior_weight)
-                                .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
-
-                            let posteriors: Vec<(String, f32)> = preds
-                                .iter()
-                                .map(|p| (p.taxon_id.clone(), p.combined_score))
-                                .collect();
-
-                            ClassifiedBundleItem {
-                                bundle_id: bundle.bundle_id.clone(),
-                                trip_folder: bundle.trip_folder_name.clone(),
-                                capture_timestamp_ms: bundle.capture_timestamp_ms,
-                                detection_confidence: det_conf,
-                                bbox_norm: bbox,
-                                embedding: emb,
-                                top_predictions: preds,
-                                posteriors,
-                            }
-                        } else {
-                            // No bird detected
-                            ClassifiedBundleItem {
-                                bundle_id: bundle.bundle_id.clone(),
-                                trip_folder: bundle.trip_folder_name.clone(),
-                                capture_timestamp_ms: bundle.capture_timestamp_ms,
-                                detection_confidence: 0.0,
-                                bbox_norm: None,
-                                embedding: vec![0.0; 512],
-                                top_predictions: vec![],
-                                posteriors: vec![],
-                            }
-                        };
-                        (bundle.bundle_id.clone(), item)
-                    })
-                    .collect();
+            let new_classified = if let Some(ref m_dir) = models_dir {
+                if m_dir.join("species_embeddings.safetensors").exists()
+                    && Path::new("scripts/infer.py").exists()
+                {
+                    println!(
+                        "Running real AI bird detection (YOLO11) and classification (BioCLIP) on {} new bundles...",
+                        new_bundles.len()
+                    );
+                    match run_batch_inference(
+                        &new_bundles,
+                        m_dir,
+                        args.min_detect,
+                        args.geo_prior_weight,
+                    ) {
+                        Ok(res) => res,
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Real inference error ({}), using fallback: {}",
+                                e, e
+                            );
+                            run_fallback_parallel_classification(
+                                &new_bundles,
+                                &detector,
+                                &classifier,
+                                args.min_detect,
+                                args.geo_prior_weight,
+                            )
+                        }
+                    }
+                } else {
+                    println!(
+                        "Running detection and classification on {} new bundles in parallel...",
+                        new_bundles.len()
+                    );
+                    run_fallback_parallel_classification(
+                        &new_bundles,
+                        &detector,
+                        &classifier,
+                        args.min_detect,
+                        args.geo_prior_weight,
+                    )
+                }
+            } else {
+                println!(
+                    "Running detection and classification on {} new bundles in parallel...",
+                    new_bundles.len()
+                );
+                run_fallback_parallel_classification(
+                    &new_bundles,
+                    &detector,
+                    &classifier,
+                    args.min_detect,
+                    args.geo_prior_weight,
+                )
+            };
 
             // Assemble all classified items in all_discovered order
             let mut all_classified_items = Vec::with_capacity(all_discovered.len());
@@ -488,6 +721,7 @@ fn main() -> Result<()> {
             println!("== avicull relink ==");
             let output_dir = args
                 .output
+                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
                 .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
             let db_path = output_dir.join(".avicull/manifest.sqlite");
             let db = ManifestDb::open_or_create(&db_path)?;
@@ -520,6 +754,7 @@ fn main() -> Result<()> {
                     dec.routing_tier = RoutingTier::NoBirdDetected;
                 }
 
+                db.update_bundle_routing_tier(&bundle.bundle_id, dec.routing_tier)?;
                 let ops = materialize_bundle_hardlinks(&bundle, &dec, &output_dir, &run_id, false)?;
                 new_ops.extend(ops);
             }
@@ -532,6 +767,7 @@ fn main() -> Result<()> {
             println!("== avicull clean ==");
             let output_dir = args
                 .output
+                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
                 .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
             let db_path = output_dir.join(".avicull/manifest.sqlite");
             let db = ManifestDb::open_or_create(&db_path)?;
@@ -554,6 +790,7 @@ fn main() -> Result<()> {
         Commands::Report(args) => {
             let output_dir = args
                 .output
+                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
                 .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
             let db_path = output_dir.join(".avicull/manifest.sqlite");
             let db = ManifestDb::open_or_create(&db_path)?;
@@ -565,7 +802,8 @@ fn main() -> Result<()> {
 
             let cached = db.get_all_bundles(run_id.as_deref())?;
 
-            if args.format.to_lowercase() == "csv" {
+            let fmt = args.format.to_lowercase();
+            if fmt == "csv" {
                 println!("bundle_id,trip_folder,original_stem,species,final_conf,routing_tier");
                 for (dec, b) in cached {
                     println!(
@@ -578,6 +816,30 @@ fn main() -> Result<()> {
                         dec.routing_tier
                     );
                 }
+            } else if fmt == "table" {
+                use std::collections::BTreeMap;
+                let mut species_stats: BTreeMap<String, (usize, f32)> = BTreeMap::new();
+                for (dec, _) in &cached {
+                    let entry = species_stats
+                        .entry(dec.assigned_species_slug.clone())
+                        .or_insert((0, 0.0));
+                    entry.0 += 1;
+                    entry.1 += dec.final_confidence;
+                }
+                println!(
+                    "{:<35} | {:<8} | {:<10}",
+                    "Species Slug", "Count", "Mean Conf"
+                );
+                println!("{:-<35}-+-{:-<8}-+-{:-<10}", "", "", "");
+                for (species, (count, total_conf)) in species_stats {
+                    let mean_conf = if count > 0 {
+                        total_conf / count as f32
+                    } else {
+                        0.0
+                    };
+                    println!("{:<35} | {:<8} | {:<10.2}", species, count, mean_conf);
+                }
+                println!("\nTotal Bundles: {}", cached.len());
             } else {
                 let records: Vec<_> = cached
                     .into_iter()

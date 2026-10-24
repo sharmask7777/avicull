@@ -1,0 +1,2312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>avicull — Local AI Bird Photo Organizer | Interactive Animated Explainer & Audio Guide</title>
+  <style>
+    :root {
+      --bg-base: #0a0e17;
+      --bg-surface: #111827;
+      --bg-card: #1f293d;
+      --bg-card-hover: #26334d;
+      --border: #2d3b55;
+      --border-accent: #3b82f6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      
+      --accent-bird: #10b981; /* Emerald green for birding */
+      --accent-bird-glow: rgba(16, 185, 129, 0.25);
+      --accent-tech: #06b6d4; /* Electric cyan for tech/AI */
+      --accent-tech-glow: rgba(6, 182, 212, 0.25);
+      --accent-gold: #f59e0b; /* Amber/gold */
+      --accent-purple: #8b5cf6; /* Violet */
+      --accent-rose: #f43f5e; /* Rose */
+      
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace;
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px var(--accent-bird-glow);
+    }
+
+    .brand-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: #ffffff;
+    }
+
+    .brand-text h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .brand-text .badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-tech);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Perspective Switcher */
+    .lens-switcher {
+      display: flex;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .lens-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .lens-btn:hover {
+      color: var(--text-main);
+    }
+
+    .lens-btn.active {
+      background: var(--bg-card);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .lens-btn.bird-lens.active {
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.1);
+    }
+
+    .lens-btn.tech-lens.active {
+      color: #38bdf8;
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      background: rgba(6, 182, 212, 0.1);
+    }
+
+    /* Audio / Voiceover Controls */
+    .audio-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--bg-card);
+      border-color: #4b5563;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #059669, #0284c7);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-primary.is-playing {
+      background: linear-gradient(135deg, #d97706, #dc2626);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+    }
+
+    .voice-select {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      font-size: 0.75rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      max-width: 130px;
+    }
+
+    .rate-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .rate-btn.active {
+      color: var(--accent-tech);
+      border-color: var(--accent-tech);
+    }
+
+    /* Audio visualizer wave */
+    .audio-wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+      padding: 0 4px;
+    }
+
+    .audio-wave .bar {
+      width: 3px;
+      height: 4px;
+      background: var(--accent-tech);
+      border-radius: 2px;
+      transition: height 0.15s ease;
+    }
+
+    .audio-wave.active .bar {
+      animation: soundWave 0.8s infinite ease-in-out alternate;
+    }
+
+    .audio-wave.active .bar:nth-child(1) { animation-delay: 0.1s; }
+    .audio-wave.active .bar:nth-child(2) { animation-delay: 0.3s; }
+    .audio-wave.active .bar:nth-child(3) { animation-delay: 0.5s; }
+    .audio-wave.active .bar:nth-child(4) { animation-delay: 0.2s; }
+    .audio-wave.active .bar:nth-child(5) { animation-delay: 0.4s; }
+
+    @keyframes soundWave {
+      0% { height: 4px; }
+      100% { height: 18px; }
+    }
+
+    /* Scene Stepper Header Bar */
+    .scene-timeline-container {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      overflow-x: auto;
+    }
+
+    .scene-timeline {
+      display: flex;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      gap: 0.5rem;
+      list-style: none;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.7rem;
+      border-radius: 20px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .step-item:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .step-item.active {
+      color: #fff;
+      background: var(--bg-card);
+      border-color: var(--accent-tech);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+    }
+
+    .step-item.completed {
+      color: var(--accent-bird);
+    }
+
+    .step-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+
+    .step-item.active .step-num {
+      background: var(--accent-tech);
+      color: #000;
+    }
+
+    .step-item.completed .step-num {
+      background: var(--accent-bird);
+      color: #000;
+    }
+
+    /* Main Scene Display Area */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 6.5rem 1.5rem;
+    }
+
+    .scene-slide {
+      display: none;
+      flex-direction: column;
+      gap: 1.5rem;
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .scene-slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scene Header */
+    .scene-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.25rem;
+    }
+
+    .scene-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .scene-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-bird);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .scene-duration {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .scene-title {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    .scene-desc {
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+      max-width: 850px;
+    }
+
+    /* Dual Audience Perspective Callout Cards */
+    .perspective-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .perspective-card {
+      background: var(--bg-surface);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .perspective-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+    }
+
+    .perspective-card.birding::before {
+      background: var(--accent-bird);
+    }
+
+    .perspective-card.engineering::before {
+      background: var(--accent-tech);
+    }
+
+    .perspective-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+
+    .perspective-card-head h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .perspective-card.birding h3 {
+      color: #34d399;
+    }
+
+    .perspective-card.engineering h3 {
+      color: #38bdf8;
+    }
+
+    .perspective-card-body {
+      font-size: 0.88rem;
+      color: #d1d5db;
+      line-height: 1.55;
+    }
+
+    .perspective-card-body ul {
+      margin-left: 1.25rem;
+      margin-top: 0.5rem;
+    }
+
+    .perspective-card-body li {
+      margin-bottom: 0.35rem;
+    }
+
+    /* Visual Interactive Stage Area */
+    .interactive-stage {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+    }
+
+    /* Diagram & Pipeline Styles */
+    .pipeline-flow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding: 1rem 0;
+    }
+
+    .pipeline-node {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      min-width: 170px;
+      text-align: center;
+      position: relative;
+      transition: all 0.3s;
+    }
+
+    .pipeline-node.active-stage {
+      border-color: var(--accent-tech);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+      background: #1e293b;
+    }
+
+    .node-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .node-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .node-subtitle {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      margin-top: 0.2rem;
+      font-family: var(--font-mono);
+    }
+
+    .pipeline-arrow {
+      color: var(--text-dim);
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    /* Inode Simulator */
+    .inode-viz {
+      display: grid;
+      grid-template-columns: 1.1fr 0.8fr 1.1fr;
+      gap: 1.5rem;
+      align-items: center;
+      padding: 1rem 0;
+    }
+
+    .tree-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+    }
+
+    .tree-box-title {
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .tree-line {
+      padding: 0.25rem 0.4rem;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.2rem;
+      transition: all 0.2s;
+    }
+
+    .tree-line.highlight {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .tree-line.parent-link {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+    }
+
+    .inode-chip {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: var(--accent-gold);
+    }
+
+    .inode-block-card {
+      background: #172033;
+      border: 2px dashed #3b82f6;
+      border-radius: 12px;
+      padding: 1.5rem 1rem;
+      text-align: center;
+      position: relative;
+    }
+
+    .inode-badge {
+      display: inline-block;
+      background: #1e3a8a;
+      color: #93c5fd;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.6rem;
+      border-radius: 20px;
+      margin-bottom: 0.75rem;
+      font-family: var(--font-mono);
+    }
+
+    .data-size-stat {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .link-count-pill {
+      margin-top: 0.75rem;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      padding: 0.35rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Math / Code Boxes */
+    .formula-box {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #93c5fd;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    .code-term {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+      position: relative;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .term-prompt {
+      color: #38bdf8;
+      user-select: none;
+    }
+
+    .term-comment {
+      color: #64748b;
+    }
+
+    .term-success {
+      color: #34d399;
+    }
+
+    .term-warn {
+      color: #fbbf24;
+    }
+
+    /* Interactive Simulator Sliders & Controls */
+    .sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      background: var(--bg-card);
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+    }
+
+    .sim-control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .sim-slider {
+      accent-color: var(--accent-tech);
+      cursor: pointer;
+    }
+
+    /* Burst Frame Filmstrip */
+    .filmstrip {
+      display: flex;
+      gap: 0.75rem;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+    }
+
+    .frame-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      min-width: 155px;
+      text-align: center;
+      font-size: 0.75rem;
+      transition: all 0.3s;
+      position: relative;
+    }
+
+    .frame-card.winner {
+      border-color: var(--accent-bird);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .frame-thumb {
+      height: 75px;
+      background: #0d131f;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .frame-bbox {
+      position: absolute;
+      border: 2px solid #10b981;
+      background: rgba(16, 185, 129, 0.2);
+      border-radius: 2px;
+    }
+
+    /* Bottom Sticky Narration & Playback Bar */
+    .narration-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      padding: 0.85rem 1.5rem;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+    }
+
+    .nav-buttons {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .subtitle-box {
+      flex: 1;
+      max-width: 800px;
+      text-align: center;
+    }
+
+    .subtitle-text {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: #f8fafc;
+      line-height: 1.4;
+      display: inline-block;
+      min-height: 2.8em;
+    }
+
+    .subtitle-text .highlight-word {
+      color: var(--accent-tech);
+      font-weight: 700;
+      background: rgba(6, 182, 212, 0.15);
+      padding: 0 4px;
+      border-radius: 3px;
+    }
+
+    .subtitle-speaker {
+      font-size: 0.7rem;
+      color: var(--accent-bird);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+    }
+
+    .autoplay-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    /* Modal / Transcript Drawer */
+    .transcript-drawer {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .transcript-drawer.open {
+      display: flex;
+    }
+
+    .transcript-content {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      max-width: 750px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 1.75rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    .transcript-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+    }
+
+    /* Tooltip / Badges */
+    .pill {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .pill-blue { background: rgba(6, 182, 212, 0.2); color: #38bdf8; }
+    .pill-yellow { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .pill-purple { background: rgba(139, 92, 246, 0.2); color: #c084fc; }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      .perspective-grid { grid-template-columns: 1fr; }
+      .inode-viz { grid-template-columns: 1fr; }
+      header { flex-wrap: wrap; }
+      .audio-controls { margin-left: auto; }
+      .subtitle-box { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>avicull <span class="badge">Apple Silicon • Rust</span></h1>
+        <p>Local AI Bird Photo Organizer & APFS Hard-Link Engine</p>
+      </div>
+    </div>
+
+    <!-- Perspective / Audience Selector -->
+    <div class="lens-switcher" id="lensSwitcher" role="tablist">
+      <button class="lens-btn active" data-lens="all" title="View complete deep dive">
+        <span>🌟</span> Both Lenses
+      </button>
+      <button class="lens-btn bird-lens" data-lens="bird" title="Tailored for birders & photographers">
+        <span>🔭</span> Birding Lens
+      </button>
+      <button class="lens-btn tech-lens" data-lens="tech" title="Tailored for Systems & AI/GenAI engineers">
+        <span>⚡</span> Systems & AI Lens
+      </button>
+    </div>
+
+    <!-- Audio / Voiceover Bar -->
+    <div class="audio-controls">
+      <div class="audio-wave" id="audioWave" title="Narration Status">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+
+      <button class="btn btn-primary" id="btnPlayPause" title="Play / Pause Voiceover (Space)">
+        <span id="playIcon">▶</span>
+        <span id="playText">Voiceover</span>
+      </button>
+
+      <button class="rate-btn" id="btnRate" title="Playback Speed">1.0x</button>
+      
+      <select class="voice-select" id="voiceSelect" title="Select Speech Voice">
+        <option value="">Default Voice</option>
+      </select>
+
+      <button class="btn" id="btnTranscript" title="View Full Text Transcript">
+        📝 Transcript
+      </button>
+    </div>
+  </header>
+
+  <!-- Interactive Timeline / Stepper -->
+  <div class="scene-timeline-container">
+    <ul class="scene-timeline" id="sceneTimeline">
+      <!-- Generated via JS -->
+    </ul>
+  </div>
+
+  <!-- Main Content Slides Area -->
+  <main>
+
+    <!-- SCENE 1: The Problem & Vision -->
+    <section class="scene-slide active" id="scene-0" data-index="0">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 1 of 8 • Overview</span>
+            <span class="scene-duration">⏱ ~65 sec audio</span>
+          </div>
+          <h2 class="scene-title">The Avian Photo Crisis & The Zero-Byte Solution</h2>
+          <p class="scene-desc">Why bird photographers are trapped between chronological trip archives and taxonomic species catalogs—and how avicull solves it without duplicating a single megabyte.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> The Bird Photographer's Reality</h3>
+            <span class="pill pill-green">Field Workflow</span>
+          </div>
+          <div class="perspective-card-body">
+            You return from Keoladeo, Costa Rica, or Leh with 10,000 photos. You shot at 20–30 frames per second on continuous burst mode. You have massive RAW files (.CR3, .ARW, .NEF) paired with Lightroom .XMP sidecar edits.
+            <ul>
+              <li><strong>The Catch-22:</strong> You want to browse <em>by trip</em> ("What did I see in Leh?") AND <em>by species</em> ("Show me all my Painted Stork shots!").</li>
+              <li><strong>The Old Painful Way:</strong> Either manually tag every single frame (hours of tedious work), or copy files into species folders (instantly doubling disk usage and wasting 500GB+).</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> The Systems & AI Architecture</h3>
+            <span class="pill pill-blue">Design Invariants</span>
+          </div>
+          <div class="perspective-card-body">
+            <code>avicull</code> is a local-first, deterministic command-line system written in Rust specifically targeting macOS on Apple Silicon (M1/M2/M3/M4).
+            <ul>
+              <li><strong>Strict Source Immutability:</strong> The input trip directory (<code>--input</code>) is strictly read-only. Source files are never moved, renamed, or modified.</li>
+              <li><strong>APFS Zero-Byte Hard Links:</strong> Projects files into species folders using POSIX hard links (<code>std::fs::hard_link</code>), pointing to the identical disk inode.</li>
+              <li><strong>Neural Pipeline:</strong> Multi-stage YOLO11m detector + BioCLIP 2 vision embeddings + SINR spatio-temporal Bayesian prior.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Stage -->
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Transformation Pipeline Overview</h4>
+        <div class="pipeline-flow">
+          <div class="pipeline-node active-stage">
+            <div class="node-icon">📁</div>
+            <div class="node-title">Immutable Trips</div>
+            <div class="node-subtitle">RAW + XMP sidecars</div>
+          </div>
+          <div class="pipeline-arrow">➔</div>
+          <div class="pipeline-node">
+            <div class="node-icon">📍</div>
+            <div class="node-title">Location Engine</div>
+            <div class="node-subtitle">EXIF + Sibling + Gazetteer</div>
+          </div>
+          <div class="pipeline-arrow">➔</div>
+          <div class="pipeline-node">
+            <div class="node-icon">🎯</div>
+            <div class="node-title">YOLO11 Crop</div>
+            <div class="node-subtitle">Apple Neural Engine</div>
+          </div>
+          <div class="pipeline-arrow">➔</div>
+          <div class="pipeline-node">
+            <div class="node-icon">🧬</div>
+            <div class="node-title">BioCLIP + SINR</div>
+            <div class="node-subtitle">Bayesian Geo-Prior</div>
+          </div>
+          <div class="pipeline-arrow">➔</div>
+          <div class="pipeline-node">
+            <div class="node-icon">🌊</div>
+            <div class="node-title">Burst Smooth</div>
+            <div class="node-subtitle">Cosine Clustering</div>
+          </div>
+          <div class="pipeline-arrow">➔</div>
+          <div class="pipeline-node active-stage">
+            <div class="node-icon">🦅</div>
+            <div class="node-title">Species Tree</div>
+            <div class="node-subtitle">0 Extra Bytes!</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 2: APFS Inodes & Zero-Byte Projection -->
+    <section class="scene-slide" id="scene-1" data-index="1">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 2 of 8 • Core Invariant</span>
+            <span class="scene-duration">⏱ ~70 sec audio</span>
+          </div>
+          <h2 class="scene-title">The APFS Inode Magic: Zero-Byte Projections</h2>
+          <p class="scene-desc">How POSIX hard links allow your photos to live in two (or three!) places at once without eating up any additional storage space.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> For the Photographer</h3>
+            <span class="pill pill-green">Storage Freedom</span>
+          </div>
+          <div class="perspective-card-body">
+            Normally, duplicating a 50MB Sony or Canon RAW file into another folder costs another 50MB.
+            With <code>avicull</code>, opening the photo from <code>Trips/Bharatpur/DSC_4011.CR2</code> or from <code>birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2</code> opens the <em>exact same physical bits</em> on your Mac's SSD!
+            <ul>
+              <li>Edits in your original .XMP sidecar stay automatically connected.</li>
+              <li>You can even organize an individual trip folder and your entire photo archive simultaneously!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> Under The Hood: POSIX Inodes</h3>
+            <span class="pill pill-blue">APFS & Inode Math</span>
+          </div>
+          <div class="perspective-card-body">
+            APFS implements directory entries as pointers to inode metadata records:
+            <ul>
+              <li><code>std::fs::hard_link(src, dst)</code> creates an additional directory entry sharing <code>st_ino</code>.</li>
+              <li>The inode's reference counter <code>st_nlink</code> increments from 1 to 2 (or 3 in multi-level hierarchies). Disk payload allocated: <strong>0 bytes</strong>.</li>
+              <li><strong>Preflight Safety:</strong> <code>avicull</code> checks <code>st_dev</code> upfront. If input and output are on different volumes, it halts before running AI inference to avoid mid-run <code>EXDEV</code> errors.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inode Simulator Widget -->
+      <div class="interactive-stage">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Interactive APFS Inode Simulator</h4>
+          <button class="btn btn-primary" id="btnToggleHardLink" style="font-size:0.75rem; padding: 0.3rem 0.7rem;">
+            🔗 Simulate `avicull organize`
+          </button>
+        </div>
+
+        <div class="inode-viz">
+          <!-- Source Trip Box -->
+          <div class="tree-box">
+            <div class="tree-box-title">
+              <span>Source Trip Archive (--input)</span>
+              <span class="pill pill-green">Read-Only</span>
+            </div>
+            <div class="tree-line highlight">
+              <span>📁 Bharatpur/</span>
+            </div>
+            <div class="tree-line highlight" style="margin-left: 1rem;">
+              <span>DSC_4011.CR2</span>
+              <span class="inode-chip">ino: 849201</span>
+            </div>
+            <div class="tree-line highlight" style="margin-left: 1rem;">
+              <span>DSC_4011.xmp</span>
+              <span class="inode-chip">ino: 849202</span>
+            </div>
+          </div>
+
+          <!-- Physical APFS Inode Block -->
+          <div class="inode-block-card">
+            <div class="inode-badge">APFS Inode #849201</div>
+            <div class="data-size-stat">48.2 MB</div>
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">Physical Flash Block On Disk</div>
+            <div class="link-count-pill" id="inodeLinkCounter">
+              <span>st_nlink = </span><strong id="linkCountNum">1</strong>
+            </div>
+            <div style="font-size: 0.7rem; color: #34d399; margin-top: 0.5rem;" id="additionalBytesLabel">
+              +0 disk bytes added
+            </div>
+          </div>
+
+          <!-- Destination Species Tree -->
+          <div class="tree-box">
+            <div class="tree-box-title">
+              <span>Species Output Tree</span>
+              <span class="pill pill-blue">birds_hierarchy</span>
+            </div>
+            <div class="tree-line" id="dstTreeFolder">
+              <span>📁 Painted_Stork/</span>
+            </div>
+            <div class="tree-line" id="dstTreeFile" style="margin-left: 1rem;">
+              <span id="dstFileNameLabel">DSC_4011_0.96.CR2</span>
+              <span class="inode-chip" id="dstInodeChip">ino: 849201</span>
+            </div>
+            <div class="tree-line" id="dstTreeSidecar" style="margin-left: 1rem;">
+              <span id="dstSidecarNameLabel">DSC_4011_0.96.xmp</span>
+              <span class="inode-chip">ino: 849202</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 3: Stage 1 & 2 - Discovery & Location Intelligence -->
+    <section class="scene-slide" id="scene-2" data-index="2">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 3 of 8 • Discovery & Geo</span>
+            <span class="scene-duration">⏱ ~75 sec audio</span>
+          </div>
+          <h2 class="scene-title">Stage 1 & 2: Discovery, RAW Previews & Location Fallbacks</h2>
+          <p class="scene-desc">Scanning large photo trees in milliseconds, bundling sidecars, extracting embedded previews, and inferring coordinates without manual tagging.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> Camera Bodies & Forgotten GPS</h3>
+            <span class="pill pill-green">Real Fieldwork</span>
+          </div>
+          <div class="perspective-card-body">
+            Professional birding cameras (Canon EOS R5, Sony A1, Nikon Z9) often have GPS turned off to preserve battery, or lose signal under dense canopy.
+            <ul>
+              <li><strong>Sibling Propagation:</strong> If only <em>one</em> photo in your entire trip folder has GPS (like a quick phone snap), <code>avicull</code> automatically propagates those coordinates to all other photos in that trip!</li>
+              <li><strong>Folder Gazetteer:</strong> If your folder is named <code>2025-11_Keoladeo_Bharatpur</code>, avicull recognizes the bird sanctuary name and applies its coordinates automatically!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> Low-Level Parsing & BLAKE3 Bundling</h3>
+            <span class="pill pill-blue">High Performance I/O</span>
+          </div>
+          <div class="perspective-card-body">
+            <code>src/scanner.rs</code> and <code>src/geo.rs</code> prioritize high-throughput parallel execution:
+            <ul>
+              <li><strong>Recursive Scanner:</strong> Uses <code>walkdir</code> while skipping <code>birds_hierarchy</code>, <code>.avicull</code>, and Apple Photos <code>.photoslibrary</code> packages to avoid infinite recursion.</li>
+              <li><strong>In-Memory RAW Preview:</strong> Scans the raw binary for embedded JPEG markers (<code>0xFFD8..0xFFD9</code>). This extracts 4K JPEG previews in 15ms—10x faster than dcraw or full raw demosaicing.</li>
+              <li><strong>AssetBundle Contract:</strong> Bundles primary RAW, companion JPEG, and sidecars (<code>.xmp</code>, <code>.dop</code>, <code>.pp3</code>) under a deterministic BLAKE3 hash.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
+          4-Tier Location Resolution Cascade
+        </h4>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #10b981;">
+            <div style="font-size:0.75rem; color:#34d399; font-weight:700;">PRIORITY 1</div>
+            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">EXIF GPS</div>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Direct camera coordinates via <code>nom-exif</code>.</p>
+          </div>
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #06b6d4;">
+            <div style="font-size:0.75rem; color:#38bdf8; font-weight:700;">PRIORITY 2</div>
+            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Sibling Propagation</div>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Inherits median GPS from neighboring photos in same trip.</p>
+          </div>
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #f59e0b;">
+            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700;">PRIORITY 3</div>
+            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Trip Gazetteer</div>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Matches folder name ("Ranganathittu") against offline database.</p>
+          </div>
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #8b5cf6;">
+            <div style="font-size:0.75rem; color:#c084fc; font-weight:700;">PRIORITY 4</div>
+            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Default / CLI</div>
+            <p style="font-size:0.75rem; color:var(--text-muted);">Configured fallback coordinates or neutral prior.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 4: Stage 3 - YOLO11 Detection & Context Padding -->
+    <section class="scene-slide" id="scene-3" data-index="3">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 4 of 8 • Detection</span>
+            <span class="scene-duration">⏱ ~75 sec audio</span>
+          </div>
+          <h2 class="scene-title">Stage 3: Ultralytics YOLO11 & 15% Context Padding</h2>
+          <p class="scene-desc">Why background clutter confuses species classifiers, and how hardware-accelerated detection isolates the bird before taxonomic identification.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> Field Marks & Heavy Foliage</h3>
+            <span class="pill pill-green">Birding Nuance</span>
+          </div>
+          <div class="perspective-card-body">
+            Birds rarely pose in clean open skies. They lurk behind reed beds, perch on messy branches, or occupy only 5% of your frame.
+            <ul>
+              <li>If you feed the whole image to an AI, it might classify the <em>tree or lake</em> instead of the bird!</li>
+              <li><strong>The 15% Context Padding:</strong> Tight bounding boxes often cut off the bird's beak tip, crest feathers, or tail shape—critical diagnostic field marks. avicull intelligently expands the crop by 15% on all four sides.</li>
+              <li>If no bird is present (empty branch / missed flight shot), it routes to <code>_No_Bird_Detected</code>.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> CoreML Acceleration & Heuristics</h3>
+            <span class="pill pill-blue">ONNX on Apple Neural Engine</span>
+          </div>
+          <div class="perspective-card-body">
+            <code>src/detector.rs</code> executes Ultralytics YOLO11m (COCO class 14) via <code>ort</code> on Apple Silicon Metal/ANE:
+            <ul>
+              <li><strong>Target Selection Policy:</strong> When multiple birds are detected, it chooses the box maximizing:
+                <div class="formula-box">Score = Confidence × Area</div>
+                This reliably locks onto the foreground subject rather than background flocks.
+              </li>
+              <li><strong>Clamped Resampling:</strong> The 15% padding is safely clamped to image boundaries, followed by high-quality Lanczos3 resampling to 224x224.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Detector Visualizer -->
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">Interactive YOLO11 Bounding Box & 15% Padding</h4>
+        <div style="display: flex; gap: 2rem; align-items: center; justify-content: center; flex-wrap: wrap;">
+          <!-- Simulated Image Canvas -->
+          <div style="position: relative; width: 340px; height: 220px; background: #0c1424; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            <svg viewBox="0 0 340 220" style="width:100%; height:100%;">
+              <!-- Background foliage -->
+              <path d="M0 220 Q 80 140 140 220 Q 220 160 340 220 Z" fill="#142823"/>
+              <path d="M20 220 Q 90 90 200 220" stroke="#1f4136" stroke-width="6" fill="none"/>
+              <!-- Bird vector -->
+              <g transform="translate(140, 70)">
+                <ellipse cx="40" cy="40" rx="30" ry="20" fill="#e2e8f0"/>
+                <circle cx="65" cy="30" r="14" fill="#cbd5e1"/>
+                <polygon points="76,28 95,32 76,36" fill="#f59e0b"/>
+                <circle cx="68" cy="27" r="2.5" fill="#0f172a"/>
+                <path d="M15 40 Q -10 50 -15 65" stroke="#94a3b8" stroke-width="4"/>
+              </g>
+              <!-- Raw YOLO Box (red dotted) -->
+              <rect id="rawBox" x="125" y="85" width="110" height="70" fill="none" stroke="#f43f5e" stroke-width="2" stroke-dasharray="4"/>
+              <!-- Padded 15% Box (green solid) -->
+              <rect id="paddedBox" x="110" y="75" width="140" height="90" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" stroke-width="2"/>
+            </svg>
+            <div style="position:absolute; bottom:8px; left:8px; font-size:0.7rem; font-family:var(--font-mono); background:rgba(0,0,0,0.7); padding:2px 6px; border-radius:4px;">
+              Bird Detected: 94.2% (YOLO11m)
+            </div>
+          </div>
+
+          <div style="max-width: 380px;">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+              <span style="display:inline-block; width:12px; height:12px; background:#f43f5e; border-radius:2px;"></span>
+              <span style="font-size:0.8rem; color:#cbd5e1;">Raw YOLO11 Box (Cuts off bill & tail feathers)</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem;">
+              <span style="display:inline-block; width:12px; height:12px; background:#10b981; border-radius:2px;"></span>
+              <span style="font-size:0.8rem; color:#cbd5e1;"><strong>avicull 15% Context Pad</strong> (Preserves field marks)</span>
+            </div>
+            <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">
+              By preserving plumage margins, the downstream BioCLIP transformer sees full bill shape, crown pattern, and wing bars without surrounding background clutter.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 5: Stage 4 - BioCLIP 2 & SINR Bayesian Prior -->
+    <section class="scene-slide" id="scene-4" data-index="4">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 5 of 8 • AI & Bayesian Math</span>
+            <span class="scene-duration">⏱ ~85 sec audio</span>
+          </div>
+          <h2 class="scene-title">Stage 4: BioCLIP 2 Visuals + SINR Spatio-Temporal Prior</h2>
+          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors eliminate out-of-range false positives.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> The "Lookalike" Dilemma</h3>
+            <span class="pill pill-green">Merlin AI Parallel</span>
+          </div>
+          <div class="perspective-card-body">
+            Cornell's Merlin Bird ID is world-famous because it asks: <em>"Where and when was this photo taken?"</em>
+            <ul>
+              <li>A Blyth's Reed Warbler in India looks almost indistinguishable from a European Reed Warbler in Germany.</li>
+              <li>Without location, a pure vision model might guess 50/50 and assign your Indian photo to a European species!</li>
+              <li>With <code>avicull</code>, the AI knows that European Reed Warblers are statistically non-existent in Keoladeo in November. The lookalike is suppressed, and the native bird surges to 98% confidence!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> The Bayesian Math: BioCLIP + SINR</h3>
+            <span class="pill pill-blue">Probabilistic Formulation</span>
+          </div>
+          <div class="perspective-card-body">
+            We fuse multimodal embeddings with neural range estimation (ICML 2023):
+            <ul>
+              <li><strong>BioCLIP 2:</strong> Computes $L_2$-normalized image vector $v \in \mathbb{R}^d$ and temperature-scaled logits over precomputed taxonomic text matrix $T$:
+                <div class="formula-box">P_vis(s | I) = softmax(τ · v T^T)_s</div>
+              </li>
+              <li><strong>SINR Range Prior:</strong> Evaluates $P_geo(s | lat, lon)$. Rare vagrants are kept possible via floor $\epsilon = 0.01$:
+                <div class="formula-box">P_post(s) ∝ P_vis(s) · max(P_geo(s), ε)^α</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Bayesian Slider -->
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
+          Interactive Bayesian Lookalike Demo: Blyth's vs. European Reed Warbler
+        </h4>
+
+        <div class="sim-controls">
+          <div class="sim-control-group">
+            <label for="geoSlider"><strong>Simulate Location:</strong></label>
+            <input type="range" class="sim-slider" id="geoSlider" min="0" max="100" value="0">
+            <span id="geoLocLabel" style="font-family:var(--font-mono); color:#38bdf8;">0% Geo Prior (Pure Visual)</span>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:1.25rem;">
+          <!-- Species A -->
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="color:#fff;">Blyth's Reed Warbler</strong>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Acrocephalus dumetorum (Native in India)</div>
+              </div>
+              <span class="pill pill-green" id="blythBadge">P_post: 52%</span>
+            </div>
+            <div style="height:12px; background:#0f172a; border-radius:6px; margin-top:0.75rem; overflow:hidden;">
+              <div id="blythBar" style="height:100%; width:52%; background:linear-gradient(90deg, #10b981, #06b6d4); transition:width 0.3s;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-dim); margin-top:0.35rem;">
+              <span>Visual: 51%</span>
+              <span id="blythGeo">SINR Geo Prior: 0.00</span>
+            </div>
+          </div>
+
+          <!-- Species B -->
+          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="color:#fff;">European Reed Warbler</strong>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Acrocephalus scirpaceus (Vagrant in India)</div>
+              </div>
+              <span class="pill pill-yellow" id="eurBadge">P_post: 48%</span>
+            </div>
+            <div style="height:12px; background:#0f172a; border-radius:6px; margin-top:0.75rem; overflow:hidden;">
+              <div id="eurBar" style="height:100%; width:48%; background:linear-gradient(90deg, #f59e0b, #ef4444); transition:width 0.3s;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-dim); margin-top:0.35rem;">
+              <span>Visual: 49%</span>
+              <span id="eurGeo">SINR Geo Prior: 0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 6: Stage 5 - Burst Consensus Smoothing -->
+    <section class="scene-slide" id="scene-5" data-index="5">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 6 of 8 • Burst Engine</span>
+            <span class="scene-duration">⏱ ~80 sec audio</span>
+          </div>
+          <h2 class="scene-title">Stage 5: Burst Consensus Smoothing (Anti-Flicker)</h2>
+          <p class="scene-desc">High-speed motor drives capture 10 to 30 frames a second. Here is how avicull guarantees an entire burst stays together without mid-sequence flickering.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> High-Speed Motor Drives (20 FPS)</h3>
+            <span class="pill pill-green">Camera Science</span>
+          </div>
+          <div class="perspective-card-body">
+            When tracking a bird in flight, your camera fires off a burst of 5 to 20 shots:
+            <ul>
+              <li>Frame 1 is crisp and clear. Frame 3 might have wing motion blur. Frame 4 might have a brief autofocus hunt.</li>
+              <li><strong>The Annoyance:</strong> Without consensus smoothing, Frame 3 might fall below confidence or be misidentified, splitting your burst across multiple folders!</li>
+              <li><code>avicull</code> pools the whole burst together. The sharpest frame carries the blurred frames, keeping your sequence intact.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> Cosine Similarity Graph Clustering</h3>
+            <span class="pill pill-blue">src/burst.rs Algorithm</span>
+          </div>
+          <div class="perspective-card-body">
+            Frames are clustered into a burst using two strict conditions:
+            <ul>
+              <li><strong>Temporal Proximity:</strong> $|\Delta t| \le 3000\text{ ms}$.</li>
+              <li><strong>Visual Cosine Similarity:</strong> $v_i \cdot v_j \ge 0.80$. This prevents errors when a photographer rapidly pans to a different species!</li>
+              <li><strong>Confidence-Weighted Pooling:</strong>
+                <div class="formula-box">P_burst(s) = (∑ w_m · P_post_m(s)) / (∑ w_m), where w_m = det_conf_m</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filmstrip Widget -->
+      <div class="interactive-stage">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
+            Continuous 5-Frame Burst Sequence (Keoladeo Trip)
+          </h4>
+          <span class="pill pill-blue">Delta t = 200ms per frame</span>
+        </div>
+
+        <div class="filmstrip">
+          <div class="frame-card winner">
+            <div class="frame-thumb">
+              <span style="font-size:1.8rem;">🦅</span>
+              <div class="frame-bbox" style="width:50px; height:50px; top:12px; left:50px;"></div>
+            </div>
+            <div><strong>DSC_4011.CR2</strong></div>
+            <div style="color:var(--text-dim);">Frame 1 (Crisp)</div>
+            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.96</div>
+          </div>
+
+          <div class="frame-card winner">
+            <div class="frame-thumb">
+              <span style="font-size:1.8rem;">🦅</span>
+              <div class="frame-bbox" style="width:48px; height:48px; top:14px; left:52px;"></div>
+            </div>
+            <div><strong>DSC_4012.CR2</strong></div>
+            <div style="color:var(--text-dim);">Frame 2 (Good)</div>
+            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.94</div>
+          </div>
+
+          <div class="frame-card winner" style="border: 1px dashed #f59e0b;">
+            <div class="frame-thumb" style="filter: blur(1.5px);">
+              <span style="font-size:1.8rem;">🦅</span>
+              <div class="frame-bbox" style="width:45px; height:45px; top:16px; left:54px; border-color:#f59e0b;"></div>
+            </div>
+            <div><strong>DSC_4013.CR2</strong></div>
+            <div style="color:#fbbf24;">Frame 3 (Motion Blur)</div>
+            <div style="color:#fbbf24; font-weight:700; margin-top:4px;">Raw: 0.52 ➔ <span style="color:#34d399;">0.93</span></div>
+          </div>
+
+          <div class="frame-card winner">
+            <div class="frame-thumb">
+              <span style="font-size:1.8rem;">🦅</span>
+              <div class="frame-bbox" style="width:52px; height:52px; top:10px; left:48px;"></div>
+            </div>
+            <div><strong>DSC_4014.CR2</strong></div>
+            <div style="color:var(--text-dim);">Frame 4 (Refocused)</div>
+            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.91</div>
+          </div>
+
+          <div class="frame-card winner">
+            <div class="frame-thumb">
+              <span style="font-size:1.8rem;">🦅</span>
+              <div class="frame-bbox" style="width:50px; height:50px; top:12px; left:50px;"></div>
+            </div>
+            <div><strong>DSC_4015.CR2</strong></div>
+            <div style="color:var(--text-dim);">Frame 5 (Banking)</div>
+            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.89</div>
+          </div>
+        </div>
+
+        <div style="margin-top:1rem; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:0.85rem; color:#e2e8f0;">
+            <strong>Burst Consensus Result:</strong> All 5 frames assigned to <code>Painted_Stork/</code> with smoothed confidence <strong>0.93</strong>.
+          </div>
+          <span class="pill pill-green">Zero Split Sequences</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 7: Stage 6 - Routing Tiers & SQLite Manifest -->
+    <section class="scene-slide" id="scene-6" data-index="6">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 7 of 8 • Storage & DB</span>
+            <span class="scene-duration">⏱ ~75 sec audio</span>
+          </div>
+          <h2 class="scene-title">Stage 6: Routing Tiers, Collisions & Instant Relink</h2>
+          <p class="scene-desc">Deterministic naming, review tiers, cross-trip collision resolution, and sub-second threshold relinking without re-running AI.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> Three Dedicated Folders</h3>
+            <span class="pill pill-green">Curator's Dream</span>
+          </div>
+          <div class="perspective-card-body">
+            Your photos are cleanly organized into 3 transparent tiers:
+            <ul>
+              <li><strong>Confirmed Species:</strong> (Score $\ge 0.65$): e.g. <code>birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2</code>. High confidence keepers.</li>
+              <li><strong>_Needs_Review:</strong> (Score $< 0.65$): Tucked inside <code>_Needs_Review/</code> for your manual review so your main species folders stay clean.</li>
+              <li><strong>_No_Bird_Detected:</strong> Empty shots, scenery, or accidental clicks.</li>
+              <li><strong>Instant Relink:</strong> Decide you only want $\ge 0.80$ keepers? Run <code>relink</code> and your tree reorganizes instantly!</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> SQLite State & Collision Safety</h3>
+            <span class="pill pill-blue">Transactional DB</span>
+          </div>
+          <div class="perspective-card-body">
+            All operations are backed by <code>.avicull/manifest.sqlite</code>:
+            <ul>
+              <li><strong>Cross-Trip Collision Handling:</strong> If two different cameras or trips named a file <code>DSC_4011.JPG</code>, avicull detects differing inodes and prefixes the trip: <code>Leh__DSC_4011_0.94.JPG</code>.</li>
+              <li><strong>Idempotency:</strong> Re-running <code>organize</code> skips existing inodes with zero duplicate work.</li>
+              <li><strong>Instant Relink:</strong> Reads cached predictions from SQLite and executes filesystem <code>unlink()</code> and <code>hard_link()</code> in milliseconds without loading neural nets.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQLite Schema & CLI Preview -->
+      <div class="interactive-stage">
+        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
+          SQLite Manifest State Schema (.avicull/manifest.sqlite)
+        </h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem;">
+          <div class="code-term">
+            <span class="term-comment">-- Database Manifest Tables</span><br>
+            <span class="term-prompt">CREATE TABLE</span> runs (run_id, started_at, input_root...);<br><br>
+            <span class="term-prompt">CREATE TABLE</span> bundles (<br>
+            &nbsp;&nbsp;bundle_id TEXT PRIMARY KEY,<br>
+            &nbsp;&nbsp;source_inode INTEGER,<br>
+            &nbsp;&nbsp;assigned_species_slug TEXT,<br>
+            &nbsp;&nbsp;final_conf REAL,<br>
+            &nbsp;&nbsp;routing_tier TEXT<br>
+            );<br><br>
+            <span class="term-prompt">CREATE TABLE</span> hardlink_operations (<br>
+            &nbsp;&nbsp;source_path, dest_path, source_inode, status<br>
+            );
+          </div>
+
+          <div style="background:var(--bg-card); border-radius:8px; padding:1rem; border:1px solid var(--border);">
+            <div style="font-size:0.8rem; font-weight:700; color:#38bdf8; margin-bottom:0.5rem;">
+              Destination File Naming Standard
+            </div>
+            <div style="font-family:var(--font-mono); font-size:0.8rem; color:#fff; background:#0b1120; padding:0.5rem 0.75rem; border-radius:4px; margin-bottom:0.75rem;">
+              &lt;OriginalStem&gt;_&lt;Confidence:0.2&gt;.&lt;ext&gt;
+            </div>
+            <ul style="font-size:0.78rem; color:var(--text-muted); margin-left:1.2rem; line-height:1.6;">
+              <li>Preserves original casing: <code>.CR2</code> and <code>.xmp</code> stay exact.</li>
+              <li>Sidecars mirror confidence: <code>DSC_4011_0.96.xmp</code></li>
+              <li>Multi-extension supported: <code>DSC_4011_0.96.CR2.xmp</code></li>
+              <li><code>avicull clean</code> safely unlinks without touching RAW files.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENE 8: How to Use It - Interactive CLI Simulator -->
+    <section class="scene-slide" id="scene-7" data-index="7">
+      <div class="scene-head">
+        <div>
+          <div class="scene-meta">
+            <span class="scene-tag">Scene 8 of 8 • Hands-On CLI</span>
+            <span class="scene-duration">⏱ ~80 sec audio</span>
+          </div>
+          <h2 class="scene-title">How to Use avicull: CLI & Complete Workflow</h2>
+          <p class="scene-desc">Building the binary, exporting models, running your first organization, generating reports, and rolling back safely.</p>
+        </div>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card birding" data-audience="bird">
+          <div class="perspective-card-head">
+            <h3><span>🔭</span> 3 Simple Commands for Photographers</h3>
+            <span class="pill pill-green">Effortless</span>
+          </div>
+          <div class="perspective-card-body">
+            You don't need to be a developer to run <code>avicull</code>:
+            <ol style="margin-left:1.2rem; margin-top:0.4rem; line-height:1.6;">
+              <li><strong>Scan:</strong> <code>avicull scan -i /Volumes/Photos/Leh</code> (dry run inspection)</li>
+              <li><strong>Organize:</strong> <code>avicull organize -i /Volumes/Photos/Leh</code> (creates <code>birds_hierarchy</code>)</li>
+              <li><strong>Report:</strong> <code>avicull report -i /Volumes/Photos/Leh</code> (see your species checklist!)</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="perspective-card engineering" data-audience="tech">
+          <div class="perspective-card-head">
+            <h3><span>⚡</span> Tunable Parameters for Power Users</h3>
+            <span class="pill pill-blue">High Customizability</span>
+          </div>
+          <div class="perspective-card-body">
+            Configure every stage of the pipeline to match your hardware and goals:
+            <ul>
+              <li><code>--min-confidence &lt;FLOAT&gt;</code> (default: 0.65)</li>
+              <li><code>--burst-window-ms &lt;INT&gt;</code> (default: 3000 ms)</li>
+              <li><code>--geo-prior-weight &lt;0.0..2.0&gt;</code> (default: 1.0)</li>
+              <li><code>--confidence-mode [burst-consensus | per-frame]</code></li>
+              <li><code>--threads &lt;INT&gt;</code> (Rayon thread pool allocation)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Terminal -->
+      <div class="interactive-stage">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
+            Interactive CLI Simulator (Click to Test Subcommands)
+          </h4>
+          <div style="display:flex; gap:0.4rem;">
+            <button class="btn" onclick="runSimCommand('scan')">scan</button>
+            <button class="btn" onclick="runSimCommand('organize')">organize</button>
+            <button class="btn" onclick="runSimCommand('relink')">relink</button>
+            <button class="btn" onclick="runSimCommand('report')">report</button>
+            <button class="btn" onclick="runSimCommand('clean')">clean</button>
+          </div>
+        </div>
+
+        <div class="code-term" id="termOutput" style="min-height: 220px; white-space: pre-wrap;">
+<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
+<span class="term-comment">[1/6] Preflight: Verified same APFS volume (st_dev: 16777220)</span>
+<span class="term-comment">[2/6] Scanned 1,420 bundles (skipped .avicull, birds_hierarchy)</span>
+<span class="term-comment">[3/6] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
+<span class="term-comment">[4/6] YOLO11m CoreML: 1,392 birds detected, 28 no-bird-detected</span>
+<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified</span>
+<span class="term-comment">[6/6] Burst consensus: Smoothed across 210 clusters</span>
+<span class="term-success">✔ Hard-linked 1,420 files to /Volumes/Photos/Leh/birds_hierarchy (0 disk bytes added)</span>
+<span class="term-success">  - Confirmed: 1,280 files</span>
+<span class="term-warn">  - _Needs_Review: 112 files</span>
+<span class="term-comment">  - _No_Bird_Detected: 28 files</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Narration & Audio Sticky Bar -->
+  <footer class="narration-bar">
+    <div class="nav-buttons">
+      <button class="btn" id="btnPrev" title="Previous Scene (Left Arrow)">◀ Back</button>
+      <button class="btn btn-primary" id="btnPlayPauseBottom">▶ Listen</button>
+      <button class="btn" id="btnNext" title="Next Scene (Right Arrow)">Next ▶</button>
+    </div>
+
+    <!-- Active Synchronized Subtitle Area -->
+    <div class="subtitle-box">
+      <div class="subtitle-speaker" id="subtitleSpeaker">
+        <span>🎙️</span> AI NARRATOR (SYNCHRONIZED VOICEOVER)
+      </div>
+      <div class="subtitle-text" id="subtitleText">
+        Welcome to avicull. Press Play to start the guided audio walkthrough.
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <label class="autoplay-toggle">
+        <input type="checkbox" id="chkAutoAdvance" checked>
+        <span>Auto-Advance</span>
+      </label>
+      <button class="btn" id="btnRestartAudio" title="Restart Audio for This Scene">↺ Replay</button>
+    </div>
+  </footer>
+
+  <!-- Full Transcript Modal -->
+  <div class="transcript-drawer" id="transcriptDrawer">
+    <div class="transcript-content">
+      <div class="transcript-head">
+        <h3 style="color:#fff;">Complete Voiceover Narration Script</h3>
+        <button class="btn" id="btnCloseTranscript">✕ Close</button>
+      </div>
+      <div id="fullTranscriptBody" style="font-size:0.88rem; color:#cbd5e1; line-height:1.7;">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* Narration Script Data for All 8 Scenes */
+    const SCENES = [
+      {
+        id: "scene-0",
+        tag: "Scene 1 • Overview",
+        title: "The Avian Photo Crisis & The Zero-Byte Solution",
+        narration: [
+          "Welcome to avicull, a local-first, deterministic AI bird photo organizer built in Rust for Apple Silicon macOS.",
+          "Every bird photographer knows the fundamental archive dilemma: you return from a trip with thousands of high-speed burst shots and huge RAW files.",
+          "You want to keep your trip chronology intact, but you also want a clean species catalog showing all your Painted Storks or Hornbills in one place.",
+          "Traditionally, copying these files doubles your storage and wastes hundreds of gigabytes.",
+          "avicull solves this with zero additional disk bytes using APFS POSIX hard links, keeping your source photo archive completely immutable while organizing your birds through cutting-edge neural networks."
+        ]
+      },
+      {
+        id: "scene-1",
+        tag: "Scene 2 • Core Invariant",
+        title: "The APFS Inode Magic: Zero-Byte Projections",
+        narration: [
+          "Let's look at the core filesystem invariant that makes avicull truly zero-byte.",
+          "On Apple's APFS filesystem, files are represented by inodes on disk.",
+          "Instead of copying image data, avicull creates POSIX hard links pointing to the exact same physical inode.",
+          "The link count increments, but zero additional disk bytes are allocated.",
+          "This also allows multi-level coexistence: you can have a birds hierarchy inside a specific trip folder, and another in your parent Pictures archive simultaneously.",
+          "Before running any models, avicull verifies device IDs upfront to guarantee hard links cannot fail mid-run."
+        ]
+      },
+      {
+        id: "scene-2",
+        tag: "Scene 3 • Discovery & Geo",
+        title: "Stage 1 & 2: Discovery, RAW Previews & Location Fallbacks",
+        narration: [
+          "Stage 1 recursively traverses your photo directory while strictly ignoring hidden folders, Apple Photos libraries, and prior outputs.",
+          "It bundles primary RAW files with companion JPEGs and Lightroom XMP sidecars under a deterministic BLAKE3 hash.",
+          "To achieve maximum speed, it scans for embedded 4K JPEG preview streams in memory rather than running slow RAW demosaicing.",
+          "Next, Stage 2 resolves location using a four-tier cascade: direct camera EXIF GPS, sibling propagation across the trip folder, an offline bird sanctuary gazetteer, and user defaults.",
+          "Even if your DSLR had GPS turned off, avicull ensures your photos are geo-located."
+        ]
+      },
+      {
+        id: "scene-3",
+        tag: "Scene 4 • Detection",
+        title: "Stage 3: Ultralytics YOLO11 & 15% Context Padding",
+        narration: [
+          "Stage 3 focuses the AI's attention where it matters: the bird itself.",
+          "Birds often perch in heavy foliage, messy reeds, or distant trees.",
+          "Feeding the entire photo into a classifier causes the model to hallucinate on background branches.",
+          "avicull runs Ultralytics YOLO11m on the Apple Neural Engine to detect bird bounding boxes.",
+          "When multiple birds appear, it selects the box maximizing confidence times area to focus on the primary subject.",
+          "Crucially, avicull adds a fifteen percent context padding on all four sides so bill tips, crest feathers, and diagnostic field marks are never cut off."
+        ]
+      },
+      {
+        id: "scene-4",
+        tag: "Scene 5 • AI & Bayesian Math",
+        title: "Stage 4: BioCLIP 2 Visuals + SINR Spatio-Temporal Prior",
+        narration: [
+          "Now comes species classification. Why do visual AI models fail on cryptic birds?",
+          "Because many species look virtually identical: a Blyth's Reed Warbler in Asia looks just like a European Reed Warbler.",
+          "avicull uses BioCLIP 2 to compute vision transformer embeddings matched against global taxonomy text vectors.",
+          "Then, it combines this with SINR, an implicit neural representation network from ICML 2023 that predicts species presence given latitude, longitude, and week.",
+          "Using Bayesian posterior math with a vagrant probability floor, avicull down-ranks out-of-range lookalikes and elevates native species with mathematical rigor."
+        ]
+      },
+      {
+        id: "scene-5",
+        tag: "Scene 6 • Burst Engine",
+        title: "Stage 5: Burst Consensus Smoothing (Anti-Flicker)",
+        narration: [
+          "Bird photography relies on continuous high-speed bursts at twenty to thirty frames per second.",
+          "Across a burst of five shots, frame one might be razor sharp, but frame three might suffer brief motion blur or focus breathing.",
+          "Without burst smoothing, that single sequence gets split across different species folders.",
+          "avicull groups consecutive frames when their time gap is under three seconds and their visual cosine similarity is eighty percent or higher.",
+          "It then performs confidence-weighted posterior pooling across all frames.",
+          "The sharpest frames anchor the blurry ones, ensuring your entire burst stays together under the correct species."
+        ]
+      },
+      {
+        id: "scene-6",
+        tag: "Scene 7 • Storage & DB",
+        title: "Stage 6: Routing Tiers, Collisions & Instant Relink",
+        narration: [
+          "Stage 6 materializes the hard links into your birds hierarchy.",
+          "Files are named with their stem, an underscore, and two-decimal confidence.",
+          "Photos are routed into three transparent tiers: Confirmed Species for scores sixty-five percent and above, Needs Review for borderline identifications, and No Bird Detected for empty frames.",
+          "If two trips contain identical file stems, avicull automatically prefixes the trip folder name to prevent collisions.",
+          "Everything is logged transactionally in an SQLite manifest.",
+          "This enables instant relinking: you can change your confidence threshold in milliseconds without re-running any neural networks."
+        ]
+      },
+      {
+        id: "scene-7",
+        tag: "Scene 8 • Hands-On CLI",
+        title: "How to Use avicull: CLI & Complete Workflow",
+        narration: [
+          "Using avicull in your daily workflow is fast and intuitive.",
+          "Compile the release binary with cargo build release, and export model weights using the Python script.",
+          "Run avicull scan to inspect your bundles and verify APFS volume compatibility.",
+          "Run avicull organize to execute the full pipeline and populate your species directory tree.",
+          "Use avicull report to view species totals and inspect items needing review.",
+          "And if you ever want to reset, avicull clean safely unlinks the output tree while leaving your precious source RAW archives completely untouched.",
+          "Experience the future of local, private, zero-copy avian photo curation on Apple Silicon!"
+        ]
+      }
+    ];
+
+    /* Application State */
+    let currentSceneIndex = 0;
+    let isPlaying = false;
+    let currentUtterance = null;
+    let speechRate = 1.0;
+    let selectedVoice = null;
+    let autoAdvance = true;
+    let availableVoices = [];
+    let currentSentenceIndex = 0;
+    let speechSentences = [];
+
+    /* Web Audio API for Chimes & Sound Feedback */
+    let audioCtx = null;
+    function playChime(freq = 440, type = 'sine', duration = 0.15) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        // AudioContext disabled or blocked
+      }
+    }
+
+    /* Initialize Voice Selection */
+    function initVoices() {
+      if (!('speechSynthesis' in window)) {
+        document.getElementById('voiceSelect').innerHTML = '<option>Voice unavailable</option>';
+        return;
+      }
+
+      function populate() {
+        availableVoices = window.speechSynthesis.getVoices();
+        const select = document.getElementById('voiceSelect');
+        select.innerHTML = '';
+        
+        // Prefer natural English voices
+        const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
+        const voicesToUse = englishVoices.length > 0 ? englishVoices : availableVoices;
+
+        voicesToUse.forEach((voice, i) => {
+          const opt = document.createElement('option');
+          opt.value = voice.name;
+          opt.textContent = `${voice.name} (${voice.lang})`;
+          // Prefer Samantha, Daniel, Karen, or Google US English
+          if (voice.name.includes('Samantha') || voice.name.includes('Daniel') || voice.name.includes('Natural') || voice.name.includes('Google US English')) {
+            opt.selected = true;
+            selectedVoice = voice;
+          }
+          select.appendChild(opt);
+        });
+
+        if (!selectedVoice && voicesToUse.length > 0) {
+          selectedVoice = voicesToUse[0];
+        }
+      }
+
+      populate();
+      if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = populate;
+      }
+    }
+
+    /* Build Timeline Header */
+    function buildTimeline() {
+      const timeline = document.getElementById('sceneTimeline');
+      timeline.innerHTML = '';
+      SCENES.forEach((scene, index) => {
+        const li = document.createElement('li');
+        li.className = `step-item ${index === 0 ? 'active' : ''}`;
+        li.dataset.index = index;
+        li.innerHTML = `
+          <span class="step-num">${index + 1}</span>
+          <span>${scene.title.split(':')[0]}</span>
+        `;
+        li.addEventListener('click', () => {
+          goToScene(index);
+          if (isPlaying) {
+            playSceneAudio(index);
+          }
+        });
+        timeline.appendChild(li);
+      });
+    }
+
+    /* Build Transcript Text */
+    function buildTranscript() {
+      const body = document.getElementById('fullTranscriptBody');
+      body.innerHTML = '';
+      SCENES.forEach((scene, idx) => {
+        const div = document.createElement('div');
+        div.style.marginBottom = '1.5rem';
+        div.innerHTML = `
+          <h4 style="color:#38bdf8; margin-bottom:0.4rem; font-size:0.95rem;">${scene.tag}: ${scene.title}</h4>
+          <p style="margin-bottom:0.5rem;">${scene.narration.join(' ')}</p>
+        `;
+        body.appendChild(div);
+      });
+    }
+
+    /* Scene Navigation */
+    function goToScene(index) {
+      if (index < 0 || index >= SCENES.length) return;
+      currentSceneIndex = index;
+
+      // Update Slides
+      document.querySelectorAll('.scene-slide').forEach((slide, i) => {
+        slide.classList.toggle('active', i === index);
+      });
+
+      // Update Timeline Stepper
+      document.querySelectorAll('.step-item').forEach((item, i) => {
+        item.classList.toggle('active', i === index);
+        item.classList.toggle('completed', i < index);
+      });
+
+      // Update Subtitle text placeholder
+      const scene = SCENES[index];
+      document.getElementById('subtitleText').textContent = scene.narration[0];
+      document.getElementById('subtitleSpeaker').innerHTML = `<span>🎙️</span> ${scene.tag.toUpperCase()}`;
+
+      // Audio Chime
+      playChime(520, 'sine', 0.12);
+    }
+
+    /* Speech Synthesis Voiceover Engine */
+    function playSceneAudio(index) {
+      if (!('speechSynthesis' in window)) {
+        alert("Speech synthesis is not supported in this browser.");
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const scene = SCENES[index];
+      speechSentences = scene.narration;
+      currentSentenceIndex = 0;
+      isPlaying = true;
+      updatePlayButtonUI();
+
+      speakNextSentence();
+    }
+
+    function speakNextSentence() {
+      if (!isPlaying) return;
+
+      if (currentSentenceIndex >= speechSentences.length) {
+        // Finished current scene
+        if (autoAdvance && currentSceneIndex < SCENES.length - 1) {
+          setTimeout(() => {
+            if (!isPlaying) return;
+            goToScene(currentSceneIndex + 1);
+            playSceneAudio(currentSceneIndex);
+          }, 800);
+        } else {
+          stopAudio();
+        }
+        return;
+      }
+
+      const text = speechSentences[currentSentenceIndex];
+      const subEl = document.getElementById('subtitleText');
+      subEl.innerHTML = `<span class="highlight-word">${text}</span>`;
+
+      const utter = new SpeechSynthesisUtterance(text);
+      if (selectedVoice) utter.voice = selectedVoice;
+      utter.rate = speechRate;
+      utter.pitch = 1.0;
+
+      utter.onstart = () => {
+        document.getElementById('audioWave').classList.add('active');
+      };
+
+      utter.onend = () => {
+        currentSentenceIndex++;
+        speakNextSentence();
+      };
+
+      utter.onerror = (e) => {
+        console.warn("Speech error:", e);
+        currentSentenceIndex++;
+        speakNextSentence();
+      };
+
+      currentUtterance = utter;
+      window.speechSynthesis.speak(utter);
+    }
+
+    function stopAudio() {
+      isPlaying = false;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      updatePlayButtonUI();
+      document.getElementById('audioWave').classList.remove('active');
+    }
+
+    function toggleAudio() {
+      if (isPlaying) {
+        stopAudio();
+      } else {
+        playSceneAudio(currentSceneIndex);
+      }
+    }
+
+    function updatePlayButtonUI() {
+      const btn = document.getElementById('btnPlayPause');
+      const btnBottom = document.getElementById('btnPlayPauseBottom');
+      const icon = document.getElementById('playIcon');
+      const text = document.getElementById('playText');
+
+      if (isPlaying) {
+        btn.classList.add('is-playing');
+        btnBottom.classList.add('is-playing');
+        icon.textContent = '⏸';
+        text.textContent = 'Pause';
+        btnBottom.textContent = '⏸ Pause';
+      } else {
+        btn.classList.remove('is-playing');
+        btnBottom.classList.remove('is-playing');
+        icon.textContent = '▶';
+        text.textContent = 'Voiceover';
+        btnBottom.textContent = '▶ Listen';
+      }
+    }
+
+    /* Event Listeners & Interactive Handlers */
+    document.addEventListener('DOMContentLoaded', () => {
+      buildTimeline();
+      buildTranscript();
+      initVoices();
+
+      // Play/Pause button
+      document.getElementById('btnPlayPause').addEventListener('click', toggleAudio);
+      document.getElementById('btnPlayPauseBottom').addEventListener('click', toggleAudio);
+
+      // Next / Prev buttons
+      document.getElementById('btnNext').addEventListener('click', () => {
+        if (currentSceneIndex < SCENES.length - 1) {
+          goToScene(currentSceneIndex + 1);
+          if (isPlaying) playSceneAudio(currentSceneIndex);
+        }
+      });
+
+      document.getElementById('btnPrev').addEventListener('click', () => {
+        if (currentSceneIndex > 0) {
+          goToScene(currentSceneIndex - 1);
+          if (isPlaying) playSceneAudio(currentSceneIndex);
+        }
+      });
+
+      document.getElementById('btnRestartAudio').addEventListener('click', () => {
+        playSceneAudio(currentSceneIndex);
+      });
+
+      // Rate button
+      const rates = [1.0, 1.25, 1.5, 0.85];
+      let rateIdx = 0;
+      document.getElementById('btnRate').addEventListener('click', () => {
+        rateIdx = (rateIdx + 1) % rates.length;
+        speechRate = rates[rateIdx];
+        document.getElementById('btnRate').textContent = `${speechRate}x`;
+        if (isPlaying) playSceneAudio(currentSceneIndex);
+      });
+
+      // Voice selection
+      document.getElementById('voiceSelect').addEventListener('change', (e) => {
+        const found = availableVoices.find(v => v.name === e.target.value);
+        if (found) {
+          selectedVoice = found;
+          if (isPlaying) playSceneAudio(currentSceneIndex);
+        }
+      });
+
+      // Auto-advance toggle
+      const autoAdv = document.getElementById('chkAutoAdvance');
+      autoAdvance = autoAdv.checked;
+      autoAdv.addEventListener('change', (e) => {
+        autoAdvance = e.target.checked;
+      });
+
+      // Transcript Drawer
+      document.getElementById('btnTranscript').addEventListener('click', () => {
+        document.getElementById('transcriptDrawer').classList.add('open');
+      });
+      document.getElementById('btnCloseTranscript').addEventListener('click', () => {
+        document.getElementById('transcriptDrawer').classList.remove('open');
+      });
+
+      // Audience / Lens Filter Switcher
+      document.querySelectorAll('.lens-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.lens-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const lens = btn.dataset.lens;
+
+          document.querySelectorAll('.perspective-card').forEach(card => {
+            if (lens === 'all') {
+              card.style.display = 'block';
+            } else if (lens === 'bird') {
+              card.style.display = card.classList.contains('birding') ? 'block' : 'none';
+            } else if (lens === 'tech') {
+              card.style.display = card.classList.contains('engineering') ? 'block' : 'none';
+            }
+          });
+        });
+      });
+
+      // Keyboard navigation
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.code === 'Space') {
+          e.preventDefault();
+          toggleAudio();
+        } else if (e.code === 'ArrowRight') {
+          document.getElementById('btnNext').click();
+        } else if (e.code === 'ArrowLeft') {
+          document.getElementById('btnPrev').click();
+        }
+      });
+
+      // Scene 2: Interactive Inode Simulator
+      let hardLinkActive = true;
+      document.getElementById('btnToggleHardLink').addEventListener('click', () => {
+        hardLinkActive = !hardLinkActive;
+        const btn = document.getElementById('btnToggleHardLink');
+        const linkCount = document.getElementById('linkCountNum');
+        const dstTreeFolder = document.getElementById('dstTreeFolder');
+        const dstTreeFile = document.getElementById('dstTreeFile');
+        const dstTreeSidecar = document.getElementById('dstTreeSidecar');
+        const bytesLabel = document.getElementById('additionalBytesLabel');
+
+        if (hardLinkActive) {
+          btn.textContent = '✂ Simulate `avicull clean`';
+          linkCount.textContent = '2';
+          dstTreeFolder.style.opacity = '1';
+          dstTreeFile.style.opacity = '1';
+          dstTreeSidecar.style.opacity = '1';
+          bytesLabel.textContent = '+0 disk bytes added (APFS hard link)';
+          bytesLabel.style.color = '#34d399';
+          playChime(660, 'triangle', 0.15);
+        } else {
+          btn.textContent = '🔗 Simulate `avicull organize`';
+          linkCount.textContent = '1';
+          dstTreeFolder.style.opacity = '0.3';
+          dstTreeFile.style.opacity = '0.3';
+          dstTreeSidecar.style.opacity = '0.3';
+          bytesLabel.textContent = 'Output unlinked; source intact';
+          bytesLabel.style.color = '#94a3b8';
+          playChime(330, 'triangle', 0.15);
+        }
+      });
+
+      // Scene 5: Interactive Geo Slider
+      const geoSlider = document.getElementById('geoSlider');
+      if (geoSlider) {
+        geoSlider.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value);
+          const lbl = document.getElementById('geoLocLabel');
+          const blythBar = document.getElementById('blythBar');
+          const blythBadge = document.getElementById('blythBadge');
+          const blythGeo = document.getElementById('blythGeo');
+          const eurBar = document.getElementById('eurBar');
+          const eurBadge = document.getElementById('eurBadge');
+          const eurGeo = document.getElementById('eurGeo');
+
+          if (val === 0) {
+            lbl.textContent = '0% Geo Prior (Pure Visual)';
+            blythBar.style.width = '52%';
+            blythBadge.textContent = 'P_post: 52%';
+            blythGeo.textContent = 'SINR Geo Prior: 0.00';
+            eurBar.style.width = '48%';
+            eurBadge.textContent = 'P_post: 48%';
+            eurGeo.textContent = 'SINR Geo Prior: 0.00';
+          } else {
+            lbl.textContent = `${val}% Geo Prior (Keoladeo, India)`;
+            // Calculate simulated Bayesian shift
+            const blythPrior = 0.95 * (val / 100);
+            const eurPrior = 0.01 * (val / 100) + 0.01; // floor
+            const postBlyth = (0.51 * Math.pow(Math.max(blythPrior, 0.01), 1.0));
+            const postEur = (0.49 * Math.pow(Math.max(eurPrior, 0.01), 1.0));
+            const normBlyth = Math.round((postBlyth / (postBlyth + postEur)) * 100);
+            const normEur = 100 - normBlyth;
+
+            blythBar.style.width = `${normBlyth}%`;
+            blythBadge.textContent = `P_post: ${normBlyth}%`;
+            blythGeo.textContent = `SINR Geo Prior: ${(blythPrior).toFixed(2)}`;
+
+            eurBar.style.width = `${normEur}%`;
+            eurBadge.textContent = `P_post: ${normEur}%`;
+            eurGeo.textContent = `SINR Geo Prior: ${(eurPrior).toFixed(2)}`;
+          }
+        });
+      }
+    });
+
+    /* Interactive Terminal Simulator */
+    function runSimCommand(cmd) {
+      const term = document.getElementById('termOutput');
+      playChime(580, 'sine', 0.08);
+
+      switch (cmd) {
+        case 'scan':
+          term.innerHTML = `<span class="term-prompt">$ avicull scan --input /Volumes/Photos/Leh</span>
+<span class="term-comment">[Preflight] Checking filesystem volume compatibility...</span>
+<span class="term-success">✔ Same-volume APFS hardlink compatibility verified (st_dev: 16777220)</span>
+<span class="term-comment">[Discovery] Found 1,420 bundles (primary + companion + sidecar)</span>
+<span class="term-comment">[Geo Engine] 1,380 EXIF GPS parsed, 40 inherited via sibling propagation</span>
+<span class="term-success">✔ Scan complete. Ready to run 'avicull organize'.</span>`;
+          break;
+
+        case 'organize':
+          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
+<span class="term-comment">[1/6] Preflight: Verified same APFS volume (st_dev: 16777220)</span>
+<span class="term-comment">[2/6] Scanned 1,420 bundles (skipped .avicull, birds_hierarchy)</span>
+<span class="term-comment">[3/6] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
+<span class="term-comment">[4/6] YOLO11m CoreML: 1,392 birds detected, 28 no-bird-detected</span>
+<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified</span>
+<span class="term-comment">[6/6] Burst consensus: Smoothed across 210 clusters</span>
+<span class="term-success">✔ Hard-linked 1,420 files to /Volumes/Photos/Leh/birds_hierarchy (0 disk bytes added)</span>
+<span class="term-success">  - Confirmed: 1,280 files</span>
+<span class="term-warn">  - _Needs_Review: 112 files</span>
+<span class="term-comment">  - _No_Bird_Detected: 28 files</span>`;
+          break;
+
+        case 'relink':
+          term.innerHTML = `<span class="term-prompt">$ avicull relink --input /Volumes/Photos/Leh --min-confidence 0.80</span>
+<span class="term-comment">[Manifest] Querying cached decisions from .avicull/manifest.sqlite...</span>
+<span class="term-comment">[Relink] Re-evaluating routing tiers with new threshold: 0.80</span>
+<span class="term-comment">[Filesystem] Atomic unlinking and re-linking in progress...</span>
+<span class="term-success">✔ Relinked 1,420 entries in 28ms (0 neural network inference runs required)</span>
+<span class="term-success">  - Confirmed (>= 0.80): 1,120 files</span>
+<span class="term-warn">  - _Needs_Review (< 0.80): 272 files</span>`;
+          break;
+
+        case 'report':
+          term.innerHTML = `<span class="term-prompt">$ avicull report --input /Volumes/Photos/Leh --format table</span>
+┌────────────────────────────┬───────────┬──────────────┬────────────┐
+│ Species Common Name        │ Count     │ Mean Conf    │ Tier       │
+├────────────────────────────┼───────────┼──────────────┼────────────┤
+│ Black-necked Crane         │ 142       │ 0.97         │ Confirmed  │
+│ Bar-headed Goose           │ 320       │ 0.95         │ Confirmed  │
+│ Tibetan Snowcock           │ 84        │ 0.91         │ Confirmed  │
+│ Blyth's Reed Warbler       │ 38        │ 0.62         │ Review     │
+│ [No Bird Detected]         │ 28        │ 0.12         │ No Bird    │
+└────────────────────────────┴───────────┴──────────────┴────────────┘`;
+          break;
+
+        case 'clean':
+          term.innerHTML = `<span class="term-prompt">$ avicull clean --input /Volumes/Photos/Leh</span>
+<span class="term-comment">[Safety] Querying hardlink operations from manifest.sqlite...</span>
+<span class="term-comment">[Filesystem] Safely unlinking 1,420 destination links in birds_hierarchy...</span>
+<span class="term-comment">[Filesystem] Pruned empty species directories</span>
+<span class="term-success">✔ Clean complete. Hierarchy removed.</span>
+<span class="term-success">✔ Source photo archive /Volumes/Photos/Leh is 100% untouched.</span>`;
+          break;
+      }
+    }
+  </script>
+</body>
+</html>

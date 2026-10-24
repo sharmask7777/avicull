@@ -159,7 +159,7 @@ pub fn smooth_burst_consensus(
                     .iter()
                     .find(|(id, _)| id == &best_species)
                     .map(|(_, p)| *p)
-                    .unwrap_or(frame_conf);
+                    .unwrap_or(0.0);
 
                 let final_conf = match confidence_mode {
                     ConfidenceMode::BurstConsensus => best_consensus_score.max(0.0),

@@ -144,20 +144,35 @@ pub fn materialize_bundle_hardlinks(
             trip_slug.as_deref(),
         );
 
-        let dst_path = target_dir.join(dst_filename);
-
+        let mut dst_path = target_dir.join(dst_filename);
         let src_meta = fs::metadata(&src_path)
             .with_context(|| format!("Failed to stat source file: {}", src_path.display()))?;
         let src_ino = src_meta.ino();
 
         let mut status = "planned".to_string();
+        let mut counter = 1;
 
-        if dst_path.exists() {
+        while dst_path.exists() {
             if let Ok(dst_meta) = fs::metadata(&dst_path) {
                 if dst_meta.ino() == src_ino {
-                    // Exact same file already linked; idempotent no-op
                     status = "already_linked".to_string();
+                    break;
+                } else {
+                    // Different file with same name: append numbered counter
+                    let stem = dst_path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("file");
+                    let ext = dst_path.extension().and_then(|e| e.to_str());
+                    let new_name = match ext {
+                        Some(e) => format!("{}_{}.{}", stem, counter, e),
+                        None => format!("{}_{}", stem, counter),
+                    };
+                    dst_path = target_dir.join(new_name);
+                    counter += 1;
                 }
+            } else {
+                break;
             }
         }
 

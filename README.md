@@ -146,6 +146,11 @@ Use `--dry-run` to preview operations without creating filesystem links:
 avicull organize --input /Volumes/Photos/Leh --dry-run
 ```
 
+Use `--force` to re-run neural network detection and classification on all photos, bypassing cached predictions:
+```bash
+avicull organize --input /Volumes/Photos/Leh --force
+```
+
 ### 2. Multi-Level Coexistence & Incremental Runs
 You can organize both a specific trip folder and the parent archive:
 ```bash
