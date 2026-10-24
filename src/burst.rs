@@ -49,8 +49,9 @@ pub fn smooth_burst_consensus(
         return Vec::new();
     }
 
-    // Partition by trip folder
-    let mut trip_map: HashMap<String, Vec<&ClassifiedBundleItem>> = HashMap::new();
+    // Partition by trip folder (using BTreeMap for deterministic trip ordering)
+    let mut trip_map: std::collections::BTreeMap<String, Vec<&ClassifiedBundleItem>> =
+        std::collections::BTreeMap::new();
     for item in items {
         trip_map
             .entry(item.trip_folder.clone())
@@ -165,7 +166,9 @@ pub fn smooth_burst_consensus(
                     ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
                 };
 
-                let routing_tier = if final_conf >= min_confidence {
+                let routing_tier = if item.detection_confidence < 0.25 {
+                    RoutingTier::NoBirdDetected
+                } else if final_conf >= min_confidence {
                     RoutingTier::ConfirmedSpecies
                 } else {
                     RoutingTier::NeedsReview

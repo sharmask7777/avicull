@@ -66,21 +66,9 @@ pub fn format_destination_filename(
 }
 
 /// Computes the target destination directory inside output_root based on routing tier.
-pub fn compute_target_dir(
-    output_root: &Path,
-    decision: &BundleDecision,
-    min_confidence: f32,
-) -> PathBuf {
+pub fn compute_target_dir(output_root: &Path, decision: &BundleDecision) -> PathBuf {
     match decision.routing_tier {
-        RoutingTier::ConfirmedSpecies => {
-            if decision.final_confidence >= min_confidence {
-                output_root.join(&decision.assigned_species_slug)
-            } else {
-                output_root
-                    .join("_Needs_Review")
-                    .join(&decision.assigned_species_slug)
-            }
-        }
+        RoutingTier::ConfirmedSpecies => output_root.join(&decision.assigned_species_slug),
         RoutingTier::NeedsReview => output_root
             .join("_Needs_Review")
             .join(&decision.assigned_species_slug),
@@ -97,7 +85,7 @@ pub fn materialize_bundle_hardlinks(
     run_id: &str,
     dry_run: bool,
 ) -> Result<Vec<HardlinkOperation>> {
-    let target_dir = compute_target_dir(output_root, decision, 0.65);
+    let target_dir = compute_target_dir(output_root, decision);
 
     if !dry_run && !target_dir.exists() {
         fs::create_dir_all(&target_dir)
@@ -209,6 +197,11 @@ pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
 
     for op in ops {
         if op.status == "linked" || op.status == "already_linked" {
+            // Defense-in-depth safety checks:
+            // 1. Never unlink if destination path equals source path
+            if op.dest_path == op.source_path {
+                continue;
+            }
             if op.dest_path.exists() {
                 // Safety check: ensure destination inode matches source inode
                 if let Ok(meta) = fs::metadata(&op.dest_path) {
@@ -229,8 +222,9 @@ pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
         }
     }
 
-    // Clean up empty directories
-    affected_dirs.sort();
+    // Clean up empty directories: sort descending by path component depth
+    // so children directories are removed before parent directories
+    affected_dirs.sort_by_key(|b| std::cmp::Reverse(b.components().count()));
     affected_dirs.dedup();
     for d in affected_dirs {
         if d.exists() {

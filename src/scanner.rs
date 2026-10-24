@@ -39,18 +39,18 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
 
     // Disjointness check
     if can_output.starts_with(&can_input) {
-        return Err(anyhow!(
-            "Output directory '{}' is nested inside input directory '{}'. Paths must be strictly disjoint.",
-            can_output.display(),
-            can_input.display()
-        ));
+        return Err(crate::types::AvicullError::NestedPathDisjointness {
+            nested: can_output,
+            parent: can_input,
+        }
+        .into());
     }
     if can_input.starts_with(&can_output) {
-        return Err(anyhow!(
-            "Input directory '{}' is nested inside output directory '{}'. Paths must be strictly disjoint.",
-            can_input.display(),
-            can_output.display()
-        ));
+        return Err(crate::types::AvicullError::NestedPathDisjointness {
+            nested: can_input,
+            parent: can_output,
+        }
+        .into());
     }
 
     // Volume (st_dev) check
@@ -60,11 +60,11 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
         .with_context(|| format!("Failed to stat output directory: {}", can_output.display()))?;
 
     if in_meta.dev() != out_meta.dev() {
-        return Err(anyhow!(
-            "Filesystem volume mismatch: input device {} != output device {}. Hard links require input and output to reside on the same APFS volume.",
-            in_meta.dev(),
-            out_meta.dev()
-        ));
+        return Err(crate::types::AvicullError::VolumeMismatch {
+            input_dev: in_meta.dev(),
+            output_dev: out_meta.dev(),
+        }
+        .into());
     }
 
     Ok(())
@@ -247,6 +247,8 @@ pub fn scan_input_tree(input_dir: &Path) -> Result<Vec<AssetBundle>> {
 }
 
 /// Scans raw bytes for embedded JPEG preview markers `0xFFD8`..`0xFFD9`
+/// Extracts embedded full-size JPEG preview bytes from a RAW file.
+/// Parses JPEG segment markers and lengths (skipping APP1 EXIF thumbnails)
 /// and returns the largest complete preview stream found.
 pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
     let mut largest: Option<Vec<u8>> = None;
@@ -257,41 +259,97 @@ pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
 
-    // Step 1: Collect all SOI offsets starting with 0xFF, 0xD8
-    let mut sois = Vec::new();
-    let mut i = 0;
-    while i + 2 < len {
-        if raw_bytes[i] == 0xFF && raw_bytes[i + 1] == 0xD8 {
-            sois.push(i);
-            i += 2;
-        } else {
-            i += 1;
+    // Helper to find the end of a JPEG starting at an SOI offset
+    let parse_jpeg_end = |start: usize| -> Option<usize> {
+        if start + 2 >= len || raw_bytes[start] != 0xFF || raw_bytes[start + 1] != 0xD8 {
+            return None;
         }
-    }
 
-    // Step 2: For each SOI, find the next matching EOI (0xFF, 0xD9)
-    for (idx, &soi) in sois.iter().enumerate() {
-        // The EOI cannot be after the next SOI
-        let next_soi = sois.get(idx + 1).copied().unwrap_or(len);
-        let mut j = soi + 2;
-        let mut eoi = None;
+        let mut pos = start + 2;
+        while pos + 1 < len {
+            // Find next marker prefix 0xFF
+            if raw_bytes[pos] != 0xFF {
+                pos += 1;
+                continue;
+            }
 
-        while j + 1 < next_soi {
-            if raw_bytes[j] == 0xFF && raw_bytes[j + 1] == 0xD9 {
-                eoi = Some(j + 2);
-                // In JPEGs, EOI terminates the image stream
+            // Skip consecutive 0xFF fill bytes
+            while pos + 1 < len && raw_bytes[pos + 1] == 0xFF {
+                pos += 1;
+            }
+            if pos + 1 >= len {
                 break;
             }
-            j += 1;
+
+            let marker = raw_bytes[pos + 1];
+
+            // EOI: End of Image
+            if marker == 0xD9 {
+                return Some(pos + 2);
+            }
+
+            // Standalone markers without payload
+            if marker == 0xD8 || (0xD0..=0xD7).contains(&marker) || marker == 0x00 {
+                pos += 2;
+                continue;
+            }
+
+            // Start of Scan (SOS): scan data follows until EOI
+            if marker == 0xDA {
+                if pos + 3 >= len {
+                    break;
+                }
+                let sos_len = ((raw_bytes[pos + 2] as usize) << 8) | (raw_bytes[pos + 3] as usize);
+                if sos_len < 2 || pos + 2 + sos_len > len {
+                    break;
+                }
+                pos += 2 + sos_len;
+
+                // Scan entropy-coded data until EOI (0xFF, 0xD9)
+                while pos + 1 < len {
+                    if raw_bytes[pos] == 0xFF {
+                        let m = raw_bytes[pos + 1];
+                        if m == 0xD9 {
+                            return Some(pos + 2);
+                        } else if m != 0x00 && !(0xD0..=0xD7).contains(&m) {
+                            // Marker in scan data
+                            break;
+                        }
+                    }
+                    pos += 1;
+                }
+                continue;
+            }
+
+            // Segment with 16-bit big-endian length
+            if pos + 3 >= len {
+                break;
+            }
+            let seg_len = ((raw_bytes[pos + 2] as usize) << 8) | (raw_bytes[pos + 3] as usize);
+            if seg_len < 2 || pos + 2 + seg_len > len {
+                break;
+            }
+            pos += 2 + seg_len;
         }
 
-        if let Some(end) = eoi {
-            let stream_len = end - soi;
-            if stream_len > max_len {
-                max_len = stream_len;
-                largest = Some(raw_bytes[soi..end].to_vec());
+        None
+    };
+
+    // Scan for SOI markers (0xFF, 0xD8) and parse their extent
+    let mut i = 0;
+    while i + 3 < len {
+        if raw_bytes[i] == 0xFF && raw_bytes[i + 1] == 0xD8 {
+            if let Some(end) = parse_jpeg_end(i) {
+                let stream_len = end - i;
+                if stream_len > max_len {
+                    max_len = stream_len;
+                    largest = Some(raw_bytes[i..end].to_vec());
+                }
+                i = end;
+                continue;
             }
         }
+        i += 1;
     }
 
     largest

@@ -66,17 +66,24 @@ pub enum ConfidenceMode {
     PerFrame,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum AvicullError {
+    #[error("Filesystem volume mismatch: input device {input_dev} != output device {output_dev}")]
+    VolumeMismatch { input_dev: u64, output_dev: u64 },
+    #[error("Disjointness violation: path '{nested}' is nested inside '{parent}'")]
+    NestedPathDisjointness { nested: PathBuf, parent: PathBuf },
+    #[error("Unknown confidence mode: '{0}'. Expected 'burst-consensus' or 'per-frame'")]
+    InvalidConfidenceMode(String),
+}
+
 impl std::str::FromStr for ConfidenceMode {
-    type Err = String;
+    type Err = AvicullError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "burst-consensus" | "burstconsensus" => Ok(ConfidenceMode::BurstConsensus),
             "per-frame" | "perframe" => Ok(ConfidenceMode::PerFrame),
-            other => Err(format!(
-                "Unknown confidence mode: '{}'. Expected 'burst-consensus' or 'per-frame'",
-                other
-            )),
+            other => Err(AvicullError::InvalidConfidenceMode(other.to_string())),
         }
     }
 }

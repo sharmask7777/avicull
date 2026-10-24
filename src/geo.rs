@@ -164,6 +164,9 @@ pub fn extract_exif_metadata(path: &Path) -> (Option<GpsCoordinate>, Option<i64>
 fn parse_kamadak_dms(val: &exif::Value, ref_str: &str) -> Option<f64> {
     if let exif::Value::Rational(rationals) = val {
         if rationals.len() >= 3 {
+            if rationals[0].denom == 0 || rationals[1].denom == 0 || rationals[2].denom == 0 {
+                return None;
+            }
             let deg = rationals[0].num as f64 / rationals[0].denom as f64;
             let min = rationals[1].num as f64 / rationals[1].denom as f64;
             let sec = rationals[2].num as f64 / rationals[2].denom as f64;
@@ -171,7 +174,9 @@ fn parse_kamadak_dms(val: &exif::Value, ref_str: &str) -> Option<f64> {
             if ref_str.starts_with('S') || ref_str.starts_with('W') {
                 dec = -dec;
             }
-            return Some(dec);
+            if dec.is_finite() && (-180.0..=180.0).contains(&dec) {
+                return Some(dec);
+            }
         }
     }
     None
@@ -256,8 +261,8 @@ pub fn resolve_locations(
 
     for (trip, mut lats) in trip_lats {
         if let Some(mut lons) = trip_lons.remove(&trip) {
-            lats.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            lons.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            lats.sort_by(|a, b| a.total_cmp(b));
+            lons.sort_by(|a, b| a.total_cmp(b));
             let mid = lats.len() / 2;
             let med_lat = lats[mid];
             let med_lon = lons[mid];
@@ -307,8 +312,8 @@ pub fn resolve_locations(
                 for token in &tokens {
                     for &(hotspot, lat, lon) in BUILTIN_GAZETTEER {
                         if token == hotspot
-                            || token.contains(hotspot)
-                            || hotspot.contains(token.as_str())
+                            || (token.len() >= 4 && token.contains(hotspot))
+                            || (token.len() >= 4 && hotspot.contains(token.as_str()))
                         {
                             resolved = Some((lat, lon));
                             break;
