@@ -166,6 +166,7 @@ fn test_is_already_inplace_named() {
     ));
 
     assert!(!is_already_inplace_named("IMG_4821", "House Sparrow"));
+    assert!(!is_already_inplace_named("DSCRuff01", "Ruff"));
     assert!(!is_already_inplace_named(
         "IMG_4821_House_Sparrow_20261025_Leh",
         "Tibetan Snowcock"

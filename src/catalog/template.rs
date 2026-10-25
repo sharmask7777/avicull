@@ -920,12 +920,19 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     const currentPath = activeModalItem.current_path;
     const lastSlash = currentPath.lastIndexOf('/');
     const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
+    const allSidecars = [...(activeModalItem.sidecar_files || []), ...(activeModalItem.companion_files || [])];
 
     if (isHierarchy) {{
       const targetDir = `birds_hierarchy/${{newSlug}}`;
       commands.push(`mkdir -p "${{targetDir}}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       commands.push(`mv "${{currentPath}}" "${{targetDir}}/${{filename}}"`);
+
+      for (const sc of allSidecars) {{
+        const scSlash = sc.lastIndexOf('/');
+        const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
+        commands.push(`mv "${{sc}}" "${{targetDir}}/${{scFilename}}"`);
+      }}
     }} else {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = activeModalItem.original_stem;
@@ -945,12 +952,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       commands.push(`mv "${{currentPath}}" "${{newPrimary}}"`);
 
       // Companion and sidecar files
-      const allSidecars = [...(activeModalItem.sidecar_files || []), ...(activeModalItem.companion_files || [])];
       for (const sc of allSidecars) {{
         const scSlash = sc.lastIndexOf('/');
         const scDir = scSlash >= 0 ? sc.substring(0, scSlash) : dir;
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
-        const scExt = getCompoundExtension(scFilename, originalStem);
+        const scExt = getCompoundExtension(scFilename);
         const newSc = (scDir ? scDir + '/' : '') + targetStem + scExt;
         commands.push(`mv "${{sc}}" "${{newSc}}"`);
       }}
@@ -966,12 +972,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     return idx >= 0 ? filename.substring(idx) : '';
   }}
 
-  function getCompoundExtension(filename, stem) {{
-    if (filename.startsWith(stem)) {{
-      return filename.substring(stem.length);
-    }}
-    const idx = filename.indexOf('.');
-    return idx >= 0 ? filename.substring(idx) : '';
+  function getCompoundExtension(filename) {{
+    const m = filename.match(/(\.[a-zA-Z0-9]+(?:\.xmp)?)$/i);
+    return m ? m[1] : '';
   }}
 
   function copyCurrentCommand() {{

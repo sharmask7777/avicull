@@ -81,7 +81,6 @@ pub fn is_already_inplace_named(stem: &str, species: &str) -> bool {
     stem.contains(&format!("_{species_slug}"))
         || stem.ends_with(&species_slug)
         || stem == species_slug
-        || stem.contains(&species_slug)
 }
 
 /// Renames the primary image, companion images, and sidecar files in lockstep
