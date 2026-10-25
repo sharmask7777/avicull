@@ -273,6 +273,35 @@ avicull models status
 avicull models update
 ```
 
+### 8. `update`: Self-Update to Latest Release
+Check for newer GitHub releases or self-update the running `avicull` executable:
+```bash
+# Check if an update is available without downloading
+avicull update --check
+
+# Upgrade to the latest release binary (with SHA-256 checksum verification)
+avicull update
+
+# If avicull is installed in a system directory like /usr/local/bin, run with sudo:
+sudo avicull update
+```
+*Note: `avicull` automatically checks for newer releases in the background once every 24 hours. To disable background checks, export `AVICULL_NO_UPDATE_CHECK=1`.*
+
+### 9. `help`: In-Terminal User Manual & Help Topics
+Access interactive documentation and deep dives right from your terminal:
+```bash
+# View comprehensive user manual and commands
+avicull help
+
+# Deep-dive into specific topics or commands
+avicull help quickstart
+avicull help organize
+avicull help scan
+avicull help invariants
+avicull help models
+avicull help update
+```
+
 ---
 
 ## Agent Guidelines & Continuous Model Updates
