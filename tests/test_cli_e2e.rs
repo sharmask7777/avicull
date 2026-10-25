@@ -170,3 +170,110 @@ fn test_models_cli_command_status() {
         "stdout must display cache header"
     );
 }
+
+#[test]
+fn test_help_cli_command() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["help"])
+        .output()
+        .expect("failed to execute avicull help");
+
+    assert!(
+        output.status.success(),
+        "avicull help must exit successfully"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("avicull Help"),
+        "Help output must have header"
+    );
+    assert!(
+        stdout.contains("COMMANDS:"),
+        "Help must show available commands"
+    );
+}
+
+#[test]
+fn test_help_cli_topic_quickstart() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["help", "quickstart"])
+        .output()
+        .expect("failed to execute avicull help quickstart");
+
+    assert!(
+        output.status.success(),
+        "avicull help quickstart must exit successfully"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("QUICKSTART & BASIC USAGE"),
+        "Should contain quickstart section"
+    );
+}
+
+#[test]
+fn test_help_cli_topic_scan() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["help", "scan"])
+        .output()
+        .expect("failed to execute avicull help scan");
+
+    assert!(output.status.success(), "avicull help scan must succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("PRE-FLIGHT ARCHIVE SCANNING"),
+        "Should contain scan section"
+    );
+}
+
+#[test]
+fn test_help_cli_topic_update() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["help", "update"])
+        .output()
+        .expect("failed to execute avicull help update");
+
+    assert!(output.status.success(), "avicull help update must succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("SELF-UPDATE"),
+        "Should contain self-update section"
+    );
+}
+
+#[test]
+fn test_help_cli_unknown_topic_exits_nonzero() {
+    // An unknown topic must exit with a non-zero code and a helpful error message
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["help", "completely_unknown_topic"])
+        .output()
+        .expect("failed to execute avicull help unknown");
+
+    assert!(
+        !output.status.success(),
+        "avicull help with unknown topic must exit non-zero"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Unknown help topic") || stderr.contains("Available topics"),
+        "Error must guide user to valid topics: {}",
+        stderr
+    );
+}
+
+#[test]
+fn test_update_cli_command_check_mode() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args(["update", "--check"])
+        .output()
+        .expect("failed to execute avicull update --check");
+
+    // In environments with or without network, update --check should either succeed or fail gracefully with network error without panicking
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        assert!(stdout.contains("Checking for updates") || stdout.contains("up to date"));
+    } else {
+        assert!(stderr.contains("Failed to query") || stderr.contains("Failed to retrieve"));
+    }
+}

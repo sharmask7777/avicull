@@ -24,8 +24,9 @@ use std::path::{Path, PathBuf};
 #[command(
     name = "avicull",
     author = "avicull contributors",
-    version = "0.1.0",
-    about = "Local AI Bird Photo Organizer for macOS Apple Silicon"
+    version = env!("CARGO_PKG_VERSION"),
+    about = "Local AI Bird Photo Organizer for macOS Apple Silicon",
+    disable_help_subcommand = true
 )]
 struct Cli {
     #[command(subcommand)]
@@ -51,6 +52,12 @@ enum Commands {
 
     /// Inspect status or update local eBird taxonomy and AI models cache (~/.cache/avicull/models)
     Models(ModelsArgs),
+
+    /// Check for newer releases or self-update avicull to the latest prebuilt version
+    Update(UpdateArgs),
+
+    /// Display interactive help topics, workflow manuals, and CLI reference
+    Help(HelpArgs),
 }
 
 #[derive(Args, Debug)]
@@ -205,6 +212,20 @@ struct ModelsArgs {
     /// Target cache directory (defaults to ~/.cache/avicull/models)
     #[arg(long)]
     cache_dir: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+struct UpdateArgs {
+    /// Only check if an update is available without downloading or replacing the binary
+    #[arg(long, default_value_t = false)]
+    check: bool,
+}
+
+#[derive(Args, Debug)]
+struct HelpArgs {
+    /// Topic or command to display: [quickstart | organize | scan | invariants | models | update | all]
+    #[arg(value_name = "TOPIC")]
+    topic: Option<String>,
 }
 
 fn load_image_for_inference(primary: &Path, companions: &[PathBuf]) -> Result<DynamicImage> {
@@ -573,6 +594,13 @@ fn resolve_or_prompt_models_dir(
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Perform periodic background update check on normal CLI invocations
+    if !matches!(cli.command, Commands::Update(_)) {
+        if let Some(notice) = avicull::update::check_for_update_notice(env!("CARGO_PKG_VERSION")) {
+            eprintln!("{}\n", notice);
+        }
+    }
 
     match cli.command {
         Commands::Scan(args) => {
@@ -1162,6 +1190,18 @@ fn main() -> Result<()> {
                     }
                 }
             }
+        }
+
+        Commands::Update(args) => {
+            avicull::update::perform_self_update(args.check)?;
+        }
+
+        Commands::Help(args) => {
+            let topic = match args.topic.as_deref() {
+                Some(t) => Some(t.parse::<avicull::help::HelpTopic>()?),
+                None => None,
+            };
+            print!("{}", avicull::help::render_help(topic));
         }
     }
 
