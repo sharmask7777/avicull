@@ -49,7 +49,6 @@ class AvianInferenceEngine:
 
         # 3. Load Regional Checklists & Spatio-Temporal Prior Tensors
         self.load_regional_checklists()
-        self.build_regional_priors()
 
         # 4. Load YOLO Detector
         yolo_path = os.path.join(models_dir, "yolo11n.pt")
@@ -98,35 +97,6 @@ class AvianInferenceEngine:
         self.regional_prior_tensors[region_code] = tensor
         return tensor
 
-    def build_regional_priors(self):
-        """Constructs prior tensors across all 11,167 species for fast vector multiplication."""
-        num_sp = len(self.taxonomy)
-        ladakh_weights = [1.0] * num_sp
-
-        lowland_birds = [
-            "painted stork", "spot-billed pelican", "little cormorant",
-            "darter", "oriental darter", "eurasian spoonbill", "asian openbill",
-            "woolly-necked stork", "lesser whistling-duck", "cotton pygmy-goose",
-            "jacana", "moorhen", "swamphen", "white-breasted waterhen",
-            "parakeet", "drongo", "hornbill", "sunbird", "flowerpecker", "barbet"
-        ]
-
-        himalayan_ladakh_birds = [
-            "snowcock", "partridge", "chukar", "redstart", "accentor", "snowfinch",
-            "rosefinch", "mountain finch", "chough", "bar-headed goose", "brown-headed gull",
-            "common merganser", "black-necked crane", "citrine wagtail", "white wagtail",
-            "horned lark", "desert lark", "crag martin", "rubythroat", "sandpiper",
-            "bearded vulture", "lammergeier", "himalayan griffon", "golden eagle"
-        ]
-
-        for i, sp in enumerate(self.taxonomy):
-            c_name = sp["common_name"].lower()
-            if any(lb in c_name for lb in lowland_birds):
-                ladakh_weights[i] = 0.001
-            elif any(hb in c_name for hb in himalayan_ladakh_birds):
-                ladakh_weights[i] = 2.0
-
-        self.ladakh_prior = torch.tensor(ladakh_weights, dtype=torch.float32, device=self.device)
 
     def detect_and_crop(self, img: Image.Image, min_detect: float = 0.25):
         w, h = img.size
@@ -231,19 +201,11 @@ class AvianInferenceEngine:
 
             # Apply Bayesian Spatio-Temporal Prior across FULL 11,167 species BEFORE top-k!
             regional_prior = self.get_regional_prior_tensor(region_code) if region_code else None
-            is_ladakh = (
-                region_code == "IN-LA"
-                or "leh" in trip_name.lower()
-                or "ladakh" in trip_name.lower()
-                or (lat is not None and lat > 32.0 and lon is not None and lon > 76.0)
-            )
 
             if geo_prior_weight > 0.0:
                 priors = torch.ones_like(visual_probs)
                 if regional_prior is not None:
                     priors = priors * regional_prior
-                if is_ladakh:
-                    priors = priors * self.ladakh_prior
 
                 effective_priors = priors ** geo_prior_weight
                 posterior_scores = visual_probs * effective_priors
