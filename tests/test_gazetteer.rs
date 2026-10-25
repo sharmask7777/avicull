@@ -21,6 +21,31 @@ fn test_gazetteer_search_exact_and_fuzzy() {
     let matches_kruger = engine.search("kruger", 4);
     assert!(!matches_kruger.is_empty());
     assert!(matches_kruger[0].0.name.to_lowercase().contains("kruger"));
+
+    // Search additional wildlife hotspots and global regions
+    let matches_gir = engine.search("gir", 4);
+    assert!(!matches_gir.is_empty());
+    assert_eq!(matches_gir[0].0.region_code, "IN-GJ");
+
+    let matches_kgudi = engine.search("k gudi", 4);
+    assert!(!matches_kgudi.is_empty());
+    assert_eq!(matches_kgudi[0].0.region_code, "IN-KA");
+
+    let matches_nz = engine.search("new zealand", 4);
+    assert!(!matches_nz.is_empty());
+    assert_eq!(matches_nz[0].0.region_code, "NZ");
+
+    let matches_coonoor = engine.search("coonoor", 4);
+    assert!(!matches_coonoor.is_empty());
+    assert_eq!(matches_coonoor[0].0.region_code, "IN-TN");
+
+    let matches_coorg = engine.search("coorg", 4);
+    assert!(!matches_coorg.is_empty());
+    assert_eq!(matches_coorg[0].0.region_code, "IN-KA");
+
+    let matches_jhalana = engine.search("jhalana", 4);
+    assert!(!matches_jhalana.is_empty());
+    assert_eq!(matches_jhalana[0].0.region_code, "IN-RJ");
 }
 
 #[test]

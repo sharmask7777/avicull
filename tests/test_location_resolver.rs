@@ -173,3 +173,101 @@ fn test_manifest_directory_location_cache() {
     let fetched = manifest.get_directory_location(key).unwrap();
     assert_eq!(fetched, Some(sample_loc));
 }
+
+#[test]
+fn test_resolver_diverse_trips_non_interactive() {
+    use avicull::location::path_parser::extract_candidate_location_tokens;
+    use std::path::Path;
+
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("manifest.sqlite");
+    let manifest = ManifestDb::open(&db_path).unwrap();
+    let engine = GazetteerEngine::load_embedded().unwrap();
+
+    let test_cases = vec![
+        (
+            "pictures_bangalore-2025-/Gir 2026 Feb/selects/1X7A1234.CR2",
+            "IN-GJ",
+        ),
+        (
+            "pictures_bangalore-2025-/K Gudi 2025/day 2/1X7A5192.jpg",
+            "IN-KA",
+        ),
+        (
+            "pictures_bangalore-2025-/Nagarhole - Mar 2026/1X7A1234.CR2",
+            "IN-KA",
+        ),
+        (
+            "pictures_bangalore-2025-/New zealand 2025/rotorua waterfront day 1/1X7A3897.jpg",
+            "NZ",
+        ),
+        (
+            "pictures_bangalore-2025-/Saul Kere jan 2025/processed (select)/1X7A0791.jpg",
+            "IN-KA",
+        ),
+        (
+            "pictures_bangalore-2025-/coonoor may 2026/1X7A1234.CR2",
+            "IN-TN",
+        ),
+        (
+            "pictures_bangalore-2025-/coorg Dec 2025/1X7A1234.CR2",
+            "IN-KA",
+        ),
+        (
+            "pictures_bangalore-2025-/jhalana jan 2026/1X7A1234.CR2",
+            "IN-RJ",
+        ),
+        (
+            "pictures_bangalore-2025-/kanaka sarovara May 3 2026/1X7A1234.CR2",
+            "IN-KA",
+        ),
+        ("pictures_bangalore-2025-/leh/1X7A1234.CR2", "IN-LA"),
+        (
+            "pictures_bangalore-2025-/ranthambore oct 2025/processed oct 3 safari/1X7A2731.jpg",
+            "IN-RJ",
+        ),
+    ];
+
+    let base_input = Path::new("pictures_bangalore-2025-");
+    let mut trips = Vec::new();
+    for (rel_path, _expected_region) in &test_cases {
+        let p = Path::new(rel_path);
+        let tokens = extract_candidate_location_tokens(p);
+        let trip_key = p
+            .strip_prefix(base_input)
+            .ok()
+            .and_then(|rel| rel.components().next())
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .unwrap_or_else(|| p.to_string_lossy().to_string());
+        trips.push((trip_key, tokens));
+    }
+
+    let mut input = Cursor::new("");
+    let mut output = Vec::new();
+
+    let resolved = resolve_trip_locations(
+        &trips,
+        &engine,
+        &manifest,
+        &mut input,
+        &mut output,
+        false, // non-interactive
+        None,
+    )
+    .unwrap();
+
+    for (i, (rel_path, expected_region)) in test_cases.iter().enumerate() {
+        let trip_key = &trips[i].0;
+        let loc = resolved.get(trip_key).unwrap_or_else(|| {
+            panic!(
+                "Trip key '{}' (path '{}') was not resolved by non-interactive resolver. Tokens: {:?}",
+                trip_key, rel_path, trips[i].1
+            )
+        });
+        assert_eq!(
+            &loc.region_code, expected_region,
+            "Path '{}' resolved to '{}', expected '{}'",
+            rel_path, loc.region_code, expected_region
+        );
+    }
+}

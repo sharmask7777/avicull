@@ -37,6 +37,14 @@ RAW_GAZETTEER: List[Dict[str, Any]] = [
     {"name": "Bandipur National Park", "region_code": "IN-KA", "lat": 11.6664, "lon": 76.6291, "category": "reserve"},
     {"name": "Dandeli Wildlife Sanctuary", "region_code": "IN-KA", "lat": 15.2427, "lon": 74.6289, "category": "reserve"},
     {"name": "Anshi National Park", "region_code": "IN-KA", "lat": 14.9981, "lon": 74.3586, "category": "reserve"},
+    {"name": "K Gudi", "region_code": "IN-KA", "lat": 11.9961, "lon": 77.1350, "category": "hotspot"},
+    {"name": "Kyathadevara Gudi", "region_code": "IN-KA", "lat": 11.9961, "lon": 77.1350, "category": "hotspot"},
+    {"name": "BR Hills", "region_code": "IN-KA", "lat": 11.9961, "lon": 77.1350, "category": "reserve"},
+    {"name": "Biligiriranga Hills", "region_code": "IN-KA", "lat": 11.9961, "lon": 77.1350, "category": "reserve"},
+    {"name": "Coorg", "region_code": "IN-KA", "lat": 12.4244, "lon": 75.7382, "category": "hotspot"},
+    {"name": "Kodagu", "region_code": "IN-KA", "lat": 12.4244, "lon": 75.7382, "category": "hotspot"},
+    {"name": "Madikeri", "region_code": "IN-KA", "lat": 12.4244, "lon": 75.7382, "category": "city"},
+    {"name": "Kanaka Sarovara", "region_code": "IN-KA", "lat": 12.9716, "lon": 77.5946, "category": "hotspot"},
 
     # --- India: Rajasthan (IN-RJ) ---
     {"name": "Ranthambore", "region_code": "IN-RJ", "lat": 26.0173, "lon": 76.5026, "category": "reserve"},
@@ -46,6 +54,17 @@ RAW_GAZETTEER: List[Dict[str, Any]] = [
     {"name": "Jaipur", "region_code": "IN-RJ", "lat": 26.9124, "lon": 75.7873, "category": "city"},
     {"name": "Desert National Park", "region_code": "IN-RJ", "lat": 27.0397, "lon": 70.8872, "category": "reserve"},
     {"name": "Jaisalmer", "region_code": "IN-RJ", "lat": 26.9157, "lon": 70.9083, "category": "city"},
+    {"name": "Jhalana", "region_code": "IN-RJ", "lat": 26.8580, "lon": 75.8230, "category": "reserve"},
+    {"name": "Jhalana Safari Park", "region_code": "IN-RJ", "lat": 26.8580, "lon": 75.8230, "category": "reserve"},
+    {"name": "Jhalana Leopard Safari Park", "region_code": "IN-RJ", "lat": 26.8580, "lon": 75.8230, "category": "reserve"},
+
+    # --- India: Gujarat (IN-GJ) ---
+    {"name": "Gir", "region_code": "IN-GJ", "lat": 21.1243, "lon": 70.8242, "category": "reserve"},
+    {"name": "Gir National Park", "region_code": "IN-GJ", "lat": 21.1243, "lon": 70.8242, "category": "reserve"},
+    {"name": "Sasan Gir", "region_code": "IN-GJ", "lat": 21.1243, "lon": 70.8242, "category": "reserve"},
+    {"name": "Velavadar Blackbuck National Park", "region_code": "IN-GJ", "lat": 21.9333, "lon": 72.0333, "category": "reserve"},
+    {"name": "Little Rann of Kutch", "region_code": "IN-GJ", "lat": 23.2500, "lon": 71.2500, "category": "reserve"},
+    {"name": "Ahmedabad", "region_code": "IN-GJ", "lat": 23.0225, "lon": 72.5714, "category": "city"},
 
     # --- India: Ladakh (IN-LA) ---
     {"name": "Leh", "region_code": "IN-LA", "lat": 34.1526, "lon": 77.5771, "category": "city"},
@@ -78,6 +97,9 @@ RAW_GAZETTEER: List[Dict[str, Any]] = [
     # --- India: Tamil Nadu (IN-TN) ---
     {"name": "Vedanthangal Bird Sanctuary", "region_code": "IN-TN", "lat": 12.5444, "lon": 79.8550, "category": "reserve"},
     {"name": "Mudumalai National Park", "region_code": "IN-TN", "lat": 11.5622, "lon": 76.5342, "category": "reserve"},
+    {"name": "Coonoor", "region_code": "IN-TN", "lat": 11.3530, "lon": 76.7959, "category": "hotspot"},
+    {"name": "Nilgiris", "region_code": "IN-TN", "lat": 11.4102, "lon": 76.6950, "category": "hotspot"},
+    {"name": "Ooty", "region_code": "IN-TN", "lat": 11.4102, "lon": 76.6950, "category": "city"},
     {"name": "Chennai", "region_code": "IN-TN", "lat": 13.0827, "lon": 80.2707, "category": "city"},
 
     # --- India: Maharashtra (IN-MH) ---
@@ -194,8 +216,12 @@ RAW_GAZETTEER: List[Dict[str, Any]] = [
     {"name": "Cairns", "region_code": "AU-QLD", "lat": -16.9186, "lon": 145.7781, "category": "city"},
 
     # --- New Zealand (NZ) ---
+    {"name": "New Zealand", "region_code": "NZ", "lat": -40.9006, "lon": 174.8860, "category": "hotspot"},
+    {"name": "Rotorua", "region_code": "NZ", "lat": -38.1368, "lon": 176.2497, "category": "city"},
+    {"name": "Queenstown", "region_code": "NZ", "lat": -45.0312, "lon": 168.6626, "category": "city"},
     {"name": "Milford Sound", "region_code": "NZ", "lat": -44.6716, "lon": 167.9256, "category": "reserve"},
     {"name": "Auckland", "region_code": "NZ", "lat": -36.8485, "lon": 174.7633, "category": "city"},
+    {"name": "Christchurch", "region_code": "NZ", "lat": -43.5321, "lon": 172.6362, "category": "city"},
 
     # --- Japan (JP) ---
     {"name": "Arasaki Crane Sanctuary", "region_code": "JP", "lat": 32.1000, "lon": 130.1833, "category": "hotspot"},
@@ -262,6 +288,24 @@ KARNATAKA_TAXON_IDS = [
     "grecor",   # Great Cormorant
     "oripip1",  # Paddyfield Pipit
     "rewlap1",  # Red-wattled Lapwing
+    "wonsto1",  # Asian Woolly-necked Stork
+    "bkrfla1",  # Black-rumped Flameback
+    "indrol2",  # Indian Roller
+    "stbkin1",  # Stork-billed Kingfisher
+    "ruftre2",  # Rufous Treepie
+    "maghor2",  # Malabar Gray Hornbill
+    "mawthr1",  # Malabar Whistling-Thrush
+    "scamin3",  # Orange Minivet
+    "brfowl1",  # Brown Fish-Owl
+    "tibfly3",  # Tickell's Blue Flycatcher
+    "yebbul3",  # Yellow-browed Bulbul
+    "putbab1",  # Puff-throated Babbler
+    "aspfly1",  # Indian Paradise-Flycatcher
+    "isbduc1",  # Indian Spot-billed Duck
+    "lewduc1",  # Lesser Whistling-Duck
+    "grecou1",  # Greater Coucal
+    "junmyn1",  # Jungle Myna
+    "purswa3",  # Gray-headed Swamphen
 ]
 
 # Birds for Rajasthan (IN-RJ)
@@ -302,6 +346,12 @@ RAJASTHAN_TAXON_IDS = [
     "copbar1",  # Coppersmith Barbet
     "bladro1",  # Black Drongo
     "rewlap1",  # Red-wattled Lapwing
+    "wonsto1",  # Asian Woolly-necked Stork
+    "bkrfla1",  # Black-rumped Flameback
+    "ruftre2",  # Rufous Treepie
+    "aspfly1",  # Indian Paradise-Flycatcher
+    "junbab2",  # Jungle Babbler
+    "grecou1",  # Greater Coucal
 ]
 
 # Birds for Ladakh (IN-LA)
@@ -513,11 +563,37 @@ UK_TAXON_IDS = [
     "bahgoo",   # Bar-headed Goose
 ]
 
+# Birds for New Zealand (NZ)
+NEW_ZEALAND_TAXON_IDS = [
+    "kea1",     # Kea
+    "nezpig2",  # New Zealand Pigeon
+    "nezsca1",  # New Zealand Scaup
+    "weka1",    # Weka
+    "sobkiw1",  # Southern Brown Kiwi
+    "liskiw1",  # Little Spotted Kiwi
+    "takahe3",  # South Island Takahe
+    "nezkak1",  # New Zealand Kaka
+    "blkswa",   # Black Swan
+    "mallar3",  # Mallard
+    "parshe1",  # Paradise Shelduck
+    "purswa3",  # Gray-headed Swamphen
+    "welswa1",  # Welcome Swallow
+    "piecor1",  # Pied Cormorant
+    "lipcor1",  # Little Pied Cormorant
+    "soioys1",  # South Island Oystercatcher
+    "varoys1",  # Variable Oystercatcher
+    "swahar1",  # Swamp Harrier
+    "nezbel1",  # New Zealand Bellbird
+    "nezfan1",  # New Zealand Fantail
+    "ausgan1",  # Australasian Gannet
+]
+
 # Map of regional codes to taxon ID lists
 REGIONAL_CHECKLISTS_MAP: Dict[str, List[str]] = {
     "IN-KA": KARNATAKA_TAXON_IDS,
     "IN-RJ": RAJASTHAN_TAXON_IDS,
     "IN-LA": LADAKH_TAXON_IDS,
+    "IN-GJ": RAJASTHAN_TAXON_IDS + KARNATAKA_TAXON_IDS[:25],
     "IN-UT": RAJASTHAN_TAXON_IDS + LADAKH_TAXON_IDS[:10],
     "IN-AS": KARNATAKA_TAXON_IDS[:30],
     "IN-WB": KARNATAKA_TAXON_IDS[:35],
@@ -540,6 +616,7 @@ REGIONAL_CHECKLISTS_MAP: Dict[str, List[str]] = {
     "TZ": KENYA_TAXON_IDS,
     "BW": SOUTH_AFRICA_TAXON_IDS,
     "GB": UK_TAXON_IDS,
+    "NZ": NEW_ZEALAND_TAXON_IDS,
 }
 
 

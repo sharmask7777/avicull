@@ -15,6 +15,13 @@ def test_gazetteer_contains_key_global_and_regional_hotspots():
     assert "bengaluru" in names or "bangalore" in names
     assert "ranthambore" in names or "ranthambhore" in names
     assert "leh" in names
+    assert "gir" in names or "gir national park" in names
+    assert "k gudi" in names or "br hills" in names
+    assert "coonoor" in names
+    assert "coorg" in names or "kodagu" in names
+    assert "jhalana" in names
+    assert "kanaka sarovara" in names
+    assert "new zealand" in names
     # Check Global spots
     assert "everglades" in names or "everglades national park" in names
     assert "kruger" in names or "kruger national park" in names
@@ -55,7 +62,7 @@ def test_regional_checklists_integrity_and_species_filtering():
     valid_taxon_ids = {s["taxon_id"] for s in taxonomy}
     
     # Required regional codes
-    required_regions = ["IN-KA", "IN-RJ", "IN-LA", "US-FL", "ZA"]
+    required_regions = ["IN-KA", "IN-RJ", "IN-LA", "IN-GJ", "IN-TN", "US-FL", "ZA", "NZ"]
     for reg in required_regions:
         assert reg in checklists, f"Region {reg} must be present in regional_checklists.json"
         assert len(checklists[reg]) > 0, f"Checklist for {reg} must not be empty"
@@ -64,18 +71,32 @@ def test_regional_checklists_integrity_and_species_filtering():
             
     # For Karnataka (IN-KA):
     # Brahminy Kite (brakit1), White-throated Kingfisher (whtkin2), Indian Cormorant (indcor1),
-    # Great Egret (greegr), Gray Heron (graher1)
+    # Great Egret (greegr), Gray Heron (graher1), Asian Woolly-necked Stork (wonsto1), White-browed Wagtail (whbwag1)
     karnataka = set(checklists["IN-KA"])
     assert "brakit1" in karnataka, "Brahminy Kite (brakit1) must be in IN-KA checklist"
     assert "whtkin2" in karnataka, "White-throated Kingfisher (whtkin2) must be in IN-KA checklist"
     assert "indcor1" in karnataka, "Indian Cormorant (indcor1) must be in IN-KA checklist"
     assert "greegr" in karnataka, "Great Egret (greegr) must be in IN-KA checklist"
     assert "graher1" in karnataka, "Gray Heron (graher1) must be in IN-KA checklist"
+    assert "wonsto1" in karnataka, "Asian Woolly-necked Stork (wonsto1) must be in IN-KA checklist"
+    assert "whbwag1" in karnataka, "White-browed Wagtail (whbwag1) must be in IN-KA checklist"
     
-    # Out of range birds in Karnataka: Bald Eagle (baleag), Black Swan (blkswa)
+    # Out of range birds in Karnataka: Bald Eagle (baleag), Black Swan (blkswa), African Woolly-necked Stork (wonsto2), African Pied Wagtail (afpwag1)
     assert "baleag" not in karnataka, "Bald Eagle (baleag) must not be in IN-KA checklist"
     assert "blkswa" not in karnataka, "Black Swan (blkswa) must not be in IN-KA checklist"
+    assert "wonsto2" not in karnataka, "African Woolly-necked Stork (wonsto2) must not be in IN-KA checklist"
+    assert "afpwag1" not in karnataka, "African Pied Wagtail (afpwag1) must not be in IN-KA checklist"
     
     # Florida should have Bald Eagle
     florida = set(checklists["US-FL"])
     assert "baleag" in florida, "Bald Eagle (baleag) should be in US-FL checklist"
+
+    # New Zealand (NZ) should have native birds and introduced Black Swan
+    nz = set(checklists["NZ"])
+    assert "kea1" in nz, "Kea (kea1) should be in NZ checklist"
+    assert "nezpig2" in nz, "New Zealand Pigeon (nezpig2) should be in NZ checklist"
+    assert "nezsca1" in nz, "New Zealand Scaup (nezsca1) should be in NZ checklist"
+    assert "weka1" in nz, "Weka (weka1) should be in NZ checklist"
+    assert "blkswa" in nz, "Black Swan (blkswa) should be in NZ checklist"
+    assert "bramer1" not in nz, "Brazilian Merganser (bramer1) must not be in NZ checklist"
+    assert "madpoc1" not in nz, "Madagascar Pochard (madpoc1) must not be in NZ checklist"
