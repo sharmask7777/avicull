@@ -24,6 +24,7 @@ chrono = { version = "0.4", default-features = false, features = ["serde", "cloc
 tempfile = "3.13"
 
 [dev-dependencies]
+proptest = "1.12.0"
 
 [[bin]]
 name = "avicull"

@@ -49,7 +49,11 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         .record_run("run-leh-1", &leh_trip, &leh_hierarchy, false, "{}")
         .unwrap();
     db_leh
-        .record_bundles("run-leh-1", &[decision_leh.clone()], &leh_bundles)
+        .record_bundles(
+            "run-leh-1",
+            std::slice::from_ref(&decision_leh),
+            &leh_bundles,
+        )
         .unwrap();
     let ops_leh = materialize_bundle_hardlinks(
         &leh_bundles[0],
@@ -98,7 +102,11 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         .record_run("run-parent-1", &photos_root, &parent_hierarchy, false, "{}")
         .unwrap();
     db_parent
-        .record_bundles("run-parent-1", &[decision_parent.clone()], &parent_bundles)
+        .record_bundles(
+            "run-parent-1",
+            std::slice::from_ref(&decision_parent),
+            &parent_bundles,
+        )
         .unwrap();
     let ops_parent = materialize_bundle_hardlinks(
         &parent_bundles[0],
@@ -212,7 +220,7 @@ fn test_incremental_auto_detection_of_newer_files() {
         .unwrap();
     db.record_bundles(
         "run-2",
-        &[new_decision.clone()],
+        std::slice::from_ref(&new_decision),
         &[(*new_bundles[0]).clone()],
     )
     .unwrap();

@@ -178,7 +178,7 @@ pub fn resolve_locations(
     locations_toml_path: Option<&Path>,
     default_coords: Option<(f64, f64)>,
 ) -> Result<()> {
-    // Step 1: For bundles missing EXIF GPS or timestamps, attempt extraction from primary or companion images
+    // Extract missing EXIF GPS and timestamps from primary or companion images
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() || bundle.capture_timestamp_ms.is_none() {
             let (gps, ts) = extract_exif_metadata(&bundle.primary_image);
@@ -206,7 +206,7 @@ pub fn resolve_locations(
         }
     }
 
-    // Step 2: Sibling propagation within each trip folder
+    // Propagate sibling median GPS within each trip cluster
     let mut trip_gps_medians: HashMap<String, (f64, f64)> = HashMap::new();
     let mut trip_lats: HashMap<String, Vec<f64>> = HashMap::new();
     let mut trip_lons: HashMap<String, Vec<f64>> = HashMap::new();
@@ -249,7 +249,7 @@ pub fn resolve_locations(
         }
     }
 
-    // Step 3: Trip Folder Name Gazetteer (locations.toml, then embedded GazetteerEngine)
+    // Match trip folder candidate tokens against locations.toml and embedded gazetteer
     let toml_map = if let Some(p) = locations_toml_path {
         load_locations_toml(p).ok()
     } else {
@@ -333,7 +333,7 @@ pub fn resolve_locations(
         }
     }
 
-    // Step 4: Fallback CLI Default Coordinates
+    // Apply user-provided default CLI fallback coordinates
     if let Some((def_lat, def_lon)) = default_coords {
         for bundle in bundles.iter_mut() {
             if bundle.gps_coords.is_none() {

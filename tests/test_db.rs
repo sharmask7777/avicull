@@ -56,8 +56,12 @@ fn test_db_lifecycle_record_and_query() {
         routing_tier: RoutingTier::ConfirmedSpecies,
     };
 
-    db.record_bundles(run_id, &[decision.clone()], &[bundle.clone()])
-        .expect("record_bundles failed");
+    db.record_bundles(
+        run_id,
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+    )
+    .expect("record_bundles failed");
 
     let op = HardlinkOperation {
         op_id: None,
@@ -70,7 +74,7 @@ fn test_db_lifecycle_record_and_query() {
         executed_at: Some("2026-10-24T12:00:00Z".to_string()),
     };
 
-    db.record_hardlink_operations(&[op.clone()])
+    db.record_hardlink_operations(std::slice::from_ref(&op))
         .expect("record_hardlink_operations failed");
 
     // Query operations back

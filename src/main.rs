@@ -692,12 +692,19 @@ fn main() -> Result<()> {
                 )?;
 
                 for bundle in &mut all_discovered {
+                    let has_exif_gps = bundle
+                        .gps_coords
+                        .map(|c| c.source == LocationSource::ExifGps)
+                        .unwrap_or(false);
+
                     if let Some(loc) = resolved.get(&bundle.trip_folder_name) {
-                        bundle.gps_coords = Some(GpsCoordinate {
-                            latitude: loc.latitude,
-                            longitude: loc.longitude,
-                            source: LocationSource::TripFolderGazetteer,
-                        });
+                        if !has_exif_gps {
+                            bundle.gps_coords = Some(GpsCoordinate {
+                                latitude: loc.latitude,
+                                longitude: loc.longitude,
+                                source: LocationSource::TripFolderGazetteer,
+                            });
+                        }
                         if !loc.region_code.is_empty() {
                             bundle_regions
                                 .insert(bundle.bundle_id.clone(), loc.region_code.clone());
@@ -705,7 +712,7 @@ fn main() -> Result<()> {
                     } else if let Ok(Some(cached_loc)) =
                         db.get_directory_location(&bundle.trip_folder_name)
                     {
-                        if bundle.gps_coords.is_none() {
+                        if !has_exif_gps && bundle.gps_coords.is_none() {
                             bundle.gps_coords = Some(GpsCoordinate {
                                 latitude: cached_loc.latitude,
                                 longitude: cached_loc.longitude,

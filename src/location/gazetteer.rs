@@ -164,24 +164,23 @@ impl GazetteerEngine {
 pub fn normalize_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
-        let folded = match c {
-            'á' | 'à' | 'â' | 'ã' | 'ä' | 'å' | 'ā' | 'Á' | 'À' | 'Â' | 'Ã' | 'Ä' | 'Å' | 'Ā' => {
-                'a'
+        for lc in c.to_lowercase() {
+            match lc {
+                'á' | 'à' | 'â' | 'ã' | 'ä' | 'å' | 'ā' => out.push('a'),
+                'é' | 'è' | 'ê' | 'ë' | 'ē' => out.push('e'),
+                'í' | 'ì' | 'î' | 'ï' | 'ī' => out.push('i'),
+                'ó' | 'ò' | 'ô' | 'õ' | 'ö' | 'ō' => out.push('o'),
+                'ú' | 'ù' | 'û' | 'ü' | 'ū' => out.push('u'),
+                'ñ' => out.push('n'),
+                'ç' => out.push('c'),
+                other => {
+                    if other.is_alphanumeric() {
+                        out.push(other);
+                    } else {
+                        out.push(' ');
+                    }
+                }
             }
-            'é' | 'è' | 'ê' | 'ë' | 'ē' | 'É' | 'È' | 'Ê' | 'Ë' | 'Ē' => 'e',
-            'í' | 'ì' | 'î' | 'ï' | 'ī' | 'Í' | 'Ì' | 'Î' | 'Ï' | 'Ī' => 'i',
-            'ó' | 'ò' | 'ô' | 'õ' | 'ö' | 'ō' | 'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' | 'Ō' => {
-                'o'
-            }
-            'ú' | 'ù' | 'û' | 'ü' | 'ū' | 'Ú' | 'Ù' | 'Û' | 'Ü' | 'Ū' => 'u',
-            'ñ' | 'Ñ' => 'n',
-            'ç' | 'Ç' => 'c',
-            _ => c.to_ascii_lowercase(),
-        };
-        if folded.is_alphanumeric() {
-            out.push(folded);
-        } else {
-            out.push(' ');
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
