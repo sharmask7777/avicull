@@ -72,6 +72,7 @@ fn test_db_lifecycle_record_and_query() {
         dest_path: PathBuf::from("/photos/By_Species/Painted_Stork/DSC_4011_0.96.JPG"),
         source_inode: 999,
         status: "linked".to_string(),
+        operation_type: "hardlink".to_string(),
         executed_at: Some("2026-10-24T12:00:00Z".to_string()),
     };
 
