@@ -1,6 +1,6 @@
 use avicull::update::{
-    atomic_replace_binary, check_for_update_notice, default_cache_path, is_newer_version,
-    parse_semver, verify_sha256_checksum, UpdateCheckCache,
+    atomic_replace_binary, default_cache_path, is_newer_version, parse_semver,
+    verify_sha256_checksum, UpdateCheckCache,
 };
 use std::fs;
 use std::os::unix::fs::PermissionsExt;

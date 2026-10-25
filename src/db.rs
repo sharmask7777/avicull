@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use rusqlite::{params, Connection};
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -14,7 +15,8 @@ pub struct HardlinkOperation {
     pub source_path: PathBuf,
     pub dest_path: PathBuf,
     pub source_inode: u64,
-    pub status: String, // "planned", "linked", "unlinked"
+    pub status: String, // "planned", "linked", "unlinked", "renamed", "reverted"
+    pub operation_type: String, // "hardlink", "in_place_rename"
     pub executed_at: Option<String>,
 }
 
@@ -74,11 +76,12 @@ impl ManifestDb {
             CREATE TABLE IF NOT EXISTS hardlink_operations (
                 op_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL,
-                bundle_id TEXT NOT NULL,
+                bundle_id TEXT,
                 source_path TEXT NOT NULL,
                 dest_path TEXT NOT NULL,
                 source_inode INTEGER NOT NULL,
                 status TEXT NOT NULL,
+                operation_type TEXT NOT NULL DEFAULT 'hardlink',
                 executed_at TEXT,
                 FOREIGN KEY(bundle_id) REFERENCES bundles(bundle_id)
             );
@@ -98,6 +101,28 @@ impl ManifestDb {
             CREATE INDEX IF NOT EXISTS idx_dir_loc_region ON directory_locations(region_code);
             "#,
         )?;
+
+        // Ensure operation_type column exists if table was created in an earlier schema version
+        let has_op_type: bool = {
+            let mut stmt = conn.prepare("PRAGMA table_info(hardlink_operations)")?;
+            let mut rows = stmt.query([])?;
+            let mut found = false;
+            while let Some(row) = rows.next()? {
+                let col_name: String = row.get(1)?;
+                if col_name == "operation_type" {
+                    found = true;
+                    break;
+                }
+            }
+            found
+        };
+
+        if !has_op_type {
+            let _ = conn.execute(
+                "ALTER TABLE hardlink_operations ADD COLUMN operation_type TEXT NOT NULL DEFAULT 'hardlink'",
+                [],
+            );
+        }
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -238,9 +263,14 @@ impl ManifestDb {
         let tx = conn.transaction()?;
 
         for op in ops {
+            let op_type = if op.operation_type.is_empty() {
+                "hardlink"
+            } else {
+                &op.operation_type
+            };
             tx.execute(
-                "INSERT INTO hardlink_operations (run_id, bundle_id, source_path, dest_path, source_inode, status, executed_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO hardlink_operations (run_id, bundle_id, source_path, dest_path, source_inode, status, operation_type, executed_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     op.run_id,
                     op.bundle_id,
@@ -248,6 +278,7 @@ impl ManifestDb {
                     op.dest_path.to_string_lossy().to_string(),
                     op.source_inode as i64,
                     op.status,
+                    op_type,
                     op.executed_at,
                 ],
             )?;
@@ -257,32 +288,34 @@ impl ManifestDb {
         Ok(())
     }
 
-    /// Queries all hardlink operations recorded for a given run ID.
+    /// Queries all operations recorded for a given run ID.
     pub fn get_run_operations(&self, run_id: &str) -> Result<Vec<HardlinkOperation>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT op_id, run_id, bundle_id, source_path, dest_path, source_inode, status, executed_at
+            "SELECT op_id, run_id, bundle_id, source_path, dest_path, source_inode, status, executed_at, operation_type
              FROM hardlink_operations WHERE run_id = ?1 ORDER BY op_id ASC",
         )?;
 
         let rows = stmt.query_map(params![run_id], |row| {
             let op_id: i64 = row.get(0)?;
             let run_id: String = row.get(1)?;
-            let bundle_id: String = row.get(2)?;
+            let bundle_id: Option<String> = row.get(2).ok();
             let source_str: String = row.get(3)?;
             let dest_str: String = row.get(4)?;
             let source_inode: i64 = row.get(5)?;
             let status: String = row.get(6)?;
             let executed_at: Option<String> = row.get(7)?;
+            let operation_type: String = row.get(8).unwrap_or_else(|_| "hardlink".to_string());
 
             Ok(HardlinkOperation {
                 op_id: Some(op_id),
                 run_id,
-                bundle_id,
+                bundle_id: bundle_id.unwrap_or_default(),
                 source_path: PathBuf::from(source_str),
                 dest_path: PathBuf::from(dest_str),
                 source_inode: source_inode as u64,
                 status,
+                operation_type,
                 executed_at,
             })
         })?;
@@ -292,6 +325,144 @@ impl ManifestDb {
             ops.push(r?);
         }
         Ok(ops)
+    }
+
+    /// Records an in-place file rename in the database for tracking and rollback.
+    pub fn record_inplace_rename(
+        &self,
+        run_id: &str,
+        original_path: &Path,
+        renamed_path: &Path,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+        let source_inode = fs::metadata(renamed_path)
+            .or_else(|_| fs::metadata(original_path))
+            .map(|m| m.ino())
+            .unwrap_or(0);
+
+        let original_stem = original_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+
+        let bundle_id: Option<String> = {
+            let mut stmt = conn.prepare(
+                "SELECT bundle_id FROM bundles WHERE run_id = ?1 AND original_stem = ?2 LIMIT 1",
+            )?;
+            let mut rows = stmt.query(params![run_id, original_stem])?;
+            if let Some(row) = rows.next()? {
+                Some(row.get(0)?)
+            } else {
+                None
+            }
+        };
+
+        // If bundle_id column is NOT NULL in this DB table and bundle_id is None,
+        // create a minimal bundle record to satisfy foreign key constraint.
+        let bundle_id = match bundle_id {
+            Some(b) => Some(b),
+            None => {
+                let is_not_null = conn
+                    .prepare("PRAGMA table_info(hardlink_operations)")?
+                    .query_map([], |row| {
+                        let col_name: String = row.get(1)?;
+                        let not_null: i32 = row.get(3)?;
+                        Ok((col_name, not_null))
+                    })?
+                    .any(|res| {
+                        res.map(|(col, nn)| col == "bundle_id" && nn == 1)
+                            .unwrap_or(false)
+                    });
+
+                if is_not_null {
+                    let dummy_id = format!("{}_inplace", original_stem);
+                    let _ = conn.execute(
+                        "INSERT OR IGNORE INTO bundles (
+                            bundle_id, run_id, source_inode, trip_folder, original_stem,
+                            assigned_species_slug, frame_conf, final_conf, routing_tier,
+                            top5_predictions_json, bundle_json
+                        ) VALUES (?1, ?2, 0, '', ?3, '', 0.0, 0.0, 'NoBirdDetected', '[]', '{}')",
+                        params![dummy_id, run_id, original_stem],
+                    );
+                    Some(dummy_id)
+                } else {
+                    None
+                }
+            }
+        };
+
+        conn.execute(
+            "INSERT INTO hardlink_operations (run_id, bundle_id, source_path, dest_path, source_inode, status, operation_type, executed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                run_id,
+                bundle_id,
+                original_path.to_string_lossy().to_string(),
+                renamed_path.to_string_lossy().to_string(),
+                source_inode as i64,
+                "renamed",
+                "in_place_rename",
+                now,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    /// Reverts all in-place renames for the given run ID in reverse order.
+    /// Renames files back from their current renamed path to their original path,
+    /// ensuring zero data deletion and updating their operation status to 'reverted'.
+    pub fn rollback_inplace_renames(&self, run_id: &str) -> Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT op_id, source_path, dest_path
+             FROM hardlink_operations
+             WHERE run_id = ?1 AND operation_type = 'in_place_rename' AND status = 'renamed'
+             ORDER BY op_id DESC",
+        )?;
+
+        let rows = stmt.query_map(params![run_id], |row| {
+            let op_id: i64 = row.get(0)?;
+            let source_str: String = row.get(1)?;
+            let dest_str: String = row.get(2)?;
+            Ok((op_id, PathBuf::from(source_str), PathBuf::from(dest_str)))
+        })?;
+
+        let mut renames = Vec::new();
+        for r in rows {
+            renames.push(r?);
+        }
+        drop(stmt);
+
+        let mut rolled_back = 0usize;
+        for (op_id, source_path, dest_path) in renames {
+            if dest_path == source_path {
+                conn.execute(
+                    "UPDATE hardlink_operations SET status = 'reverted' WHERE op_id = ?1",
+                    params![op_id],
+                )?;
+                continue;
+            }
+
+            if dest_path.exists() {
+                fs::rename(&dest_path, &source_path).with_context(|| {
+                    format!(
+                        "Failed to rollback in-place rename from '{}' to '{}'",
+                        dest_path.display(),
+                        source_path.display()
+                    )
+                })?;
+                rolled_back += 1;
+            }
+
+            conn.execute(
+                "UPDATE hardlink_operations SET status = 'reverted' WHERE op_id = ?1",
+                params![op_id],
+            )?;
+        }
+
+        Ok(rolled_back)
     }
 
     /// Updates status of hardlink operations (e.g. marking as "unlinked").

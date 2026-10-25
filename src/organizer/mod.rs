@@ -245,6 +245,7 @@ pub fn materialize_bundle_hardlinks(
             dest_path: dst_path,
             source_inode: src_ino,
             status,
+            operation_type: "hardlink".to_string(),
             executed_at: Some(now.clone()),
         });
     }
@@ -252,36 +253,59 @@ pub fn materialize_bundle_hardlinks(
     Ok(operations)
 }
 
-/// Unlinks all generated hard links in output directory for a given run ID,
-/// leaving input files completely untouched.
-pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
+/// Unlinks generated hard links or rolls back in-place renames for a given run ID,
+/// leaving input files completely untouched and restoring original filenames.
+pub fn clean_run_operations(db: &ManifestDb, run_id: &str) -> Result<usize> {
     let ops = db.get_run_operations(run_id)?;
-    let mut unlinked_count = 0usize;
+    let mut cleaned_count = 0usize;
     let mut affected_dirs = Vec::new();
 
-    for op in ops {
-        if op.status == "linked" || op.status == "already_linked" {
-            // Defense-in-depth safety checks:
-            // 1. Never unlink if destination path equals source path
-            if op.dest_path == op.source_path {
-                continue;
+    // Process operations in reverse order
+    for op in ops.into_iter().rev() {
+        if op.operation_type == "in_place_rename" {
+            if op.status == "renamed" {
+                if op.dest_path == op.source_path {
+                    continue;
+                }
+                if op.dest_path.exists() {
+                    fs::rename(&op.dest_path, &op.source_path).with_context(|| {
+                        format!(
+                            "Failed to revert rename '{}' -> '{}'",
+                            op.dest_path.display(),
+                            op.source_path.display()
+                        )
+                    })?;
+                    cleaned_count += 1;
+                }
+                if let Some(id) = op.op_id {
+                    let _ = db.update_operation_status(id, "reverted");
+                }
             }
-            if op.dest_path.exists() {
-                // Safety check: ensure destination inode matches source inode
-                if let Ok(meta) = fs::metadata(&op.dest_path) {
-                    if meta.ino() == op.source_inode {
-                        fs::remove_file(&op.dest_path).with_context(|| {
-                            format!("Failed to unlink '{}'", op.dest_path.display())
-                        })?;
-                        unlinked_count += 1;
-                        if let Some(parent) = op.dest_path.parent() {
-                            affected_dirs.push(parent.to_path_buf());
+        } else {
+            // Hardlink operation
+            if op.status == "linked" || op.status == "already_linked" {
+                // Defense-in-depth safety checks:
+                // 1. Never unlink if destination path equals source path
+                if op.dest_path == op.source_path {
+                    continue;
+                }
+                if op.dest_path.exists() {
+                    // Safety check: ensure destination inode matches source inode
+                    if let Ok(meta) = fs::metadata(&op.dest_path) {
+                        if meta.ino() == op.source_inode {
+                            fs::remove_file(&op.dest_path).with_context(|| {
+                                format!("Failed to unlink '{}'", op.dest_path.display())
+                            })?;
+                            cleaned_count += 1;
+                            if let Some(parent) = op.dest_path.parent() {
+                                affected_dirs.push(parent.to_path_buf());
+                            }
                         }
                     }
                 }
-            }
-            if let Some(id) = op.op_id {
-                let _ = db.update_operation_status(id, "unlinked");
+                if let Some(id) = op.op_id {
+                    let _ = db.update_operation_status(id, "unlinked");
+                }
             }
         }
     }
@@ -296,5 +320,16 @@ pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
         }
     }
 
-    Ok(unlinked_count)
+    Ok(cleaned_count)
+}
+
+/// Unlinks all generated hard links in output directory for a given run ID,
+/// leaving input files completely untouched. Also safely rolls back any in-place renames.
+pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
+    clean_run_operations(db, run_id)
+}
+
+/// Reverts all in-place renames for a given run ID.
+pub fn clean_run_inplace(db: &ManifestDb, run_id: &str) -> Result<usize> {
+    db.rollback_inplace_renames(run_id)
 }
