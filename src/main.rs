@@ -1003,25 +1003,27 @@ fn main() -> Result<()> {
                     args.dry_run
                 );
                 for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
-                    let species_name = match decision.routing_tier {
-                        RoutingTier::ConfirmedSpecies => {
-                            if let Some(top) = decision.top_predictions.first() {
-                                top.common_name.clone()
-                            } else {
-                                decision.assigned_species_slug.clone()
+                    let renames = if decision.routing_tier == RoutingTier::NoBirdDetected {
+                        // Bundles where no bird is detected are preserved in-place without renaming.
+                        Vec::new()
+                    } else if !args.dry_run {
+                        let species_name = match decision.routing_tier {
+                            RoutingTier::ConfirmedSpecies => {
+                                if let Some(top) = decision.top_predictions.first() {
+                                    top.common_name.clone()
+                                } else {
+                                    decision.assigned_species_slug.clone()
+                                }
                             }
-                        }
-                        RoutingTier::NeedsReview => {
-                            if let Some(top) = decision.top_predictions.first() {
-                                format!("Needs_Review_{}", top.common_name)
-                            } else {
-                                format!("Needs_Review_{}", decision.assigned_species_slug)
+                            RoutingTier::NeedsReview => {
+                                if let Some(top) = decision.top_predictions.first() {
+                                    format!("Needs_Review_{}", top.common_name)
+                                } else {
+                                    format!("Needs_Review_{}", decision.assigned_species_slug)
+                                }
                             }
-                        }
-                        RoutingTier::NoBirdDetected => "No_Bird_Detected".to_string(),
-                    };
-
-                    let renames = if !args.dry_run {
+                            RoutingTier::NoBirdDetected => unreachable!(),
+                        };
                         execute_inplace_bundle_rename(bundle, &species_name, None, None)?
                     } else {
                         Vec::new()

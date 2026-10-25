@@ -288,8 +288,15 @@ fn test_cli_e2e_inplace_default() {
     let img_path = trip_dir.join("DSC_0042.JPG");
     let xmp_path = trip_dir.join("DSC_0042.xmp");
 
-    let img = image::RgbImage::new(10, 10);
-    img.save(&img_path).expect("save test jpeg");
+    // Copy a real sample bird image fixture so YOLO11 detects a bird
+    let fixture_img = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/e2e_samples/leh/sample_chukar.jpg");
+    if fixture_img.exists() {
+        fs::copy(&fixture_img, &img_path).expect("copy bird fixture image");
+    } else {
+        let img = image::RgbImage::new(100, 100);
+        img.save(&img_path).expect("save test jpeg");
+    }
     File::create(&xmp_path)
         .unwrap()
         .write_all(b"<xmp>Leh Test</xmp>")
@@ -504,5 +511,70 @@ fn test_cli_e2e_hierarchy_mode() {
     assert!(
         xmp_path.exists(),
         "Input sidecar must remain intact after clean"
+    );
+}
+
+#[test]
+fn test_cli_e2e_inplace_does_not_rename_no_bird_detected() {
+    let tmp = tempdir().expect("create temp dir");
+    let input_dir = tmp.path().join("Trip");
+    let trip_dir = input_dir.join("2026-07_Landscape");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let img_path = trip_dir.join("DSC_0099.JPG");
+    let xmp_path = trip_dir.join("DSC_0099.xmp");
+
+    // Pure black image has 0 bird detections
+    let img = image::RgbImage::new(10, 10);
+    img.save(&img_path).expect("save test jpeg");
+    File::create(&xmp_path)
+        .unwrap()
+        .write_all(b"<xmp>Empty Landscape</xmp>")
+        .unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to execute avicull organize");
+
+    assert!(
+        output.status.success(),
+        "avicull organize failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    // Verify original files remain untouched and were NOT renamed
+    assert!(
+        img_path.exists(),
+        "Original image DSC_0099.JPG must remain untouched when no bird detected"
+    );
+    assert!(
+        xmp_path.exists(),
+        "Original sidecar DSC_0099.xmp must remain untouched when no bird detected"
+    );
+
+    // Ensure no files with No_Bird_Detected suffix were created
+    let entries: Vec<_> = fs::read_dir(&trip_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+
+    assert!(
+        !entries.iter().any(|name| name.contains("No_Bird_Detected")),
+        "In-place mode must not rename files to No_Bird_Detected. Entries: {:?}",
+        entries
+    );
+    assert_eq!(
+        entries.len(),
+        2,
+        "Only the original 2 files should exist in directory"
     );
 }

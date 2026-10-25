@@ -312,3 +312,80 @@ fn test_execute_inplace_bundle_rename_collision_disambiguation() {
     assert_eq!(fs::read(&disambiguated_target).unwrap(), b"new-raw-data");
     assert_eq!(fs::read(&existing_target).unwrap(), b"existing-target");
 }
+
+#[test]
+fn test_inplace_mode_skips_rename_when_no_bird_detected() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+
+    let primary = root.join("IMG_9999.CR2");
+    let companion = root.join("IMG_9999.JPG");
+    let sidecar = root.join("IMG_9999.xmp");
+
+    File::create(&primary)
+        .unwrap()
+        .write_all(b"landscape-raw")
+        .unwrap();
+    File::create(&companion)
+        .unwrap()
+        .write_all(b"landscape-jpeg")
+        .unwrap();
+    File::create(&sidecar)
+        .unwrap()
+        .write_all(b"landscape-xmp")
+        .unwrap();
+
+    let bundle = AssetBundle {
+        bundle_id: "nobird1".to_string(),
+        source_inode: 99999,
+        trip_folder_name: "Bangalore".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        primary_image: primary.clone(),
+        companion_images: vec![companion.clone()],
+        sidecar_files: vec![sidecar.clone()],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: Some("Bangalore".to_string()),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "nobird1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.05,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.05,
+        final_confidence: 0.05,
+        assigned_species_slug: "Unknown_Bird".to_string(),
+        routing_tier: RoutingTier::NoBirdDetected,
+    };
+
+    // When routing tier is NoBirdDetected, in-place renames must be empty (files untouched)
+    let renames: Vec<(std::path::PathBuf, std::path::PathBuf)> = match decision.routing_tier {
+        RoutingTier::NoBirdDetected => Vec::new(),
+        RoutingTier::ConfirmedSpecies | RoutingTier::NeedsReview => {
+            execute_inplace_bundle_rename(&bundle, "House Sparrow", None, None).unwrap()
+        }
+    };
+
+    assert!(
+        renames.is_empty(),
+        "No-bird-detected bundles must not produce any rename operations"
+    );
+    assert!(
+        primary.exists(),
+        "Original primary image must remain untouched on disk"
+    );
+    assert!(
+        companion.exists(),
+        "Original companion image must remain untouched on disk"
+    );
+    assert!(
+        sidecar.exists(),
+        "Original sidecar file must remain untouched on disk"
+    );
+    assert!(
+        !root.join("IMG_9999_No_Bird_Detected.CR2").exists(),
+        "Must NOT rename file to No_Bird_Detected"
+    );
+}
