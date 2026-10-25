@@ -47,7 +47,8 @@ class AvianInferenceEngine:
         emb_data = load_file(emb_path)
         self.species_embeddings = emb_data["embeddings"].to(self.device)  # [11167, 512]
 
-        # 3. Build Regional Spatio-Temporal Prior Tensors
+        # 3. Load Regional Checklists & Spatio-Temporal Prior Tensors
+        self.load_regional_checklists()
         self.build_regional_priors()
 
         # 4. Load YOLO Detector
@@ -61,6 +62,41 @@ class AvianInferenceEngine:
         self.vision_model = model.visual.to(self.device)
         self.vision_model.eval()
         self.preprocess = preprocess
+
+    def load_regional_checklists(self):
+        """Loads eBird regional checklist species sets from data/regional_checklists.json."""
+        self.regional_checklists = {}
+        self.regional_prior_tensors = {}
+        candidates = [
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "regional_checklists.json"),
+            os.path.join("data", "regional_checklists.json"),
+            os.path.join(self.models_dir, "regional_checklists.json"),
+        ]
+        for path in candidates:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.regional_checklists = {k: set(v) for k, v in data.items()}
+                        break
+                except Exception as e:
+                    logging.warning(f"Failed to load regional checklists from {path}: {e}")
+
+    def get_regional_prior_tensor(self, region_code: str):
+        """Returns or constructs a 11,167-dim prior tensor for the given eBird region code."""
+        if not region_code or region_code not in self.regional_checklists:
+            return None
+        if region_code in self.regional_prior_tensors:
+            return self.regional_prior_tensors[region_code]
+
+        checklist = self.regional_checklists[region_code]
+        weights = [
+            1.0 if sp.get("taxon_id") in checklist else 0.001
+            for sp in self.taxonomy
+        ]
+        tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
+        self.regional_prior_tensors[region_code] = tensor
+        return tensor
 
     def build_regional_priors(self):
         """Constructs prior tensors across all 11,167 species for fast vector multiplication."""
@@ -145,6 +181,7 @@ class AvianInferenceEngine:
         trip_name: str = "",
         lat: float = None,
         lon: float = None,
+        region_code: str = "",
     ):
         if not os.path.exists(image_path):
             return {
@@ -193,9 +230,22 @@ class AvianInferenceEngine:
             visual_probs = torch.softmax(logits, dim=-1)[0]
 
             # Apply Bayesian Spatio-Temporal Prior across FULL 11,167 species BEFORE top-k!
-            is_ladakh = "leh" in trip_name.lower() or "ladakh" in trip_name.lower() or (lat and lat > 32.0 and lon and lon > 76.0)
-            if is_ladakh and geo_prior_weight > 0.0:
-                effective_priors = self.ladakh_prior ** geo_prior_weight
+            regional_prior = self.get_regional_prior_tensor(region_code) if region_code else None
+            is_ladakh = (
+                region_code == "IN-LA"
+                or "leh" in trip_name.lower()
+                or "ladakh" in trip_name.lower()
+                or (lat is not None and lat > 32.0 and lon is not None and lon > 76.0)
+            )
+
+            if geo_prior_weight > 0.0:
+                priors = torch.ones_like(visual_probs)
+                if regional_prior is not None:
+                    priors = priors * regional_prior
+                if is_ladakh:
+                    priors = priors * self.ladakh_prior
+
+                effective_priors = priors ** geo_prior_weight
                 posterior_scores = visual_probs * effective_priors
             else:
                 effective_priors = torch.ones_like(visual_probs)
@@ -253,6 +303,7 @@ def main():
     parser.add_argument("--output-file", help="File to write JSON results to (avoids stdout noise)")
     parser.add_argument("--image", help="Single image path for testing")
     parser.add_argument("--trip-name", default="", help="Trip folder name for gazetteer prior")
+    parser.add_argument("--region-code", default="", help="eBird region code (e.g. IN-KA) for regional prior")
     parser.add_argument("--min-detect", type=float, default=0.25)
     parser.add_argument("--geo-prior-weight", type=float, default=1.0)
     args = parser.parse_args()
@@ -265,6 +316,7 @@ def main():
             min_detect=args.min_detect,
             geo_prior_weight=args.geo_prior_weight,
             trip_name=args.trip_name,
+            region_code=args.region_code,
         )
         if args.output_file:
             with open(args.output_file, "w", encoding="utf-8") as f:
@@ -283,6 +335,7 @@ def main():
             trip = task.get("trip_folder_name", "")
             lat = task.get("latitude")
             lon = task.get("longitude")
+            region_code = task.get("region_code", "")
             res = engine.process_image(
                 img_path,
                 min_detect=args.min_detect,
@@ -290,6 +343,7 @@ def main():
                 trip_name=trip,
                 lat=lat,
                 lon=lon,
+                region_code=region_code,
             )
             res["bundle_id"] = task.get("bundle_id")
             results.append(res)
