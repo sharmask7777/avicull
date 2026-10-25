@@ -8,22 +8,28 @@ The architecture combines the multi-stage detection and transactional manifest d
 
 ## Quick Install (Prebuilt macOS Apple Silicon Binary)
 
-You can download and install the prebuilt binary directly from [GitHub Releases v0.1.0](https://github.com/sharmask7777/avicull/releases/tag/v0.1.0) without needing a Rust compiler:
+You can download and install the latest prebuilt binary directly from [GitHub Releases](https://github.com/sharmask7777/avicull/releases/latest) without needing a Rust compiler:
 
 ```bash
-# Download binary tarball and checksum
-curl -LO https://github.com/sharmask7777/avicull/releases/download/v0.1.0/avicull-v0.1.0-aarch64-apple-darwin.tar.gz
-curl -LO https://github.com/sharmask7777/avicull/releases/download/v0.1.0/avicull-v0.1.0-aarch64-apple-darwin.tar.gz.sha256
+# Download latest binary tarball and checksum
+curl -LO https://github.com/sharmask7777/avicull/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/sharmask7777/avicull/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz.sha256
 
 # Verify checksum
-shasum -a 256 -c avicull-v0.1.0-aarch64-apple-darwin.tar.gz.sha256
+shasum -a 256 -c avicull-aarch64-apple-darwin.tar.gz.sha256
 
 # Unpack and install
-tar -xzf avicull-v0.1.0-aarch64-apple-darwin.tar.gz
-sudo cp avicull-v0.1.0-aarch64-apple-darwin/avicull /usr/local/bin/
+tar -xzf avicull-aarch64-apple-darwin.tar.gz
+sudo cp avicull-aarch64-apple-darwin/avicull /usr/local/bin/
 
 # Check installation
 avicull --version
+```
+
+### One-Liner Install
+
+```bash
+curl -sL https://github.com/sharmask7777/avicull/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz | tar -xz && sudo cp avicull-aarch64-apple-darwin/avicull /usr/local/bin/
 ```
 
 On first run, `avicull` will offer to automatically download and initialize the Cornell eBird 11,167-species taxonomy and neural model cache into `~/.cache/avicull/models`.
