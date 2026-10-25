@@ -310,6 +310,23 @@ When organizing photos from DSLRs or mirrorless cameras lacking embedded GPS EXI
 
 ---
 
+## Continuous Integration & PR Sanity Checks
+
+Every pull request targeting `main` is gated by the automated PR sanity check workflow in [`.github/workflows/pr_checks.yml`](.github/workflows/pr_checks.yml), running on macOS Apple Silicon (`macos-14`):
+
+1. **Code Formatting & Clippy Linter**:
+   - `cargo fmt --check`
+   - `cargo clippy -- -D warnings`
+2. **Rust Test Suite & Invariants**:
+   - Runs all unit, filesystem integration, property-based, and E2E mock tests (`cargo test --locked`).
+3. **Python & Gazetteer Integrity**:
+   - Verifies the global gazetteer and eBird regional checklists (`pytest tests/test_build_gazetteer.py`).
+   - Verifies Python ML inference scripts (`uv run python3 -m unittest discover -s tests_python`).
+4. **Release Build Sanity**:
+   - Verifies that `cargo build --release --locked` compiles with zero warnings or errors.
+
+---
+
 ## Creating a New Release
 
 ### 1. Automated Releases on Merge to `main` (Recommended)
