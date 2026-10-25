@@ -126,6 +126,78 @@
     "category": "reserve"
   },
   {
+    "name": "K Gudi",
+    "region_code": "IN-KA",
+    "lat": 11.9961,
+    "lon": 77.135,
+    "latitude": 11.9961,
+    "longitude": 77.135,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kyathadevara Gudi",
+    "region_code": "IN-KA",
+    "lat": 11.9961,
+    "lon": 77.135,
+    "latitude": 11.9961,
+    "longitude": 77.135,
+    "category": "hotspot"
+  },
+  {
+    "name": "BR Hills",
+    "region_code": "IN-KA",
+    "lat": 11.9961,
+    "lon": 77.135,
+    "latitude": 11.9961,
+    "longitude": 77.135,
+    "category": "reserve"
+  },
+  {
+    "name": "Biligiriranga Hills",
+    "region_code": "IN-KA",
+    "lat": 11.9961,
+    "lon": 77.135,
+    "latitude": 11.9961,
+    "longitude": 77.135,
+    "category": "reserve"
+  },
+  {
+    "name": "Coorg",
+    "region_code": "IN-KA",
+    "lat": 12.4244,
+    "lon": 75.7382,
+    "latitude": 12.4244,
+    "longitude": 75.7382,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kodagu",
+    "region_code": "IN-KA",
+    "lat": 12.4244,
+    "lon": 75.7382,
+    "latitude": 12.4244,
+    "longitude": 75.7382,
+    "category": "hotspot"
+  },
+  {
+    "name": "Madikeri",
+    "region_code": "IN-KA",
+    "lat": 12.4244,
+    "lon": 75.7382,
+    "latitude": 12.4244,
+    "longitude": 75.7382,
+    "category": "city"
+  },
+  {
+    "name": "Kanaka Sarovara",
+    "region_code": "IN-KA",
+    "lat": 12.9716,
+    "lon": 77.5946,
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "category": "hotspot"
+  },
+  {
     "name": "Ranthambore",
     "region_code": "IN-RJ",
     "lat": 26.0173,
@@ -186,6 +258,87 @@
     "lon": 70.9083,
     "latitude": 26.9157,
     "longitude": 70.9083,
+    "category": "city"
+  },
+  {
+    "name": "Jhalana",
+    "region_code": "IN-RJ",
+    "lat": 26.858,
+    "lon": 75.823,
+    "latitude": 26.858,
+    "longitude": 75.823,
+    "category": "reserve"
+  },
+  {
+    "name": "Jhalana Safari Park",
+    "region_code": "IN-RJ",
+    "lat": 26.858,
+    "lon": 75.823,
+    "latitude": 26.858,
+    "longitude": 75.823,
+    "category": "reserve"
+  },
+  {
+    "name": "Jhalana Leopard Safari Park",
+    "region_code": "IN-RJ",
+    "lat": 26.858,
+    "lon": 75.823,
+    "latitude": 26.858,
+    "longitude": 75.823,
+    "category": "reserve"
+  },
+  {
+    "name": "Gir",
+    "region_code": "IN-GJ",
+    "lat": 21.1243,
+    "lon": 70.8242,
+    "latitude": 21.1243,
+    "longitude": 70.8242,
+    "category": "reserve"
+  },
+  {
+    "name": "Gir National Park",
+    "region_code": "IN-GJ",
+    "lat": 21.1243,
+    "lon": 70.8242,
+    "latitude": 21.1243,
+    "longitude": 70.8242,
+    "category": "reserve"
+  },
+  {
+    "name": "Sasan Gir",
+    "region_code": "IN-GJ",
+    "lat": 21.1243,
+    "lon": 70.8242,
+    "latitude": 21.1243,
+    "longitude": 70.8242,
+    "category": "reserve"
+  },
+  {
+    "name": "Velavadar Blackbuck National Park",
+    "region_code": "IN-GJ",
+    "lat": 21.9333,
+    "lon": 72.0333,
+    "latitude": 21.9333,
+    "longitude": 72.0333,
+    "category": "reserve"
+  },
+  {
+    "name": "Little Rann of Kutch",
+    "region_code": "IN-GJ",
+    "lat": 23.25,
+    "lon": 71.25,
+    "latitude": 23.25,
+    "longitude": 71.25,
+    "category": "reserve"
+  },
+  {
+    "name": "Ahmedabad",
+    "region_code": "IN-GJ",
+    "lat": 23.0225,
+    "lon": 72.5714,
+    "latitude": 23.0225,
+    "longitude": 72.5714,
     "category": "city"
   },
   {
@@ -367,6 +520,33 @@
     "latitude": 11.5622,
     "longitude": 76.5342,
     "category": "reserve"
+  },
+  {
+    "name": "Coonoor",
+    "region_code": "IN-TN",
+    "lat": 11.353,
+    "lon": 76.7959,
+    "latitude": 11.353,
+    "longitude": 76.7959,
+    "category": "hotspot"
+  },
+  {
+    "name": "Nilgiris",
+    "region_code": "IN-TN",
+    "lat": 11.4102,
+    "lon": 76.695,
+    "latitude": 11.4102,
+    "longitude": 76.695,
+    "category": "hotspot"
+  },
+  {
+    "name": "Ooty",
+    "region_code": "IN-TN",
+    "lat": 11.4102,
+    "lon": 76.695,
+    "latitude": 11.4102,
+    "longitude": 76.695,
+    "category": "city"
   },
   {
     "name": "Chennai",
@@ -999,6 +1179,33 @@
     "category": "city"
   },
   {
+    "name": "New Zealand",
+    "region_code": "NZ",
+    "lat": -40.9006,
+    "lon": 174.886,
+    "latitude": -40.9006,
+    "longitude": 174.886,
+    "category": "hotspot"
+  },
+  {
+    "name": "Rotorua",
+    "region_code": "NZ",
+    "lat": -38.1368,
+    "lon": 176.2497,
+    "latitude": -38.1368,
+    "longitude": 176.2497,
+    "category": "city"
+  },
+  {
+    "name": "Queenstown",
+    "region_code": "NZ",
+    "lat": -45.0312,
+    "lon": 168.6626,
+    "latitude": -45.0312,
+    "longitude": 168.6626,
+    "category": "city"
+  },
+  {
     "name": "Milford Sound",
     "region_code": "NZ",
     "lat": -44.6716,
@@ -1014,6 +1221,15 @@
     "lon": 174.7633,
     "latitude": -36.8485,
     "longitude": 174.7633,
+    "category": "city"
+  },
+  {
+    "name": "Christchurch",
+    "region_code": "NZ",
+    "lat": -43.5321,
+    "lon": 172.6362,
+    "latitude": -43.5321,
+    "longitude": 172.6362,
     "category": "city"
   },
   {
