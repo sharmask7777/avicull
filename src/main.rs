@@ -479,23 +479,25 @@ fn run_fallback_parallel_classification(
         .collect()
 }
 
-fn resolve_or_prompt_models_dir(requested: Option<PathBuf>) -> Result<Option<PathBuf>> {
+fn resolve_or_prompt_models_dir(
+    requested: Option<PathBuf>,
+    no_prompt: bool,
+) -> Result<Option<PathBuf>> {
     if let Some(r) = requested {
         return Ok(Some(r));
     }
 
-    // 1. Check local ./models
+    // Check local ./models directory
     let local_models = PathBuf::from("models");
     if local_models.join("species_embeddings.safetensors").exists() {
         return Ok(Some(local_models));
     }
 
-    // 2. Check persistent user cache ~/.cache/avicull/models
+    // Check persistent user cache ~/.cache/avicull/models
     let home = std::env::var("HOME").ok();
     let cache_dir = home.map(|h| PathBuf::from(h).join(".cache/avicull/models"));
     if let Some(ref c_dir) = cache_dir {
         if c_dir.join("species_embeddings.safetensors").exists() {
-            // Check periodic update age (30 days)
             let manifest_path = c_dir.join("manifest.json");
             if let Ok(meta) = std::fs::metadata(&manifest_path) {
                 if let Ok(modified) = meta.modified() {
@@ -512,7 +514,13 @@ fn resolve_or_prompt_models_dir(requested: Option<PathBuf>) -> Result<Option<Pat
         }
     }
 
-    // 3. Prompt user if interactive or in terminal
+    // Avoid prompting in non-interactive environments, headless test runners, or when --no-prompt is specified
+    use std::io::IsTerminal;
+    if no_prompt || !std::io::stdin().is_terminal() {
+        return Ok(None);
+    }
+
+    // Prompt user in interactive terminal sessions
     if let Some(ref c_dir) = cache_dir {
         use std::io::{self, Write};
         print!(
@@ -529,7 +537,7 @@ fn resolve_or_prompt_models_dir(requested: Option<PathBuf>) -> Result<Option<Pat
                     "[avicull] Initializing eBird taxonomy & BioCLIP embeddings on Apple Silicon GPU..."
                 );
                 std::fs::create_dir_all(c_dir)?;
-                let status = std::process::Command::new("uv")
+                let status_res = std::process::Command::new("uv")
                     .args([
                         "run",
                         "--with",
@@ -538,17 +546,21 @@ fn resolve_or_prompt_models_dir(requested: Option<PathBuf>) -> Result<Option<Pat
                         "scripts/build_taxonomy_embeddings.py",
                         c_dir.to_str().unwrap(),
                     ])
-                    .status()?;
-                if status.success() {
-                    println!(
-                        "[avicull] ✓ Models successfully installed to '{}' and ready for reuse across all future runs.",
-                        c_dir.display()
-                    );
-                    return Ok(Some(c_dir.clone()));
-                } else {
-                    eprintln!(
-                        "[avicull] Warning: Failed to download models. Falling back to mock classifier."
-                    );
+                    .status();
+
+                match status_res {
+                    Ok(status) if status.success() => {
+                        println!(
+                            "[avicull] ✓ Models successfully installed to '{}' and ready for reuse across all future runs.",
+                            c_dir.display()
+                        );
+                        return Ok(Some(c_dir.clone()));
+                    }
+                    _ => {
+                        eprintln!(
+                            "[avicull] Warning: Failed to download models. Falling back to mock classifier."
+                        );
+                    }
                 }
             } else {
                 println!("[avicull] Skipping model download. Falling back to mock classifier.");
@@ -794,7 +806,7 @@ fn main() -> Result<()> {
             let conf_mode: ConfidenceMode =
                 args.confidence_mode.parse().map_err(|e| anyhow!("{}", e))?;
 
-            let models_dir = resolve_or_prompt_models_dir(args.models_dir)?;
+            let models_dir = resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?;
 
             // Initialize models only if we have new bundles to process
             let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = models_dir {

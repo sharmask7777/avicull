@@ -281,7 +281,7 @@ pub fn scan_input_tree_with_skip(
         }
 
         // Sort images by priority descending
-        group.images.sort_by(|a, b| b.1.cmp(&a.1));
+        group.images.sort_by_key(|a| std::cmp::Reverse(a.1));
 
         let primary_image = group.images[0].0.clone();
         let companion_images = group.images[1..].iter().map(|(p, _)| p.clone()).collect();
