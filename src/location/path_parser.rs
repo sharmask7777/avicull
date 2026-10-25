@@ -352,13 +352,13 @@ fn strip_dates_from_string(s: &str) -> String {
             }
         }
 
-        // Check windows of 2: (month, year), (year, month), (month, day), (day, month)
+        // Check windows of 2: (month, year), (year, month), (month, day), (day, month), (year, month_num), (month_num, year)
         if i + 1 < spans.len() {
             let t0 = &spans[i].text;
             let t1 = &spans[i + 1].text;
 
-            let is_m_y = is_month(t0) && is_year(t1);
-            let is_y_m = is_year(t0) && is_month(t1);
+            let is_m_y = (is_month(t0) || is_month_num(t0)) && is_year(t1);
+            let is_y_m = is_year(t0) && (is_month(t1) || is_month_num(t1));
             let is_m_d = is_month(t0) && is_day(t1);
             let is_d_m = is_day(t0) && is_month(t1);
 

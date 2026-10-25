@@ -1,6 +1,10 @@
 import json
 import os
 import sys
+
+# Ensure repository root is on sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import pytest
 import torch
 
@@ -14,6 +18,8 @@ def test_regional_checklist_loading_and_tensor(monkeypatch):
     monkeypatch.setattr("scripts.infer.YOLO", lambda *a, **kw: None)
 
     engine = AvianInferenceEngine(models_dir="models")
+    assert not hasattr(engine, "ladakh_prior"), "Ad-hoc ladakh_prior must be purged"
+    assert not hasattr(engine, "build_regional_priors"), "build_regional_priors must be purged"
     assert "IN-KA" in engine.regional_checklists
     assert "IN-LA" in engine.regional_checklists
     assert "US-FL" in engine.regional_checklists

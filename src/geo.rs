@@ -13,39 +13,6 @@ struct TomlLocation {
     lon: f64,
 }
 
-/// Offline Important Bird Area (IBA) and prominent birding hotspot coordinates.
-static BUILTIN_GAZETTEER: &[(&str, f64, f64)] = &[
-    ("bharatpur", 27.1750, 77.5250),
-    ("keoladeo", 27.1750, 77.5250),
-    ("ranganathittu", 12.4244, 76.6563),
-    ("leh", 34.1526, 77.5771),
-    ("ladakh", 34.1526, 77.5771),
-    ("chilika", 19.6800, 85.3200),
-    ("kaziranga", 26.5775, 93.1711),
-    ("corbett", 29.5300, 78.7747),
-    ("tadoba", 20.2444, 79.3014),
-    ("kanha", 22.3345, 80.6115),
-    ("gir", 21.1243, 70.8242),
-    ("sundarbans", 21.9497, 89.1833),
-    ("kutch", 23.7337, 69.8597),
-    ("manglajodi", 19.9238, 85.4297),
-    ("nalsarovar", 22.8000, 72.0300),
-    ("pointcalimere", 10.3000, 79.8667),
-    ("vedanthangal", 12.5458, 79.8550),
-    ("thattekad", 10.1333, 76.6833),
-    ("pulicat", 13.6667, 80.1667),
-    ("sultanpur", 28.4617, 76.8928),
-    ("okhla", 28.5447, 77.3090),
-    ("panna", 24.7200, 80.2000),
-    ("bandhavgarh", 23.7000, 81.0300),
-    ("ranthambore", 26.0173, 76.5026),
-    ("everglades", 25.2866, -80.8987),
-    ("galapagos", -0.9538, -90.9656),
-    ("pantanal", -16.4800, -56.6300),
-    ("kruger", -23.9884, 31.5547),
-    ("serengeti", -2.3333, 34.8333),
-];
-
 /// Extracts EXIF GPS and timestamp from an image file if available.
 pub fn extract_exif_metadata(path: &Path) -> (Option<GpsCoordinate>, Option<i64>) {
     let mut coords: Option<GpsCoordinate> = None;
@@ -282,15 +249,20 @@ pub fn resolve_locations(
         }
     }
 
-    // Step 3: Trip Folder Name Gazetteer (locations.toml, then built-in IBA table)
+    // Step 3: Trip Folder Name Gazetteer (locations.toml, then embedded GazetteerEngine)
     let toml_map = if let Some(p) = locations_toml_path {
         load_locations_toml(p).ok()
     } else {
         None
     };
 
+    let gazetteer_engine = crate::location::gazetteer::GazetteerEngine::load_embedded().ok();
+
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() {
+            let candidate_tokens = crate::location::path_parser::extract_candidate_location_tokens(
+                Path::new(&bundle.trip_folder_name),
+            );
             let mut tokens = tokenize_folder_name(&bundle.trip_folder_name);
             for comp in bundle.primary_image.components() {
                 tokens.extend(tokenize_folder_name(&comp.as_os_str().to_string_lossy()));
@@ -299,28 +271,46 @@ pub fn resolve_locations(
 
             // Check toml mapping
             if let Some(ref map) = toml_map {
-                for token in &tokens {
+                for token in &candidate_tokens {
                     if let Some(&coords) = map.get(token) {
                         resolved = Some(coords);
                         break;
                     }
                 }
-            }
-
-            // Check built-in table
-            if resolved.is_none() {
-                for token in &tokens {
-                    for &(hotspot, lat, lon) in BUILTIN_GAZETTEER {
-                        if token == hotspot
-                            || (token.len() >= 4 && token.contains(hotspot))
-                            || (token.len() >= 4 && hotspot.contains(token.as_str()))
-                        {
-                            resolved = Some((lat, lon));
+                if resolved.is_none() {
+                    for token in &tokens {
+                        if let Some(&coords) = map.get(token) {
+                            resolved = Some(coords);
                             break;
                         }
                     }
-                    if resolved.is_some() {
-                        break;
+                }
+            }
+
+            // Check embedded gazetteer engine
+            if resolved.is_none() {
+                if let Some(ref engine) = gazetteer_engine {
+                    for token in &candidate_tokens {
+                        let matches = engine.search(token, 1);
+                        if let Some((entry, score)) = matches.into_iter().next() {
+                            if score >= 0.60 {
+                                resolved = Some((entry.latitude, entry.longitude));
+                                break;
+                            }
+                        }
+                    }
+                    if resolved.is_none() {
+                        for token in &tokens {
+                            if token.len() >= 3 {
+                                let matches = engine.search(token, 1);
+                                if let Some((entry, score)) = matches.into_iter().next() {
+                                    if score >= 0.60 {
+                                        resolved = Some((entry.latitude, entry.longitude));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
