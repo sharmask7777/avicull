@@ -1,0 +1,56 @@
+[
+  {
+    "taxon_id": "paisto1",
+    "common_name": "Painted Stork",
+    "folder_slug": "Painted_Stork",
+    "scientific_name": "Mycteria leucocephala"
+  },
+  {
+    "taxon_id": "sttswa1",
+    "common_name": "Streak-throated Swallow",
+    "folder_slug": "Streak-throated_Swallow",
+    "scientific_name": "Petrochelidon fluvicola"
+  },
+  {
+    "taxon_id": "blrwar1",
+    "common_name": "Blyth's Reed Warbler",
+    "folder_slug": "Blyths_Reed_Warbler",
+    "scientific_name": "Acrocephalus dumetorum"
+  },
+  {
+    "taxon_id": "whbkin1",
+    "common_name": "White-throated Kingfisher",
+    "folder_slug": "White-throated_Kingfisher",
+    "scientific_name": "Halcyon smyrnensis"
+  },
+  {
+    "taxon_id": "colkin1",
+    "common_name": "Collared Kingfisher",
+    "folder_slug": "Collared_Kingfisher",
+    "scientific_name": "Todiramphus chloris"
+  },
+  {
+    "taxon_id": "blhgul1",
+    "common_name": "Black-headed Gull",
+    "folder_slug": "Black-headed_Gull",
+    "scientific_name": "Chroicocephalus ridibundus"
+  },
+  {
+    "taxon_id": "barheg1",
+    "common_name": "Bar-headed Goose",
+    "folder_slug": "Bar-headed_Goose",
+    "scientific_name": "Anser indicus"
+  },
+  {
+    "taxon_id": "bkncra1",
+    "common_name": "Black-necked Crane",
+    "folder_slug": "Black-necked_Crane",
+    "scientific_name": "Grus nigricollis"
+  },
+  {
+    "taxon_id": "tibsnow1",
+    "common_name": "Tibetan Snowcock",
+    "folder_slug": "Tibetan_Snowcock",
+    "scientific_name": "Tetraogallus tibetanus"
+  }
+]
