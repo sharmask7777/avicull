@@ -73,3 +73,57 @@ fn test_bundle_decision_serialization_roundtrip() {
         serde_json::from_str(&serialized).expect("deserialization failed");
     assert_eq!(decision, deserialized);
 }
+
+#[test]
+fn test_organization_mode_default_and_parsing() {
+    use clap::ValueEnum;
+
+    // Verify Default is InPlaceFileRenameToDescriptiveNames
+    assert_eq!(
+        OrganizationMode::default(),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+    );
+
+    // Verify clap parsing from string for primary names
+    assert_eq!(
+        OrganizationMode::from_str("in-place", true).unwrap(),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+    );
+    assert_eq!(
+        OrganizationMode::from_str("hierarchy", true).unwrap(),
+        OrganizationMode::HierarchicalHardlinkHierarchy
+    );
+
+    // Verify clap parsing from aliases
+    assert_eq!(
+        OrganizationMode::from_str("in-place-file-rename-to-descriptive-names", true).unwrap(),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+    );
+    assert_eq!(
+        OrganizationMode::from_str("hierarchical-hardlink-hierarchy", true).unwrap(),
+        OrganizationMode::HierarchicalHardlinkHierarchy
+    );
+    assert_eq!(
+        OrganizationMode::from_str("hardlink", true).unwrap(),
+        OrganizationMode::HierarchicalHardlinkHierarchy
+    );
+
+    // Verify invalid values fail
+    assert!(OrganizationMode::from_str("invalid-mode", true).is_err());
+}
+
+#[test]
+fn test_organization_mode_serialization_roundtrip() {
+    let mode_inplace = OrganizationMode::InPlaceFileRenameToDescriptiveNames;
+    let serialized_inplace = serde_json::to_string(&mode_inplace).expect("serialization failed");
+    let deserialized_inplace: OrganizationMode =
+        serde_json::from_str(&serialized_inplace).expect("deserialization failed");
+    assert_eq!(mode_inplace, deserialized_inplace);
+
+    let mode_hierarchy = OrganizationMode::HierarchicalHardlinkHierarchy;
+    let serialized_hierarchy =
+        serde_json::to_string(&mode_hierarchy).expect("serialization failed");
+    let deserialized_hierarchy: OrganizationMode =
+        serde_json::from_str(&serialized_hierarchy).expect("deserialization failed");
+    assert_eq!(mode_hierarchy, deserialized_hierarchy);
+}

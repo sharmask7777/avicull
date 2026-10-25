@@ -13,7 +13,9 @@ use avicull::organizer::{clean_run_hardlinks, materialize_bundle_hardlinks};
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
-use avicull::types::{ConfidenceMode, GpsCoordinate, LocationSource, RoutingTier};
+use avicull::types::{
+    ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
+};
 use clap::{Args, Parser, Subcommand};
 use image::DynamicImage;
 use std::fs::File;
@@ -116,6 +118,10 @@ struct OrganizeArgs {
     /// Filename score: [burst-consensus | per-frame] (default: burst-consensus)
     #[arg(long, default_value = "burst-consensus")]
     confidence_mode: String,
+
+    /// Organization mode: [in-place | hierarchy] (default: in-place)
+    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlaceFileRenameToDescriptiveNames)]
+    mode: OrganizationMode,
 
     /// Strength of SINR geographical prior [0.0..2.0] (default: 1.0)
     #[arg(long, default_value_t = 1.0)]

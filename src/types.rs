@@ -68,6 +68,29 @@ pub enum ConfidenceMode {
     PerFrame,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default, Serialize, Deserialize)]
+pub enum OrganizationMode {
+    #[default]
+    #[value(name = "in-place", alias = "in-place-file-rename-to-descriptive-names")]
+    InPlaceFileRenameToDescriptiveNames,
+
+    #[value(
+        name = "hierarchy",
+        alias = "hierarchical-hardlink-hierarchy",
+        alias = "hardlink"
+    )]
+    HierarchicalHardlinkHierarchy,
+}
+
+impl std::fmt::Display for OrganizationMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OrganizationMode::InPlaceFileRenameToDescriptiveNames => write!(f, "in-place"),
+            OrganizationMode::HierarchicalHardlinkHierarchy => write!(f, "hierarchy"),
+        }
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum AvicullError {
     #[error("Filesystem volume mismatch: input device {input_dev} != output device {output_dev}")]
