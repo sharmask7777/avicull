@@ -72,6 +72,19 @@ pub enum AvicullError {
     VolumeMismatch { input_dev: u64, output_dev: u64 },
     #[error("Disjointness violation: path '{nested}' is nested inside '{parent}'")]
     NestedPathDisjointness { nested: PathBuf, parent: PathBuf },
+    #[error(
+        "Cannot read input directory: {}\n\n\
+         macOS Privacy & Security (TCC) prevented reading this directory (Permission denied / Operation not permitted).\n\
+         When accessing CloudStorage folders (Proton Drive, iCloud Drive, OneDrive, Dropbox, etc.), macOS requires Full Disk Access.\n\n\
+         To resolve this:\n\
+           1. Open macOS 'System Settings' -> 'Privacy & Security' -> 'Full Disk Access'.\n\
+           2. Enable Full Disk Access for your Terminal, IDE (Antigravity / VS Code / Cursor), or shell application.\n\
+           3. Re-run avicull.",
+        path.display()
+    )]
+    CloudStorageAccessDenied { path: PathBuf },
+    #[error("Cannot read input directory: {} (Permission denied). Please check filesystem read permissions.", path.display())]
+    DirectoryPermissionDenied { path: PathBuf },
     #[error("Unknown confidence mode: '{0}'. Expected 'burst-consensus' or 'per-frame'")]
     InvalidConfidenceMode(String),
 }
