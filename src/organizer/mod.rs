@@ -1,3 +1,6 @@
+pub mod inplace;
+pub use inplace::*;
+
 use crate::db::{HardlinkOperation, ManifestDb};
 use crate::scanner::decompose_filename;
 use crate::types::{AssetBundle, BundleDecision, RoutingTier};
