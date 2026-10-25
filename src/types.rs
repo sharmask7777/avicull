@@ -12,6 +12,8 @@ pub struct AssetBundle {
     pub sidecar_files: Vec<PathBuf>, // e.g., ["DSC_4011.xmp", "DSC_4011.ARW.xmp"]
     pub capture_timestamp_ms: Option<i64>,
     pub gps_coords: Option<GpsCoordinate>,
+    #[serde(default)]
+    pub resolved_location_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -20,12 +20,28 @@ fn test_asset_bundle_serialization_roundtrip() {
             longitude: 77.5250,
             source: LocationSource::ExifGps,
         }),
+        resolved_location_name: Some("Bharatpur".to_string()),
     };
 
     let serialized = serde_json::to_string(&bundle).expect("serialization failed");
     let deserialized: AssetBundle =
         serde_json::from_str(&serialized).expect("deserialization failed");
     assert_eq!(bundle, deserialized);
+
+    // Verify backward compatibility: missing resolved_location_name in legacy JSON defaults to None
+    let legacy_json = r#"{
+        "bundle_id": "legacy-1",
+        "source_inode": 100,
+        "trip_folder_name": "Trip",
+        "original_stem": "IMG_001",
+        "primary_image": "/p/IMG_001.JPG",
+        "companion_images": [],
+        "sidecar_files": [],
+        "capture_timestamp_ms": null,
+        "gps_coords": null
+    }"#;
+    let legacy_bundle: AssetBundle = serde_json::from_str(legacy_json).unwrap();
+    assert_eq!(legacy_bundle.resolved_location_name, None);
 }
 
 #[test]

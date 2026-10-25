@@ -28,12 +28,15 @@ pub fn sanitize_species_slug(name: &str) -> String {
     trimmed.to_string()
 }
 
-/// Constructs formatted destination filename: <OriginalStem>_<Confidence:0.2>.<OriginalExt>
-/// Preserves compound sidecar extensions (e.g. DSC_4011.JPG.xmp -> DSC_4011_0.96.JPG.xmp).
+/// Constructs formatted destination filename:
+/// <TripPrefix__><OriginalStem>_<Date>_<Location>_<Confidence:0.2>.<OriginalExt>
+/// Preserves compound sidecar extensions (e.g. DSC_4011.JPG.xmp -> DSC_4011_2025-01-26_Saul_Kere_0.96.JPG.xmp).
 pub fn format_destination_filename(
     original_filename: &str,
     confidence: f32,
     trip_prefix: Option<&str>,
+    capture_date: Option<&str>,
+    inferred_location: Option<&str>,
 ) -> String {
     let conf_str = format!("{:.2}", confidence);
 
@@ -57,10 +60,31 @@ pub fn format_destination_filename(
         }
     };
 
-    let filename = format!("{}_{}{}", stem, conf_str, remainder);
+    let mut tags = Vec::new();
+    if let Some(d) = capture_date {
+        let trimmed = d.trim();
+        if !trimmed.is_empty() {
+            tags.push(trimmed);
+        }
+    }
+    if let Some(loc) = inferred_location {
+        let trimmed = loc.trim_matches(|c: char| c.is_whitespace() || c == '_');
+        if !trimmed.is_empty() {
+            tags.push(trimmed);
+        }
+    }
+
+    let base_stem_with_tags = if tags.is_empty() {
+        format!("{stem}_{conf_str}")
+    } else {
+        let tags_str = tags.join("_");
+        format!("{stem}_{tags_str}_{conf_str}")
+    };
+
+    let filename = format!("{base_stem_with_tags}{remainder}");
 
     if let Some(prefix) = trip_prefix {
-        format!("{}__{}", prefix, filename)
+        format!("{prefix}__{filename}")
     } else {
         filename
     }
@@ -103,6 +127,15 @@ pub fn materialize_bundle_hardlinks(
         files_to_link.push(sidecar.clone());
     }
 
+    let capture_date = bundle.capture_timestamp_ms.and_then(|ms| {
+        chrono::DateTime::from_timestamp_millis(ms).map(|dt| dt.format("%Y-%m-%d").to_string())
+    });
+
+    let inferred_location = bundle
+        .resolved_location_name
+        .as_deref()
+        .map(sanitize_species_slug);
+
     // First check if primary file has a collision requiring trip prefix
     let primary_filename = bundle
         .primary_image
@@ -110,8 +143,13 @@ pub fn materialize_bundle_hardlinks(
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_else(|| "image.jpg".to_string());
 
-    let normal_dst_filename =
-        format_destination_filename(&primary_filename, decision.final_confidence, None);
+    let normal_dst_filename = format_destination_filename(
+        &primary_filename,
+        decision.final_confidence,
+        None,
+        capture_date.as_deref(),
+        inferred_location.as_deref(),
+    );
     let normal_dst_path = target_dir.join(&normal_dst_filename);
 
     let needs_trip_prefix = if normal_dst_path.exists() {
@@ -143,6 +181,8 @@ pub fn materialize_bundle_hardlinks(
             &src_filename,
             decision.final_confidence,
             trip_slug.as_deref(),
+            capture_date.as_deref(),
+            inferred_location.as_deref(),
         );
 
         let mut dst_path = target_dir.join(dst_filename);

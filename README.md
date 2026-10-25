@@ -95,17 +95,17 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 ```
 /Volumes/Photos/Trips/birds_hierarchy/
 ├── Painted_Stork/
-│   ├── DSC_4011_0.96.JPG       # Hard link -> .../DSC_4011.JPG (same inode)
-│   ├── DSC_4011_0.96.xmp       # Hard link -> .../DSC_4011.xmp (same inode)
-│   └── DSC_4012_0.94.JPG       # Hard link -> .../DSC_4012.JPG (same inode)
+│   ├── DSC_4011_2025-11-15_Bharatpur_0.96.JPG       # Hard link -> .../DSC_4011.JPG (same inode)
+│   ├── DSC_4011_2025-11-15_Bharatpur_0.96.xmp       # Hard link -> .../DSC_4011.xmp (same inode)
+│   └── DSC_4012_2025-11-15_Bharatpur_0.94.JPG       # Hard link -> .../DSC_4012.JPG (same inode)
 ├── Streak-throated_Swallow/
-│   └── DSC_4015_0.91.ARW       # Hard link -> .../DSC_4015.ARW (same inode)
+│   └── DSC_4015_2025-11-15_Bharatpur_0.91.ARW       # Hard link -> .../DSC_4015.ARW (same inode)
 ├── _Needs_Review/
 │   └── Blyths_Reed_Warbler/
-│       ├── IMG_9001_0.54.JPG   # Hard link -> .../IMG_9001.JPG
-│       └── IMG_9001_0.54.XMP   # Hard link -> .../IMG_9001.XMP
+│       ├── IMG_9001_2026-01-10_Ranganathittu_0.54.JPG   # Hard link -> .../IMG_9001.JPG
+│       └── IMG_9001_2026-01-10_Ranganathittu_0.54.XMP   # Hard link -> .../IMG_9001.XMP
 ├── _No_Bird_Detected/
-│   └── 2026-01_Ranganathittu__IMG_9002_0.11.JPG
+│   └── 2026-01_Ranganathittu__IMG_9002_2026-01-10_Ranganathittu_0.11.JPG
 └── .avicull/
     └── manifest.sqlite
 ```
@@ -312,7 +312,16 @@ When organizing photos from DSLRs or mirrorless cameras lacking embedded GPS EXI
 
 ## Creating a New Release
 
-To build, package, and publish a new official GitHub release:
+### 1. Automated Releases on Merge to `main` (Recommended)
+`avicull` uses continuous delivery via [`.github/workflows/release_on_merge.yml`](.github/workflows/release_on_merge.yml). Every time a pull request is merged into `main`:
+1. The GitHub Action extracts the `version` from `Cargo.toml`.
+2. It queries Git tags. If tag `v${VERSION}` already exists, it auto-increments the patch version (e.g., `0.2.0` -> `0.2.1`), updates `Cargo.toml` & `Cargo.lock`, and pushes a version bump commit to `main` with `[skip ci]`.
+3. It compiles the release binary on macOS Apple Silicon (`macos-14`).
+4. It packages `avicull-v${VERSION}-aarch64-apple-darwin.tar.gz` and calculates its SHA-256 checksum.
+5. It publishes a new official GitHub Release with release notes and downloadable assets.
+
+### 2. Manual Release Process
+To manually build, package, and publish a new official GitHub release:
 
 1. **Run Pre-Push Verification**:
    Ensure all 7 verification stages succeed:
