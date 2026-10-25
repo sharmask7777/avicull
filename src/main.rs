@@ -6,15 +6,18 @@ use avicull::detector::{
     select_and_pad_bird_crop, BirdDetector, MockBirdDetector, OrtBirdDetector,
 };
 use avicull::geo::resolve_locations;
+use avicull::location::gazetteer::GazetteerEngine;
+use avicull::location::path_parser::extract_candidate_location_tokens;
+use avicull::location::resolver::resolve_trip_locations;
 use avicull::organizer::{clean_run_hardlinks, materialize_bundle_hardlinks};
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
-use avicull::types::{ConfidenceMode, RoutingTier};
+use avicull::types::{ConfidenceMode, GpsCoordinate, LocationSource, RoutingTier};
 use clap::{Args, Parser, Subcommand};
 use image::DynamicImage;
 use std::fs::File;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
@@ -130,6 +133,14 @@ struct OrganizeArgs {
     /// Rayon worker thread count for I/O and preprocessing
     #[arg(long)]
     threads: Option<usize>,
+
+    /// Override location name or coordinates (lat,lon) for photos lacking GPS
+    #[arg(short = 'l', long)]
+    location: Option<String>,
+
+    /// Run non-interactively without prompting
+    #[arg(long, default_value_t = false)]
+    no_prompt: bool,
 }
 
 #[derive(Args, Debug)]
@@ -290,6 +301,7 @@ fn run_batch_inference(
     models_dir: &Path,
     min_detect: f32,
     geo_prior_weight: f32,
+    bundle_regions: &std::collections::HashMap<String, String>,
 ) -> Result<std::collections::HashMap<String, ClassifiedBundleItem>> {
     let infer_script = Path::new("scripts/infer.py");
     let embeddings_file = models_dir.join("species_embeddings.safetensors");
@@ -309,6 +321,7 @@ fn run_batch_inference(
         trip_folder_name: String,
         latitude: Option<f64>,
         longitude: Option<f64>,
+        region_code: String,
     }
 
     let mut tasks = Vec::with_capacity(bundles.len());
@@ -320,6 +333,10 @@ fn run_batch_inference(
             Some(coords) => (Some(coords.latitude), Some(coords.longitude)),
             None => (None, None),
         };
+        let region = bundle_regions
+            .get(&bundle.bundle_id)
+            .cloned()
+            .unwrap_or_default();
 
         tasks.push(BatchTask {
             bundle_id: bundle.bundle_id.clone(),
@@ -327,6 +344,7 @@ fn run_batch_inference(
             trip_folder_name: bundle.trip_folder_name.clone(),
             latitude: lat,
             longitude: lon,
+            region_code: region,
         });
     }
 
@@ -405,6 +423,7 @@ fn run_fallback_parallel_classification(
     classifier: &std::sync::Arc<Box<dyn SpeciesClassifier>>,
     min_detect: f32,
     geo_prior_weight: f32,
+    bundle_regions: &std::collections::HashMap<String, String>,
 ) -> std::collections::HashMap<String, ClassifiedBundleItem> {
     use rayon::prelude::*;
     new_bundles
@@ -423,8 +442,9 @@ fn run_fallback_parallel_classification(
             };
 
             let item = if let Some(cropped) = crop_res {
+                let region = bundle_regions.get(&bundle.bundle_id).map(|s| s.as_str());
                 let (emb, preds) = classifier
-                    .classify(&cropped, bundle.gps_coords, geo_prior_weight)
+                    .classify_with_region(&cropped, bundle.gps_coords, region, geo_prior_weight)
                     .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
 
                 let posteriors: Vec<(String, f32)> = preds
@@ -615,6 +635,101 @@ fn main() -> Result<()> {
                 def_coords,
             )?;
 
+            // Location resolution via Gazetteer and Path Inference for bundles lacking EXIF GPS
+            let mut bundle_regions: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+
+            // Group trips where bundles lack EXIF GPS, or all trips if global --location is specified
+            let mut trip_map: std::collections::BTreeMap<
+                String,
+                Vec<&avicull::types::AssetBundle>,
+            > = std::collections::BTreeMap::new();
+            for bundle in &all_discovered {
+                let lacks_exif = bundle
+                    .gps_coords
+                    .map(|c| c.source != LocationSource::ExifGps)
+                    .unwrap_or(true);
+                if lacks_exif || args.location.is_some() {
+                    trip_map
+                        .entry(bundle.trip_folder_name.clone())
+                        .or_default()
+                        .push(bundle);
+                }
+            }
+
+            if !trip_map.is_empty() || args.location.is_some() {
+                let mut trips_to_tokens = Vec::new();
+                for (trip_name, b_list) in &trip_map {
+                    let mut tokens = Vec::new();
+                    for b in b_list {
+                        for t in extract_candidate_location_tokens(&b.primary_image) {
+                            if !tokens.contains(&t) {
+                                tokens.push(t);
+                            }
+                        }
+                    }
+                    for t in extract_candidate_location_tokens(Path::new(trip_name)) {
+                        if !tokens.contains(&t) {
+                            tokens.push(t);
+                        }
+                    }
+                    trips_to_tokens.push((trip_name.clone(), tokens));
+                }
+
+                let engine = GazetteerEngine::load_embedded()?;
+                let mut stdin = std::io::stdin().lock();
+                let mut stdout = std::io::stdout();
+                let is_interactive = !args.no_prompt && std::io::stdin().is_terminal();
+
+                let resolved = resolve_trip_locations(
+                    &trips_to_tokens,
+                    &engine,
+                    &db,
+                    &mut stdin,
+                    &mut stdout,
+                    is_interactive,
+                    args.location.as_deref(),
+                )?;
+
+                for bundle in &mut all_discovered {
+                    if let Some(loc) = resolved.get(&bundle.trip_folder_name) {
+                        bundle.gps_coords = Some(GpsCoordinate {
+                            latitude: loc.latitude,
+                            longitude: loc.longitude,
+                            source: LocationSource::TripFolderGazetteer,
+                        });
+                        if !loc.region_code.is_empty() {
+                            bundle_regions
+                                .insert(bundle.bundle_id.clone(), loc.region_code.clone());
+                        }
+                    } else if let Ok(Some(cached_loc)) =
+                        db.get_directory_location(&bundle.trip_folder_name)
+                    {
+                        if bundle.gps_coords.is_none() {
+                            bundle.gps_coords = Some(GpsCoordinate {
+                                latitude: cached_loc.latitude,
+                                longitude: cached_loc.longitude,
+                                source: LocationSource::TripFolderGazetteer,
+                            });
+                        }
+                        if !cached_loc.region_code.is_empty() {
+                            bundle_regions.insert(bundle.bundle_id.clone(), cached_loc.region_code);
+                        }
+                    }
+                }
+            }
+
+            // Ensure any bundles that already have cached directory location in db have their region_code attached
+            for bundle in &all_discovered {
+                if !bundle_regions.contains_key(&bundle.bundle_id) {
+                    if let Ok(Some(loc)) = db.get_directory_location(&bundle.trip_folder_name) {
+                        if !loc.region_code.is_empty() {
+                            bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
+                        }
+                    }
+                }
+            }
+
             // Partition into new vs cached bundles
             let mut new_bundles = Vec::new();
             let mut cached_items = std::collections::HashMap::new();
@@ -702,6 +817,7 @@ fn main() -> Result<()> {
                         m_dir,
                         args.min_detect,
                         args.geo_prior_weight,
+                        &bundle_regions,
                     ) {
                         Ok(res) => res,
                         Err(e) => {
@@ -715,6 +831,7 @@ fn main() -> Result<()> {
                                 &classifier,
                                 args.min_detect,
                                 args.geo_prior_weight,
+                                &bundle_regions,
                             )
                         }
                     }
@@ -729,6 +846,7 @@ fn main() -> Result<()> {
                         &classifier,
                         args.min_detect,
                         args.geo_prior_weight,
+                        &bundle_regions,
                     )
                 }
             } else {
@@ -742,6 +860,7 @@ fn main() -> Result<()> {
                     &classifier,
                     args.min_detect,
                     args.geo_prior_weight,
+                    &bundle_regions,
                 )
             };
 

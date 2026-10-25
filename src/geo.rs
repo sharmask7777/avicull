@@ -260,9 +260,17 @@ pub fn resolve_locations(
 
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() {
-            let candidate_tokens = crate::location::path_parser::extract_candidate_location_tokens(
-                Path::new(&bundle.trip_folder_name),
-            );
+            let mut candidate_tokens =
+                crate::location::path_parser::extract_candidate_location_tokens(Path::new(
+                    &bundle.trip_folder_name,
+                ));
+            for t in crate::location::path_parser::extract_candidate_location_tokens(
+                &bundle.primary_image,
+            ) {
+                if !candidate_tokens.contains(&t) {
+                    candidate_tokens.push(t);
+                }
+            }
             let mut tokens = tokenize_folder_name(&bundle.trip_folder_name);
             for comp in bundle.primary_image.components() {
                 tokens.extend(tokenize_folder_name(&comp.as_os_str().to_string_lossy()));

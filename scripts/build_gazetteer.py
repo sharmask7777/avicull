@@ -261,6 +261,7 @@ KARNATAKA_TAXON_IDS = [
     "bcnher",   # Black-crowned Night Heron
     "grecor",   # Great Cormorant
     "oripip1",  # Paddyfield Pipit
+    "rewlap1",  # Red-wattled Lapwing
 ]
 
 # Birds for Rajasthan (IN-RJ)
@@ -300,10 +301,14 @@ RAJASTHAN_TAXON_IDS = [
     "rorpar",   # Rose-ringed Parakeet
     "copbar1",  # Coppersmith Barbet
     "bladro1",  # Black Drongo
+    "rewlap1",  # Red-wattled Lapwing
 ]
 
 # Birds for Ladakh (IN-LA)
 LADAKH_TAXON_IDS = [
+    "blared1",  # Black Redstart
+    "chukar",   # Chukar
+    "himrub1",  # Himalayan Rubythroat
     "bahgoo",   # Bar-headed Goose
     "bnhgul1",  # Brown-headed Gull
     "rudshe",   # Ruddy Shelduck

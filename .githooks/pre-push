@@ -25,7 +25,7 @@ command -v uv >/dev/null 2>&1 || {
 }
 
 # 1. Rust Code Formatting
-echo -e "${BOLD}[1/6] Checking Rust code formatting (cargo fmt)...${NC}"
+echo -e "${BOLD}[1/7] Checking Rust code formatting (cargo fmt)...${NC}"
 if cargo fmt --check; then
     echo -e "${GREEN}✓ cargo fmt passed.${NC}\n"
 else
@@ -34,7 +34,7 @@ else
 fi
 
 # 2. Rust Linter (Clippy)
-echo -e "${BOLD}[2/6] Running Rust linter (cargo clippy -- -D warnings)...${NC}"
+echo -e "${BOLD}[2/7] Running Rust linter (cargo clippy -- -D warnings)...${NC}"
 if cargo clippy -- -D warnings; then
     echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
 else
@@ -43,7 +43,7 @@ else
 fi
 
 # 3. Rust Unit, Integration & Spec Conformance Tests
-echo -e "${BOLD}[3/6] Running Rust unit, integration & spec conformance tests...${NC}"
+echo -e "${BOLD}[3/7] Running Rust unit, integration & spec conformance tests...${NC}"
 if cargo test --test 'test_*' -- --skip test_e2e_real_samples; then
     echo -e "${GREEN}✓ cargo test passed (all unit & integration tests green).${NC}\n"
 else
@@ -52,7 +52,7 @@ else
 fi
 
 # 4. Python Unit & Inference Tests
-echo -e "${BOLD}[4/6] Running Python unit & inference tests (tests_python)...${NC}"
+echo -e "${BOLD}[4/7] Running Python unit & inference tests (tests_python)...${NC}"
 if uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python; then
     echo -e "${GREEN}✓ Python test suite passed.${NC}\n"
 else
@@ -61,7 +61,7 @@ else
 fi
 
 # 5. Real Samples E2E Test on Locally Compiled Build
-echo -e "${BOLD}[5/6] Running Real Samples E2E Test on Latest Compiled Build Locally...${NC}"
+echo -e "${BOLD}[5/7] Running Real Samples E2E Test on Latest Compiled Build Locally...${NC}"
 LOCAL_BIN="$REPO_ROOT/target/debug/avicull"
 if cargo build --bin avicull; then
     if AVICULL_BIN="$LOCAL_BIN" cargo test --test test_e2e_real_samples -- --nocapture; then
@@ -76,7 +76,7 @@ else
 fi
 
 # 6. Real Samples E2E Test on Latest Generated Release Binary (if present)
-echo -e "${BOLD}[6/6] Checking for generated release binary to test...${NC}"
+echo -e "${BOLD}[6/7] Checking for generated release binary to test...${NC}"
 RELEASE_BIN=""
 if [ -f "dist/avicull" ]; then
     RELEASE_BIN="dist/avicull"
@@ -104,6 +104,21 @@ if [ -n "$RELEASE_BIN" ] && [ -x "$RELEASE_BIN" ]; then
     fi
 else
     echo -e "No release binary currently generated in dist/ or target/release/ (skipping release verification).\n"
+fi
+
+# 7. Gazetteer & Regional Checklist Integrity Check
+echo -e "${BOLD}[7/7] Running Gazetteer & Regional Checklist integrity check (pytest)...${NC}"
+if command -v pytest >/dev/null 2>&1; then
+    PYTEST_CMD="pytest"
+else
+    PYTEST_CMD="uv run --with pytest pytest"
+fi
+
+if $PYTEST_CMD tests/test_build_gazetteer.py; then
+    echo -e "${GREEN}✓ Gazetteer & regional checklist integrity test passed.${NC}\n"
+else
+    echo -e "${RED}✗ Gazetteer & regional checklist integrity test failed.${NC}\n"
+    exit 1
 fi
 
 echo -e "${BOLD}${GREEN}==============================================${NC}"
