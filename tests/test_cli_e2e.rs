@@ -302,11 +302,16 @@ fn test_cli_e2e_inplace_default() {
         .write_all(b"<xmp>Leh Test</xmp>")
         .unwrap();
 
+    let fixture_models_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
         .args([
             "organize",
             "--input",
             input_dir.to_str().unwrap(),
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
             "--no-prompt",
         ])
         .output()
