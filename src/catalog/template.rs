@@ -704,6 +704,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
           Generated Unix Shell Command (mv):
         </label>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px;">
+          Note: Run from the photo catalog directory or execute the downloadable script below.
+        </div>
         <div class="command-box" id="commandOutput">Select a species above to compute destination filename and mv command...</div>
       </div>
     </div>
@@ -917,6 +920,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     const newSlug = sanitizeSlug(species);
 
     let commands = [];
+    if (CATALOG_DATA.catalog_dir) {{
+      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+    }}
     const currentPath = activeModalItem.current_path;
     const lastSlash = currentPath.lastIndexOf('/');
     const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
@@ -1009,6 +1015,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       "# Avicull Mislabel Corrections Batch Script",
       "# Generated automatically by avicull standalone catalog",
       "set -euo pipefail",
+      "",
+      `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
       "",
       ...batchCommands,
       "",

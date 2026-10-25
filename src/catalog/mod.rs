@@ -90,6 +90,7 @@ pub struct CatalogStats {
 pub struct CatalogPayload {
     pub trip_name: String,
     pub mode: String,
+    pub catalog_dir: String,
     pub generated_at: String,
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
@@ -244,9 +245,16 @@ pub fn generate_html_catalog(
         OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in-place",
     };
 
+    let catalog_dir_str = output_root
+        .canonicalize()
+        .unwrap_or_else(|_| output_root.to_path_buf())
+        .to_string_lossy()
+        .to_string();
+
     let payload = CatalogPayload {
         trip_name: trip_name.to_string(),
         mode: mode_str.to_string(),
+        catalog_dir: catalog_dir_str,
         generated_at: Utc::now().to_rfc3339(),
         stats,
         items: payload_items,
