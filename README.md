@@ -42,11 +42,22 @@ On first run, `avicull` will offer to automatically download and initialize the 
 
 ## Non-Negotiable Filesystem Invariants
 
-1. **Strict Source Immutability**: The input trip directory (`--input`) is strictly read-only. `avicull` never moves, renames, modifies, or unlinks any file inside `--input`.
-2. **Default Output (`birds_hierarchy`) via Zero-Copy Hard Links**: By default, `avicull` materializes all organized files in `<input>/birds_hierarchy` (or any custom `--output` path) on the same APFS volume using hard links (`std::fs::hard_link`). Both directory trees point to the exact same underlying APFS inodes, consuming zero additional disk space for image payloads.
-3. **Multi-Level Coexistence**: You can create a `birds_hierarchy` in an individual trip folder (e.g. `Leh/birds_hierarchy`), and also in its parent directory (e.g. `Pictures/birds_hierarchy`). Both hierarchies co-exist seamlessly via hard links to the same underlying inodes (incrementing `st_nlink` to 2, 3, etc.) without duplicating storage.
-4. **Auto-Detection & Incremental Updates**: Running `avicull organize` on an existing hierarchy automatically discovers newly added photos while reusing cached ML decisions from `.avicull/manifest.sqlite`. Only new or updated files undergo neural network inference.
-5. **Upfront Volume & Safety Validation**: Before running inference, `avicull` verifies via `std::os::unix::fs::MetadataExt::dev()` that `--input` and `--output` reside on the same filesystem device (`st_dev`) so hard linking cannot fail mid-run with `EXDEV` (Cross-device link), and verifies that input is not nested inside output. Recursive scanners automatically skip `birds_hierarchy`, `.avicull`, `*.photoslibrary`, and system metadata files.
+1. **In-Place Descriptive Renaming (`--mode in-place`, Default)**:
+   - Primary images, companion files, and sidecars (`.xmp`, `.dop`) are renamed in lockstep to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>`.
+   - Zero file copying and zero data deletion.
+   - All renaming operations are transactionally journaled in `.avicull/manifest.sqlite`, guaranteeing lossless rollback via `avicull clean`.
+   - Automatic collision resolution preserves unique filenames when bursts or duplicate names occur.
+2. **Strict Source Immutability in Hierarchy Mode (`--mode hierarchy`)**:
+   - The input trip directory (`--input`) is strictly read-only. `avicull` never moves, renames, modifies, or unlinks any file inside `--input`.
+   - Files are projected into `<input>/birds_hierarchy` (or `--output`) using zero-byte POSIX hard links (`std::fs::hard_link`), pointing to identical underlying APFS inodes (`src_ino == dst_ino`) without consuming additional disk bytes.
+3. **Multi-Level Coexistence (Hierarchy Mode)**:
+   - You can create a `birds_hierarchy` in an individual trip folder (e.g. `Leh/birds_hierarchy`), and also in its parent directory (e.g. `Pictures/birds_hierarchy`). Both hierarchies co-exist seamlessly via hard links to the same underlying inodes (incrementing `st_nlink` to 2, 3, etc.) without duplicating storage.
+4. **Auto-Detection & Incremental Updates**:
+   - Running `avicull organize` on an existing archive automatically discovers newly added photos while reusing cached ML decisions from `.avicull/manifest.sqlite`. Only new or updated files undergo neural network inference.
+5. **Upfront Volume & Safety Validation**:
+   - In hierarchy mode, `avicull` verifies via `std::os::unix::fs::MetadataExt::dev()` that `--input` and `--output` reside on the same filesystem device (`st_dev`) so hard linking cannot fail mid-run with `EXDEV` (Cross-device link), and verifies that input is not nested inside output. Recursive scanners automatically skip `birds_hierarchy`, `.avicull`, `*.photoslibrary`, and system metadata files.
+6. **Self-Contained Offline HTML Photo Catalog**:
+   - Both modes automatically produce a standalone offline `catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
 
 ---
 
@@ -81,27 +92,38 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 - **Rule of Thumb**:
   - Keep Mac drives formatted as **APFS**.
   - For Windows-compatible external drives with zero-byte links, format as **NTFS** and transfer with `rsync -avH`.
-
+  - Alternatively, use the default **in-place renaming mode** (`avicull organize --input <DIR>`), which works on any filesystem including APFS, HFS+, NTFS, and exFAT without requiring hardlink support.
 
 ---
 
 ## Target Transformation
 
-### Input State (Immutable Trip-Based Directory Tree)
+### Input State (Camera Cards / Unorganized Trip Archive)
 ```
-/Volumes/Photos/Trips/
-├── 2025-11_Bharatpur_Keoladeo/
-│   ├── DSC_4011.JPG
-│   ├── DSC_4011.xmp
-│   ├── DSC_4012.JPG
-│   └── DSC_4015.ARW
-└── 2026-01_Ranganathittu/
-    ├── IMG_9001.JPG
-    ├── IMG_9001.XMP
-    └── IMG_9002.JPG
+/Volumes/Photos/Trips/2025-11_Bharatpur_Keoladeo/
+├── DSC_4011.JPG
+├── DSC_4011.xmp
+├── DSC_4012.JPG
+└── DSC_4015.ARW
 ```
 
-### Output State (Separate Hard-Linked Species Directory Tree: `birds_hierarchy`)
+### Transformation Option A: In-Place Descriptive Renaming (Default Mode)
+In-place renaming updates file and sidecar stems directly in the source directory with zero byte copies and generates `catalog.html`:
+```
+/Volumes/Photos/Trips/2025-11_Bharatpur_Keoladeo/
+├── DSC_4011_Painted_Stork_20251115_Bharatpur.JPG
+├── DSC_4011_Painted_Stork_20251115_Bharatpur.xmp
+├── DSC_4012_Painted_Stork_20251115_Bharatpur.JPG
+├── DSC_4015_Streak-throated_Swallow_20251115_Bharatpur.ARW
+├── catalog.html
+└── .avicull/
+    ├── manifest.sqlite
+    └── previews/
+        └── DSC_4015.jpg
+```
+
+### Transformation Option B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
+Creates a separate species-headed tree using zero-byte POSIX hard links:
 ```
 /Volumes/Photos/Trips/birds_hierarchy/
 ├── Painted_Stork/
@@ -116,8 +138,10 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 │       └── IMG_9001_2026-01-10_Ranganathittu_0.54.XMP   # Hard link -> .../IMG_9001.XMP
 ├── _No_Bird_Detected/
 │   └── 2026-01_Ranganathittu__IMG_9002_2026-01-10_Ranganathittu_0.11.JPG
+├── catalog.html
 └── .avicull/
-    └── manifest.sqlite
+    ├── manifest.sqlite
+    └── previews/
 ```
 
 ---
@@ -232,11 +256,23 @@ avicull organize --input /Volumes/Photos/Leh --force
 ```
 
 ### 2. Standalone Offline HTML Photo Catalog (`catalog.html`)
-Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` with:
-- **Interactive Lightbox**: High-res image display with instant EXIF and ML metadata.
-- **Dynamic Search & Tier Filtering**: Filter by Confirmed Species, Needs Review, or No Bird Detected.
-- **Embedded RAW Thumbnails**: Standalone extraction of embedded preview thumbnails from camera RAWs into `.avicull/previews/`.
-- **Zero Dependencies**: Pure HTML/CSS/JS without external CDN calls, works completely offline in airplane mode.
+
+Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` dashboard located at `<input>/catalog.html` (in in-place mode) or `<output>/catalog.html` (in hierarchy mode).
+
+Key capabilities include:
+- **Zero External Dependencies**: Self-contained HTML, CSS, and vanilla JavaScript without any external CDNs or network calls. Functions seamlessly offline or in airplane mode in any modern browser.
+- **Embedded RAW Thumbnail Extraction**: Automatically extracts high-resolution embedded preview JPEGs from camera RAW formats (`.CR2`, `.CR3`, `.ARW`, `.NEF`, `.DNG`) into `.avicull/previews/`, allowing instant browsing without loading multi-megabyte RAW payloads.
+- **Dynamic Search & Tier Filtering**:
+  - Filter by routing tier: **Confirmed Species** (green), **Needs Review** (amber), or **No Bird Detected** (slate).
+  - Search photos in real time by common species name, scientific name, original filename, location, or capture date.
+  - Interactive confidence threshold slider to visually preview routing tier boundaries.
+- **Interactive Lightbox Modal**: Click any photo card to open a full-resolution lightbox view displaying camera EXIF exposure settings (shutter speed, aperture, ISO, focal length), hardware GPS coordinates, and top-5 ranked species predictions with confidence percentages.
+- **Mislabel Correction & Batch Script Export**:
+  - Click **Correct Species** on any photo card or within the lightbox.
+  - Search the complete 11,167-species Cornell eBird taxonomy with instant keyboard autocomplete or enter a custom name.
+  - The modal automatically displays the target filename update and synchronizes all companion files and sidecars (`.xmp`, `.dop`).
+  - Click **Add to Batch Script** to queue correction commands.
+  - Click **Download apply_corrections.sh** in the header to download a POSIX-compliant bash script that atomically renames your photo files and sidecars.
 
 ### 3. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
 You can organize both a specific trip folder and the parent archive:
@@ -289,7 +325,7 @@ avicull clean --input /Volumes/Photos/Leh
 avicull clean --db /Volumes/Photos/Leh/.avicull/manifest.sqlite --run-id run-20261025-140000
 ```
 
-### 7. `models`: Manage Decoupled ML & eBird Taxonomy Cache
+### 8. `models`: Manage Decoupled ML & eBird Taxonomy Cache
 Inspect cache status or refresh with the latest official Cornell eBird global taxonomy and BioCLIP embeddings without rebuilding the binary:
 ```bash
 # Check status and age of local models cache
@@ -299,7 +335,7 @@ avicull models status
 avicull models update
 ```
 
-### 8. `update`: Self-Update to Latest Release
+### 9. `update`: Self-Update to Latest Release
 Check for newer GitHub releases or self-update the running `avicull` executable:
 ```bash
 # Check if an update is available without downloading
@@ -313,7 +349,7 @@ sudo avicull update
 ```
 *Note: `avicull` automatically checks for newer releases in the background once every 24 hours. To disable background checks, export `AVICULL_NO_UPDATE_CHECK=1`.*
 
-### 9. `help`: In-Terminal User Manual & Help Topics
+### 10. `help`: In-Terminal User Manual & Help Topics
 Access interactive documentation and deep dives right from your terminal:
 ```bash
 # View comprehensive user manual and commands
