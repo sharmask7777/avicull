@@ -43,6 +43,106 @@ fn test_validate_volume_and_disjointness_same_volume_ok() {
     assert!(res.is_ok(), "Disjoint paths on same volume must succeed");
 }
 
+struct PermissionGuard<'a>(&'a std::path::Path);
+impl<'a> Drop for PermissionGuard<'a> {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+    }
+}
+
+#[test]
+fn test_validate_volume_and_disjointness_unreadable_input_fails_with_clear_error() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().expect("create temp dir");
+    let unreadable_input = dir.path().join("unreadable_trips");
+    let output = dir.path().join("by_species");
+    fs::create_dir_all(&unreadable_input).unwrap();
+
+    let _guard = PermissionGuard(&unreadable_input);
+    // Remove read permissions
+    fs::set_permissions(&unreadable_input, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let res = validate_volume_and_disjointness(&unreadable_input, &output);
+
+    assert!(
+        res.is_err(),
+        "Unreadable input directory must fail preflight validation"
+    );
+    let err_msg = res.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("Permission denied")
+            || err_msg.contains("unreadable")
+            || err_msg.contains("Cannot read"),
+        "Error message should explain permission denial, got: {}",
+        err_msg
+    );
+}
+
+#[test]
+fn test_validate_volume_and_disjointness_cloudstorage_tcc_message() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().expect("create temp dir");
+    let cloud_input = dir.path().join("Library/CloudStorage/MockDrive-test");
+    let output = dir.path().join("by_species");
+    fs::create_dir_all(&cloud_input).unwrap();
+
+    let _guard = PermissionGuard(&cloud_input);
+    // Remove read permissions to simulate TCC restriction
+    fs::set_permissions(&cloud_input, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let res = validate_volume_and_disjointness(&cloud_input, &output);
+
+    assert!(res.is_err(), "Unreadable CloudStorage input must fail");
+    let err_msg = res.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("Full Disk Access") && err_msg.contains("macOS Privacy & Security"),
+        "Error message must provide actionable Full Disk Access instructions, got: {}",
+        err_msg
+    );
+}
+
+#[test]
+fn test_scanner_skips_unreadable_subdirectories_gracefully() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempdir().expect("create temp dir");
+    let trips = dir.path().join("trips");
+    let valid_trip = trips.join("valid_trip");
+    let locked_subfolder = trips.join("locked_subfolder");
+
+    fs::create_dir_all(&valid_trip).unwrap();
+    fs::create_dir_all(&locked_subfolder).unwrap();
+
+    File::create(valid_trip.join("IMG_0001.JPG"))
+        .unwrap()
+        .write_all(b"valid photo content")
+        .unwrap();
+
+    File::create(locked_subfolder.join("LOCKED_0001.JPG"))
+        .unwrap()
+        .write_all(b"locked photo content")
+        .unwrap();
+
+    let _guard = PermissionGuard(&locked_subfolder);
+    // Lock the subfolder so read_dir fails inside it
+    fs::set_permissions(&locked_subfolder, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let bundles_res = scan_input_tree_with_skip(&trips, None);
+
+    assert!(
+        bundles_res.is_ok(),
+        "Scanner must not crash on isolated unreadable subfolders; got error: {:?}",
+        bundles_res.err()
+    );
+    let bundles = bundles_res.unwrap();
+    assert_eq!(
+        bundles.len(),
+        1,
+        "Expected 1 valid bundle scanned from valid_trip"
+    );
+    assert_eq!(bundles[0].original_stem, "IMG_0001");
+}
+
 #[test]
 fn test_scanner_sidecar_bundling() {
     let dir = tempdir().expect("create temp dir");

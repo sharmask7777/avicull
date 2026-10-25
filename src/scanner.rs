@@ -25,6 +25,30 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
         ));
     }
 
+    // Verify input directory is readable
+    if let Err(e) = fs::read_dir(input) {
+        let is_permission_denied =
+            e.kind() == std::io::ErrorKind::PermissionDenied || e.raw_os_error() == Some(1); // EPERM: Operation not permitted
+        let in_cloud_storage = input.components().any(|c| c.as_os_str() == "CloudStorage");
+        if is_permission_denied && in_cloud_storage {
+            return Err(crate::types::AvicullError::CloudStorageAccessDenied {
+                path: input.to_path_buf(),
+            }
+            .into());
+        } else if is_permission_denied {
+            return Err(crate::types::AvicullError::DirectoryPermissionDenied {
+                path: input.to_path_buf(),
+            }
+            .into());
+        } else {
+            return Err(anyhow!(
+                "Cannot read input directory {}: {}",
+                input.display(),
+                e
+            ));
+        }
+    }
+
     if !output.exists() {
         fs::create_dir_all(output)
             .with_context(|| format!("Failed to create output directory: {}", output.display()))?;
@@ -66,6 +90,20 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
             output_dev: out_meta.dev(),
         }
         .into());
+    }
+
+    // CloudStorage warning:
+    if can_output
+        .components()
+        .any(|c| c.as_os_str() == "CloudStorage")
+    {
+        eprintln!(
+            "⚠️  [CloudStorage Warning]: Output directory {:?} is inside a cloud-synchronized folder ('~/Library/CloudStorage/').\n\
+               Placing 'birds_hierarchy' here will cause your cloud client (Proton Drive, OneDrive, Dropbox, etc.)\n\
+               to detect and upload thousands of duplicate photos over the network to cloud storage!\n\
+               Recommendation: Specify '--output' in a local non-synced directory on the same APFS volume (e.g. '--output ~/Pictures/birds_hierarchy').\n",
+            output
+        );
     }
 
     Ok(())
@@ -173,7 +211,16 @@ pub fn scan_input_tree_with_skip(
         });
 
     for entry_res in walker {
-        let entry = entry_res?;
+        let entry = match entry_res {
+            Ok(e) => e,
+            Err(e) => {
+                let p = e
+                    .path()
+                    .map_or_else(|| "<unknown>".to_string(), |p| p.display().to_string());
+                eprintln!("Warning: skipping unreadable filesystem entry {}: {}", p, e);
+                continue;
+            }
+        };
         if !entry.file_type().is_file() {
             continue;
         }

@@ -24,7 +24,8 @@ pub fn sanitize_species_slug(name: &str) -> String {
             out.push('_');
         }
     }
-    out
+    let trimmed = out.trim_matches('-');
+    trimmed.to_string()
 }
 
 /// Constructs formatted destination filename: <OriginalStem>_<Confidence:0.2>.<OriginalExt>

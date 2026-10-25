@@ -20,6 +20,14 @@ fn test_sanitize_species_slug() {
         sanitize_species_slug("Great / Indian Bustard (Rare)"),
         "Great___Indian_Bustard__Rare_"
     );
+    assert_eq!(
+        sanitize_species_slug("pictures_bangalore-2025-"),
+        "pictures_bangalore-2025"
+    );
+    assert_eq!(
+        sanitize_species_slug("-trailing-and-leading-"),
+        "trailing-and-leading"
+    );
 }
 
 #[test]
