@@ -31,30 +31,82 @@ fn test_sanitize_species_slug() {
 }
 
 #[test]
+fn test_format_destination_filename_with_date_and_location() {
+    // Both date and location
+    assert_eq!(
+        format_destination_filename(
+            "1X7A0791.jpg",
+            0.98,
+            None,
+            Some("2025-01-26"),
+            Some("Saul_Kere")
+        ),
+        "1X7A0791_2025-01-26_Saul_Kere_0.98.jpg"
+    );
+    // Compound sidecar with date and location
+    assert_eq!(
+        format_destination_filename(
+            "1X7A0791.CR2.xmp",
+            0.98,
+            None,
+            Some("2025-01-26"),
+            Some("Saul_Kere")
+        ),
+        "1X7A0791_2025-01-26_Saul_Kere_0.98.CR2.xmp"
+    );
+    // Only date
+    assert_eq!(
+        format_destination_filename("1X7A0791.jpg", 0.98, None, Some("2025-01-26"), None),
+        "1X7A0791_2025-01-26_0.98.jpg"
+    );
+    // Only location
+    assert_eq!(
+        format_destination_filename("1X7A0791.jpg", 0.98, None, None, Some("Saul_Kere")),
+        "1X7A0791_Saul_Kere_0.98.jpg"
+    );
+    // Neither date nor location
+    assert_eq!(
+        format_destination_filename("1X7A0791.jpg", 0.98, None, None, None),
+        "1X7A0791_0.98.jpg"
+    );
+    // With trip prefix collision disambiguation
+    assert_eq!(
+        format_destination_filename(
+            "1X7A0791.jpg",
+            0.98,
+            Some("trip1"),
+            Some("2025-01-26"),
+            Some("Saul_Kere")
+        ),
+        "trip1__1X7A0791_2025-01-26_Saul_Kere_0.98.jpg"
+    );
+}
+
+#[test]
 fn test_format_destination_filename() {
     // Normal single extension
     assert_eq!(
-        format_destination_filename("DSC_4011.JPG", 0.96, None),
+        format_destination_filename("DSC_4011.JPG", 0.96, None, None, None),
         "DSC_4011_0.96.JPG"
     );
     // Lowercase extension preserved
     assert_eq!(
-        format_destination_filename("DSC_4011.xmp", 0.96, None),
+        format_destination_filename("DSC_4011.xmp", 0.96, None, None, None),
         "DSC_4011_0.96.xmp"
     );
     // Multi-extension sidecar: DSC_4011.JPG.xmp -> DSC_4011_0.96.JPG.xmp
     assert_eq!(
-        format_destination_filename("DSC_4011.JPG.xmp", 0.96, None),
+        format_destination_filename("DSC_4011.JPG.xmp", 0.96, None, None, None),
         "DSC_4011_0.96.JPG.xmp"
     );
     // Multi-extension RAW sidecar: DSC_4011.ARW.xmp -> DSC_4011_0.96.ARW.xmp
     assert_eq!(
-        format_destination_filename("DSC_4011.ARW.xmp", 0.96, None),
+        format_destination_filename("DSC_4011.ARW.xmp", 0.96, None, None, None),
         "DSC_4011_0.96.ARW.xmp"
     );
     // With trip prefix disambiguation
     assert_eq!(
-        format_destination_filename("DSC_4011.JPG", 0.96, Some("2025_Bharatpur")),
+        format_destination_filename("DSC_4011.JPG", 0.96, Some("2025_Bharatpur"), None, None),
         "2025_Bharatpur__DSC_4011_0.96.JPG"
     );
 }
@@ -91,8 +143,9 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
         primary_image: src_file.clone(),
         companion_images: vec![],
         sidecar_files: vec![sidecar_file.clone()],
-        capture_timestamp_ms: Some(1730000000),
+        capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let decision = BundleDecision {
@@ -187,6 +240,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let b2 = AssetBundle {
@@ -199,6 +253,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let decision = BundleDecision {
@@ -261,6 +316,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let b2 = AssetBundle {
@@ -273,6 +329,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let decision = BundleDecision {
@@ -321,6 +378,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
     materialize_bundle_hardlinks(&b3, &decision, &output_dir, "run-1", false).unwrap();
     let dst3 = output_dir.join("Chukar/trip__IMG_9999_0.90_1.JPG");
@@ -347,6 +405,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
     materialize_bundle_hardlinks(&b4, &decision, &output_dir, "run-1", false).unwrap();
     let dst4 = output_dir.join("Chukar/trip__IMG_9999_0.90_2.JPG");
@@ -355,4 +414,71 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         "Fourth colliding file must receive clean numbered counter _2"
     );
     assert_eq!(fs::metadata(&dst4).unwrap().ino(), meta4.ino());
+}
+
+#[test]
+fn test_materialize_hardlinks_with_date_and_location() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("trips");
+    let output_dir = dir.path().join("by_species");
+
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let src_file = input_dir.join("1X7A0791.JPG");
+    let sidecar_file = input_dir.join("1X7A0791.xmp");
+    File::create(&src_file)
+        .unwrap()
+        .write_all(b"JPEG DATA")
+        .unwrap();
+    File::create(&sidecar_file)
+        .unwrap()
+        .write_all(b"XMP DATA")
+        .unwrap();
+
+    let src_meta = fs::metadata(&src_file).unwrap();
+    let src_ino = src_meta.ino();
+
+    // 1737888000000 ms is 2025-01-26 10:40:00 UTC
+    let bundle = AssetBundle {
+        bundle_id: "b_annotated".to_string(),
+        source_inode: src_ino,
+        trip_folder_name: "Saul Kere jan 2025".to_string(),
+        original_stem: "1X7A0791".to_string(),
+        primary_image: src_file.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![sidecar_file.clone()],
+        capture_timestamp_ms: Some(1737888000000),
+        gps_coords: None,
+        resolved_location_name: Some("Saul Kere".to_string()),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_annotated".to_string(),
+        burst_id: None,
+        detection_confidence: 0.98,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.98,
+        final_confidence: 0.98,
+        assigned_species_slug: "Brahminy_Kite".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+    };
+
+    let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, "run-annotated", false)
+        .unwrap();
+    assert_eq!(ops.len(), 2);
+
+    let expected_dst = output_dir.join("Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.JPG");
+    let expected_sidecar = output_dir.join("Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.xmp");
+
+    assert!(
+        expected_dst.exists(),
+        "Annotated destination image must exist"
+    );
+    assert!(
+        expected_sidecar.exists(),
+        "Annotated destination sidecar must exist"
+    );
+    assert_eq!(fs::metadata(&expected_dst).unwrap().ino(), src_ino);
 }

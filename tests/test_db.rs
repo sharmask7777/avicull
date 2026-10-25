@@ -34,6 +34,7 @@ fn test_db_lifecycle_record_and_query() {
             longitude: 77.52,
             source: LocationSource::ExifGps,
         }),
+        resolved_location_name: None,
     };
 
     let decision = BundleDecision {
@@ -120,6 +121,7 @@ fn test_update_bundle_routing_tier() {
         sidecar_files: vec![],
         capture_timestamp_ms: None,
         gps_coords: None,
+        resolved_location_name: None,
     };
 
     let decision = BundleDecision {

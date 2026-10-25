@@ -307,6 +307,7 @@ pub fn scan_input_tree_with_skip(
             sidecar_files: group.sidecars,
             capture_timestamp_ms: None,
             gps_coords: None,
+            resolved_location_name: None,
         });
     }
 

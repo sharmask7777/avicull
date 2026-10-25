@@ -1,0 +1,89 @@
+name: Release on Merge to Main
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Determine version & bump if needed
+        id: versioning
+        run: |
+          git fetch --tags --force
+          VERSION=$(grep '^version = ' Cargo.toml | head -n1 | cut -d '"' -f2)
+          TAG="v$VERSION"
+          echo "Current Cargo.toml version: $VERSION (target tag: $TAG)"
+
+          # Check if tag already exists in the repository; loop until an unused patch version is found
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          BUMPED=false
+          while git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; do
+            BUMPED=true
+            echo "Tag $TAG already exists. Auto-incrementing patch version..."
+            PATCH=$((PATCH + 1))
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            TAG="v${VERSION}"
+          done
+
+          if [ "$BUMPED" = true ]; then
+            echo "Bumping version in Cargo.toml to $VERSION ($TAG)"
+            sed -i.bak -E "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm -f Cargo.toml.bak
+            cargo check --quiet
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Cargo.toml Cargo.lock
+            git commit -m "chore(release): bump version to $TAG [skip ci]"
+            git push origin HEAD:main
+          fi
+
+          echo "release_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build release binary
+        run: |
+          cargo build --release --locked
+
+      - name: Package artifacts
+        id: package
+        run: |
+          RELEASE_TAG="${{ steps.versioning.outputs.release_tag }}"
+          ARCH="aarch64-apple-darwin"
+          PACKAGE_NAME="avicull-${RELEASE_TAG}-${ARCH}"
+          mkdir -p "dist/${PACKAGE_NAME}"
+          cp target/release/avicull "dist/${PACKAGE_NAME}/"
+          cp README.md "dist/${PACKAGE_NAME}/" 2>/dev/null || true
+          tar -czf "dist/${PACKAGE_NAME}.tar.gz" -C dist "${PACKAGE_NAME}"
+          (cd dist && shasum -a 256 "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256")
+          echo "tarball=dist/${PACKAGE_NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sha256=dist/${PACKAGE_NAME}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="${{ steps.versioning.outputs.release_tag }}"
+          gh release create "$RELEASE_TAG" \
+            "${{ steps.package.outputs.tarball }}" \
+            "${{ steps.package.outputs.sha256 }}" \
+            --target main \
+            --title "avicull $RELEASE_TAG" \
+            --generate-notes

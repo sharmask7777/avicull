@@ -698,6 +698,7 @@ fn main() -> Result<()> {
                         .unwrap_or(false);
 
                     if let Some(loc) = resolved.get(&bundle.trip_folder_name) {
+                        bundle.resolved_location_name = Some(loc.name.clone());
                         if !has_exif_gps {
                             bundle.gps_coords = Some(GpsCoordinate {
                                 latitude: loc.latitude,
@@ -712,6 +713,7 @@ fn main() -> Result<()> {
                     } else if let Ok(Some(cached_loc)) =
                         db.get_directory_location(&bundle.trip_folder_name)
                     {
+                        bundle.resolved_location_name = Some(cached_loc.name.clone());
                         if !has_exif_gps && bundle.gps_coords.is_none() {
                             bundle.gps_coords = Some(GpsCoordinate {
                                 latitude: cached_loc.latitude,
@@ -726,8 +728,13 @@ fn main() -> Result<()> {
                 }
             }
 
-            // Ensure any bundles that already have cached directory location in db have their region_code attached
-            for bundle in &all_discovered {
+            // Ensure any bundles that already have cached directory location in db have their region_code and location attached
+            for bundle in &mut all_discovered {
+                if bundle.resolved_location_name.is_none() {
+                    if let Ok(Some(loc)) = db.get_directory_location(&bundle.trip_folder_name) {
+                        bundle.resolved_location_name = Some(loc.name);
+                    }
+                }
                 if !bundle_regions.contains_key(&bundle.bundle_id) {
                     if let Ok(Some(loc)) = db.get_directory_location(&bundle.trip_folder_name) {
                         if !loc.region_code.is_empty() {
