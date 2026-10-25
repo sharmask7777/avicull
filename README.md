@@ -296,5 +296,63 @@ cargo clippy -- -D warnings
 
 ---
 
+## Global Location Inference & eBird Regional Priors
+
+When organizing photos from DSLRs or mirrorless cameras lacking embedded GPS EXIF tags, `avicull` automatically infers geographic context from directory hierarchies without requiring manual tagging:
+
+1. **Path Noise Stripping**: Automatically ignores holding directories (`raw`, `processed`, `selects`, `100canon`) and date patterns (`2025-04-19`, `aug 2024`, `oct 2025`) to extract candidate location phrases.
+2. **Embedded Global Gazetteer**: Contains a curated offline registry of 100+ global birding hotspots (e.g. Saul Kere, Bharatpur, Serengeti, Everglades, Kruger, Monteverde) and world cities/regions, querying with fast in-memory trigram fuzzy matching.
+3. **Interactive Disambiguation**: In interactive terminal sessions without GPS, `avicull` prompts with top 3–4 ranked candidates. Confirmed selections are cached in `.avicull/manifest.sqlite` so you are never re-prompted on re-runs.
+4. **eBird Regional Checklist Prior**: Resolved locations map to regional administrative codes (`IN-KA` for Karnataka, `IN-LA` for Ladakh, `US-FL` for Florida, etc.). Species outside the official regional checklist receive an aggressive downweighting multiplier ($0.001$), instantly eliminating out-of-region hallucinations (such as Bald Eagles or Black Swans in South India) without neural spatial overhead.
+5. **Headless / Batch Flags**:
+   - `--location <NAME_OR_COORDS>` (or `-l`): Overrides or specifies the location name or decimal coordinates (`"12.97,77.59"`) for photos lacking GPS.
+   - `--no-prompt`: Bypasses interactive prompts, auto-selecting top gazetteer candidates with confidence $> 0.85$ and proceeding unlocated otherwise.
+
+---
+
+## Creating a New Release
+
+To build, package, and publish a new official GitHub release:
+
+1. **Run Pre-Push Verification**:
+   Ensure all 7 verification stages succeed:
+   ```bash
+   .githooks/pre-push
+   ```
+
+2. **Bump Version**:
+   Update `version = "X.Y.Z"` in `Cargo.toml`.
+
+3. **Compile Release Binary**:
+   ```bash
+   cargo build --release
+   ```
+
+4. **Package Distribution Tarball**:
+   ```bash
+   VERSION="0.2.0"
+   DIST_NAME="avicull-v${VERSION}-aarch64-apple-darwin"
+   mkdir -p "dist/${DIST_NAME}"
+   cp target/release/avicull "dist/${DIST_NAME}/"
+   cp LICENSE README.md "dist/${DIST_NAME}/"
+   tar -czf "dist/${DIST_NAME}.tar.gz" -C dist "${DIST_NAME}"
+   shasum -a 256 "dist/${DIST_NAME}.tar.gz" > "dist/${DIST_NAME}.tar.gz.sha256"
+   ```
+
+5. **Tag & Publish via GitHub CLI (`gh`)**:
+   ```bash
+   git tag -a "v${VERSION}" -m "Release v${VERSION}"
+   git push origin "v${VERSION}"
+
+   gh release create "v${VERSION}" \
+     "dist/${DIST_NAME}.tar.gz" \
+     "dist/${DIST_NAME}.tar.gz.sha256" \
+     --title "v${VERSION}: Global Gazetteer & Location Inference" \
+     --notes "Full release notes..."
+   ```
+
+---
+
 ## License
 GNU General Public License v3.0 (GPL-3.0-or-later). See [LICENSE](LICENSE) for details.
+
