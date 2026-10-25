@@ -75,3 +75,16 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 ## 4. Updating Models & Classifiers
 
 When upgrading neural network backbones, bird detectors, taxonomies, or spatial-temporal priors to current cutting-edge architectures, follow the instructions in [`skills/avian-model-updater/SKILL.md`](file:///Users/shaleensharma/workplace/gemini_ws/avian_rearranger/skills/avian-model-updater/SKILL.md).
+
+---
+
+## 5. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
+
+1. **Meaningful In-Code Comments Only**:
+   - Comments in code MUST instruct the human reader on what the code does, its architectural invariants, algorithms, and non-obvious domain logic.
+   - **Strictly Prohibited**: Never include procedural agent meta-comments like `// Step 1: ...`, `// Step 2: ...`, `// Step 3: Implement ...`, or descriptions of an AI agent's internal planning phases.
+2. **Generic Architecture & Zero Context Leaks**:
+   - Code and algorithms must be completely generic. Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
+3. **End-to-End Mock Testing**:
+   - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs`).
+

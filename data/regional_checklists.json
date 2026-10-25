@@ -48,7 +48,8 @@
     "inpher1",
     "bcnher",
     "grecor",
-    "oripip1"
+    "oripip1",
+    "rewlap1"
   ],
   "IN-RJ": [
     "compea",
@@ -85,9 +86,13 @@
     "spodov",
     "rorpar",
     "copbar1",
-    "bladro1"
+    "bladro1",
+    "rewlap1"
   ],
   "IN-LA": [
+    "blared1",
+    "chukar",
+    "himrub1",
     "bahgoo",
     "bnhgul1",
     "rudshe",
@@ -156,14 +161,15 @@
     "rorpar",
     "copbar1",
     "bladro1",
+    "rewlap1",
+    "blared1",
+    "chukar",
+    "himrub1",
     "bnhgul1",
     "blncra1",
     "tibsno1",
     "himsno",
-    "tibpar1",
-    "tibsan1",
-    "ibisbi1",
-    "whwred2"
+    "tibpar1"
   ],
   "IN-AS": [
     "brakit1",
@@ -283,7 +289,8 @@
     "inpher1",
     "bcnher",
     "grecor",
-    "oripip1"
+    "oripip1",
+    "rewlap1"
   ],
   "IN-TN": [
     "brakit1",
@@ -334,7 +341,8 @@
     "inpher1",
     "bcnher",
     "grecor",
-    "oripip1"
+    "oripip1",
+    "rewlap1"
   ],
   "IN-MH": [
     "brakit1",
@@ -385,7 +393,8 @@
     "inpher1",
     "bcnher",
     "grecor",
-    "oripip1"
+    "oripip1",
+    "rewlap1"
   ],
   "IN-DL": [
     "compea",
@@ -422,7 +431,8 @@
     "spodov",
     "rorpar",
     "copbar1",
-    "bladro1"
+    "bladro1",
+    "rewlap1"
   ],
   "IN-HR": [
     "compea",
@@ -459,7 +469,8 @@
     "spodov",
     "rorpar",
     "copbar1",
-    "bladro1"
+    "bladro1",
+    "rewlap1"
   ],
   "US-FL": [
     "baleag",
@@ -622,6 +633,9 @@
     "bkcchi"
   ],
   "US-AK": [
+    "blared1",
+    "chukar",
+    "himrub1",
     "bahgoo",
     "bnhgul1",
     "rudshe",
@@ -634,9 +648,6 @@
     "whwred2",
     "robacc1",
     "broacc1",
-    "goleag",
-    "lammer1",
-    "rebcho1",
     "rethaw",
     "coohaw",
     "perfal",
