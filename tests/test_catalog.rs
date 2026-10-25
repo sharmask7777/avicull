@@ -270,3 +270,139 @@ fn test_generate_html_catalog_hierarchy_mode() {
     let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
     assert!(html_content.contains(r#""mode":"hierarchy""#));
 }
+
+#[test]
+fn test_resolve_or_extract_preview_inplace_renamed() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    // Case 1: In-place renamed RAW file (primary_image does not exist, current_path exists)
+    let old_raw = dir.path().join("IMG_2002.CR2");
+    let renamed_raw = dir
+        .path()
+        .join("IMG_2002_Tibetan_Snowcock_20261025_Leh.CR2");
+
+    let mut raw_bytes = vec![0x00; 100];
+    raw_bytes.extend_from_slice(&[0xFF, 0xD8]); // SOI
+    raw_bytes.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x10]); // APP0 marker
+    raw_bytes.extend_from_slice(b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0");
+    raw_bytes.extend_from_slice(&[0xFF, 0xD9]); // EOI
+    raw_bytes.extend_from_slice(&[0x00; 50]);
+    fs::write(&renamed_raw, &raw_bytes).expect("write renamed RAW");
+
+    let raw_item = CatalogItem {
+        bundle_id: "bundle-raw-inplace".to_string(),
+        original_stem: "IMG_2002".to_string(),
+        current_path: renamed_raw,
+        primary_image: old_raw, // Non-existent original path
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Tibetan Snowcock".to_string(),
+        scientific_name: Some("Tetraogallus tibetanus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+    };
+
+    // Case 2: In-place renamed web image (JPEG)
+    let old_jpg = dir.path().join("IMG_2003.JPG");
+    let renamed_jpg = dir.path().join("IMG_2003_House_Sparrow.JPG");
+    fs::write(&renamed_jpg, b"dummy jpeg bytes").expect("write renamed JPG");
+
+    let jpg_item = CatalogItem {
+        bundle_id: "bundle-jpg-inplace".to_string(),
+        original_stem: "IMG_2003".to_string(),
+        current_path: renamed_jpg,
+        primary_image: old_jpg, // Non-existent original path
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+    };
+
+    generate_html_catalog(
+        "InPlace Preview Trip",
+        &[raw_item, jpg_item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // RAW preview should have been extracted using the active on-disk path
+    let extracted_preview = dir
+        .path()
+        .join(".avicull")
+        .join("previews")
+        .join("IMG_2002.jpg");
+    assert!(
+        extracted_preview.exists(),
+        "Embedded preview must be extracted from active on-disk RAW file"
+    );
+    assert!(html_content.contains(".avicull/previews/IMG_2002.jpg"));
+
+    // Web image preview should resolve to the active on-disk path
+    assert!(
+        html_content.contains("IMG_2003_House_Sparrow.JPG"),
+        "Preview URL must resolve to the active renamed path"
+    );
+}
+
+#[test]
+fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        current_path: PathBuf::from("birds_hierarchy/House_Sparrow/IMG_1001.CR2"),
+        primary_image: dir.path().join("IMG_1001.CR2"),
+        companion_images: vec![dir.path().join("IMG_1001.JPG")],
+        sidecar_files: vec![dir.path().join("IMG_1001.CR2.xmp")],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+    };
+
+    generate_html_catalog(
+        "Script Test Trip",
+        &[item],
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // 1. Compound extension must use regex extraction without stem-stripping bug
+    assert!(
+        html_content.contains(r#"filename.match(/(\.[a-zA-Z0-9]+(?:\.xmp)?)$/i)"#),
+        "getCompoundExtension must use regex to capture compound extensions"
+    );
+    assert!(
+        html_content.contains("getCompoundExtension(scFilename)"),
+        "getCompoundExtension must take filename directly without stem parameter"
+    );
+
+    // 2. Hierarchy mode must move sidecars and companions along with primary
+    assert!(
+        html_content.contains(r#"commands.push(`mv "${sc}" "${targetDir}/${scFilename}"`);"#),
+        "Hierarchy mode must emit mv commands for companion and sidecar files"
+    );
+}

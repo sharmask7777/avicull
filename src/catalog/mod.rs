@@ -276,9 +276,14 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
         }
     }
 
+    let active_primary = if item.current_path.exists() {
+        &item.current_path
+    } else {
+        &item.primary_image
+    };
+
     // 3. Web-renderable primary image
-    let is_web_img = item
-        .primary_image
+    let is_web_img = active_primary
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| {
@@ -287,13 +292,13 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
         })
         .unwrap_or(false);
 
-    if is_web_img && item.primary_image.exists() {
-        return to_relative_string(&item.primary_image, output_root);
+    if is_web_img && active_primary.exists() {
+        return to_relative_string(active_primary, output_root);
     }
 
     // 4. Standalone camera RAW file: extract embedded JPEG preview thumbnail
-    if item.primary_image.exists() {
-        if let Ok(raw_bytes) = fs::read(&item.primary_image) {
+    if active_primary.exists() {
+        if let Ok(raw_bytes) = fs::read(active_primary) {
             if let Some(preview_bytes) = extract_embedded_jpeg_preview(&raw_bytes) {
                 let previews_dir = output_root.join(".avicull").join("previews");
                 if fs::create_dir_all(&previews_dir).is_ok() {
@@ -308,7 +313,7 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
     }
 
     // 5. Fallback relative path (or string representation) for onerror browser fallback
-    to_relative_string(&item.primary_image, output_root)
+    to_relative_string(active_primary, output_root)
 }
 
 /// Formats a path relative to root when possible.

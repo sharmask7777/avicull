@@ -238,6 +238,72 @@ fn test_incremental_auto_detection_of_newer_files() {
 }
 
 #[test]
+fn test_inplace_mode_sqlite_cache_hit_by_inode_on_subsequent_runs() {
+    let dir = tempdir().expect("tempdir");
+    let input = dir.path().join("Trip");
+    fs::create_dir_all(&input).unwrap();
+
+    let f1 = input.join("IMG_1001.JPG");
+    File::create(&f1)
+        .unwrap()
+        .write_all(b"IMG 1 ORIGINAL")
+        .unwrap();
+
+    let db_path = input.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let bundles_v1 = scan_input_tree_with_skip(&input, None).unwrap();
+    assert_eq!(bundles_v1.len(), 1);
+
+    let original_inode = bundles_v1[0].source_inode;
+    let original_id = bundles_v1[0].bundle_id.clone();
+
+    let decision = BundleDecision {
+        bundle_id: original_id.clone(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+    };
+
+    db.record_run("run-1", &input, &input, false, "{}").unwrap();
+    db.record_bundles("run-1", std::slice::from_ref(&decision), &bundles_v1)
+        .unwrap();
+
+    // Now simulate in-place rename on disk (inode is preserved, path changes)
+    let renamed_f1 = input.join("IMG_1001_House_Sparrow_20261025_Leh.JPG");
+    fs::rename(&f1, &renamed_f1).unwrap();
+
+    // Scan again: path changed so bundle_id changes, but inode is the same
+    let bundles_v2 = scan_input_tree_with_skip(&input, None).unwrap();
+    assert_eq!(bundles_v2.len(), 1);
+    assert_eq!(bundles_v2[0].source_inode, original_inode);
+    assert_ne!(bundles_v2[0].bundle_id, original_id);
+
+    // Retrieve cached bundle map
+    let cached_cache = db.get_existing_bundle_map().unwrap();
+
+    // by_id lookup will miss because the bundle path (and thus bundle_id) changed
+    assert!(cached_cache.by_id.get(&bundles_v2[0].bundle_id).is_none());
+
+    // by_inode lookup must hit and retrieve the cached decision!
+    let cached_hit = cached_cache
+        .by_id
+        .get(&bundles_v2[0].bundle_id)
+        .or_else(|| cached_cache.by_inode.get(&bundles_v2[0].source_inode));
+    assert!(
+        cached_hit.is_some(),
+        "Cached decision must be found via source_inode on subsequent in-place runs"
+    );
+    let (found_decision, _) = cached_hit.unwrap();
+    assert_eq!(found_decision.assigned_species_slug, "House_Sparrow");
+}
+
+#[test]
 fn test_no_bird_detected_routes_to_special_tier_folder() {
     let dir = tempdir().expect("create temp dir");
     let input = dir.path().join("Trip");
@@ -316,7 +382,7 @@ fn test_force_recomputation_bypasses_cache() {
     // When force is true, we ignore existing cache
     let force = true;
     let effective_cache = if force {
-        std::collections::HashMap::new()
+        avicull::db::ExistingBundleMap::new()
     } else {
         cached_map
     };

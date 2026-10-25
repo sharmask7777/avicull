@@ -24,6 +24,41 @@ pub struct ManifestDb {
     conn: Arc<Mutex<Connection>>,
 }
 
+/// Cache map for existing bundles indexed by bundle_id and source_inode.
+#[derive(Debug, Clone, Default)]
+pub struct ExistingBundleMap {
+    pub by_id: std::collections::HashMap<String, (BundleDecision, AssetBundle)>,
+    pub by_inode: std::collections::HashMap<u64, (BundleDecision, AssetBundle)>,
+}
+
+impl ExistingBundleMap {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.by_id.is_empty() && self.by_inode.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.by_id.len()
+    }
+
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.by_id.contains_key(key)
+    }
+
+    pub fn get(&self, key: &str) -> Option<&(BundleDecision, AssetBundle)> {
+        self.by_id.get(key)
+    }
+
+    pub fn get_by_bundle(&self, bundle: &AssetBundle) -> Option<&(BundleDecision, AssetBundle)> {
+        self.by_id
+            .get(&bundle.bundle_id)
+            .or_else(|| self.by_inode.get(&bundle.source_inode))
+    }
+}
+
 impl ManifestDb {
     /// Opens or creates the SQLite manifest database and initializes schemas.
     pub fn open_or_create(db_path: &Path) -> Result<Self> {
@@ -563,16 +598,18 @@ impl ManifestDb {
         Ok(results)
     }
 
-    /// Returns a map of bundle_id -> (BundleDecision, AssetBundle) of all previously recorded bundles.
-    pub fn get_existing_bundle_map(
-        &self,
-    ) -> Result<std::collections::HashMap<String, (BundleDecision, AssetBundle)>> {
+    /// Returns a map of bundle_id and source_inode -> (BundleDecision, AssetBundle) of all previously recorded bundles.
+    pub fn get_existing_bundle_map(&self) -> Result<ExistingBundleMap> {
         let all = self.get_all_bundles(None)?;
-        let mut map = std::collections::HashMap::new();
+        let mut by_id = std::collections::HashMap::new();
+        let mut by_inode = std::collections::HashMap::new();
         for (dec, bundle) in all {
-            map.insert(bundle.bundle_id.clone(), (dec, bundle));
+            by_id.insert(bundle.bundle_id.clone(), (dec.clone(), bundle.clone()));
+            if bundle.source_inode != 0 {
+                by_inode.insert(bundle.source_inode, (dec, bundle));
+            }
         }
-        Ok(map)
+        Ok(ExistingBundleMap { by_id, by_inode })
     }
 
     /// Retrieves the cached resolved location for a trip directory path.

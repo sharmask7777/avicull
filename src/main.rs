@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
 use avicull::catalog::{generate_html_catalog, CatalogItem};
 use avicull::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
-use avicull::db::ManifestDb;
+use avicull::db::{ExistingBundleMap, ManifestDb};
 use avicull::detector::{
     select_and_pad_bird_crop, BirdDetector, MockBirdDetector, OrtBirdDetector,
 };
@@ -692,7 +692,7 @@ fn main() -> Result<()> {
 
             let db = ManifestDb::open_or_create(&db_path)?;
             let existing_bundle_map = if args.force {
-                std::collections::HashMap::new()
+                ExistingBundleMap::new()
             } else {
                 db.get_existing_bundle_map().unwrap_or_default()
             };
@@ -827,7 +827,7 @@ fn main() -> Result<()> {
             let mut cached_items = std::collections::HashMap::new();
 
             for bundle in &all_discovered {
-                if let Some((existing_decision, _)) = existing_bundle_map.get(&bundle.bundle_id) {
+                if let Some((existing_decision, _)) = existing_bundle_map.get_by_bundle(bundle) {
                     let posteriors: Vec<(String, f32)> = existing_decision
                         .top_predictions
                         .iter()
