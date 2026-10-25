@@ -83,14 +83,30 @@ impl ManifestDb {
                 FOREIGN KEY(bundle_id) REFERENCES bundles(bundle_id)
             );
 
+            CREATE TABLE IF NOT EXISTS directory_locations (
+                path_key TEXT PRIMARY KEY,
+                resolved_name TEXT NOT NULL,
+                region_code TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                source TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
+            CREATE INDEX IF NOT EXISTS idx_dir_loc_region ON directory_locations(region_code);
             "#,
         )?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
         })
+    }
+
+    /// Opens or creates the SQLite manifest database.
+    pub fn open(db_path: &Path) -> Result<Self> {
+        Self::open_or_create(db_path)
     }
 
     /// Records a new run session.
@@ -386,5 +402,59 @@ impl ManifestDb {
             map.insert(bundle.bundle_id.clone(), (dec, bundle));
         }
         Ok(map)
+    }
+
+    /// Retrieves the cached resolved location for a trip directory path.
+    pub fn get_directory_location(
+        &self,
+        path_key: &str,
+    ) -> Result<Option<crate::location::resolver::ResolvedLocation>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT resolved_name, region_code, latitude, longitude, source
+             FROM directory_locations WHERE path_key = ?1",
+        )?;
+        let mut rows = stmt.query(params![path_key])?;
+        if let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            let region_code: String = row.get(1)?;
+            let latitude: f64 = row.get(2)?;
+            let longitude: f64 = row.get(3)?;
+            let source: String = row.get(4)?;
+            Ok(Some(crate::location::resolver::ResolvedLocation {
+                name,
+                region_code,
+                latitude,
+                longitude,
+                source,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Saves or updates the resolved location for a trip directory path.
+    pub fn set_directory_location(
+        &self,
+        path_key: &str,
+        loc: &crate::location::resolver::ResolvedLocation,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let updated_at = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT OR REPLACE INTO directory_locations (
+                path_key, resolved_name, region_code, latitude, longitude, source, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                path_key,
+                loc.name,
+                loc.region_code,
+                loc.latitude,
+                loc.longitude,
+                loc.source,
+                updated_at,
+            ],
+        )?;
+        Ok(())
     }
 }

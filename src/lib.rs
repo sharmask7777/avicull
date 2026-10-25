@@ -4,6 +4,7 @@ pub mod db;
 pub mod detector;
 pub mod geo;
 pub mod location;
+pub mod manifest;
 pub mod organizer;
 pub mod scanner;
 pub mod types;
