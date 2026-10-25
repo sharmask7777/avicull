@@ -73,8 +73,19 @@ jobs:
           cp README.md "dist/${PACKAGE_NAME}/" 2>/dev/null || true
           tar -czf "dist/${PACKAGE_NAME}.tar.gz" -C dist "${PACKAGE_NAME}"
           (cd dist && shasum -a 256 "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256")
+
+          # Also package unversioned archive for direct /releases/latest/download/ access
+          UNVERSIONED_NAME="avicull-${ARCH}"
+          mkdir -p "dist/${UNVERSIONED_NAME}"
+          cp target/release/avicull "dist/${UNVERSIONED_NAME}/"
+          cp README.md "dist/${UNVERSIONED_NAME}/" 2>/dev/null || true
+          tar -czf "dist/${UNVERSIONED_NAME}.tar.gz" -C dist "${UNVERSIONED_NAME}"
+          (cd dist && shasum -a 256 "${UNVERSIONED_NAME}.tar.gz" > "${UNVERSIONED_NAME}.tar.gz.sha256")
+
           echo "tarball=dist/${PACKAGE_NAME}.tar.gz" >> "$GITHUB_OUTPUT"
           echo "sha256=dist/${PACKAGE_NAME}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+          echo "latest_tarball=dist/${UNVERSIONED_NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "latest_sha256=dist/${UNVERSIONED_NAME}.tar.gz.sha256" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         env:
@@ -84,6 +95,8 @@ jobs:
           gh release create "$RELEASE_TAG" \
             "${{ steps.package.outputs.tarball }}" \
             "${{ steps.package.outputs.sha256 }}" \
+            "${{ steps.package.outputs.latest_tarball }}" \
+            "${{ steps.package.outputs.latest_sha256 }}" \
             --target main \
             --title "avicull $RELEASE_TAG" \
             --generate-notes
