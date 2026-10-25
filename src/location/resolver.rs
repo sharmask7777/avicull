@@ -16,13 +16,16 @@ pub struct ResolvedLocation {
     pub source: String,
 }
 
-fn format_coord(lat: f64, lon: f64) -> String {
+pub fn format_coord(lat: f64, lon: f64) -> String {
     let lat_dir = if lat >= 0.0 { 'N' } else { 'S' };
     let lon_dir = if lon >= 0.0 { 'E' } else { 'W' };
     format!("{:.3}°{}, {:.3}°{}", lat.abs(), lat_dir, lon.abs(), lon_dir)
 }
 
-fn resolve_from_override(override_str: &str, engine: &GazetteerEngine) -> Option<ResolvedLocation> {
+pub fn resolve_from_override(
+    override_str: &str,
+    engine: &GazetteerEngine,
+) -> Option<ResolvedLocation> {
     let parts: Vec<&str> = override_str.split(',').map(|s| s.trim()).collect();
     if parts.len() == 2 {
         if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {

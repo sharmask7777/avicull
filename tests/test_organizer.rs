@@ -111,8 +111,12 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     db.record_run(run_id, &input_dir, &output_dir, false, "{}")
         .unwrap();
-    db.record_bundles(run_id, &[decision.clone()], &[bundle.clone()])
-        .unwrap();
+    db.record_bundles(
+        run_id,
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+    )
+    .unwrap();
 
     // 1. Materialize hard links
     let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, run_id, false)

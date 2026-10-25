@@ -63,7 +63,7 @@ fn test_regional_prior_downranks_in_posterior_computation() {
     // Out-of-range bird has higher visual probability than native bird
     // e.g. baleag (Bald Eagle) visual prob 0.60 vs brakit1 (Brahminy Kite) visual prob 0.40
     let visual_probs = vec![0.60f32, 0.40f32];
-    let taxon_ids = vec!["baleag", "brakit1"];
+    let taxon_ids = ["baleag", "brakit1"];
 
     let region_code = "IN-KA";
     let adjusted_priors: Vec<f32> = taxon_ids
