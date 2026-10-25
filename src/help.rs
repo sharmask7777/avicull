@@ -69,20 +69,26 @@ impl HelpTopic {
                 "QUICKSTART & BASIC USAGE\n\
                  ========================\n\n\
                  1. Dry-Run Check:\n\
-                    Preview the classification plan without writing filesystem changes:\n\
+                    Preview the classification and renaming plan without writing filesystem changes:\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh --dry-run\n\n\
-                 2. Standard Organize:\n\
-                    Organize photos into '<input>/birds_hierarchy' using zero-byte hard links:\n\
+                 2. In-Place Organize & HTML Catalog (Default):\n\
+                    Renames photos in place with species, date, and location tags, and creates 'catalog.html':\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh\n\n\
-                 3. Pre-Flight Scan Only:\n\
+                 3. Hierarchy Mode (Zero-Copy APFS Hard Links):\n\
+                    Organize photos into '<input>/birds_hierarchy' using zero-byte hard links:\n\
+                    avicull organize --input /Volumes/Photos/Trips/Leh --mode hierarchy\n\n\
+                 4. Pre-Flight Scan Only:\n\
                     Verify volume APFS hardlink compatibility and location resolution:\n\
                     avicull scan --input /Volumes/Photos/Trips/Leh\n\n\
-                 4. Specifying a Region/Location Override:\n\
+                 5. Specifying a Region/Location Override:\n\
                     Help the gazetteer and eBird regional checklists when photos lack GPS:\n\
                     avicull organize --input /Volumes/Photos/Trips/2026-Leh --location \"Leh, Ladakh\"\n\n\
-                 5. Inspect Cache & Hierarchy:\n\
+                 6. Safe Rollback Clean:\n\
+                    Losslessly revert in-place renames or unlink generated hard links:\n\
+                    avicull clean --input /Volumes/Photos/Trips/Leh\n\n\
+                 7. Inspect Manifest Database:\n\
                     View classification manifest statistics and burst clustering records:\n\
-                    avicull report --db /Volumes/Photos/Trips/Leh/birds_hierarchy/.avicull/manifest.sqlite\n"
+                    avicull report --db /Volumes/Photos/Trips/Leh/.avicull/manifest.sqlite\n"
             }
             HelpTopic::Organize => {
                 "THE ORGANIZE PIPELINE\n\
@@ -90,7 +96,7 @@ impl HelpTopic {
                  `avicull organize` executes a multi-tier pipeline:\n\n\
                  1. Discovery & Sidecar Bundling:\n\
                     Scans '--input' recursively, grouping RAW images (.CR2, .ARW, .NEF) with\n\
-                    their associated sidecars (.xmp) and companion JPEGs into atomic bundles.\n\n\
+                    their associated sidecars (.xmp, .dop) and companion JPEGs into atomic bundles.\n\n\
                  2. Location & Prior Resolution:\n\
                     - Extracts hardware GPS from EXIF tags.\n\
                     - If GPS is absent, extracts location tokens from directory paths and queries\n\
@@ -102,11 +108,23 @@ impl HelpTopic {
                  4. Burst Clustering & Consensus Smoothing:\n\
                     Images captured within 3 seconds of each other are clustered into bursts;\n\
                     the consensus winner smooths frame-to-frame variations across burst sequences.\n\n\
-                 5. Output Hierarchy Materialization:\n\
-                    Hard links are written to:\n\
-                    - Confirmed Species:   <output>/<Species_Common_Name>/\n\
-                    - Needs Review:        <output>/_Needs_Review/<Species_Common_Name>/\n\
-                    - No Bird Detected:    <output>/_No_Bird_Detected/\n"
+                 5. Output Materialization Modes:\n\
+                    - In-Place Mode (default):\n\
+                      Renames primary image and companion sidecars in place within '--input' to:\n\
+                      <OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>\n\
+                      All renames are tracked in SQLite for lossless rollback.\n\
+                    - Hierarchy Mode (--mode hierarchy):\n\
+                      Zero-byte POSIX hard links are written to:\n\
+                      * Confirmed Species:   <output>/<Species_Common_Name>/\n\
+                      * Needs Review:        <output>/_Needs_Review/<Species_Common_Name>/\n\
+                      * No Bird Detected:    <output>/_No_Bird_Detected/\n\n\
+                 6. Standalone Offline HTML Photo Catalog (catalog.html):\n\
+                    Both modes automatically generate 'catalog.html' in the output directory:\n\
+                    - Fast gallery with responsive grid and embedded RAW preview thumbnails.\n\
+                    - Dynamic search and filter by species, date, location, and confidence tiers.\n\
+                    - High-res lightbox modal with EXIF details and ML predictions.\n\
+                    - In-browser mislabel correction modal with eBird taxonomy search and\n\
+                      one-click generation of 'apply_corrections.sh' batch shell scripts.\n"
             }
             HelpTopic::Scan => {
                 "PRE-FLIGHT ARCHIVE SCANNING & LOCATION RESOLUTION\n\
@@ -177,25 +195,30 @@ impl HelpTopic {
                 "=======================================================================\n\
                  AVICULL — LOCAL AI BIRD PHOTO ORGANIZER (MACOS APPLE SILICON)\n\
                  =======================================================================\n\n\
-                 avicull projects bird photography archives from an immutable trip-based\n\
-                 directory tree into a species-headed directory tree using zero-byte POSIX\n\
-                 hard links, burst consensus smoothing, and eBird regional checklists.\n\n\
+                 avicull organizes bird photography archives using local neural networks\n\
+                 (YOLO11 + BioCLIP), eBird regional checklists, burst consensus smoothing,\n\
+                 and generates a standalone offline HTML photo catalog (catalog.html).\n\n\
+                 It supports in-place descriptive renaming (default) and zero-copy APFS\n\
+                 hard-linked species hierarchies (--mode hierarchy).\n\n\
                  COMMANDS:\n\
                    scan        Pre-flight audit of volume hardlink support and location resolution\n\
-                   organize    Scan photo archive, run AI classification, and create hard links\n\
+                   organize    Scan photo archive, run AI classification, rename in-place or link\n\
                    relink      Re-materialize output hard links from cached SQLite database\n\
-                   clean       Unlink generated hard links for a run without touching source\n\
+                   clean       Losslessly revert in-place renames or unlink generated hard links\n\
                    report      Export species summary counts and review manifests\n\
                    models      Check status of neural weights and eBird taxonomy cache\n\
                    update      Check for newer releases or self-update to latest binary\n\
                    help        Display interactive topic guides and troubleshooting documentation\n\n\
                  FLAGS & OPTIONS:\n\
-                   --input <DIR>            Source trip directory (read-only)\n\
-                   --output <DIR>           Target output directory (defaults to <INPUT>/birds_hierarchy)\n\
-                   --dry-run                Calculate classifications without creating filesystem hard links\n\
+                   --input <DIR>            Source trip directory\n\
+                   --output <DIR>           Target output directory (defaults to <INPUT>/birds_hierarchy in hierarchy mode)\n\
+                   --mode <MODE>            Organization mode: 'in-place' (default) or 'hierarchy'\n\
+                   --dry-run                Calculate classifications without renaming files or creating hard links\n\
                    --location <NAME>        Override location name or coordinates for photos lacking GPS\n\
                    --min-confidence <FLOAT> Score threshold for Confirmed vs Needs Review (default: 0.65)\n\
                    --min-detect <FLOAT>     YOLO11 bird detection floor (default: 0.25)\n\
+                   --burst-window-ms <MS>   Time window for burst clustering in milliseconds (default: 3000)\n\
+                   --force                  Re-run neural network inference even if photos were previously classified\n\
                    --no-prompt              Run non-interactively without prompting\n\n\
                  Run 'avicull help <TOPIC>' for deep dives on:\n\
                    quickstart, organize, scan, invariants, models, update\n"
