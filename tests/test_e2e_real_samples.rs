@@ -71,6 +71,8 @@ fn test_e2e_real_samples_classification_and_hardlinks() {
         .arg(&input_dir)
         .arg("--output")
         .arg(&output_dir)
+        .arg("--mode")
+        .arg("hierarchy")
         .output()
         .expect("failed to spawn avicull binary");
 

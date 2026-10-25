@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
+use avicull::catalog::{generate_html_catalog, CatalogItem};
 use avicull::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
 use avicull::db::ManifestDb;
 use avicull::detector::{
@@ -9,7 +10,10 @@ use avicull::geo::resolve_locations;
 use avicull::location::gazetteer::GazetteerEngine;
 use avicull::location::path_parser::extract_candidate_location_tokens;
 use avicull::location::resolver::resolve_trip_locations;
-use avicull::organizer::{clean_run_hardlinks, materialize_bundle_hardlinks};
+use avicull::organizer::{
+    clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename,
+    materialize_bundle_hardlinks,
+};
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
@@ -166,6 +170,10 @@ struct RelinkArgs {
     #[arg(short, long)]
     output: Option<PathBuf>,
 
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    db: Option<PathBuf>,
+
     /// New threshold for Confirmed vs _Needs_Review (default: 0.65)
     #[arg(long, default_value_t = 0.65)]
     min_confidence: f32,
@@ -185,6 +193,10 @@ struct CleanArgs {
     #[arg(short, long)]
     output: Option<PathBuf>,
 
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    db: Option<PathBuf>,
+
     /// Specific run_id to clean (defaults to latest run)
     #[arg(long)]
     run_id: Option<String>,
@@ -199,6 +211,10 @@ struct ReportArgs {
     /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    db: Option<PathBuf>,
 
     /// Specific run_id to report on (defaults to latest run)
     #[arg(long)]
@@ -652,12 +668,28 @@ fn main() -> Result<()> {
                     .ok();
             }
 
-            let output_dir = args
-                .output
-                .unwrap_or_else(|| args.input.join("birds_hierarchy"));
-            validate_volume_and_disjointness(&args.input, &output_dir)?;
+            let is_inplace = matches!(
+                args.mode,
+                OrganizationMode::InPlaceFileRenameToDescriptiveNames
+            );
 
-            let db_path = output_dir.join(".avicull/manifest.sqlite");
+            let (operating_root, db_path, skip_dir) = if is_inplace {
+                if args.output.is_some() {
+                    println!(
+                        "[avicull] Note: In in-place rename mode, photos are organized directly in '--input'; '--output' is ignored."
+                    );
+                }
+                let db_p = args.input.join(".avicull/manifest.sqlite");
+                (args.input.clone(), db_p, None)
+            } else {
+                let output_dir = args
+                    .output
+                    .unwrap_or_else(|| args.input.join("birds_hierarchy"));
+                validate_volume_and_disjointness(&args.input, &output_dir)?;
+                let db_p = output_dir.join(".avicull/manifest.sqlite");
+                (output_dir.clone(), db_p, Some(output_dir))
+            };
+
             let db = ManifestDb::open_or_create(&db_path)?;
             let existing_bundle_map = if args.force {
                 std::collections::HashMap::new()
@@ -665,7 +697,7 @@ fn main() -> Result<()> {
                 db.get_existing_bundle_map().unwrap_or_default()
             };
 
-            let mut all_discovered = scan_input_tree_with_skip(&args.input, Some(&output_dir))?;
+            let mut all_discovered = scan_input_tree_with_skip(&args.input, skip_dir.as_deref())?;
             println!(
                 "Discovered {} total photo bundles in source.",
                 all_discovered.len()
@@ -832,7 +864,7 @@ fn main() -> Result<()> {
                 println!(
                     "✓ All {} photo bundles are already up to date in '{}'.",
                     all_discovered.len(),
-                    output_dir.display()
+                    operating_root.display()
                 );
                 return Ok(());
             }
@@ -944,23 +976,151 @@ fn main() -> Result<()> {
             );
 
             let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
-            db.record_run(&run_id, &args.input, &output_dir, args.dry_run, "{}")?;
+            let mode_str = match args.mode {
+                OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in_place",
+                OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
+            };
+            let config_json = serde_json::to_string(&serde_json::json!({
+                "mode": mode_str,
+                "min_confidence": args.min_confidence,
+                "confidence_mode": args.confidence_mode,
+            }))?;
+            db.record_run(
+                &run_id,
+                &args.input,
+                &operating_root,
+                args.dry_run,
+                &config_json,
+            )?;
             db.record_bundles(&run_id, &decisions, &all_discovered)?;
 
-            println!("Materializing hard links (dry_run: {})...", args.dry_run);
-            let mut total_ops = Vec::new();
-            for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
-                let ops = materialize_bundle_hardlinks(
-                    bundle,
-                    decision,
-                    &output_dir,
-                    &run_id,
-                    args.dry_run,
-                )?;
-                total_ops.extend(ops);
+            let mut catalog_items = Vec::with_capacity(all_discovered.len());
+            let mut total_ops_count = 0usize;
+
+            if is_inplace {
+                println!(
+                    "Executing in-place file renames (dry_run: {})...",
+                    args.dry_run
+                );
+                for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
+                    let species_name = match decision.routing_tier {
+                        RoutingTier::ConfirmedSpecies => {
+                            if let Some(top) = decision.top_predictions.first() {
+                                top.common_name.clone()
+                            } else {
+                                decision.assigned_species_slug.clone()
+                            }
+                        }
+                        RoutingTier::NeedsReview => {
+                            if let Some(top) = decision.top_predictions.first() {
+                                format!("Needs_Review_{}", top.common_name)
+                            } else {
+                                format!("Needs_Review_{}", decision.assigned_species_slug)
+                            }
+                        }
+                        RoutingTier::NoBirdDetected => "No_Bird_Detected".to_string(),
+                    };
+
+                    let renames = if !args.dry_run {
+                        execute_inplace_bundle_rename(bundle, &species_name, None, None)?
+                    } else {
+                        Vec::new()
+                    };
+
+                    for (orig, renamed) in &renames {
+                        db.record_inplace_rename(&run_id, orig, renamed)?;
+                    }
+                    total_ops_count += renames.len();
+
+                    let rename_map: std::collections::HashMap<_, _> = renames.into_iter().collect();
+
+                    let new_primary = rename_map
+                        .get(&bundle.primary_image)
+                        .cloned()
+                        .unwrap_or_else(|| bundle.primary_image.clone());
+                    let new_companions: Vec<PathBuf> = bundle
+                        .companion_images
+                        .iter()
+                        .map(|p| rename_map.get(p).cloned().unwrap_or_else(|| p.clone()))
+                        .collect();
+                    let new_sidecars: Vec<PathBuf> = bundle
+                        .sidecar_files
+                        .iter()
+                        .map(|p| rename_map.get(p).cloned().unwrap_or_else(|| p.clone()))
+                        .collect();
+
+                    let cat_item = CatalogItem::from_bundle_and_decision(
+                        bundle,
+                        decision,
+                        Some(new_primary),
+                        Some(new_companions),
+                        Some(new_sidecars),
+                    );
+                    catalog_items.push(cat_item);
+                }
+            } else {
+                println!("Materializing hard links (dry_run: {})...", args.dry_run);
+                let mut total_ops = Vec::new();
+                for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
+                    let ops = materialize_bundle_hardlinks(
+                        bundle,
+                        decision,
+                        &operating_root,
+                        &run_id,
+                        args.dry_run,
+                    )?;
+
+                    let prim_dest = ops
+                        .iter()
+                        .find(|op| op.source_path == bundle.primary_image)
+                        .map(|op| op.dest_path.clone());
+                    let comp_dests: Vec<PathBuf> = bundle
+                        .companion_images
+                        .iter()
+                        .filter_map(|comp| {
+                            ops.iter()
+                                .find(|op| op.source_path == *comp)
+                                .map(|op| op.dest_path.clone())
+                        })
+                        .collect();
+                    let sidecar_dests: Vec<PathBuf> = bundle
+                        .sidecar_files
+                        .iter()
+                        .filter_map(|sc| {
+                            ops.iter()
+                                .find(|op| op.source_path == *sc)
+                                .map(|op| op.dest_path.clone())
+                        })
+                        .collect();
+
+                    let cat_item = CatalogItem::from_bundle_and_decision(
+                        bundle,
+                        decision,
+                        prim_dest,
+                        Some(comp_dests),
+                        Some(sidecar_dests),
+                    );
+                    catalog_items.push(cat_item);
+
+                    total_ops.extend(ops);
+                }
+                total_ops_count = total_ops.len();
+                db.record_hardlink_operations(&total_ops)?;
             }
-            db.record_hardlink_operations(&total_ops)?;
+
             db.complete_run(&run_id)?;
+
+            let catalog_path = operating_root.join("catalog.html");
+            let trip_name = args
+                .input
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Avian Photos");
+            println!(
+                "Generating standalone offline HTML photo catalog at '{}'...",
+                catalog_path.display()
+            );
+            generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
 
             let confirmed = decisions
                 .iter()
@@ -977,10 +1137,7 @@ fn main() -> Result<()> {
 
             println!(
                 "✓ Done! Confirmed: {}, Needs Review: {}, No Bird: {}. Operations: {}",
-                confirmed,
-                review,
-                no_bird,
-                total_ops.len()
+                confirmed, review, no_bird, total_ops_count
             );
         }
 
@@ -988,16 +1145,36 @@ fn main() -> Result<()> {
             println!("== avicull relink ==");
             let output_dir = args
                 .output
-                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
+                .clone()
+                .or_else(|| args.input.as_ref().map(|p| p.join("birds_hierarchy")))
                 .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
-            let db_path = output_dir.join(".avicull/manifest.sqlite");
+            let db_path = if let Some(ref db_p) = args.db {
+                db_p.clone()
+            } else if args.output.is_some() {
+                output_dir.join(".avicull/manifest.sqlite")
+            } else if let Some(ref inp) = args.input {
+                let inplace_db = inp.join(".avicull/manifest.sqlite");
+                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
+                if inplace_db.exists() {
+                    inplace_db
+                } else if hier_db.exists() {
+                    hier_db
+                } else {
+                    inplace_db
+                }
+            } else {
+                output_dir.join(".avicull/manifest.sqlite")
+            };
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {
                 Some(id) => id,
-                None => db
-                    .get_latest_run_id()?
-                    .ok_or_else(|| anyhow!("No existing run found in manifest.sqlite"))?,
+                None => db.get_latest_run_id()?.ok_or_else(|| {
+                    anyhow!(
+                        "No existing run found in manifest.sqlite at '{}'",
+                        db_path.display()
+                    )
+                })?,
             };
 
             println!(
@@ -1032,34 +1209,58 @@ fn main() -> Result<()> {
 
         Commands::Clean(args) => {
             println!("== avicull clean ==");
-            let output_dir = args
-                .output
-                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
-                .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
-            let db_path = output_dir.join(".avicull/manifest.sqlite");
+            let db_path = if let Some(ref db_p) = args.db {
+                db_p.clone()
+            } else if let Some(ref out) = args.output {
+                out.join(".avicull/manifest.sqlite")
+            } else if let Some(ref inp) = args.input {
+                let inplace_db = inp.join(".avicull/manifest.sqlite");
+                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
+                if inplace_db.exists() {
+                    inplace_db
+                } else if hier_db.exists() {
+                    hier_db
+                } else {
+                    inplace_db
+                }
+            } else {
+                PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite")
+            };
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {
                 Some(id) => id,
-                None => db
-                    .get_latest_run_id()?
-                    .ok_or_else(|| anyhow!("No existing run found in manifest.sqlite"))?,
+                None => db.get_latest_run_id()?.ok_or_else(|| {
+                    anyhow!(
+                        "No existing run found in manifest.sqlite at '{}'",
+                        db_path.display()
+                    )
+                })?,
             };
 
-            println!("Cleaning hard links for run '{}'...", run_id);
-            let count = clean_run_hardlinks(&db, &run_id)?;
-            println!(
-                "✓ Unlinked {} files in output directory. Input directory remains untouched.",
-                count
-            );
+            println!("Cleaning operations for run '{}'...", run_id);
+            let count = clean_run_operations(&db, &run_id)?;
+            println!("✓ Cleaned {} operations for run '{}'.", count, run_id);
         }
 
         Commands::Report(args) => {
-            let output_dir = args
-                .output
-                .or_else(|| args.input.map(|p| p.join("birds_hierarchy")))
-                .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
-            let db_path = output_dir.join(".avicull/manifest.sqlite");
+            let db_path = if let Some(ref db_p) = args.db {
+                db_p.clone()
+            } else if let Some(ref out) = args.output {
+                out.join(".avicull/manifest.sqlite")
+            } else if let Some(ref inp) = args.input {
+                let inplace_db = inp.join(".avicull/manifest.sqlite");
+                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
+                if inplace_db.exists() {
+                    inplace_db
+                } else if hier_db.exists() {
+                    hier_db
+                } else {
+                    inplace_db
+                }
+            } else {
+                PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite")
+            };
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {

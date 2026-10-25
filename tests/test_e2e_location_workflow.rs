@@ -34,7 +34,11 @@ fn test_organize_with_location_flag_and_gazetteer() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let db_path = input_dir.join("birds_hierarchy/.avicull/manifest.sqlite");
+    let db_path = if input_dir.join(".avicull/manifest.sqlite").exists() {
+        input_dir.join(".avicull/manifest.sqlite")
+    } else {
+        input_dir.join("birds_hierarchy/.avicull/manifest.sqlite")
+    };
     assert!(db_path.exists(), "manifest.sqlite should exist");
 
     let db = ManifestDb::open(&db_path).expect("open manifest db");
@@ -81,7 +85,11 @@ fn test_organize_with_path_inference_and_no_prompt() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let db_path = input_dir.join("birds_hierarchy/.avicull/manifest.sqlite");
+    let db_path = if input_dir.join(".avicull/manifest.sqlite").exists() {
+        input_dir.join(".avicull/manifest.sqlite")
+    } else {
+        input_dir.join("birds_hierarchy/.avicull/manifest.sqlite")
+    };
     assert!(db_path.exists(), "manifest.sqlite should exist");
 
     let db = ManifestDb::open(&db_path).expect("open manifest db");
