@@ -346,6 +346,25 @@ fn test_cli_e2e_inplace_default() {
         "Original sidecar should have been renamed in-place in lockstep"
     );
 
+    // If organize is re-run and all bundles are cached, catalog.html should be regenerated if missing
+    fs::remove_file(&catalog_path).expect("remove catalog.html");
+    let rerun = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("rerun avicull organize");
+    assert!(rerun.status.success(), "rerun must succeed");
+    assert!(
+        catalog_path.exists(),
+        "catalog.html must be regenerated on re-run if missing even when all bundles are cached"
+    );
+
     let entries: Vec<_> = fs::read_dir(&trip_dir)
         .unwrap()
         .filter_map(|e| e.ok())
