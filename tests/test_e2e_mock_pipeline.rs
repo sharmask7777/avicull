@@ -41,6 +41,8 @@ fn test_mock_pipeline_location_resolution_and_regional_priors() {
             input_dir.to_str().unwrap(),
             "--output",
             output_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
             "--dry-run",
             "--no-prompt",
         ])

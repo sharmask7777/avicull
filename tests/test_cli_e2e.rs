@@ -277,3 +277,232 @@ fn test_update_cli_command_check_mode() {
         assert!(stderr.contains("Failed to query") || stderr.contains("Failed to retrieve"));
     }
 }
+
+#[test]
+fn test_cli_e2e_inplace_default() {
+    let tmp = tempdir().expect("create temp dir");
+    let input_dir = tmp.path().join("Photos");
+    let trip_dir = input_dir.join("2026-07_Leh");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let img_path = trip_dir.join("DSC_0042.JPG");
+    let xmp_path = trip_dir.join("DSC_0042.xmp");
+
+    let img = image::RgbImage::new(10, 10);
+    img.save(&img_path).expect("save test jpeg");
+    File::create(&xmp_path)
+        .unwrap()
+        .write_all(b"<xmp>Leh Test</xmp>")
+        .unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to execute avicull organize");
+
+    assert!(
+        output.status.success(),
+        "avicull organize in-place default failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    assert!(
+        db_path.exists(),
+        "Manifest sqlite must exist at input root in in-place mode"
+    );
+
+    let catalog_path = input_dir.join("catalog.html");
+    assert!(
+        catalog_path.exists(),
+        "catalog.html must exist at input root"
+    );
+    let catalog_meta = fs::metadata(&catalog_path).expect("catalog.html metadata");
+    assert!(catalog_meta.len() > 0, "catalog.html must not be empty");
+
+    assert!(
+        !img_path.exists(),
+        "Original primary image should have been renamed in-place"
+    );
+    assert!(
+        !xmp_path.exists(),
+        "Original sidecar should have been renamed in-place in lockstep"
+    );
+
+    let entries: Vec<_> = fs::read_dir(&trip_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    let renamed_jpg = entries
+        .iter()
+        .find(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("DSC_0042_") && name.ends_with(".JPG")
+        })
+        .expect("Renamed JPG matching DSC_0042_* must exist");
+    let renamed_xmp = entries
+        .iter()
+        .find(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("DSC_0042_") && name.ends_with(".xmp")
+        })
+        .expect("Renamed xmp matching DSC_0042_* must exist");
+
+    let jpg_stem = renamed_jpg
+        .path()
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let xmp_stem = renamed_xmp
+        .path()
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        jpg_stem, xmp_stem,
+        "Renamed primary and sidecar stems must match"
+    );
+
+    let db = ManifestDb::open(&db_path).expect("open manifest db");
+    let run_id = db
+        .get_latest_run_id()
+        .expect("query run_id")
+        .expect("latest run_id must exist");
+
+    let clean_output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "clean",
+            "--db",
+            db_path.to_str().unwrap(),
+            "--run-id",
+            &run_id,
+        ])
+        .output()
+        .expect("failed to execute avicull clean");
+
+    assert!(
+        clean_output.status.success(),
+        "avicull clean failed: stderr: {}",
+        String::from_utf8_lossy(&clean_output.stderr)
+    );
+
+    assert!(
+        img_path.exists(),
+        "Primary image must be reverted to original name"
+    );
+    assert!(
+        xmp_path.exists(),
+        "Sidecar must be reverted to original name"
+    );
+    assert!(
+        !renamed_jpg.path().exists(),
+        "Renamed file must no longer exist"
+    );
+    assert!(
+        !renamed_xmp.path().exists(),
+        "Renamed sidecar must no longer exist"
+    );
+}
+
+#[test]
+fn test_cli_e2e_hierarchy_mode() {
+    let tmp = tempdir().expect("create temp dir");
+    let input_dir = tmp.path().join("Photos");
+    let output_dir = tmp.path().join("Hierarchy");
+    let trip_dir = input_dir.join("2026-07_Leh");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let img_path = trip_dir.join("DSC_0055.JPG");
+    let xmp_path = trip_dir.join("DSC_0055.xmp");
+
+    let img = image::RgbImage::new(10, 10);
+    img.save(&img_path).expect("save test jpeg");
+    File::create(&xmp_path)
+        .unwrap()
+        .write_all(b"<xmp>Leh Hierarchy</xmp>")
+        .unwrap();
+
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--output",
+            output_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to execute avicull organize hierarchy");
+
+    assert!(
+        output.status.success(),
+        "avicull organize hierarchy failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    assert!(
+        db_path.exists(),
+        "Manifest sqlite must exist at output root in hierarchy mode"
+    );
+
+    let catalog_path = output_dir.join("catalog.html");
+    assert!(
+        catalog_path.exists(),
+        "catalog.html must exist at output root in hierarchy mode"
+    );
+    let catalog_meta = fs::metadata(&catalog_path).expect("catalog.html metadata");
+    assert!(catalog_meta.len() > 0, "catalog.html must not be empty");
+
+    assert!(
+        img_path.exists(),
+        "Original input file must stay untouched in hierarchy mode"
+    );
+    assert!(
+        xmp_path.exists(),
+        "Original sidecar must stay untouched in hierarchy mode"
+    );
+
+    let db = ManifestDb::open(&db_path).expect("open manifest db");
+    let run_id = db
+        .get_latest_run_id()
+        .expect("query run_id")
+        .expect("latest run_id must exist");
+
+    let clean_output = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "clean",
+            "--db",
+            db_path.to_str().unwrap(),
+            "--run-id",
+            &run_id,
+        ])
+        .output()
+        .expect("failed to execute avicull clean");
+
+    assert!(
+        clean_output.status.success(),
+        "avicull clean failed: stderr: {}",
+        String::from_utf8_lossy(&clean_output.stderr)
+    );
+
+    assert!(
+        img_path.exists(),
+        "Input primary file must remain intact after clean"
+    );
+    assert!(
+        xmp_path.exists(),
+        "Input sidecar must remain intact after clean"
+    );
+}

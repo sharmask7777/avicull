@@ -1,6 +1,10 @@
 # avicull — Local AI Bird Photo Organizer (macOS Apple Silicon)
 
-`avicull` is a local-first, deterministic command-line system written in Rust for macOS (Apple Silicon M-series) that projects bird photography archives from an immutable trip-based directory tree into a species-headed directory tree using POSIX hard links (`std::fs::hard_link`), naming every linked image and its associated sidecars `<OriginalStem>_<Confidence:0.2>.<ext>`.
+`avicull` is a local-first, deterministic command-line system written in Rust for macOS (Apple Silicon M-series) that organizes bird photography archives using local neural network detection (YOLO11) and classification (BioCLIP + Bayesian spatial-temporal priors across 11,167 species).
+
+It supports two high-performance organization modes:
+1. **In-Place Descriptive Renaming (Default)**: Renames image files and their associated sidecars (.xmp, .dop) directly in place to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>` with zero file copying, zero data deletion, and generates a rich, standalone offline HTML photo catalog (`catalog.html`).
+2. **Hard-Linked Species Hierarchy (`--mode hierarchy`)**: Projects photos into a species-headed directory tree (`birds_hierarchy`) using POSIX zero-byte hard links (`std::fs::hard_link`), pointing to identical underlying inodes without consuming additional storage.
 
 The architecture combines the multi-stage detection and transactional manifest design of [SuperPicky](https://github.com/superpickyapp/Superpicky) with the visual + spatio-temporal prior scoring pipeline of [Cornell Merlin Bird ID](https://www.merlinbirds.org/about/).
 
@@ -187,26 +191,37 @@ python3 scripts/export_models.py --output-dir models/ --mock
 ## CLI Usage
 
 ### 1. `organize`: Full Pipeline Execution
-Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, and materializes hard links.
+Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog.
 
-By default, the output directory defaults to `<input>/birds_hierarchy`:
+#### Mode A: In-Place Descriptive File Renaming (Default)
+By default, `avicull organize` renames files in place within `--input` and generates `<input>/catalog.html`:
 ```bash
 avicull organize --input /Volumes/Photos/Leh
-# Creates /Volumes/Photos/Leh/birds_hierarchy/
+# Renames files in-place: DSC_0042_House_Sparrow_20261025_Leh.CR2 + DSC_0042_...xmp
+# Generates /Volumes/Photos/Leh/catalog.html
 ```
 
-You can also specify a custom output directory:
+#### Mode B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
+Organize files into `<input>/birds_hierarchy` using zero-byte POSIX hard links:
+```bash
+avicull organize --input /Volumes/Photos/Leh --mode hierarchy
+# Creates /Volumes/Photos/Leh/birds_hierarchy/<Species_Common_Name>/...
+# Generates /Volumes/Photos/Leh/birds_hierarchy/catalog.html
+```
+
+You can also specify a custom output directory in hierarchy mode:
 ```bash
 avicull organize \
   --input /Volumes/Photos/Leh \
   --output /Volumes/Photos/Leh_Avian_Custom \
+  --mode hierarchy \
   --models-dir models \
   --min-confidence 0.65 \
   --min-detect 0.25 \
   --burst-window-ms 3000
 ```
 
-Use `--dry-run` to preview operations without creating filesystem links:
+Use `--dry-run` to preview operations without modifying files or creating links:
 ```bash
 avicull organize --input /Volumes/Photos/Leh --dry-run
 ```
@@ -216,15 +231,22 @@ Use `--force` to re-run neural network detection and classification on all photo
 avicull organize --input /Volumes/Photos/Leh --force
 ```
 
-### 2. Multi-Level Coexistence & Incremental Runs
+### 2. Standalone Offline HTML Photo Catalog (`catalog.html`)
+Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` with:
+- **Interactive Lightbox**: High-res image display with instant EXIF and ML metadata.
+- **Dynamic Search & Tier Filtering**: Filter by Confirmed Species, Needs Review, or No Bird Detected.
+- **Embedded RAW Thumbnails**: Standalone extraction of embedded preview thumbnails from camera RAWs into `.avicull/previews/`.
+- **Zero Dependencies**: Pure HTML/CSS/JS without external CDN calls, works completely offline in airplane mode.
+
+### 3. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
 You can organize both a specific trip folder and the parent archive:
 ```bash
 # 1. Organize specific trip
-avicull organize --input /Volumes/Photos/Leh
+avicull organize --input /Volumes/Photos/Leh --mode hierarchy
 # Links created in /Volumes/Photos/Leh/birds_hierarchy (st_nlink = 2)
 
 # 2. Organize parent archive
-avicull organize --input /Volumes/Photos
+avicull organize --input /Volumes/Photos --mode hierarchy
 # Links created in /Volumes/Photos/birds_hierarchy (st_nlink = 3)
 ```
 
@@ -234,33 +256,37 @@ avicull organize --input /Volumes/Photos/Leh
 ```
 `avicull` detects already-cached photos from `.avicull/manifest.sqlite` and only runs inference on the newly added files.
 
-### 3. `scan`: Preflight Validation & Discovery
+### 4. `scan`: Preflight Validation & Discovery
 Inspects photo bundles and sidecars without making changes:
 ```bash
 avicull scan --input /Volumes/Photos/Leh
 ```
 
-### 4. `report`: Query Run Manifest
+### 5. `report`: Query Run Manifest
 Inspect classification results, routing tiers, and confidence scores:
 ```bash
-# Using default birds_hierarchy
+# Using input directory
 avicull report --input /Volumes/Photos/Leh --format table
 
-# Or specifying explicit output path
-avicull report --output /Volumes/Photos/Leh/birds_hierarchy --format json
+# Or specifying explicit database path
+avicull report --db /Volumes/Photos/Leh/.avicull/manifest.sqlite --format json
 ```
 
-### 5. `relink`: Instant Threshold Adjustment
+### 6. `relink`: Instant Threshold Adjustment
 Adjust confidence thresholds (`--min-confidence`) without re-running neural network inference:
 ```bash
 avicull relink --input /Volumes/Photos/Leh --min-confidence 0.80
 ```
 This unlinks previous destination files and re-materializes links according to the new threshold instantly from SQLite state.
 
-### 6. `clean`: Safe Rollback
-Removes all hard-linked files and empty species directories in the hierarchy directory. The source photo archive in `--input` is completely untouched:
+### 7. `clean`: Safe Rollback
+Rolls back in-place renames to their original filenames or removes hard-linked files in the hierarchy directory:
 ```bash
+# Clean latest run from input directory
 avicull clean --input /Volumes/Photos/Leh
+
+# Or cleanly roll back a specific run ID via database path
+avicull clean --db /Volumes/Photos/Leh/.avicull/manifest.sqlite --run-id run-20261025-140000
 ```
 
 ### 7. `models`: Manage Decoupled ML & eBird Taxonomy Cache
