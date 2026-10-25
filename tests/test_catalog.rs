@@ -405,4 +405,18 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
         html_content.contains(r#"commands.push(`mv "${sc}" "${targetDir}/${scFilename}"`);"#),
         "Hierarchy mode must emit mv commands for companion and sidecar files"
     );
+
+    // 3. Catalog directory must be embedded in payload and used in commands & batch script
+    assert!(
+        html_content.contains("catalog_dir"),
+        "Catalog payload must contain catalog_dir"
+    );
+    assert!(
+        html_content.contains(r#"commands.push(`cd "${CATALOG_DATA.catalog_dir}"`);"#),
+        "Modal commands must include cd to catalog_dir so mv runs successfully from any directory"
+    );
+    assert!(
+        html_content.contains(r#"cd "${CATALOG_DATA.catalog_dir}""#),
+        "Batch script apply_corrections.sh must change directory to catalog_dir"
+    );
 }
