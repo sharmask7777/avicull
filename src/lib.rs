@@ -9,6 +9,7 @@ pub mod location;
 pub mod manifest;
 pub mod organizer;
 pub mod scanner;
+pub mod storage;
 pub mod types;
 pub mod update;
 
