@@ -36,6 +36,7 @@ fn test_catalog_template_generates_avicull_correct_commands() {
             geo_prior: 0.90,
             combined_score: 0.95,
         }],
+        is_local: None,
     };
 
     generate_html_catalog(

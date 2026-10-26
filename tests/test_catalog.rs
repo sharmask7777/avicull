@@ -34,6 +34,7 @@ fn test_generate_html_catalog_basic() {
             geo_prior: 0.90,
             combined_score: 0.94,
         }],
+        is_local: None,
     };
 
     let item2 = ClassifiedBundleItem {
@@ -61,6 +62,7 @@ fn test_generate_html_catalog_basic() {
             geo_prior: 0.48,
             combined_score: 0.52,
         }],
+        is_local: None,
     };
 
     let item3 = CatalogItem {
@@ -80,6 +82,7 @@ fn test_generate_html_catalog_basic() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     let items = vec![item1, item2, item3];
@@ -171,6 +174,7 @@ fn test_generate_html_catalog_raw_preview_extraction() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     generate_html_catalog(
@@ -221,6 +225,7 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     // Should succeed gracefully despite unreadable cloud-evicted image bytes
@@ -260,6 +265,7 @@ fn test_generate_html_catalog_hierarchy_mode() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     generate_html_catalog(
@@ -308,6 +314,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     // Case 2: In-place renamed web image (JPEG)
@@ -330,6 +337,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     generate_html_catalog(
@@ -381,6 +389,7 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
         top_predictions: vec![],
+        is_local: None,
     };
 
     generate_html_catalog(
