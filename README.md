@@ -3,7 +3,7 @@
 `avicull` is a local-first, deterministic command-line system written in Rust for macOS (Apple Silicon M-series) that organizes bird photography archives using local neural network detection (YOLO11) and classification (BioCLIP + Bayesian spatial-temporal priors across 11,167 species).
 
 It supports two high-performance organization modes:
-1. **In-Place Descriptive Renaming (Default)**: Renames image files and their associated sidecars (.xmp, .dop) directly in place to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>` with zero file copying, zero data deletion, and generates a rich, standalone offline HTML photo catalog (`catalog.html`).
+1. **In-Place Descriptive Renaming (Default)**: Renames image files and their associated sidecars (.xmp, .dop) directly in place to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>` with zero file copying, zero data deletion, and generates a rich, standalone offline HTML photo catalog (`bird_catalog.html`).
 2. **Hard-Linked Species Hierarchy (`--mode hierarchy`)**: Projects photos into a species-headed directory tree (`birds_hierarchy`) using POSIX zero-byte hard links (`std::fs::hard_link`), pointing to identical underlying inodes without consuming additional storage.
 
 The architecture combines the multi-stage detection and transactional manifest design of [SuperPicky](https://github.com/superpickyapp/Superpicky) with the visual + spatio-temporal prior scoring pipeline of [Cornell Merlin Bird ID](https://www.merlinbirds.org/about/).
@@ -62,7 +62,7 @@ On first run, `avicull` will offer to automatically download and initialize the 
    - When a photo directory or hierarchy tree is copied, rsynced, or mounted on another machine where inodes and absolute paths differ, `avicull organize` matches existing bundles by portable relative path and `(trip_folder, original_stem)` with 100% cache hits and zero redundant AI inferences.
    - User classification corrections—made via `avicull correct` (supporting burst propagation `--burst` / `-b`, query disambiguation, and fuzzy species autocorrect), manual Finder folder moves in hierarchy mode, manual in-place filename renames reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
 7. **Self-Contained Offline HTML Photo Catalog**:
-   - Both modes automatically produce a standalone offline `catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
+   - Both modes automatically produce a standalone offline `bird_catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
 
 ---
 
@@ -101,6 +101,70 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 
 ---
 
+## Space-Efficient Cloud Storage & Network Share Processing
+
+Photographers frequently store massive RAW photo libraries on cloud storage services or Network Attached Storage (NAS). `avicull` includes native, first-class support for cloud sync providers and network filesystems with zero data loss and strict local disk budget caps.
+
+### Supported Platforms & Mounts
+`avicull` automatically detects the underlying storage backend:
+- **Cloud Storage (Apple FileProvider / CloudStorage)**:
+  - Google Drive (`~/Library/CloudStorage/GoogleDrive-*`)
+  - Proton Drive (`~/Library/CloudStorage/ProtonDrive-*`)
+  - Microsoft OneDrive (`~/Library/CloudStorage/OneDrive-*`)
+  - Dropbox (`~/Library/CloudStorage/Dropbox*` or `~/Dropbox*`)
+  - Apple iCloud Drive (`~/Library/Mobile Documents/com~apple~CloudDocs`)
+- **Network Shares (NAS)**:
+  - Server Message Block (`SMB` / `CIFS` mounted under `/Volumes/*`)
+  - Network File System (`NFS` mounted under `/Volumes/*`)
+
+### Bounded Local Disk Cache Budget (`--max-cache-size`)
+Cloud providers utilize dataless stub files (tombstones) that do not occupy physical disk blocks until read. Processing large archives without safeguards could inadvertently hydrate hundreds of gigabytes of RAW files, triggering local disk out-of-space crashes.
+
+`avicull` solves this by chunking operations into bounded memory and disk working sets governed by `--max-cache-size` (default: `5GB`):
+```bash
+# Organize a cloud archive with a custom 2 GB cache budget
+avicull organize --input ~/Library/CloudStorage/GoogleDrive-user@gmail.com/My\ Drive/Birds --max-cache-size 2GB
+```
+During each chunk:
+1. Files within the budget are staged or hydrated.
+2. AI bird detection and classification are executed.
+3. Persistent thumbnails are saved to `.avicull/previews/` for instant browsing in `bird_catalog.html`.
+4. In-place renames are safely executed.
+5. Hydrated cloud stubs are evicted back to dataless state before the next chunk begins.
+
+### Selective Eviction Guarantee
+`avicull` maintains a strict locality invariant using macOS filesystem metadata (`SF_DATALESS` via `chflags(2)` / `getattrlist(2)`):
+- **Pre-Existing Local Files Remain Local**: Any file that was already resident on disk prior to `avicull`'s run is **NEVER** evicted.
+- **Downloaded Files Re-Evicted**: Only files that were explicitly dataless prior to `avicull` reading them and hydrated during the run are returned to cloud stubs.
+- Your local offline availability preferences are preserved with zero disruption.
+
+### Safe Eviction-Before-Rename Ordering
+Cloud storage file providers (such as FileProvider framework on macOS) monitor file descriptors and inode state. Attempting to rename an in-flight hydrated file before its dirty buffers flush can trigger sync errors or macOS sync lockouts.
+- `avicull` guarantees an **Eviction-Before-Rename** execution order:
+  1. Primary image and sidecars are read and classified.
+  2. Thumbnail preview is extracted into `.avicull/previews/`.
+  3. Clean hydrated blocks are evicted back to dataless state (`SF_DATALESS`).
+  4. In-place rename is applied cleanly to the cloud metadata stub.
+- This prevents sync provider lockouts and avoids triggering redundant multi-gigabyte cloud re-uploads.
+
+### Fast Local SSD Staging for SMB/NFS
+Network file shares over Wi-Fi or 1GbE experience latency overhead when reading large embedded preview streams or RAW EXIF headers directly across the wire:
+- For SMB/NFS mounts, `avicull` automatically leverages fast local SSD scratch space (`$TMPDIR/avicull_staging/`) to stage active chunks.
+- RAW image previews and EXIF data are extracted at local NVMe speeds.
+- Once processed, staging files are cleaned up immediately, maintaining 0 residual disk footprint.
+
+### Network Failure Resilience & Delta Re-Runs
+If a network disconnect, Wi-Fi drop, or cloud sync rate-limit occurs mid-run:
+- `avicull` logs an informative notice and records transient failures in `.avicull/manifest.sqlite`.
+- All completed bundles remain transactionally committed in SQLite and safely renamed.
+- Simply re-running `avicull organize --input <PATH>` performs a fast delta re-run: it automatically picks up where it left off, bypassing previously organized bundles without re-downloading or re-inferring data.
+
+### Hierarchy Mode Validation on Remote Backends
+POSIX hard links (`std::fs::hard_link`) cannot span network boundaries or FileProvider virtual filesystems. `avicull organize` automatically validates the backend up front:
+- If `--mode hierarchy` is attempted on a cloud storage or network share directory, `avicull` gracefully rejects the command with an explanatory error, directing you to use `--mode in-place` (the default).
+
+---
+
 ## Target Transformation
 
 ### Input State (Camera Cards / Unorganized Trip Archive)
@@ -113,14 +177,14 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 ```
 
 ### Transformation Option A: In-Place Descriptive Renaming (Default Mode)
-In-place renaming updates file and sidecar stems directly in the source directory with zero byte copies and generates `catalog.html`:
+In-place renaming updates file and sidecar stems directly in the source directory with zero byte copies and generates `bird_catalog.html`:
 ```
 /Volumes/Photos/Trips/2025-11_Bharatpur_Keoladeo/
 ├── DSC_4011_Painted_Stork_20251115_Bharatpur.JPG
 ├── DSC_4011_Painted_Stork_20251115_Bharatpur.xmp
 ├── DSC_4012_Painted_Stork_20251115_Bharatpur.JPG
 ├── DSC_4015_Streak-throated_Swallow_20251115_Bharatpur.ARW
-├── catalog.html
+├── bird_catalog.html
 └── .avicull/
     ├── manifest.sqlite
     └── previews/
@@ -143,7 +207,7 @@ Creates a separate species-headed tree using zero-byte POSIX hard links:
 │       └── IMG_9001_2026-01-10_Ranganathittu_0.54.XMP   # Hard link -> .../IMG_9001.XMP
 ├── _No_Bird_Detected/
 │   └── 2026-01_Ranganathittu__IMG_9002_2026-01-10_Ranganathittu_0.11.JPG
-├── catalog.html
+├── bird_catalog.html
 └── .avicull/
     ├── manifest.sqlite
     └── previews/
@@ -223,11 +287,11 @@ python3 scripts/export_models.py --output-dir models/ --mock
 Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog. Automatically detects and reconciles previous manual user adjustments (Finder moves in hierarchy mode or manual filename renames in in-place mode) into permanent SQLite overrides before processing new files.
 
 #### Mode A: In-Place Descriptive File Renaming (Default)
-By default, `avicull organize` renames files in place within `--input` and generates `<input>/catalog.html`:
+By default, `avicull organize` renames files in place within `--input` and generates `<input>/bird_catalog.html`:
 ```bash
 avicull organize --input /Volumes/Photos/Leh
 # Renames files in-place: DSC_0042_House_Sparrow_20261025_Leh.CR2 + DSC_0042_...xmp
-# Generates /Volumes/Photos/Leh/catalog.html
+# Generates /Volumes/Photos/Leh/bird_catalog.html
 ```
 
 #### Mode B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
@@ -235,7 +299,7 @@ Organize files into `<input>/birds_hierarchy` using zero-byte POSIX hard links:
 ```bash
 avicull organize --input /Volumes/Photos/Leh --mode hierarchy
 # Creates /Volumes/Photos/Leh/birds_hierarchy/<Species_Common_Name>/...
-# Generates /Volumes/Photos/Leh/birds_hierarchy/catalog.html
+# Generates /Volumes/Photos/Leh/birds_hierarchy/bird_catalog.html
 ```
 
 You can also specify a custom output directory in hierarchy mode:
@@ -260,9 +324,9 @@ Use `--force` to re-run neural network detection and classification on all photo
 avicull organize --input /Volumes/Photos/Leh --force
 ```
 
-### 2. Standalone Offline HTML Photo Catalog (`catalog.html`)
+### 2. Standalone Offline HTML Photo Catalog (`bird_catalog.html`)
 
-Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` dashboard located at `<input>/catalog.html` (in in-place mode) or `<output>/catalog.html` (in hierarchy mode).
+Both in-place and hierarchy organization automatically produce a standalone offline `bird_catalog.html` dashboard located at `<input>/bird_catalog.html` (in in-place mode) or `<output>/bird_catalog.html` (in hierarchy mode).
 
 Key capabilities include:
 - **Zero External Dependencies**: Self-contained HTML, CSS, and vanilla JavaScript without any external CDNs or network calls. Functions seamlessly offline or in airplane mode in any modern browser.
@@ -272,12 +336,13 @@ Key capabilities include:
   - Search photos in real time by common species name, scientific name, original filename, location, or capture date.
   - Interactive confidence threshold slider to visually preview routing tier boundaries.
 - **Interactive Lightbox Modal**: Click any photo card to open a full-resolution lightbox view displaying camera EXIF exposure settings (shutter speed, aperture, ISO, focal length), hardware GPS coordinates, and top-5 ranked species predictions with confidence percentages.
+- **Space-Efficient Hybrid Rendering**: Renders full-resolution images directly if files are locally resident on disk; seamlessly falls back to persistent thumbnails extracted into `.avicull/previews/` with an informative cloud status badge if files are evicted or offline.
 - **Mislabel Correction & Batch Script Export**:
   - Click **Correct Species** on any photo card or within the lightbox.
   - Search the complete 11,167-species Cornell eBird taxonomy with instant keyboard autocomplete or enter a custom name.
   - The modal automatically displays the target filename update and synchronizes all companion files and sidecars (`.xmp`, `.dop`).
   - Click **Add to Batch Script** to queue correction commands.
-  - Click **Download apply_corrections.sh** in the header to download a POSIX-compliant bash script that atomically renames your photo files and sidecars.
+  - Click **Download apply_corrections.sh** in the header to download a POSIX-compliant bash script powered by `avicull correct` that atomically renames your photo files, sidecars, and syncs the SQLite manifest.
 
 ### 3. `correct`: Manual Mislabel Corrections & Overrides
 
@@ -301,7 +366,7 @@ Actions coordinated safely in lockstep:
 - Updates `.avicull/manifest.sqlite` marking `is_user_override = 1` and `final_confidence = 1.0`.
 - In **hierarchy mode**: moves/relinks primary images, companions, and sidecars into `<output>/<Species>/`, updating operation records and automatically pruning empty directories.
 - In **in-place mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`, `.dop`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
-- Automatically regenerates `catalog.html` with updated counts and species tallies.
+- Automatically regenerates `bird_catalog.html` with updated counts and species tallies.
 
 #### A. Burst Propagation (`--burst`, `-b`, `--propagate-burst`)
 Bird photography frequently produces high-speed bursts of 3 to 20+ consecutive frames capturing the same subject. Reclassifying photos frame-by-frame is tedious and error-prone.
@@ -336,7 +401,7 @@ When entering a species name, typos or informal common names may occur (e.g. `--
 #### D. Automatic Filesystem Reconciliation (`avicull organize`)
 You are never locked into the CLI: manual adjustments made directly in macOS Finder or terminal are automatically recognized and reconciled on the next `avicull organize` run:
 - **In-Place Mode Manual Renames**: If you manually rename a primary image file (e.g. renaming `DSC_0042_Mallard.JPG` to `DSC_0042_Northern_Pintail.JPG`), `avicull organize` decomposes the filename, matches the original stem (`DSC_0042`), detects the user edit, promotes it to a durable SQLite override (`is_user_override = 1`, `final_confidence = 1.0`), and automatically renames any companion files and sidecars (`DSC_0042_Mallard.xmp` -> `DSC_0042_Northern_Pintail.xmp`, `.dop`) in lockstep.
-- **Hierarchy Mode Manual Directory Moves**: If you drag and drop a photo or burst in macOS Finder from `birds_hierarchy/_Needs_Review/Mallard/` to `birds_hierarchy/Northern_Pintail/` (or into `_No_Bird_Detected/`), running `avicull organize --mode hierarchy` automatically detects the move, reconciles the change into `.avicull/manifest.sqlite` as a durable user override, refreshes `catalog.html`, and locks it against automated reclassification.
+- **Hierarchy Mode Manual Directory Moves**: If you drag and drop a photo or burst in macOS Finder from `birds_hierarchy/_Needs_Review/Mallard/` to `birds_hierarchy/Northern_Pintail/` (or into `_No_Bird_Detected/`), running `avicull organize --mode hierarchy` automatically detects the move, reconciles the change into `.avicull/manifest.sqlite` as a durable user override, refreshes `bird_catalog.html`, and locks it against automated reclassification.
 
 ### 4. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
 You can organize both a specific trip folder and the parent archive:
