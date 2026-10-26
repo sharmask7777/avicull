@@ -114,6 +114,13 @@ pub enum AvicullError {
     CloudStorageAccessDenied { path: PathBuf },
     #[error("Cannot read input directory: {} (Permission denied). Please check filesystem read permissions.", path.display())]
     DirectoryPermissionDenied { path: PathBuf },
+    #[error(
+        "Hard-linked species hierarchy mode ('--mode hierarchy') is not supported on {storage_type}.\n\
+         Creating hard-link hierarchies on cloud-synchronized or network drives triggers duplicate sync uploads\n\
+         or cross-device link errors (EXDEV).\n\
+         Please use the default '--mode in-place' for non-local storage."
+    )]
+    HierarchyModeUnsupportedOnRemote { storage_type: &'static str },
     #[error("Unknown confidence mode: '{0}'. Expected 'burst-consensus' or 'per-frame'")]
     InvalidConfidenceMode(String),
 }
