@@ -133,13 +133,13 @@ fn test_cli_correct_subcommand_updates_manifest_and_hardlink() {
         "Source file inode must remain unchanged"
     );
 
-    // 5. Verify catalog.html is regenerated with new species
-    let catalog_path = output_dir.join("catalog.html");
-    assert!(catalog_path.exists(), "catalog.html should exist");
+    // 5. Verify bird_catalog.html is regenerated with new species
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists(), "bird_catalog.html should exist");
     let catalog_content = fs::read_to_string(&catalog_path).unwrap();
     assert!(
         catalog_content.contains("Painted_Stork") || catalog_content.contains("Painted Stork"),
-        "catalog.html should contain updated species 'Painted_Stork'"
+        "bird_catalog.html should contain updated species 'Painted_Stork'"
     );
 }
 

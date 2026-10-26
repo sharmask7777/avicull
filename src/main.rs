@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
-use avicull::catalog::{generate_html_catalog, CatalogItem};
+use avicull::catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 use avicull::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
 use avicull::db::{ExistingBundleMap, ManifestDb};
 use avicull::detector::{
@@ -958,7 +958,7 @@ fn main() -> Result<()> {
             }
 
             if !existing_bundle_map.is_empty() && new_bundles.is_empty() {
-                let catalog_path = operating_root.join("catalog.html");
+                let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
                 if !catalog_path.exists() || reconciled_moves_count > 0 {
                     let trip_name = args
                         .input
@@ -1250,7 +1250,7 @@ fn main() -> Result<()> {
 
             db.complete_run(&run_id)?;
 
-            let catalog_path = operating_root.join("catalog.html");
+            let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
             let trip_name = args
                 .input
                 .file_name()

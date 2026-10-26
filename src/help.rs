@@ -72,7 +72,7 @@ impl HelpTopic {
                     Preview the classification and renaming plan without writing filesystem changes:\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh --dry-run\n\n\
                  2. In-Place Organize & HTML Catalog (Default):\n\
-                    Renames photos in place with species, date, and location tags, and creates 'catalog.html':\n\
+                    Renames photos in place with species, date, and location tags, and creates 'bird_catalog.html':\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh\n\n\
                  3. Hierarchy Mode (Zero-Copy APFS Hard Links):\n\
                     Organize photos into '<input>/birds_hierarchy' using zero-byte hard links:\n\
@@ -118,8 +118,8 @@ impl HelpTopic {
                       * Confirmed Species:   <output>/<Species_Common_Name>/\n\
                       * Needs Review:        <output>/_Needs_Review/<Species_Common_Name>/\n\
                       * No Bird Detected:    <output>/_No_Bird_Detected/\n\n\
-                 6. Standalone Offline HTML Photo Catalog (catalog.html):\n\
-                    Both modes automatically generate 'catalog.html' in the output directory:\n\
+                 6. Standalone Offline HTML Photo Catalog (bird_catalog.html):\n\
+                    Both modes automatically generate 'bird_catalog.html' in the output directory:\n\
                     - Fast gallery with responsive grid and embedded RAW preview thumbnails.\n\
                     - Dynamic search and filter by species, date, location, and confidence tiers.\n\
                     - High-res lightbox modal with EXIF details and ML predictions.\n\
@@ -197,7 +197,7 @@ impl HelpTopic {
                  =======================================================================\n\n\
                  avicull organizes bird photography archives using local neural networks\n\
                  (YOLO11 + BioCLIP), eBird regional checklists, burst consensus smoothing,\n\
-                 and generates a standalone offline HTML photo catalog (catalog.html).\n\n\
+                 and generates a standalone offline HTML photo catalog (bird_catalog.html).\n\n\
                  It supports in-place descriptive renaming (default) and zero-copy APFS\n\
                  hard-linked species hierarchies (--mode hierarchy).\n\n\
                  COMMANDS:\n\
