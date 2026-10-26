@@ -853,6 +853,7 @@ fn main() -> Result<()> {
             }
 
             // Reconcile any manual filesystem moves in the output directory (hierarchy mode)
+            let mut reconciled_moves_count = 0;
             if args.mode == OrganizationMode::HierarchicalHardlinkHierarchy
                 && operating_root.exists()
                 && !existing_bundle_map.is_empty()
@@ -863,6 +864,7 @@ fn main() -> Result<()> {
                     &mut existing_bundle_map,
                 ) {
                     Ok(count) => {
+                        reconciled_moves_count = count;
                         if count > 0 {
                             println!(
                                 "Reconciliation: Reconciled {} manual filesystem move(s) into durable SQLite overrides.",
@@ -919,7 +921,7 @@ fn main() -> Result<()> {
 
             if !existing_bundle_map.is_empty() && new_bundles.is_empty() {
                 let catalog_path = operating_root.join("catalog.html");
-                if !catalog_path.exists() {
+                if !catalog_path.exists() || reconciled_moves_count > 0 {
                     let trip_name = args
                         .input
                         .file_name()
