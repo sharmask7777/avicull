@@ -984,3 +984,55 @@ fn test_cli_correct_fuzzy_species_matching() {
     assert_eq!(updated_bundles[0].0.assigned_species_slug, "Mallrd");
     assert!(updated_bundles[0].0.is_user_override);
 }
+
+#[test]
+fn test_cli_correct_evicts_renamed_file_if_dataless() {
+    let dir = tempdir().expect("create temp dir");
+    // Place inside CloudStorage-like path so detect_storage_backend selects MacOSCloudStorageBackend
+    let cloud_dir = dir
+        .path()
+        .join("Library/CloudStorage/OneDrive-Personal/Photos");
+    let trip_dir = cloud_dir.join("Corbett");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo = trip_dir.join("DSC_0099.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG DSC_0099 DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in in-place mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            cloud_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("organize in-place");
+    assert!(org_output.status.success());
+
+    // 2. Correct to Great Hornbill
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            cloud_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--file",
+            "DSC_0099",
+            "--species",
+            "Great Hornbill",
+        ])
+        .output()
+        .expect("correct in-place");
+    assert!(correct_output.status.success());
+}

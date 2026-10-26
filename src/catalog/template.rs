@@ -398,6 +398,32 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     }}
 
     /* Cloud-Evicted / Fallback Tile */
+    .card.evicted .badge-cloud {{
+      display: inline-flex;
+    }}
+
+    .badge-cloud {{
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(30, 41, 59, 0.85);
+      color: #93c5fd;
+      border: 1px solid rgba(147, 197, 253, 0.3);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      align-items: center;
+      gap: 4px;
+    }}
+
+    .card.is-evicted .badge-cloud {{
+      display: inline-flex;
+    }}
+
     .preview-fallback {{
       width: 100%;
       height: 100%;
@@ -751,6 +777,19 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   }}
 
   function handleImageError(img, itemId) {{
+    if (img.dataset.thumbSrc && img.src !== img.dataset.thumbSrc) {{
+      img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
+      img.src = img.dataset.thumbSrc;
+      const card = img.closest('.card');
+      if (card) {{
+        card.classList.add('evicted');
+      }}
+      return;
+    }}
+    handleFinalImageFallback(img, itemId);
+  }}
+
+  function handleFinalImageFallback(img, itemId) {{
     const parent = img.parentElement;
     if (!parent) return;
     const item = items.find(i => i.id === itemId);
@@ -820,10 +859,15 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <div class="card-scientific">${{item.scientific_name}}</div>
       ` : '';
 
+      const isLocal = item.is_local !== false;
+      const initialSrc = isLocal ? (item.local_src || item.preview_url) : (item.thumb_src || item.preview_url);
+      const evictedClass = isLocal ? '' : ' evicted';
+
       return `
-        <div class="card" id="card-${{item.id}}">
+        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}">
           <div class="card-media">
-            <img src="${{item.preview_url}}" alt="${{item.assigned_species}}" loading="lazy" onerror="handleImageError(this, '${{item.id}}')"/>
+            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
+            <span class="badge-cloud">☁️ Cloud</span>
             <span class="badge-tier ${{tierBadgeClass}}">${{tierLabel}}</span>
           </div>
           <div class="card-body">
@@ -869,8 +913,18 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     document.getElementById('modalCurrentPath').textContent = activeModalItem.current_path;
     const thumb = document.getElementById('modalPhotoThumb');
     if (thumb) {{
-      thumb.src = activeModalItem.preview_url;
-      thumb.onerror = () => {{ thumb.style.display = 'none'; }};
+      const initialThumb = (activeModalItem.is_local !== false)
+        ? (activeModalItem.local_src || activeModalItem.preview_url)
+        : (activeModalItem.thumb_src || activeModalItem.preview_url);
+      thumb.src = initialThumb;
+      thumb.dataset.thumbSrc = activeModalItem.thumb_src || activeModalItem.preview_url;
+      thumb.onerror = () => {{
+        if (thumb.dataset.thumbSrc && thumb.src !== thumb.dataset.thumbSrc) {{
+          thumb.src = thumb.dataset.thumbSrc;
+        }} else {{
+          thumb.style.display = 'none';
+        }}
+      }};
       thumb.style.display = 'block';
     }}
 
@@ -933,13 +987,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const targetDir = `birds_hierarchy/${{newSlug}}`;
       commands.push(`mkdir -p "${{targetDir}}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
-      commands.push(`mv "${{currentPath}}" "${{targetDir}}/${{filename}}"`);
+      const newPath = `${{targetDir}}/${{filename}}`;
+      commands.push(`mv "${{currentPath}}" "${{newPath}}"`);
 
       for (const sc of allSidecars) {{
         const scSlash = sc.lastIndexOf('/');
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
         commands.push(`mv "${{sc}}" "${{targetDir}}/${{scFilename}}"`);
       }}
+      commands.push(`if command -v fileproviderctl >/dev/null 2>&1; then`);
+      commands.push(`  fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
+      commands.push(`fi`);
     }} else {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = activeModalItem.original_stem;
@@ -967,6 +1025,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         const newSc = (scDir ? scDir + '/' : '') + targetStem + scExt;
         commands.push(`mv "${{sc}}" "${{newSc}}"`);
       }}
+      commands.push(`if command -v fileproviderctl >/dev/null 2>&1; then`);
+      commands.push(`  fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
+      commands.push(`fi`);
     }}
     commands.push(`fi`);
 
