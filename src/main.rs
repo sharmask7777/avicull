@@ -271,6 +271,15 @@ struct CorrectArgs {
     /// Organization mode: [in-place | hierarchy]
     #[arg(long, value_enum)]
     mode: Option<OrganizationMode>,
+
+    /// Propagate correction to all frames in the same burst
+    #[arg(
+        short = 'b',
+        long = "propagate-burst",
+        visible_alias = "burst",
+        default_value_t = false
+    )]
+    propagate_burst: bool,
 }
 
 #[derive(Args, Debug)]
@@ -1600,19 +1609,22 @@ fn execute_correct(args: CorrectArgs) -> Result<()> {
             .unwrap_or_else(|| PathBuf::from(".")),
     };
 
-    let (updated_dec, bundle) = avicull::organizer::apply_bundle_correction(
+    let results = avicull::organizer::apply_bundle_correction(
         &db,
         &operating_root,
         mode,
         &args.file,
         &args.species,
         args.input.as_deref(),
+        args.propagate_burst,
     )?;
 
-    println!(
-        "✓ Reclassified '{}' to '{}' (routing_tier: {:?}, is_user_override: 1).",
-        bundle.original_stem, updated_dec.assigned_species_slug, updated_dec.routing_tier
-    );
+    for (updated_dec, bundle) in &results {
+        println!(
+            "✓ Reclassified '{}' to '{}' (routing_tier: {:?}, is_user_override: 1).",
+            bundle.original_stem, updated_dec.assigned_species_slug, updated_dec.routing_tier
+        );
+    }
 
     Ok(())
 }
