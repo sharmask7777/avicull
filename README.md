@@ -47,6 +47,7 @@ On first run, `avicull` will offer to automatically download and initialize the 
    - Zero file copying and zero data deletion.
    - All renaming operations are transactionally journaled in `.avicull/manifest.sqlite`, guaranteeing lossless rollback via `avicull clean`.
    - Automatic collision resolution preserves unique filenames when bursts or duplicate names occur.
+   - Manual user renames in Finder or terminal are automatically detected and reconciled on subsequent runs, renaming companions and sidecars in lockstep.
 2. **Strict Source Immutability in Hierarchy Mode (`--mode hierarchy`)**:
    - The input trip directory (`--input`) is strictly read-only. `avicull` never moves, renames, modifies, or unlinks any file inside `--input`.
    - Files are projected into `<input>/birds_hierarchy` (or `--output`) using zero-byte POSIX hard links (`std::fs::hard_link`), pointing to identical underlying APFS inodes (`src_ino == dst_ino`) without consuming additional disk bytes.
@@ -59,7 +60,7 @@ On first run, `avicull` will offer to automatically download and initialize the 
 6. **Cross-Machine Portable Manifest & Durable User Overrides**:
    - The SQLite manifest—located at `<input>/.avicull/manifest.sqlite` (in-place mode) or `<output>/.avicull/manifest.sqlite` (hierarchy mode)—serves as a durable, self-contained record that travels with the archive.
    - When a photo directory or hierarchy tree is copied, rsynced, or mounted on another machine where inodes and absolute paths differ, `avicull organize` matches existing bundles by portable relative path and `(trip_folder, original_stem)` with 100% cache hits and zero redundant AI inferences.
-   - User classification corrections—made via `avicull correct`, manual Finder moves reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
+   - User classification corrections—made via `avicull correct` (supporting burst propagation `--burst` / `-b`, query disambiguation, and fuzzy species autocorrect), manual Finder folder moves in hierarchy mode, manual in-place filename renames reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
 7. **Self-Contained Offline HTML Photo Catalog**:
    - Both modes automatically produce a standalone offline `catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
 
@@ -219,7 +220,7 @@ python3 scripts/export_models.py --output-dir models/ --mock
 ## CLI Usage
 
 ### 1. `organize`: Full Pipeline Execution
-Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog.
+Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog. Automatically detects and reconciles previous manual user adjustments (Finder moves in hierarchy mode or manual filename renames in in-place mode) into permanent SQLite overrides before processing new files.
 
 #### Mode A: In-Place Descriptive File Renaming (Default)
 By default, `avicull organize` renames files in place within `--input` and generates `<input>/catalog.html`:
@@ -282,8 +283,11 @@ Key capabilities include:
 
 Correct a species classification or routing tier directly from the command line:
 ```bash
-# Correct a photo by original stem or filename (in either hierarchy or in-place mode)
+# Correct a single photo by stem or filename (in either hierarchy or in-place mode)
 avicull correct --input /Volumes/Photos/Leh --file "DSC_0042" --species "Painted Stork"
+
+# Propagate correction across all frames in the same burst (alias: -b, --propagate-burst)
+avicull correct --input /Volumes/Photos/Leh --file "DSC_0042" --species "Painted Stork" --burst
 
 # Disambiguate photos across multi-trip parent archives using relative paths:
 avicull correct --input /Volumes/Photos --file "Leh/DSC_0042.CR2" --species "Painted Stork"
@@ -296,11 +300,43 @@ Actions coordinated safely in lockstep:
 - Sanitizes the target species name (`Painted_Stork`) and assigns the appropriate routing tier (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
 - Updates `.avicull/manifest.sqlite` marking `is_user_override = 1` and `final_confidence = 1.0`.
 - In **hierarchy mode**: moves/relinks primary images, companions, and sidecars into `<output>/<Species>/`, updating operation records and automatically pruning empty directories.
-- In **in-place mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
+- In **in-place mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`, `.dop`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
 - Automatically regenerates `catalog.html` with updated counts and species tallies.
 
-#### Manual Disk Moves Are Auto-Reconciled (Hierarchy Mode)
-If you manually drag and drop a photo or burst in macOS Finder from `birds_hierarchy/_Needs_Review/Mallard/` to `birds_hierarchy/Northern_Pintail/` (or into `_No_Bird_Detected/`), running `avicull organize --mode hierarchy` automatically detects the move, reconciles the change into `.avicull/manifest.sqlite` as a durable user override, refreshes `catalog.html`, and locks it against automated reclassification.
+#### A. Burst Propagation (`--burst`, `-b`, `--propagate-burst`)
+Bird photography frequently produces high-speed bursts of 3 to 20+ consecutive frames capturing the same subject. Reclassifying photos frame-by-frame is tedious and error-prone.
+- **Single-Flag Propagation**: Passing `--burst` (or `-b`, `--propagate-burst`) reclassifies all frames in the burst that share the same `burst_id` within the trip. All primary images, companions, and sidecars are moved or renamed in lockstep and committed as durable overrides.
+- **Interactive Prompting**: If you run `avicull correct` in an interactive terminal on a photo that belongs to a multi-photo burst without passing `--burst`, `avicull` detects the burst and prompts:
+  ```text
+  Photo is part of a 4-photo burst (burst_20261025_140201). Reclassify entire burst? [y/N]:
+  ```
+  Entering `y` automatically applies the correction to all burst frames.
+
+#### B. Query Ambiguity Detection & Disambiguation
+When organizing a parent archive with multiple trip subdirectories (e.g. `avicull correct --input /Volumes/Photos --file "DSC_0001"`), identical camera filenames may exist across different trips (e.g. `Leh/DSC_0001.JPG` and `Bharatpur/DSC_0001.JPG`).
+- **Interactive Terminal**: `avicull` halts and presents a numbered selection menu with relative paths, trip names, capture dates, and current classifications:
+  ```text
+  Multiple photo bundles matched query 'DSC_0001':
+    [1] Leh/DSC_0001.JPG (trip: Leh, date: 2026-10-25 09:12:30, current: House_Sparrow)
+    [2] Bharatpur/DSC_0001.JPG (trip: Bharatpur, date: 2025-11-15 07:45:12, current: Painted_Stork)
+  Select bundle to reclassify [1-2]:
+  ```
+- **Non-Interactive / Scripted Environments**: Fails with an actionable error listing all candidate paths, asking you to pass an unambiguous relative path (e.g. `--file "Leh/DSC_0001.JPG"`).
+
+#### C. Fuzzy Species Autocorrect & Typo Suggestions
+When entering a species name, typos or informal common names may occur (e.g. `--species "House Sparow"` or `--species "Pintail Duck"`).
+- `avicull` compares the input against the official 11,167-species Cornell eBird taxonomy using fast character trigram similarity.
+- **Interactive Terminal**: If a close taxonomy match is found (similarity $\ge 0.60$), `avicull` prompts:
+  ```text
+  Species 'House Sparow' not found in eBird taxonomy. Did you mean 'House Sparrow'? [Y/n]:
+  ```
+  Pressing Enter or `Y` uses the canonical eBird taxonomy name; answering `n` preserves your custom name.
+- **Non-Interactive Mode**: Preserves your custom name without blocking, but logs an informative notice if an official eBird match exists.
+
+#### D. Automatic Filesystem Reconciliation (`avicull organize`)
+You are never locked into the CLI: manual adjustments made directly in macOS Finder or terminal are automatically recognized and reconciled on the next `avicull organize` run:
+- **In-Place Mode Manual Renames**: If you manually rename a primary image file (e.g. renaming `DSC_0042_Mallard.JPG` to `DSC_0042_Northern_Pintail.JPG`), `avicull organize` decomposes the filename, matches the original stem (`DSC_0042`), detects the user edit, promotes it to a durable SQLite override (`is_user_override = 1`, `final_confidence = 1.0`), and automatically renames any companion files and sidecars (`DSC_0042_Mallard.xmp` -> `DSC_0042_Northern_Pintail.xmp`, `.dop`) in lockstep.
+- **Hierarchy Mode Manual Directory Moves**: If you drag and drop a photo or burst in macOS Finder from `birds_hierarchy/_Needs_Review/Mallard/` to `birds_hierarchy/Northern_Pintail/` (or into `_No_Bird_Detected/`), running `avicull organize --mode hierarchy` automatically detects the move, reconciles the change into `.avicull/manifest.sqlite` as a durable user override, refreshes `catalog.html`, and locks it against automated reclassification.
 
 ### 4. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
 You can organize both a specific trip folder and the parent archive:
