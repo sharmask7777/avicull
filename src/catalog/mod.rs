@@ -1,6 +1,7 @@
 pub mod template;
 
 use crate::scanner::extract_embedded_jpeg_preview;
+use crate::storage::StorageBackend;
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction};
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -22,6 +23,7 @@ pub struct CatalogItem {
     pub companion_images: Vec<PathBuf>,
     pub sidecar_files: Vec<PathBuf>,
     pub relative_preview_path: Option<String>,
+    pub is_local: Option<bool>,
     pub assigned_species: String,
     pub scientific_name: Option<String>,
     pub routing_tier: RoutingTier,
@@ -33,6 +35,28 @@ pub struct CatalogItem {
 
 /// Backward and forward compatible alias so calling code can reference ClassifiedBundleItem.
 pub type ClassifiedBundleItem = CatalogItem;
+
+impl Default for CatalogItem {
+    fn default() -> Self {
+        Self {
+            bundle_id: String::new(),
+            original_stem: String::new(),
+            current_path: PathBuf::new(),
+            primary_image: PathBuf::new(),
+            companion_images: Vec::new(),
+            sidecar_files: Vec::new(),
+            relative_preview_path: None,
+            is_local: None,
+            assigned_species: String::new(),
+            scientific_name: None,
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            confidence: 0.0,
+            capture_date: None,
+            location_name: None,
+            top_predictions: Vec::new(),
+        }
+    }
+}
 
 impl CatalogItem {
     /// Creates a CatalogItem by combining an AssetBundle and its final BundleDecision.
@@ -67,6 +91,7 @@ impl CatalogItem {
             companion_images: companion_paths.unwrap_or_else(|| bundle.companion_images.clone()),
             sidecar_files: sidecar_paths.unwrap_or_else(|| bundle.sidecar_files.clone()),
             relative_preview_path: None,
+            is_local: None,
             assigned_species,
             scientific_name,
             routing_tier: decision.routing_tier,
@@ -108,6 +133,9 @@ pub struct CatalogPayloadItem {
     pub current_path: String,
     pub primary_filename: String,
     pub preview_url: String,
+    pub local_src: String,
+    pub thumb_src: String,
+    pub is_local: bool,
     pub assigned_species: String,
     pub scientific_name: Option<String>,
     pub routing_tier: String,
@@ -166,8 +194,23 @@ pub fn generate_html_catalog(
         }
 
         let preview_url = resolve_or_extract_preview(item, output_root);
+        let persistent_thumb = ensure_persistent_thumbnail(item, output_root);
+        let thumb_src = persistent_thumb
+            .unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
 
         let current_path_rel = to_relative_string(&item.current_path, output_root);
+        let local_src = current_path_rel.clone();
+        let is_local = item.is_local.unwrap_or_else(|| {
+            if item.current_path.exists() {
+                crate::storage::LocalVolumeBackend
+                    .inspect_locality(&item.current_path)
+                    .map(|loc| loc.pre_existing_local)
+                    .unwrap_or(true)
+            } else {
+                false
+            }
+        });
+
         let primary_filename = item
             .primary_image
             .file_name()
@@ -209,6 +252,9 @@ pub fn generate_html_catalog(
             current_path: current_path_rel,
             primary_filename,
             preview_url,
+            local_src,
+            thumb_src,
+            is_local,
             assigned_species: item.assigned_species.clone(),
             scientific_name: item.scientific_name.clone(),
             routing_tier: tier_str.to_string(),
@@ -269,6 +315,85 @@ pub fn generate_html_catalog(
         .with_context(|| format!("Failed to write catalog HTML to {:?}", output_path))?;
 
     Ok(())
+}
+
+/// Resolves or extracts preview thumbnail path for an item relative to output_root.
+pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Option<String> {
+    let previews_dir = output_root.join(".avicull").join("previews");
+    let preview_name = format!("{}.jpg", item.original_stem);
+    let target_file = previews_dir.join(&preview_name);
+
+    if target_file.exists() {
+        return Some(format!(".avicull/previews/{}", preview_name));
+    }
+
+    let active_primary = if item.current_path.exists() {
+        &item.current_path
+    } else {
+        &item.primary_image
+    };
+
+    let mut generated = false;
+
+    // A. If standalone camera RAW file: extract embedded JPEG preview thumbnail
+    if active_primary.exists() {
+        if let Ok(raw_bytes) = fs::read(active_primary) {
+            if let Some(preview_bytes) = extract_embedded_jpeg_preview(&raw_bytes) {
+                if fs::create_dir_all(&previews_dir).is_ok()
+                    && fs::write(&target_file, &preview_bytes).is_ok()
+                {
+                    generated = true;
+                }
+            }
+        }
+    }
+
+    // B. If not generated from RAW, try companion JPEG or readable web image
+    if !generated {
+        let candidate_img = if let Some(comp) = item.companion_images.first() {
+            if comp.exists() {
+                Some(comp.as_path())
+            } else {
+                None
+            }
+        } else if active_primary.exists() {
+            let is_web = active_primary
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp"))
+                .unwrap_or(false);
+            if is_web {
+                Some(active_primary.as_path())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(src) = candidate_img {
+            if let Ok(img) = image::open(src) {
+                let thumb = img.thumbnail(800, 800);
+                if fs::create_dir_all(&previews_dir).is_ok() {
+                    let mut buf = Vec::new();
+                    let mut cursor = std::io::Cursor::new(&mut buf);
+                    if thumb
+                        .write_to(&mut cursor, image::ImageFormat::Jpeg)
+                        .is_ok()
+                        && fs::write(&target_file, &buf).is_ok()
+                    {
+                        generated = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if generated || target_file.exists() {
+        Some(format!(".avicull/previews/{}", preview_name))
+    } else {
+        None
+    }
 }
 
 /// Resolves or extracts preview thumbnail path for an item relative to output_root.
