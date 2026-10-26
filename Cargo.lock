@@ -125,6 +125,7 @@ dependencies = [
  "clap",
  "image",
  "kamadak-exif",
+ "libc",
  "nom-exif",
  "proptest",
  "rayon",
