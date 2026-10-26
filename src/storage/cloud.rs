@@ -93,9 +93,13 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
         fn sel_registerName(name: *const libc::c_char) -> *mut libc::c_void;
     }
 
-    type MsgSendFn = unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void) -> *mut libc::c_void;
-    type MsgSend1Fn =
-        unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void, *mut libc::c_void) -> *mut libc::c_void;
+    type MsgSendFn =
+        unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void) -> *mut libc::c_void;
+    type MsgSend1Fn = unsafe extern "C" fn(
+        *mut libc::c_void,
+        *mut libc::c_void,
+        *mut libc::c_void,
+    ) -> *mut libc::c_void;
     type MsgSend2BoolFn = unsafe extern "C" fn(
         *mut libc::c_void,
         *mut libc::c_void,
@@ -103,7 +107,7 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
         *mut *mut libc::c_void,
     ) -> bool;
 
-    let objc_msgsend_sym = libc::dlsym(libc::RTLD_DEFAULT, b"objc_msgSend\0".as_ptr() as *const _);
+    let objc_msgsend_sym = libc::dlsym(libc::RTLD_DEFAULT, c"objc_msgSend".as_ptr() as *const _);
     if objc_msgsend_sym.is_null() {
         return Err(std::io::Error::other("objc_msgSend not found"));
     }
@@ -112,27 +116,27 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
     let objc_msg_send1: MsgSend1Fn = std::mem::transmute(objc_msgsend_sym);
     let objc_msg_send2_bool: MsgSend2BoolFn = std::mem::transmute(objc_msgsend_sym);
 
-    let ns_file_manager_class = objc_getClass(b"NSFileManager\0".as_ptr() as *const _);
+    let ns_file_manager_class = objc_getClass(c"NSFileManager".as_ptr() as *const _);
     if ns_file_manager_class.is_null() {
         return Err(std::io::Error::other("NSFileManager class not found"));
     }
-    let default_manager_sel = sel_registerName(b"defaultManager\0".as_ptr() as *const _);
+    let default_manager_sel = sel_registerName(c"defaultManager".as_ptr() as *const _);
     let file_manager = objc_msg_send(ns_file_manager_class, default_manager_sel);
     if file_manager.is_null() {
         return Err(std::io::Error::other("defaultManager returned null"));
     }
 
-    let ns_string_class = objc_getClass(b"NSString\0".as_ptr() as *const _);
-    let string_sel = sel_registerName(b"stringWithUTF8String:\0".as_ptr() as *const _);
+    let ns_string_class = objc_getClass(c"NSString".as_ptr() as *const _);
+    let string_sel = sel_registerName(c"stringWithUTF8String:".as_ptr() as *const _);
     let c_path = CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
     let ns_path = objc_msg_send1(ns_string_class, string_sel, c_path.as_ptr() as *mut _);
 
-    let ns_url_class = objc_getClass(b"NSURL\0".as_ptr() as *const _);
-    let url_sel = sel_registerName(b"fileURLWithPath:\0".as_ptr() as *const _);
+    let ns_url_class = objc_getClass(c"NSURL".as_ptr() as *const _);
+    let url_sel = sel_registerName(c"fileURLWithPath:".as_ptr() as *const _);
     let ns_url = objc_msg_send1(ns_url_class, url_sel, ns_path);
 
-    let evict_sel = sel_registerName(b"evictUbiquitousItemAtURL:error:\0".as_ptr() as *const _);
+    let evict_sel = sel_registerName(c"evictUbiquitousItemAtURL:error:".as_ptr() as *const _);
     let mut error: *mut libc::c_void = std::ptr::null_mut();
     let success = objc_msg_send2_bool(file_manager, evict_sel, ns_url, &mut error);
 
