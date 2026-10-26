@@ -161,6 +161,10 @@ struct OrganizeArgs {
     /// Run non-interactively without prompting
     #[arg(long, default_value_t = false)]
     no_prompt: bool,
+
+    /// Maximum cache size budget for chunked processing loop (default: 5GB)
+    #[arg(long, default_value = "5GB")]
+    max_cache_size: String,
 }
 
 #[derive(Args, Debug)]
@@ -706,6 +710,12 @@ fn main() -> Result<()> {
                     .build_global()
                     .ok();
             }
+
+            let storage_backend = avicull::storage::detect_storage_backend(&args.input);
+            avicull::organizer::validate_organization_mode_for_backend(
+                storage_backend.as_ref(),
+                args.mode,
+            )?;
 
             let is_inplace = matches!(
                 args.mode,
