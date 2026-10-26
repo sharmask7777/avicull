@@ -125,11 +125,28 @@ fn test_evict_and_rename_ordering() {
 #[test]
 fn test_extract_exif_metadata_skips_eager_read_on_dataless_files() {
     let temp = tempfile::tempdir().unwrap();
-    let dataless_file = temp.path().join("dataless_image.jpg");
-    std::fs::write(&dataless_file, b"placeholder").unwrap();
+    let sample_file = temp.path().join("sample_image.jpg");
+    std::fs::write(&sample_file, b"sample placeholder image payload").unwrap();
 
-    let is_dataless = avicull::geo::is_dataless_file(&dataless_file);
+    // Verify is_dataless_file reports false for standard local disk files
+    let is_dataless = avicull::geo::is_dataless_file(&sample_file);
     assert!(!is_dataless);
+
+    // Call extract_exif_metadata and verify it returns timestamp fallback from modified()
+    let (gps, timestamp) = avicull::geo::extract_exif_metadata(&sample_file);
+    assert!(gps.is_none(), "Payload has no EXIF GPS data");
+    assert!(
+        timestamp.is_some(),
+        "Modified mtime timestamp must be returned as fallback"
+    );
+
+    let meta = std::fs::symlink_metadata(&sample_file).unwrap();
+    let expected_mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64);
+    assert_eq!(timestamp, expected_mtime);
 }
 
 #[test]
@@ -139,5 +156,26 @@ fn test_cloud_backend_evict_uses_native_file_manager() {
     std::fs::write(&file, b"payload").unwrap();
 
     let backend = MacOSCloudStorageBackend::new();
-    let _ = backend.evict(&file);
+    let res = backend.evict(&file);
+
+    // On macOS, calling evict on a local APFS file outside of a ubiquitous container
+    // invokes NSFileManager.evictUbiquitousItemAtURL:error: which fails cleanly
+    // without dumping invalid CLI usage to stdout.
+    #[cfg(target_os = "macos")]
+    {
+        assert!(
+            res.is_err(),
+            "Non-ubiquitous file eviction should return an error"
+        );
+        let err_msg = res.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("NSFileManager evict returned false"),
+            "Error message should reflect NSFileManager: {err_msg}"
+        );
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        assert!(res.is_ok());
+    }
 }
