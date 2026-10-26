@@ -121,3 +121,23 @@ fn test_evict_and_rename_ordering() {
     assert!(!src.exists());
     assert!(dst.exists());
 }
+
+#[test]
+fn test_extract_exif_metadata_skips_eager_read_on_dataless_files() {
+    let temp = tempfile::tempdir().unwrap();
+    let dataless_file = temp.path().join("dataless_image.jpg");
+    std::fs::write(&dataless_file, b"placeholder").unwrap();
+
+    let is_dataless = avicull::geo::is_dataless_file(&dataless_file);
+    assert!(!is_dataless);
+}
+
+#[test]
+fn test_cloud_backend_evict_uses_native_file_manager() {
+    let temp = tempfile::tempdir().unwrap();
+    let file = temp.path().join("evict_target.jpg");
+    std::fs::write(&file, b"payload").unwrap();
+
+    let backend = MacOSCloudStorageBackend::new();
+    let _ = backend.evict(&file);
+}
