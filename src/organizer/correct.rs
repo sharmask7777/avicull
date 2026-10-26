@@ -8,12 +8,14 @@ use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
-/// Applies a direct manual classification correction for a single photo bundle.
+/// Applies a direct manual classification correction for a single photo bundle or burst.
 ///
 /// Updates the bundle's classification and routing tier in the SQLite manifest,
 /// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
 /// moves or renames all associated files (primary image, companions, and sidecars)
 /// according to the active organization mode, and regenerates `catalog.html`.
+/// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
+/// to the same burst are reclassified and relocated lockstep.
 pub fn apply_bundle_correction(
     db: &ManifestDb,
     operating_root: &Path,
@@ -21,7 +23,8 @@ pub fn apply_bundle_correction(
     file_query: &str,
     new_species: &str,
     input_root: Option<&Path>,
-) -> Result<(BundleDecision, AssetBundle)> {
+    propagate_burst: bool,
+) -> Result<Vec<(BundleDecision, AssetBundle)>> {
     let default_root = PathBuf::from(".");
     let operating_root = if operating_root.as_os_str().is_empty() {
         &default_root
@@ -45,7 +48,7 @@ pub fn apply_bundle_correction(
 
     // Filter all bundles matching the query by bundle ID, path, or filename/stem
     let mut matched_bundles: Vec<(BundleDecision, AssetBundle)> = all_bundles
-        .into_iter()
+        .iter()
         .filter(|(_, bundle)| {
             if bundle.bundle_id == clean_query {
                 return true;
@@ -127,9 +130,10 @@ pub fn apply_bundle_correction(
             }
             false
         })
+        .cloned()
         .collect();
 
-    let (decision, bundle) = match matched_bundles.len() {
+    let (target_dec, target_bundle) = match matched_bundles.len() {
         0 => {
             return Err(anyhow!(
                 "No photo bundle matching '{}' was found in manifest.",
@@ -198,6 +202,47 @@ pub fn apply_bundle_correction(
         }
     };
 
+    // Identify burst members if the bundle is part of a multi-frame burst
+    let burst_members: Vec<(BundleDecision, AssetBundle)> =
+        if let Some(ref b_id) = target_dec.burst_id {
+            all_bundles
+                .iter()
+                .filter(|(d, b)| {
+                    d.burst_id.as_deref() == Some(b_id)
+                        && b.trip_folder_name == target_bundle.trip_folder_name
+                })
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+    let mut should_propagate = propagate_burst;
+    if burst_members.len() > 1 && !should_propagate {
+        let is_interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+        if is_interactive {
+            let b_id = target_dec.burst_id.as_deref().unwrap_or("burst");
+            print!(
+                "\nPhoto is part of a {}-photo burst ({}). Reclassify entire burst? [y/N]: ",
+                burst_members.len(),
+                b_id
+            );
+            std::io::stdout().flush()?;
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            let trimmed = input.trim();
+            if trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes") {
+                should_propagate = true;
+            }
+        }
+    }
+
+    let bundles_to_update = if should_propagate && burst_members.len() > 1 {
+        burst_members
+    } else {
+        vec![(target_dec, target_bundle)]
+    };
+
     let (routing_tier, target_slug) =
         if new_species == "_No_Bird_Detected" || new_species == "NoBirdDetected" {
             (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
@@ -210,159 +255,176 @@ pub fn apply_bundle_correction(
             )
         };
 
-    db.update_bundle_override(&bundle.bundle_id, &target_slug, routing_tier, 1.0)?;
+    let target_dir = match routing_tier {
+        RoutingTier::ConfirmedSpecies => operating_root.join(&target_slug),
+        RoutingTier::NeedsReview => operating_root.join("_Needs_Review").join(&target_slug),
+        RoutingTier::NoBirdDetected => operating_root.join("_No_Bird_Detected"),
+    };
 
-    match mode {
-        OrganizationMode::HierarchicalHardlinkHierarchy => {
-            let target_dir = match routing_tier {
-                RoutingTier::ConfirmedSpecies => operating_root.join(&target_slug),
-                RoutingTier::NeedsReview => operating_root.join("_Needs_Review").join(&target_slug),
-                RoutingTier::NoBirdDetected => operating_root.join("_No_Bird_Detected"),
-            };
+    if mode == OrganizationMode::HierarchicalHardlinkHierarchy && operating_root.exists() {
+        fs::create_dir_all(&target_dir).with_context(|| {
+            format!(
+                "Failed to create target directory: {}",
+                target_dir.display()
+            )
+        })?;
+    }
 
-            if operating_root.exists() {
-                fs::create_dir_all(&target_dir).with_context(|| {
-                    format!(
-                        "Failed to create target directory: {}",
-                        target_dir.display()
-                    )
-                })?;
+    let mut results = Vec::with_capacity(bundles_to_update.len());
+    let mut old_dirs_to_prune = std::collections::HashSet::new();
 
-                let ops = db.get_bundle_operations(&bundle.bundle_id)?;
-                let mut moved_any = false;
-                let mut old_dirs_to_prune = std::collections::HashSet::new();
+    for (decision, bundle) in bundles_to_update {
+        db.update_bundle_override(&bundle.bundle_id, &target_slug, routing_tier, 1.0)?;
 
-                for op in ops {
-                    if op.operation_type == "hardlink" && op.status == "linked" {
-                        let current_dest = &op.dest_path;
-                        if let Some(fname) = current_dest.file_name() {
-                            let new_dest = target_dir.join(fname);
-                            if current_dest.exists() {
-                                if *current_dest != new_dest {
-                                    if let Some(parent) = current_dest.parent() {
-                                        old_dirs_to_prune.insert(parent.to_path_buf());
+        match mode {
+            OrganizationMode::HierarchicalHardlinkHierarchy => {
+                if operating_root.exists() {
+                    let ops = db.get_bundle_operations(&bundle.bundle_id)?;
+                    let mut moved_any = false;
+
+                    for op in ops {
+                        if op.operation_type == "hardlink" && op.status == "linked" {
+                            let current_dest = &op.dest_path;
+                            if let Some(fname) = current_dest.file_name() {
+                                let new_dest = target_dir.join(fname);
+                                if current_dest.exists() {
+                                    if *current_dest != new_dest {
+                                        if let Some(parent) = current_dest.parent() {
+                                            old_dirs_to_prune.insert(parent.to_path_buf());
+                                        }
+                                        fs::rename(current_dest, &new_dest).with_context(|| {
+                                            format!(
+                                                "Failed to move hard link from '{}' to '{}'",
+                                                current_dest.display(),
+                                                new_dest.display()
+                                            )
+                                        })?;
+                                        db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
+                                        moved_any = true;
                                     }
-                                    fs::rename(current_dest, &new_dest).with_context(|| {
-                                        format!(
-                                            "Failed to move hard link from '{}' to '{}'",
-                                            current_dest.display(),
-                                            new_dest.display()
-                                        )
-                                    })?;
+                                } else if op.source_path.exists() && !new_dest.exists() {
+                                    fs::hard_link(&op.source_path, &new_dest).with_context(
+                                        || {
+                                            format!(
+                                                "Failed to hardlink from '{}' to '{}'",
+                                                op.source_path.display(),
+                                                new_dest.display()
+                                            )
+                                        },
+                                    )?;
                                     db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
                                     moved_any = true;
                                 }
-                            } else if op.source_path.exists() && !new_dest.exists() {
-                                fs::hard_link(&op.source_path, &new_dest).with_context(|| {
-                                    format!(
-                                        "Failed to hardlink from '{}' to '{}'",
-                                        op.source_path.display(),
-                                        new_dest.display()
-                                    )
-                                })?;
-                                db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
-                                moved_any = true;
+                            }
+                        }
+                    }
+
+                    if !moved_any {
+                        let mut new_dec = decision.clone();
+                        new_dec.assigned_species_slug = target_slug.clone();
+                        new_dec.routing_tier = routing_tier;
+                        new_dec.final_confidence = 1.0;
+                        new_dec.is_user_override = true;
+
+                        let latest_run = db
+                            .get_latest_run_id()?
+                            .unwrap_or_else(|| "run-manual".to_string());
+                        let materialized = materialize_bundle_hardlinks(
+                            &bundle,
+                            &new_dec,
+                            operating_root,
+                            &latest_run,
+                            false,
+                        )?;
+                        db.record_hardlink_operations(&materialized)?;
+                    }
+                }
+            }
+
+            OrganizationMode::InPlaceFileRenameToDescriptiveNames => {
+                let ops = db.get_bundle_operations(&bundle.bundle_id)?;
+                let mut current_primary = bundle.primary_image.clone();
+                for op in &ops {
+                    if op.operation_type == "in_place_rename"
+                        && op.status == "renamed"
+                        && op.dest_path.exists()
+                    {
+                        if let Some(src_fname) = op.source_path.file_name() {
+                            if bundle.primary_image.file_name() == Some(src_fname) {
+                                current_primary = op.dest_path.clone();
                             }
                         }
                     }
                 }
 
-                if !moved_any {
-                    let mut new_dec = decision.clone();
-                    new_dec.assigned_species_slug = target_slug.clone();
-                    new_dec.routing_tier = routing_tier;
-                    new_dec.final_confidence = 1.0;
-                    new_dec.is_user_override = true;
+                let mut current_bundle = bundle.clone();
+                current_bundle.primary_image = current_primary;
 
-                    let latest_run = db
-                        .get_latest_run_id()?
-                        .unwrap_or_else(|| "run-manual".to_string());
-                    let materialized = materialize_bundle_hardlinks(
-                        &bundle,
-                        &new_dec,
-                        operating_root,
-                        &latest_run,
-                        false,
-                    )?;
-                    db.record_hardlink_operations(&materialized)?;
-                }
-
-                for old_dir in old_dirs_to_prune {
-                    if old_dir != operating_root && old_dir.exists() {
-                        let is_empty = fs::read_dir(&old_dir)
-                            .map(|mut i| i.next().is_none())
-                            .unwrap_or(false);
-                        if is_empty {
-                            let _ = fs::remove_dir(&old_dir);
+                let mut new_comps = Vec::new();
+                for comp in &bundle.companion_images {
+                    let mut resolved = comp.clone();
+                    for op in &ops {
+                        if op.source_path == *comp && op.dest_path.exists() {
+                            resolved = op.dest_path.clone();
                         }
                     }
+                    new_comps.push(resolved);
+                }
+                current_bundle.companion_images = new_comps;
+
+                let mut new_scs = Vec::new();
+                for sc in &bundle.sidecar_files {
+                    let mut resolved = sc.clone();
+                    for op in &ops {
+                        if op.source_path == *sc && op.dest_path.exists() {
+                            resolved = op.dest_path.clone();
+                        }
+                    }
+                    new_scs.push(resolved);
+                }
+                current_bundle.sidecar_files = new_scs;
+
+                let date = bundle.capture_timestamp_ms.and_then(|ms| {
+                    chrono::DateTime::from_timestamp_millis(ms)
+                        .map(|dt| dt.format("%Y%m%d").to_string())
+                });
+                let loc = bundle.resolved_location_name.as_deref();
+
+                let new_stem = format_inplace_filename(
+                    &bundle.original_stem,
+                    &target_slug,
+                    date.as_deref(),
+                    loc,
+                    "",
+                );
+
+                let renames = execute_inplace_bundle_rename_with_stem(&current_bundle, &new_stem)?;
+                let latest_run = db
+                    .get_latest_run_id()?
+                    .unwrap_or_else(|| "run-manual".to_string());
+                for (old_path, new_path) in renames {
+                    db.record_inplace_rename(&latest_run, &old_path, &new_path)?;
                 }
             }
         }
 
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames => {
-            let ops = db.get_bundle_operations(&bundle.bundle_id)?;
-            let mut current_primary = bundle.primary_image.clone();
-            for op in &ops {
-                if op.operation_type == "in_place_rename"
-                    && op.status == "renamed"
-                    && op.dest_path.exists()
-                {
-                    if let Some(src_fname) = op.source_path.file_name() {
-                        if bundle.primary_image.file_name() == Some(src_fname) {
-                            current_primary = op.dest_path.clone();
-                        }
-                    }
+        let mut updated_dec = decision;
+        updated_dec.assigned_species_slug = target_slug.clone();
+        updated_dec.routing_tier = routing_tier;
+        updated_dec.final_confidence = 1.0;
+        updated_dec.is_user_override = true;
+        results.push((updated_dec, bundle));
+    }
+
+    if mode == OrganizationMode::HierarchicalHardlinkHierarchy && operating_root.exists() {
+        for old_dir in old_dirs_to_prune {
+            if old_dir != operating_root && old_dir.exists() {
+                let is_empty = fs::read_dir(&old_dir)
+                    .map(|mut i| i.next().is_none())
+                    .unwrap_or(false);
+                if is_empty {
+                    let _ = fs::remove_dir(&old_dir);
                 }
-            }
-
-            let mut current_bundle = bundle.clone();
-            current_bundle.primary_image = current_primary;
-
-            let mut new_comps = Vec::new();
-            for comp in &bundle.companion_images {
-                let mut resolved = comp.clone();
-                for op in &ops {
-                    if op.source_path == *comp && op.dest_path.exists() {
-                        resolved = op.dest_path.clone();
-                    }
-                }
-                new_comps.push(resolved);
-            }
-            current_bundle.companion_images = new_comps;
-
-            let mut new_scs = Vec::new();
-            for sc in &bundle.sidecar_files {
-                let mut resolved = sc.clone();
-                for op in &ops {
-                    if op.source_path == *sc && op.dest_path.exists() {
-                        resolved = op.dest_path.clone();
-                    }
-                }
-                new_scs.push(resolved);
-            }
-            current_bundle.sidecar_files = new_scs;
-
-            let date = bundle.capture_timestamp_ms.and_then(|ms| {
-                chrono::DateTime::from_timestamp_millis(ms)
-                    .map(|dt| dt.format("%Y%m%d").to_string())
-            });
-            let loc = bundle.resolved_location_name.as_deref();
-
-            let new_stem = format_inplace_filename(
-                &bundle.original_stem,
-                &target_slug,
-                date.as_deref(),
-                loc,
-                "",
-            );
-
-            let renames = execute_inplace_bundle_rename_with_stem(&current_bundle, &new_stem)?;
-            let latest_run = db
-                .get_latest_run_id()?
-                .unwrap_or_else(|| "run-manual".to_string());
-            for (old_path, new_path) in renames {
-                db.record_inplace_rename(&latest_run, &old_path, &new_path)?;
             }
         }
     }
@@ -437,11 +499,5 @@ pub fn apply_bundle_correction(
         let _ = generate_html_catalog(trip_name, &catalog_items, mode, &catalog_path);
     }
 
-    let mut updated_dec = decision;
-    updated_dec.assigned_species_slug = target_slug;
-    updated_dec.routing_tier = routing_tier;
-    updated_dec.final_confidence = 1.0;
-    updated_dec.is_user_override = true;
-
-    Ok((updated_dec, bundle))
+    Ok(results)
 }
