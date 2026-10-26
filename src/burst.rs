@@ -184,6 +184,7 @@ pub fn smooth_burst_consensus(
                     final_confidence: final_conf,
                     assigned_species_slug: assigned_slug.clone(),
                     routing_tier,
+                    is_user_override: false,
                 });
             }
         }

@@ -22,6 +22,7 @@ fn test_geo_sibling_propagation() {
             source: LocationSource::ExifGps,
         }),
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let b2 = AssetBundle {
@@ -35,6 +36,7 @@ fn test_geo_sibling_propagation() {
         capture_timestamp_ms: None,
         gps_coords: None, // Missing GPS!
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let mut bundles = vec![b1, b2];
@@ -78,6 +80,7 @@ lon = 76.6563
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let mut bundles = vec![b1];
@@ -104,6 +107,7 @@ fn test_geo_embedded_gazetteer_fallback() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let mut bundles = vec![b1];
@@ -129,6 +133,7 @@ fn test_geo_default_fallback_coordinates() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let mut bundles = vec![b1];

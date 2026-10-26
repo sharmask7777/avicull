@@ -14,6 +14,8 @@ pub struct AssetBundle {
     pub gps_coords: Option<GpsCoordinate>,
     #[serde(default)]
     pub resolved_location_name: Option<String>,
+    #[serde(default)]
+    pub relative_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -53,6 +55,8 @@ pub struct BundleDecision {
     pub final_confidence: f32,                   // Score written to hard-linked filename
     pub assigned_species_slug: String,
     pub routing_tier: RoutingTier,
+    #[serde(default)]
+    pub is_user_override: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

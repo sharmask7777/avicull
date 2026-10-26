@@ -185,6 +185,7 @@ fn test_mock_pipeline_hardware_exif_gps_preservation() {
             source: LocationSource::ExifGps,
         }),
         resolved_location_name: None,
+        relative_path: None,
     };
 
     // Simulate main.rs preservation logic

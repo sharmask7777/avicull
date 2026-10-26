@@ -41,6 +41,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         final_confidence: 0.95,
         assigned_species_slug: "Tibetan_Snowcock".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     let db_leh_path = leh_hierarchy.join(".avicull/manifest.sqlite");
@@ -94,6 +95,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         final_confidence: 0.95,
         assigned_species_slug: "Tibetan_Snowcock".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     let db_parent_path = parent_hierarchy.join(".avicull/manifest.sqlite");
@@ -172,6 +174,7 @@ fn test_incremental_auto_detection_of_newer_files() {
             final_confidence: 0.90,
             assigned_species_slug: "Painted_Stork".to_string(),
             routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
         })
         .collect();
 
@@ -214,6 +217,7 @@ fn test_incremental_auto_detection_of_newer_files() {
         final_confidence: 0.92,
         assigned_species_slug: "Painted_Stork".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     db.record_run("run-2", &input, &output, false, "{}")
@@ -268,6 +272,7 @@ fn test_inplace_mode_sqlite_cache_hit_by_inode_on_subsequent_runs() {
         final_confidence: 0.95,
         assigned_species_slug: "House_Sparrow".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     db.record_run("run-1", &input, &input, false, "{}").unwrap();
@@ -288,7 +293,7 @@ fn test_inplace_mode_sqlite_cache_hit_by_inode_on_subsequent_runs() {
     let cached_cache = db.get_existing_bundle_map().unwrap();
 
     // by_id lookup will miss because the bundle path (and thus bundle_id) changed
-    assert!(cached_cache.by_id.get(&bundles_v2[0].bundle_id).is_none());
+    assert!(!cached_cache.by_id.contains_key(&bundles_v2[0].bundle_id));
 
     // by_inode lookup must hit and retrieve the cached decision!
     let cached_hit = cached_cache
@@ -329,6 +334,7 @@ fn test_no_bird_detected_routes_to_special_tier_folder() {
         final_confidence: 0.05,
         assigned_species_slug: "Unknown_Bird".to_string(),
         routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
     };
 
     let target_dir = compute_target_dir(&output, &decision);
@@ -370,6 +376,7 @@ fn test_force_recomputation_bypasses_cache() {
         final_confidence: 0.90,
         assigned_species_slug: "Old_Species".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
     db.record_run("run-1", &input, &output, false, "{}")
         .unwrap();

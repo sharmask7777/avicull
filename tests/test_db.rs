@@ -1,6 +1,6 @@
 use avicull::db::*;
 use avicull::types::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 #[test]
@@ -13,8 +13,8 @@ fn test_db_lifecycle_record_and_query() {
     let run_id = "run-001";
     db.record_run(
         run_id,
-        &PathBuf::from("/photos/Trips"),
-        &PathBuf::from("/photos/By_Species"),
+        Path::new("/photos/Trips"),
+        Path::new("/photos/By_Species"),
         false,
         "{}",
     )
@@ -35,6 +35,7 @@ fn test_db_lifecycle_record_and_query() {
             source: LocationSource::ExifGps,
         }),
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -55,6 +56,7 @@ fn test_db_lifecycle_record_and_query() {
         final_confidence: 0.96,
         assigned_species_slug: "Painted_Stork".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     db.record_bundles(
@@ -105,8 +107,8 @@ fn test_update_bundle_routing_tier() {
     let run_id = "run-002";
     db.record_run(
         run_id,
-        &PathBuf::from("/photos/Trips"),
-        &PathBuf::from("/photos/By_Species"),
+        Path::new("/photos/Trips"),
+        Path::new("/photos/By_Species"),
         false,
         "{}",
     )
@@ -123,6 +125,7 @@ fn test_update_bundle_routing_tier() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -135,6 +138,7 @@ fn test_update_bundle_routing_tier() {
         final_confidence: 0.60,
         assigned_species_slug: "Common_Merganser".to_string(),
         routing_tier: RoutingTier::NeedsReview, // Initially NeedsReview
+        is_user_override: false,
     };
 
     db.record_bundles(run_id, &[decision], &[bundle]).unwrap();
@@ -149,4 +153,59 @@ fn test_update_bundle_routing_tier() {
 
     let updated = db.get_all_bundles(Some(run_id)).unwrap();
     assert_eq!(updated[0].0.routing_tier, RoutingTier::ConfirmedSpecies);
+}
+
+fn dummy_bundle() -> AssetBundle {
+    AssetBundle {
+        bundle_id: "b_test_1".to_string(),
+        source_inode: 12345,
+        trip_folder_name: "TripA".to_string(),
+        original_stem: "DSC_0001".to_string(),
+        primary_image: PathBuf::from("/input/TripA/DSC_0001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: Some(1730000000000),
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: None,
+    }
+}
+
+fn dummy_decision() -> BundleDecision {
+    BundleDecision {
+        bundle_id: "b_test_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "Passer_domesticus".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    }
+}
+
+#[test]
+fn test_manifest_db_portable_bundle_lookup_and_override() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let mut bundle = dummy_bundle();
+    bundle.relative_path = Some(PathBuf::from("TripA/DSC_0001.JPG"));
+    let mut decision = dummy_decision();
+    decision.is_user_override = true;
+
+    db.record_run("run_1", "/input", "/output", false, "{}")
+        .unwrap();
+    db.record_bundle("run_1", &bundle, &decision).unwrap();
+
+    let map = db.get_existing_bundle_map().unwrap();
+    // Inode changed (e.g. simulated different machine)
+    bundle.source_inode = 999999;
+    let found = map.get_by_bundle(&bundle);
+    assert!(found.is_some());
+    assert!(found.unwrap().0.is_user_override);
+    assert!(map.get_by_portable_key("TripA", "DSC_0001").is_some());
 }

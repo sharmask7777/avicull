@@ -296,6 +296,11 @@ pub fn scan_input_tree_with_skip(
             .to_hex()
             .to_string();
         let source_inode = meta.ino();
+        let relative_path = primary_image
+            .strip_prefix(&can_input)
+            .or_else(|_| can_primary.strip_prefix(&can_input))
+            .ok()
+            .map(|p| p.to_path_buf());
 
         bundles.push(AssetBundle {
             bundle_id,
@@ -308,6 +313,7 @@ pub fn scan_input_tree_with_skip(
             capture_timestamp_ms: None,
             gps_coords: None,
             resolved_location_name: None,
+            relative_path,
         });
     }
 

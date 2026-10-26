@@ -84,6 +84,7 @@ fn test_cli_e2e_full_lifecycle() {
             } else {
                 RoutingTier::NeedsReview
             },
+            is_user_override: false,
         });
     }
 
