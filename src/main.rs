@@ -777,6 +777,28 @@ fn main() -> Result<()> {
             let total_chunks = chunks.len();
 
             let mut new_classified = std::collections::HashMap::new();
+            let mut total_space_saved_bytes = 0u64;
+            let mut bundle_dataless_map: std::collections::HashMap<String, bool> =
+                std::collections::HashMap::new();
+            let mut failed_bundle_ids = Vec::new();
+
+            let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
+            let mode_str = match args.mode {
+                OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in_place",
+                OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
+            };
+            let config_json = serde_json::to_string(&serde_json::json!({
+                "mode": mode_str,
+                "min_confidence": args.min_confidence,
+                "confidence_mode": args.confidence_mode,
+            }))?;
+            db.record_run(
+                &run_id,
+                &args.input,
+                &operating_root,
+                args.dry_run,
+                &config_json,
+            )?;
 
             for (chunk_idx, chunk) in chunks.into_iter().enumerate() {
                 println!(
@@ -787,22 +809,46 @@ fn main() -> Result<()> {
                     args.max_cache_size
                 );
 
-                // Materialize dataless cloud files and record locality for later eviction
-                let mut localities = Vec::with_capacity(chunk.len());
-                for bundle in &chunk {
-                    let loc = storage_backend
-                        .inspect_locality(&bundle.primary_image)
-                        .unwrap_or(avicull::storage::FileLocality {
-                            is_dataless: false,
-                            pre_existing_local: true,
-                            file_size_bytes: 0,
-                        });
-                    let _ = storage_backend.materialize(&bundle.primary_image);
-                    localities.push(loc);
+                // Materialize dataless cloud files with retry resilience and record locality for later eviction
+                let outcome = avicull::organizer::materialize_chunk_with_retry(
+                    &chunk,
+                    storage_backend.as_ref(),
+                    &db,
+                    &run_id,
+                    std::time::Duration::from_millis(1500),
+                );
+
+                total_space_saved_bytes += outcome.space_saved_bytes;
+                for (b, was_dl) in outcome
+                    .successful_bundles
+                    .iter()
+                    .zip(outcome.was_dataless_flags.iter())
+                {
+                    bundle_dataless_map.insert(b.bundle_id.clone(), *was_dl);
+                }
+                failed_bundle_ids.extend(outcome.failed_bundle_ids);
+
+                let processable_chunk = outcome.successful_bundles;
+                if processable_chunk.is_empty() {
+                    continue;
                 }
 
+                // Inspect locality for eviction after classification
+                let localities: Vec<_> = processable_chunk
+                    .iter()
+                    .map(|b| {
+                        storage_backend
+                            .inspect_locality(&b.primary_image)
+                            .unwrap_or(avicull::storage::FileLocality {
+                                is_dataless: false,
+                                pre_existing_local: true,
+                                file_size_bytes: 0,
+                            })
+                    })
+                    .collect();
+
                 // Run classification on chunk
-                let chunk_refs: Vec<&AssetBundle> = chunk.iter().collect();
+                let chunk_refs: Vec<&AssetBundle> = processable_chunk.iter().collect();
                 let chunk_classified = if let Some(ref m_dir) = models_dir {
                     if m_dir.join("species_embeddings.safetensors").exists()
                         && Path::new("scripts/infer.py").exists()
@@ -853,7 +899,7 @@ fn main() -> Result<()> {
 
                 // Extract embedded preview for RAW formats if companion missing
                 let previews_dir = operating_root.join(".avicull").join("previews");
-                for bundle in &chunk {
+                for bundle in &processable_chunk {
                     let is_web = bundle
                         .primary_image
                         .extension()
@@ -879,16 +925,22 @@ fn main() -> Result<()> {
                 }
 
                 // Evict downloaded cloud files for this chunk to honor max cache budget
-                for (bundle, loc) in chunk.iter().zip(localities.iter()) {
+                for (bundle, loc) in processable_chunk.iter().zip(localities.iter()) {
                     let _ = storage_backend.evict_if_downloaded(&bundle.primary_image, loc);
                 }
 
                 new_classified.extend(chunk_classified);
             }
 
-            // Assemble all classified items in all_discovered order
-            let mut all_classified_items = Vec::with_capacity(all_discovered.len());
-            for bundle in &all_discovered {
+            // Filter all_discovered to exclude any bundles that failed to download
+            let processable_discovered: Vec<AssetBundle> = all_discovered
+                .into_iter()
+                .filter(|b| !failed_bundle_ids.contains(&b.bundle_id))
+                .collect();
+
+            // Assemble all classified items in processable_discovered order
+            let mut all_classified_items = Vec::with_capacity(processable_discovered.len());
+            for bundle in &processable_discovered {
                 if let Some(item) = new_classified.get(&bundle.bundle_id) {
                     all_classified_items.push(item.clone());
                 } else if let Some(item) = cached_items.get(&bundle.bundle_id) {
@@ -906,7 +958,7 @@ fn main() -> Result<()> {
             );
 
             // Preserve user manual overrides across burst consensus and re-runs
-            for (bundle, decision) in all_discovered.iter().zip(decisions.iter_mut()) {
+            for (bundle, decision) in processable_discovered.iter().zip(decisions.iter_mut()) {
                 if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
                     if existing_dec.is_user_override {
                         decision.assigned_species_slug = existing_dec.assigned_species_slug.clone();
@@ -917,26 +969,23 @@ fn main() -> Result<()> {
                 }
             }
 
-            let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
-            let mode_str = match args.mode {
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in_place",
-                OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
-            };
-            let config_json = serde_json::to_string(&serde_json::json!({
-                "mode": mode_str,
-                "min_confidence": args.min_confidence,
-                "confidence_mode": args.confidence_mode,
-            }))?;
-            db.record_run(
+            let was_dataless_flags: Vec<bool> = processable_discovered
+                .iter()
+                .map(|b| {
+                    bundle_dataless_map
+                        .get(&b.bundle_id)
+                        .copied()
+                        .unwrap_or(false)
+                })
+                .collect();
+            db.record_bundles_with_locality(
                 &run_id,
-                &args.input,
-                &operating_root,
-                args.dry_run,
-                &config_json,
+                &decisions,
+                &processable_discovered,
+                &was_dataless_flags,
             )?;
-            db.record_bundles(&run_id, &decisions, &all_discovered)?;
 
-            let mut catalog_items = Vec::with_capacity(all_discovered.len());
+            let mut catalog_items = Vec::with_capacity(processable_discovered.len());
             let mut total_ops_count = 0usize;
 
             if is_inplace {
@@ -944,7 +993,7 @@ fn main() -> Result<()> {
                     "Executing in-place file renames (dry_run: {})...",
                     args.dry_run
                 );
-                for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
+                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter()) {
                     let renames = if decision.routing_tier == RoutingTier::NoBirdDetected {
                         // Bundles where no bird is detected are preserved in-place without renaming.
                         Vec::new()
@@ -1005,7 +1054,7 @@ fn main() -> Result<()> {
             } else {
                 println!("Materializing hard links (dry_run: {})...", args.dry_run);
                 let mut total_ops = Vec::new();
-                for (bundle, decision) in all_discovered.iter().zip(decisions.iter()) {
+                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter()) {
                     let ops = materialize_bundle_hardlinks(
                         bundle,
                         decision,
@@ -1083,6 +1132,29 @@ fn main() -> Result<()> {
                 "✓ Done! Confirmed: {}, Needs Review: {}, No Bird: {}. Operations: {}",
                 confirmed, review, no_bird, total_ops_count
             );
+
+            // Summary reporting for processed photos and selective eviction savings
+            let processed_count = processable_discovered.len();
+            let pending_count = failed_bundle_ids.len();
+            let space_saved_gb = total_space_saved_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+
+            if pending_count > 0 || total_space_saved_bytes > 0 {
+                println!(
+                    "Organization complete: {} photos processed, {} pending retry.",
+                    processed_count, pending_count
+                );
+                println!(
+                    "Disk space saved via selective eviction: {:.1} GB.",
+                    space_saved_gb
+                );
+                if pending_count > 0 {
+                    println!(
+                        "Note: {} photos encountered download timeouts. Re-run 'avicull organize --input \"{}\"' to process pending photos.",
+                        pending_count,
+                        args.input.display()
+                    );
+                }
+            }
         }
 
         Commands::Relink(args) => {
