@@ -103,10 +103,44 @@ Many portable SSDs (SanDisk Extreme, Samsung T7, Crucial X9) and camera SD cards
 
 ## Space-Efficient Cloud Storage & Network Share Processing
 
-Photographers frequently store massive RAW photo libraries on cloud storage services or Network Attached Storage (NAS). `avicull` includes native, first-class support for cloud sync providers and network filesystems with zero data loss and strict local disk budget caps.
+Photographers frequently store massive RAW photo libraries on cloud storage services (Google Drive, Proton Drive, Microsoft OneDrive, Dropbox, iCloud) or Network Attached Storage (NAS/SMB/NFS). 
+
+### You Don't Need Your Photos Downloaded Locally!
+> [!IMPORTANT]
+> **Zero Local Disk Space Required Up Front**: Your cloud photos do **not** need to be downloaded or kept offline on your Mac before running `avicull`.
+> - `avicull` processes your photos in **small, automatic batches** (default: `5GB` at a time).
+> - For each batch, `avicull` automatically pulls only the photos it needs to read, extracts a tiny permanent thumbnail for your catalog, classifies the bird species, renames the file directly in your cloud drive, and **immediately frees up the local space** (evicting the file back to cloud-only) before moving to the next batch.
+> - **Pre-existing local files remain untouched**: If you already marked certain favorite photos as "Keep Offline" or downloaded them previously, `avicull` detects this and will **never** delete or evict them.
+
+---
+
+### Step-by-Step: How to Find Your Cloud or Network Folder Path (No Technical Knowledge Needed)
+
+If you are not comfortable using terminal paths, macOS provides two effortless ways to get the exact path to your photos:
+
+#### Method 1: Drag-and-Drop from Finder (Easiest)
+1. Open **Terminal** on your Mac.
+2. Type `avicull organize --input ` (be sure to include the space after `--input`).
+3. Open **Finder** and locate your photo folder inside **Google Drive**, **Proton Drive**, **OneDrive**, **Dropbox**, **iCloud Drive**, or your connected **Network Share**.
+4. **Drag and drop** that folder directly into your Terminal window.
+   - macOS will automatically type out the full, correct path for you (including all necessary quotes and spaces)!
+5. Press **Enter**. That's it!
+
+#### Method 2: Copy Pathname in Finder
+1. Open **Finder** and navigate to your cloud or network photos folder.
+2. Right-click (or hold `Control` and click) on the folder.
+3. Hold down the **Option (⌥)** key on your keyboard.
+   - Notice that *"Copy [Folder Name]"* changes into **"Copy \"[Folder Name]\" as Pathname"**!
+4. Click **"Copy \"...\" as Pathname"**.
+5. Switch to Terminal, type `avicull organize --input "`, press `Cmd + V` to paste, add a closing quote `"`, and press **Enter**:
+   ```bash
+   avicull organize --input "/Users/yourname/Library/CloudStorage/GoogleDrive-you@gmail.com/My Drive/Bird_Photos"
+   ```
+
+---
 
 ### Supported Platforms & Mounts
-`avicull` automatically detects the underlying storage backend:
+`avicull` automatically detects where your photos live without requiring any special flags or setup:
 - **Cloud Storage (Apple FileProvider / CloudStorage)**:
   - Google Drive (`~/Library/CloudStorage/GoogleDrive-*`)
   - Proton Drive (`~/Library/CloudStorage/ProtonDrive-*`)
