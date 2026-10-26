@@ -5,6 +5,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
+use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
@@ -355,4 +356,121 @@ fn test_reconcile_stem_matching_when_inode_differs() {
     assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
+}
+
+#[test]
+fn test_reconcile_inplace_manual_filename_rename() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("photos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let orig_photo = input_dir.join("DSC_0001.JPG");
+    let orig_xmp = input_dir.join("DSC_0001.xmp");
+    let initial_photo = input_dir.join("DSC_0001_Mallard.JPG");
+    let initial_sidecar = input_dir.join("DSC_0001_Mallard.xmp");
+
+    {
+        let mut f1 = File::create(&initial_photo).unwrap();
+        f1.write_all(b"fake image bytes").unwrap();
+        let mut f2 = File::create(&initial_sidecar).unwrap();
+        f2.write_all(b"<x:xmpmeta/>").unwrap();
+    }
+
+    let src_ino = fs::metadata(&initial_photo).unwrap().ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "DSC_0001_bundle".to_string(),
+        primary_image: orig_photo.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![orig_xmp.clone()],
+        source_inode: src_ino,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        original_stem: "DSC_0001".to_string(),
+        trip_folder_name: "photos".to_string(),
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0001.JPG")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "DSC_0001_bundle".to_string(),
+        burst_id: None,
+        detection_confidence: 0.90,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.85,
+        final_confidence: 0.85,
+        assigned_species_slug: "Mallard".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    let run_id = "run-001";
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    db.record_run(run_id, &input_dir, &input_dir, false, "{}")
+        .unwrap();
+    db.record_bundles(
+        run_id,
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+    )
+    .unwrap();
+    db.record_inplace_rename(run_id, &orig_photo, &initial_photo)
+        .unwrap();
+    db.record_inplace_rename(run_id, &orig_xmp, &initial_sidecar)
+        .unwrap();
+    db.complete_run(run_id).unwrap();
+
+    assert!(initial_photo.exists());
+    assert!(initial_sidecar.exists());
+
+    // User manually renames primary image from Mallard to Northern_Pintail
+    let moved_photo = input_dir.join("DSC_0001_Northern_Pintail.JPG");
+    fs::rename(&initial_photo, &moved_photo).unwrap();
+
+    // Re-run organize in in-place mode
+    let status = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--no-prompt",
+        ])
+        .status()
+        .expect("run avicull organize in-place");
+    assert!(status.success());
+
+    // Primary photo with new name should exist
+    assert!(moved_photo.exists(), "Moved primary photo must exist");
+    assert!(!initial_photo.exists(), "Old primary photo must not exist");
+
+    // Companion sidecar should be automatically renamed to match
+    let expected_sidecar = input_dir.join("DSC_0001_Northern_Pintail.xmp");
+    assert!(
+        expected_sidecar.exists(),
+        "Sidecar file should be reconciled and renamed to Northern_Pintail"
+    );
+    assert!(
+        !initial_sidecar.exists(),
+        "Old sidecar DSC_0001_Mallard.xmp should no longer exist"
+    );
+
+    // Verify SQLite manifest was updated with user override
+    let fresh_map = db.get_existing_bundle_map().unwrap();
+    let (db_dec, _) = fresh_map
+        .get("DSC_0001_bundle")
+        .expect("bundle must exist in manifest");
+    assert_eq!(db_dec.assigned_species_slug, "Northern_Pintail");
+    assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
+    assert_eq!(db_dec.final_confidence, 1.0);
+    assert!(db_dec.is_user_override);
+
+    // Verify catalog.html was refreshed and contains Northern_Pintail
+    let catalog_path = input_dir.join("catalog.html");
+    assert!(catalog_path.exists());
+    let catalog_html = fs::read_to_string(&catalog_path).unwrap();
+    assert!(catalog_html.contains("Northern_Pintail"));
 }
