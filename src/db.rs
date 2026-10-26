@@ -95,6 +95,20 @@ impl ExistingBundleMap {
                     bundle.original_stem.clone(),
                 ))
             })
+            .or_else(|| {
+                self.by_portable_key
+                    .iter()
+                    .find_map(|((trip, stem), entry)| {
+                        if *trip == bundle.trip_folder_name
+                            && (bundle.original_stem == *stem
+                                || bundle.original_stem.starts_with(&format!("{stem}_")))
+                        {
+                            Some(entry)
+                        } else {
+                            None
+                        }
+                    })
+            })
     }
 
     /// Updates the decision for a bundle across all map indices.
@@ -495,6 +509,68 @@ impl ManifestDb {
                 "UPDATE hardlink_operations
                  SET dest_path = ?1, status = 'linked'
                  WHERE bundle_id = ?2 AND (dest_path LIKE ?3 OR source_path LIKE ?3) AND operation_type = 'hardlink'",
+                params![
+                    new_dest_path.to_string_lossy().to_string(),
+                    bundle_id,
+                    ext_pattern,
+                ],
+            )?;
+            return Ok(rows > 0);
+        }
+
+        Ok(false)
+    }
+
+    /// Updates the destination path for an existing in-place rename operation by bundle ID and source inode.
+    pub fn update_inplace_destination_by_inode(
+        &self,
+        bundle_id: &str,
+        source_inode: u64,
+        new_dest_path: &Path,
+    ) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE hardlink_operations
+             SET dest_path = ?1, status = 'renamed'
+             WHERE bundle_id = ?2 AND source_inode = ?3 AND operation_type = 'in_place_rename'",
+            params![
+                new_dest_path.to_string_lossy().to_string(),
+                bundle_id,
+                source_inode as i64,
+            ],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Updates the destination path for an existing in-place rename operation by bundle ID and filename pattern.
+    pub fn update_inplace_destination_by_filename(
+        &self,
+        bundle_id: &str,
+        filename: &str,
+        new_dest_path: &Path,
+    ) -> Result<bool> {
+        let conn = self.conn.lock().unwrap();
+        let pattern = format!("%{}", filename);
+        let rows = conn.execute(
+            "UPDATE hardlink_operations
+             SET dest_path = ?1, status = 'renamed'
+             WHERE bundle_id = ?2 AND (dest_path LIKE ?3 OR source_path LIKE ?3) AND operation_type = 'in_place_rename'",
+            params![
+                new_dest_path.to_string_lossy().to_string(),
+                bundle_id,
+                pattern,
+            ],
+        )?;
+        if rows > 0 {
+            return Ok(true);
+        }
+
+        if let Some(ext) = Path::new(filename).extension().and_then(|e| e.to_str()) {
+            let ext_pattern = format!("%.{}", ext);
+            let rows = conn.execute(
+                "UPDATE hardlink_operations
+                 SET dest_path = ?1, status = 'renamed'
+                 WHERE bundle_id = ?2 AND dest_path LIKE ?3 AND operation_type = 'in_place_rename'",
                 params![
                     new_dest_path.to_string_lossy().to_string(),
                     bundle_id,

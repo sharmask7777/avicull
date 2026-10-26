@@ -736,7 +736,37 @@ fn main() -> Result<()> {
                 db.get_existing_bundle_map().unwrap_or_default()
             };
 
+            let mut reconciled_moves_count = 0;
+            if is_inplace && operating_root.exists() && !existing_bundle_map.is_empty() {
+                match avicull::organizer::reconcile_inplace_manual_renames(
+                    &operating_root,
+                    &db,
+                    &mut existing_bundle_map,
+                ) {
+                    Ok(count) => {
+                        reconciled_moves_count = count;
+                        if count > 0 {
+                            println!(
+                                "Reconciliation: Reconciled {} manual in-place rename(s) into durable SQLite overrides.",
+                                count
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to reconcile manual in-place renames: {}",
+                            e
+                        );
+                    }
+                }
+            }
+
             let mut all_discovered = scan_input_tree_with_skip(&args.input, skip_dir.as_deref())?;
+            for bundle in &mut all_discovered {
+                if let Some((_, old_bundle)) = existing_bundle_map.get_by_bundle(bundle) {
+                    bundle.original_stem = old_bundle.original_stem.clone();
+                }
+            }
             println!(
                 "Discovered {} total photo bundles in source.",
                 all_discovered.len()
@@ -862,7 +892,6 @@ fn main() -> Result<()> {
             }
 
             // Reconcile any manual filesystem moves in the output directory (hierarchy mode)
-            let mut reconciled_moves_count = 0;
             if args.mode == OrganizationMode::HierarchicalHardlinkHierarchy
                 && operating_root.exists()
                 && !existing_bundle_map.is_empty()
@@ -873,7 +902,7 @@ fn main() -> Result<()> {
                     &mut existing_bundle_map,
                 ) {
                     Ok(count) => {
-                        reconciled_moves_count = count;
+                        reconciled_moves_count += count;
                         if count > 0 {
                             println!(
                                 "Reconciliation: Reconciled {} manual filesystem move(s) into durable SQLite overrides.",
