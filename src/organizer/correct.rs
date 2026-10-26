@@ -1,5 +1,6 @@
 use crate::catalog::{generate_html_catalog, CatalogItem};
 use crate::db::ManifestDb;
+use crate::location::trigram_similarity;
 use crate::organizer::inplace::{execute_inplace_bundle_rename_with_stem, format_inplace_filename};
 use crate::organizer::{compute_target_dir, materialize_bundle_hardlinks, sanitize_species_slug};
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier};
@@ -7,6 +8,217 @@ use anyhow::{anyhow, Context, Result};
 use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
+
+/// Authoritative record from eBird / AviList taxonomy for typo matching and suggestion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaxonomyEntry {
+    pub common_name: String,
+    pub folder_slug: String,
+    pub scientific_name: Option<String>,
+}
+
+/// A fuzzy match suggestion against the eBird taxonomy.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpeciesTypoSuggestion {
+    pub common_name: String,
+    pub folder_slug: String,
+    pub similarity: f64,
+}
+
+/// Checks if standard I/O is interactive or forced via the test environment variable.
+fn is_interactive_session() -> bool {
+    (std::io::stdin().is_terminal() && std::io::stdout().is_terminal())
+        || std::env::var("AVICULL_FORCE_INTERACTIVE")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+}
+
+/// Loads eBird taxonomy records from cached or local models, falling back to a curated global list.
+pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
+    let mut candidate_paths = vec![
+        PathBuf::from("models/taxonomy.json"),
+        PathBuf::from("../models/taxonomy.json"),
+        PathBuf::from("tests/fixtures/models/taxonomy.json"),
+    ];
+
+    if let Ok(cargo_manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        candidate_paths.push(
+            PathBuf::from(cargo_manifest)
+                .join("tests")
+                .join("fixtures")
+                .join("models")
+                .join("taxonomy.json"),
+        );
+    }
+
+    if let Ok(models_dir) = std::env::var("AVICULL_MODELS_DIR") {
+        candidate_paths.push(PathBuf::from(models_dir).join("taxonomy.json"));
+    }
+
+    if let Ok(home) = std::env::var("HOME") {
+        candidate_paths.push(
+            PathBuf::from(home)
+                .join(".cache")
+                .join("avicull")
+                .join("models")
+                .join("taxonomy.json"),
+        );
+    }
+
+    let mut entries = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for path in candidate_paths {
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
+                    for obj in parsed {
+                        if let Some(common_name) = obj.get("common_name").and_then(|v| v.as_str()) {
+                            let folder_slug = obj
+                                .get("folder_slug")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| sanitize_species_slug(common_name));
+                            let scientific_name = obj
+                                .get("scientific_name")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            if seen.insert(common_name.to_lowercase()) {
+                                entries.push(TaxonomyEntry {
+                                    common_name: common_name.to_string(),
+                                    folder_slug,
+                                    scientific_name,
+                                });
+                            }
+                        }
+                    }
+                    if !entries.is_empty() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for fallback in curated_taxonomy_fallback() {
+        if seen.insert(fallback.common_name.to_lowercase()) {
+            entries.push(fallback);
+        }
+    }
+
+    entries
+}
+
+/// Fallback list of prominent bird species across world families when taxonomy.json is unavailable.
+fn curated_taxonomy_fallback() -> Vec<TaxonomyEntry> {
+    vec![
+        "House Sparrow",
+        "Eurasian Tree Sparrow",
+        "Black Redstart",
+        "Common Redstart",
+        "Tibetan Snowcock",
+        "Himalayan Snowcock",
+        "Lammergeier",
+        "Golden Eagle",
+        "Steppe Eagle",
+        "Painted Stork",
+        "Asian Openbill",
+        "Black-necked Crane",
+        "Common Crane",
+        "Bar-headed Goose",
+        "Ruddy Shelduck",
+        "Mallard",
+        "Common Kingfisher",
+        "White-throated Kingfisher",
+        "Pied Kingfisher",
+        "Little Egret",
+        "Great Egret",
+        "Grey Heron",
+        "Peregrine Falcon",
+        "Common Kestrel",
+        "Barn Owl",
+        "Spotted Owlet",
+        "Eurasian Eagle-Owl",
+        "Blue Rock Thrush",
+        "Great Tit",
+        "Coal Tit",
+        "Eurasian Magpie",
+        "Red-billed Chough",
+        "Yellow-billed Chough",
+        "Brown-headed Gull",
+        "Common Sandpiper",
+        "Red-wattled Lapwing",
+        "Little Ringed Plover",
+    ]
+    .into_iter()
+    .map(|name| TaxonomyEntry {
+        common_name: name.to_string(),
+        folder_slug: sanitize_species_slug(name),
+        scientific_name: None,
+    })
+    .collect()
+}
+
+/// Identifies whether an input string is a probable typo for an authoritative taxonomy species
+/// using character trigram similarity. Returns None if the input is already recognized as an
+/// exact common name, folder slug, or scientific name.
+pub fn find_species_typo_suggestion(
+    input: &str,
+    taxonomy: &[TaxonomyEntry],
+) -> Option<SpeciesTypoSuggestion> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() || trimmed == "_No_Bird_Detected" || trimmed == "NoBirdDetected" {
+        return None;
+    }
+
+    let input_norm = trimmed.replace('_', " ");
+
+    for entry in taxonomy {
+        if entry.common_name.eq_ignore_ascii_case(trimmed)
+            || entry.common_name.eq_ignore_ascii_case(&input_norm)
+            || entry.folder_slug.eq_ignore_ascii_case(trimmed)
+            || entry
+                .scientific_name
+                .as_deref()
+                .map(|s| s.eq_ignore_ascii_case(trimmed))
+                .unwrap_or(false)
+        {
+            return None;
+        }
+    }
+
+    let mut best_entry: Option<(&TaxonomyEntry, f64)> = None;
+
+    for entry in taxonomy {
+        let sim_common = trigram_similarity(&input_norm, &entry.common_name);
+        let sim_slug = trigram_similarity(trimmed, &entry.folder_slug);
+        let sim_sci = entry
+            .scientific_name
+            .as_deref()
+            .map(|s| trigram_similarity(trimmed, s))
+            .unwrap_or(0.0);
+
+        let sim = sim_common.max(sim_slug).max(sim_sci);
+
+        if sim >= 0.60 {
+            match best_entry {
+                Some((_, best_sim)) if sim > best_sim => {
+                    best_entry = Some((entry, sim));
+                }
+                None => {
+                    best_entry = Some((entry, sim));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    best_entry.map(|(entry, sim)| SpeciesTypoSuggestion {
+        common_name: entry.common_name.clone(),
+        folder_slug: entry.folder_slug.clone(),
+        similarity: sim,
+    })
+}
 
 /// Applies a direct manual classification correction for a single photo bundle or burst.
 ///
@@ -142,7 +354,7 @@ pub fn apply_bundle_correction(
         }
         1 => matched_bundles.remove(0),
         _ => {
-            let is_interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+            let is_interactive = is_interactive_session();
             if is_interactive {
                 println!("\nMultiple photo bundles matched query '{}':", file_query);
                 for (i, (dec, b)) in matched_bundles.iter().enumerate() {
@@ -219,7 +431,7 @@ pub fn apply_bundle_correction(
 
     let mut should_propagate = propagate_burst;
     if burst_members.len() > 1 && !should_propagate {
-        let is_interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+        let is_interactive = is_interactive_session();
         if is_interactive {
             let b_id = target_dec.burst_id.as_deref().unwrap_or("burst");
             print!(
@@ -243,15 +455,54 @@ pub fn apply_bundle_correction(
         vec![(target_dec, target_bundle)]
     };
 
+    let mut resolved_species = new_species.to_string();
+    let (has_needs_review, species_to_check) =
+        if let Some(stripped) = new_species.strip_prefix("_Needs_Review/") {
+            (true, stripped)
+        } else {
+            (false, new_species)
+        };
+
+    if species_to_check != "_No_Bird_Detected" && species_to_check != "NoBirdDetected" {
+        let taxonomy = load_taxonomy_records();
+        if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
+            if is_interactive_session() {
+                print!(
+                    "\nSpecies '{}' not found in eBird taxonomy. Did you mean '{}'? [Y/n]: ",
+                    species_to_check, suggestion.common_name
+                );
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                let trimmed = input.trim();
+                if trimmed.is_empty()
+                    || trimmed.eq_ignore_ascii_case("y")
+                    || trimmed.eq_ignore_ascii_case("yes")
+                {
+                    resolved_species = if has_needs_review {
+                        format!("_Needs_Review/{}", suggestion.common_name)
+                    } else {
+                        suggestion.common_name
+                    };
+                }
+            } else {
+                println!(
+                    "[avicull] Note: Species '{}' not found in taxonomy. Did you mean '{}'?",
+                    species_to_check, suggestion.common_name
+                );
+            }
+        }
+    }
+
     let (routing_tier, target_slug) =
-        if new_species == "_No_Bird_Detected" || new_species == "NoBirdDetected" {
+        if resolved_species == "_No_Bird_Detected" || resolved_species == "NoBirdDetected" {
             (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
-        } else if let Some(stripped) = new_species.strip_prefix("_Needs_Review/") {
+        } else if let Some(stripped) = resolved_species.strip_prefix("_Needs_Review/") {
             (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
         } else {
             (
                 RoutingTier::ConfirmedSpecies,
-                sanitize_species_slug(new_species),
+                sanitize_species_slug(&resolved_species),
             )
         };
 
@@ -500,4 +751,78 @@ pub fn apply_bundle_correction(
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_taxonomy_loading_has_curated_species() {
+        let taxonomy = load_taxonomy_records();
+        assert!(
+            taxonomy.len() >= 30,
+            "taxonomy should have curated fallback or models entries"
+        );
+        assert!(
+            taxonomy.iter().any(|t| t.common_name == "Painted Stork"),
+            "Painted Stork must be present in taxonomy"
+        );
+        assert!(
+            taxonomy.iter().any(|t| t.common_name == "Mallard"),
+            "Mallard must be present in taxonomy"
+        );
+    }
+
+    #[test]
+    fn test_exact_matches_return_no_suggestion() {
+        let taxonomy = load_taxonomy_records();
+        assert_eq!(
+            find_species_typo_suggestion("Painted Stork", &taxonomy),
+            None
+        );
+        assert_eq!(
+            find_species_typo_suggestion("painted stork", &taxonomy),
+            None
+        );
+        assert_eq!(
+            find_species_typo_suggestion("Painted_Stork", &taxonomy),
+            None
+        );
+        assert_eq!(
+            find_species_typo_suggestion("painted_stork", &taxonomy),
+            None
+        );
+        assert_eq!(find_species_typo_suggestion("Mallard", &taxonomy), None);
+        assert_eq!(
+            find_species_typo_suggestion("_No_Bird_Detected", &taxonomy),
+            None
+        );
+        assert_eq!(
+            find_species_typo_suggestion("NoBirdDetected", &taxonomy),
+            None
+        );
+    }
+
+    #[test]
+    fn test_typo_suggestions_fuzzy_trigram() {
+        let taxonomy = load_taxonomy_records();
+
+        let s1 =
+            find_species_typo_suggestion("Panted Stork", &taxonomy).expect("typo should match");
+        assert_eq!(s1.common_name, "Painted Stork");
+        assert_eq!(s1.folder_slug, "Painted_Stork");
+        assert!(s1.similarity > 0.75);
+
+        let s2 = find_species_typo_suggestion("Mallrd", &taxonomy).expect("typo should match");
+        assert_eq!(s2.common_name, "Mallard");
+        assert!(s2.similarity >= 0.60);
+
+        let s3 = find_species_typo_suggestion("Panted_Stork", &taxonomy)
+            .expect("slug typo should match");
+        assert_eq!(s3.common_name, "Painted Stork");
+
+        let s_none = find_species_typo_suggestion("UnrelatedCameraMakeModel123", &taxonomy);
+        assert_eq!(s_none, None);
+    }
 }

@@ -876,3 +876,111 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
         "DSC_0002 XMP should be renamed with Painted_Stork"
     );
 }
+
+#[test]
+fn test_cli_correct_fuzzy_species_matching() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Bharatpur");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo = trip_dir.join("DSC_0001.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG DSC_0001 DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in hierarchy mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+
+    // 2. Interactive correction with typo "Panted Stork" confirming 'y'
+    // Resolves to canonical "Painted_Stork"
+    let mut child = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0001",
+            "--species",
+            "Panted Stork",
+        ])
+        .env("AVICULL_FORCE_INTERACTIVE", "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to spawn avicull correct");
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(b"y\n").expect("write to stdin");
+    }
+    let output = child.wait_with_output().expect("wait for child");
+    assert!(
+        output.status.success(),
+        "Interactive correct failed: stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout_str.contains("Did you mean 'Painted Stork'?"),
+        "stdout should prompt with fuzzy suggestion, got: {}",
+        stdout_str
+    );
+
+    // Verify bundle was reclassified to canonical Painted_Stork
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(bundles.len(), 1);
+    assert_eq!(bundles[0].0.assigned_species_slug, "Painted_Stork");
+    assert!(bundles[0].0.is_user_override);
+
+    // 3. Non-interactive correction with typo "Mallrd"
+    // Logs informative suggestion while allowing custom species slug
+    let non_interactive_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0001",
+            "--species",
+            "Mallrd",
+        ])
+        .output()
+        .expect("failed to run avicull correct non-interactively");
+    assert!(non_interactive_output.status.success());
+
+    let non_interactive_out = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&non_interactive_output.stdout),
+        String::from_utf8_lossy(&non_interactive_output.stderr)
+    );
+    assert!(
+        non_interactive_out.contains("Did you mean 'Mallard'?"),
+        "non-interactive output should log typo suggestion, got: {}",
+        non_interactive_out
+    );
+
+    let updated_bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(updated_bundles[0].0.assigned_species_slug, "Mallrd");
+    assert!(updated_bundles[0].0.is_user_override);
+}
