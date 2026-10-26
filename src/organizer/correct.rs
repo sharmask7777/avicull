@@ -3,6 +3,7 @@ use crate::db::ManifestDb;
 use crate::location::trigram_similarity;
 use crate::organizer::inplace::{execute_inplace_bundle_rename_with_stem, format_inplace_filename};
 use crate::organizer::{compute_target_dir, materialize_bundle_hardlinks, sanitize_species_slug};
+use crate::storage::detect_storage_backend;
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier};
 use anyhow::{anyhow, Context, Result};
 use std::fs;
@@ -524,7 +525,17 @@ pub fn apply_bundle_correction(
     let mut results = Vec::with_capacity(bundles_to_update.len());
     let mut old_dirs_to_prune = std::collections::HashSet::new();
 
+    let storage_root = input_root.unwrap_or(operating_root);
+    let storage_backend = detect_storage_backend(storage_root);
+
     for (decision, bundle) in bundles_to_update {
+        // Inspect locality prior to movement/rename so dataless stubs can be evicted post-rename
+        let primary_locality = storage_backend.inspect_locality(&bundle.primary_image).ok();
+        let was_dataless = primary_locality
+            .as_ref()
+            .map(|loc| loc.is_dataless || !loc.pre_existing_local)
+            .unwrap_or(false);
+
         db.update_bundle_override(&bundle.bundle_id, &target_slug, routing_tier, 1.0)?;
 
         match mode {
@@ -550,6 +561,9 @@ pub fn apply_bundle_correction(
                                                 new_dest.display()
                                             )
                                         })?;
+                                        if was_dataless {
+                                            let _ = storage_backend.evict(&new_dest);
+                                        }
                                         db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
                                         moved_any = true;
                                     }
@@ -563,6 +577,9 @@ pub fn apply_bundle_correction(
                                             )
                                         },
                                     )?;
+                                    if was_dataless {
+                                        let _ = storage_backend.evict(&new_dest);
+                                    }
                                     db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
                                     moved_any = true;
                                 }
@@ -654,6 +671,9 @@ pub fn apply_bundle_correction(
                     .get_latest_run_id()?
                     .unwrap_or_else(|| "run-manual".to_string());
                 for (old_path, new_path) in renames {
+                    if was_dataless {
+                        let _ = storage_backend.evict(&new_path);
+                    }
                     db.record_inplace_rename(&latest_run, &old_path, &new_path)?;
                 }
             }
