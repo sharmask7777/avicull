@@ -359,6 +359,79 @@ pub fn clean_run_hardlinks(db: &ManifestDb, run_id: &str) -> Result<usize> {
     clean_run_operations(db, run_id)
 }
 
+/// Outcome of materializing a chunk of bundles with retry resilience.
+#[derive(Debug, Clone)]
+pub struct ChunkMaterializationOutcome {
+    pub successful_bundles: Vec<AssetBundle>,
+    pub failed_bundle_ids: Vec<String>,
+    pub was_dataless_flags: Vec<bool>,
+    pub space_saved_bytes: u64,
+}
+
+/// Materializes a slice of bundles with retry and backoff on transient errors.
+///
+/// On transient errors, retries once after `retry_backoff`.
+/// If the second attempt fails, records the bundle as `pending_download_failed`
+/// in SQLite and excludes it from `successful_bundles`.
+pub fn materialize_chunk_with_retry(
+    bundles: &[AssetBundle],
+    backend: &dyn StorageBackend,
+    db: &ManifestDb,
+    run_id: &str,
+    retry_backoff: std::time::Duration,
+) -> ChunkMaterializationOutcome {
+    let mut successful_bundles = Vec::new();
+    let mut failed_bundle_ids = Vec::new();
+    let mut was_dataless_flags = Vec::new();
+    let mut space_saved_bytes = 0u64;
+
+    for bundle in bundles {
+        let loc = backend.inspect_locality(&bundle.primary_image).unwrap_or(
+            crate::storage::FileLocality {
+                is_dataless: false,
+                pre_existing_local: true,
+                file_size_bytes: 0,
+            },
+        );
+
+        let mut mat_res = backend.materialize(&bundle.primary_image);
+        if mat_res.is_err() {
+            // Retry once after backoff
+            if !retry_backoff.is_zero() {
+                std::thread::sleep(retry_backoff);
+            }
+            mat_res = backend.materialize(&bundle.primary_image);
+        }
+
+        match mat_res {
+            Ok(_) => {
+                if loc.is_dataless {
+                    space_saved_bytes += loc.file_size_bytes;
+                }
+                successful_bundles.push(bundle.clone());
+                was_dataless_flags.push(loc.is_dataless);
+            }
+            Err(e) => {
+                let err_msg = format!("{}", e);
+                eprintln!(
+                    "Warning: Failed to materialize asset '{}': {}. Marking as pending retry.",
+                    bundle.primary_image.display(),
+                    err_msg
+                );
+                let _ = db.record_pending_download_failure(run_id, bundle, &err_msg);
+                failed_bundle_ids.push(bundle.bundle_id.clone());
+            }
+        }
+    }
+
+    ChunkMaterializationOutcome {
+        successful_bundles,
+        failed_bundle_ids,
+        was_dataless_flags,
+        space_saved_bytes,
+    }
+}
+
 /// Reverts all in-place renames for a given run ID.
 pub fn clean_run_inplace(db: &ManifestDb, run_id: &str) -> Result<usize> {
     db.rollback_inplace_renames(run_id)

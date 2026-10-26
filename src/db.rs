@@ -20,6 +20,16 @@ pub struct HardlinkOperation {
     pub executed_at: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct PendingFailure {
+    pub bundle_id: String,
+    pub run_id: String,
+    pub primary_path: PathBuf,
+    pub error_message: String,
+    pub status: String,
+    pub failed_at: String,
+}
+
 pub struct ManifestDb {
     conn: Arc<Mutex<Connection>>,
 }
@@ -187,6 +197,7 @@ impl ManifestDb {
                 bundle_json TEXT NOT NULL,
                 is_user_override INTEGER NOT NULL DEFAULT 0,
                 relative_path TEXT,
+                was_dataless INTEGER DEFAULT 0,
                 FOREIGN KEY(run_id) REFERENCES runs(run_id)
             );
 
@@ -203,6 +214,16 @@ impl ManifestDb {
                 FOREIGN KEY(bundle_id) REFERENCES bundles(bundle_id)
             );
 
+            CREATE TABLE IF NOT EXISTS pending_failures (
+                bundle_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                primary_path TEXT NOT NULL,
+                error_message TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending_download_failed',
+                failed_at TEXT NOT NULL,
+                FOREIGN KEY(run_id) REFERENCES runs(run_id)
+            );
+
             CREATE TABLE IF NOT EXISTS directory_locations (
                 path_key TEXT PRIMARY KEY,
                 resolved_name TEXT NOT NULL,
@@ -216,6 +237,7 @@ impl ManifestDb {
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
+            CREATE INDEX IF NOT EXISTS idx_pending_run ON pending_failures(run_id);
             CREATE INDEX IF NOT EXISTS idx_dir_loc_region ON directory_locations(region_code);
             "#,
         )?;
@@ -242,21 +264,24 @@ impl ManifestDb {
             );
         }
 
-        // Ensure bundles table contains portable relative path and user override columns
-        let (has_override_col, has_relpath_col): (bool, bool) = {
+        // Ensure bundles table contains portable relative path, user override, and was_dataless columns
+        let (has_override_col, has_relpath_col, has_dataless_col): (bool, bool, bool) = {
             let mut stmt = conn.prepare("PRAGMA table_info(bundles)")?;
             let mut rows = stmt.query([])?;
             let mut has_override = false;
             let mut has_relpath = false;
+            let mut has_dataless = false;
             while let Some(row) = rows.next()? {
                 let col_name: String = row.get(1)?;
                 if col_name == "is_user_override" {
                     has_override = true;
                 } else if col_name == "relative_path" {
                     has_relpath = true;
+                } else if col_name == "was_dataless" {
+                    has_dataless = true;
                 }
             }
-            (has_override, has_relpath)
+            (has_override, has_relpath, has_dataless)
         };
 
         if !has_override_col {
@@ -267,6 +292,12 @@ impl ManifestDb {
         }
         if !has_relpath_col {
             let _ = conn.execute("ALTER TABLE bundles ADD COLUMN relative_path TEXT", []);
+        }
+        if !has_dataless_col {
+            let _ = conn.execute(
+                "ALTER TABLE bundles ADD COLUMN was_dataless INTEGER DEFAULT 0",
+                [],
+            );
         }
 
         Ok(Self {
@@ -339,13 +370,25 @@ impl ManifestDb {
         decisions: &[BundleDecision],
         source_bundles: &[AssetBundle],
     ) -> Result<()> {
+        let was_dataless_flags = vec![false; decisions.len()];
+        self.record_bundles_with_locality(run_id, decisions, source_bundles, &was_dataless_flags)
+    }
+
+    /// Records bundle classification decisions, metadata, and dataless status flags.
+    pub fn record_bundles_with_locality(
+        &self,
+        run_id: &str,
+        decisions: &[BundleDecision],
+        source_bundles: &[AssetBundle],
+        was_dataless_flags: &[bool],
+    ) -> Result<()> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
 
         let bundle_meta_map: std::collections::HashMap<_, _> =
             source_bundles.iter().map(|b| (&b.bundle_id, b)).collect();
 
-        for dec in decisions {
+        for (idx, dec) in decisions.iter().enumerate() {
             if let Some(bundle) = bundle_meta_map.get(&dec.bundle_id) {
                 let bbox_json = serde_json::to_string(&dec.bbox_xyxy_norm).unwrap_or_default();
                 let top5_json = serde_json::to_string(&dec.top_predictions).unwrap_or_default();
@@ -366,14 +409,20 @@ impl ManifestDb {
                     RoutingTier::NoBirdDetected => "NoBirdDetected",
                 };
 
+                let was_dataless_val = if was_dataless_flags.get(idx).copied().unwrap_or(false) {
+                    1
+                } else {
+                    0
+                };
+
                 tx.execute(
                     "INSERT OR REPLACE INTO bundles (
                         bundle_id, run_id, source_inode, trip_folder, original_stem,
                         capture_timestamp_ms, lat, lon, location_source, burst_id,
                         detection_conf, bbox_json, assigned_species_slug, frame_conf,
                         final_conf, routing_tier, top5_predictions_json, bundle_json,
-                        is_user_override, relative_path
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+                        is_user_override, relative_path, was_dataless
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
                     params![
                         dec.bundle_id,
                         run_id,
@@ -395,6 +444,7 @@ impl ManifestDb {
                         bundle_json,
                         if dec.is_user_override { 1 } else { 0 },
                         bundle.relative_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                        was_dataless_val,
                     ],
                 )?;
             }
@@ -443,6 +493,88 @@ impl ManifestDb {
             params![new_species_slug, tier_str, final_conf, bundle_id],
         )?;
         Ok(())
+    }
+
+    /// Returns whether the bundle was recorded as dataless during its processing run.
+    pub fn get_bundle_was_dataless(&self, bundle_id: &str) -> Result<Option<bool>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT was_dataless FROM bundles WHERE bundle_id = ?1 LIMIT 1")?;
+        let mut rows = stmt.query(params![bundle_id])?;
+        if let Some(row) = rows.next()? {
+            let val: i64 = row.get(0)?;
+            Ok(Some(val != 0))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Records a pending download failure for a bundle in manifest.sqlite.
+    pub fn record_pending_download_failure(
+        &self,
+        run_id: &str,
+        bundle: &AssetBundle,
+        error_message: &str,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT OR REPLACE INTO pending_failures (
+                bundle_id, run_id, primary_path, error_message, status, failed_at
+            ) VALUES (?1, ?2, ?3, ?4, 'pending_download_failed', ?5)",
+            params![
+                bundle.bundle_id,
+                run_id,
+                bundle.primary_image.to_string_lossy().to_string(),
+                error_message,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Queries all pending failures, optionally scoped to a run_id.
+    pub fn get_pending_failures(&self, run_id: Option<&str>) -> Result<Vec<PendingFailure>> {
+        let conn = self.conn.lock().unwrap();
+        let query = if run_id.is_some() {
+            "SELECT bundle_id, run_id, primary_path, error_message, status, failed_at
+             FROM pending_failures WHERE run_id = ?1 ORDER BY failed_at ASC"
+        } else {
+            "SELECT bundle_id, run_id, primary_path, error_message, status, failed_at
+             FROM pending_failures ORDER BY failed_at ASC"
+        };
+
+        let mut stmt = conn.prepare(query)?;
+        let row_mapper = |row: &rusqlite::Row| {
+            let bundle_id: String = row.get(0)?;
+            let run_id: String = row.get(1)?;
+            let primary_path_str: String = row.get(2)?;
+            let error_message: String = row.get(3)?;
+            let status: String = row.get(4)?;
+            let failed_at: String = row.get(5)?;
+            Ok(PendingFailure {
+                bundle_id,
+                run_id,
+                primary_path: PathBuf::from(primary_path_str),
+                error_message,
+                status,
+                failed_at,
+            })
+        };
+
+        let mut list = Vec::new();
+        if let Some(id) = run_id {
+            let rows = stmt.query_map(params![id], row_mapper)?;
+            for r in rows {
+                list.push(r?);
+            }
+        } else {
+            let rows = stmt.query_map([], row_mapper)?;
+            for r in rows {
+                list.push(r?);
+            }
+        }
+        Ok(list)
     }
 
     /// Looks up the bundle ID for a given file inode from recorded hardlink operations.
