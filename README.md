@@ -56,7 +56,11 @@ On first run, `avicull` will offer to automatically download and initialize the 
    - Running `avicull organize` on an existing archive automatically discovers newly added photos while reusing cached ML decisions from `.avicull/manifest.sqlite`. Only new or updated files undergo neural network inference.
 5. **Upfront Volume & Safety Validation**:
    - In hierarchy mode, `avicull` verifies via `std::os::unix::fs::MetadataExt::dev()` that `--input` and `--output` reside on the same filesystem device (`st_dev`) so hard linking cannot fail mid-run with `EXDEV` (Cross-device link), and verifies that input is not nested inside output. Recursive scanners automatically skip `birds_hierarchy`, `.avicull`, `*.photoslibrary`, and system metadata files.
-6. **Self-Contained Offline HTML Photo Catalog**:
+6. **Cross-Machine Portable Manifest & Durable User Overrides**:
+   - The SQLite manifest—located at `<input>/.avicull/manifest.sqlite` (in-place mode) or `<output>/.avicull/manifest.sqlite` (hierarchy mode)—serves as a durable, self-contained record that travels with the archive.
+   - When a photo directory or hierarchy tree is copied, rsynced, or mounted on another machine where inodes and absolute paths differ, `avicull organize` matches existing bundles by portable relative path and `(trip_folder, original_stem)` with 100% cache hits and zero redundant AI inferences.
+   - User classification corrections—made via `avicull correct`, manual Finder moves reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
+7. **Self-Contained Offline HTML Photo Catalog**:
    - Both modes automatically produce a standalone offline `catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
 
 ---
@@ -274,7 +278,31 @@ Key capabilities include:
   - Click **Add to Batch Script** to queue correction commands.
   - Click **Download apply_corrections.sh** in the header to download a POSIX-compliant bash script that atomically renames your photo files and sidecars.
 
-### 3. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
+### 3. `correct`: Manual Mislabel Corrections & Overrides
+
+Correct a species classification or routing tier directly from the command line:
+```bash
+# Correct a photo by original stem or filename (in either hierarchy or in-place mode)
+avicull correct --input /Volumes/Photos/Leh --file "DSC_0042" --species "Painted Stork"
+
+# Disambiguate photos across multi-trip parent archives using relative paths:
+avicull correct --input /Volumes/Photos --file "Leh/DSC_0042.CR2" --species "Painted Stork"
+
+# Mark a false positive as non-bird, or mark an uncertain bird for review:
+avicull correct --input /Volumes/Photos/Leh --file "DSC_0042" --species "_No_Bird_Detected"
+avicull correct --input /Volumes/Photos/Leh --file "DSC_0042" --species "_Needs_Review/Mallard"
+```
+Actions coordinated safely in lockstep:
+- Sanitizes the target species name (`Painted_Stork`) and assigns the appropriate routing tier (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
+- Updates `.avicull/manifest.sqlite` marking `is_user_override = 1` and `final_confidence = 1.0`.
+- In **hierarchy mode**: moves/relinks primary images, companions, and sidecars into `<output>/<Species>/`, updating operation records and automatically pruning empty directories.
+- In **in-place mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
+- Automatically regenerates `catalog.html` with updated counts and species tallies.
+
+#### Manual Disk Moves Are Auto-Reconciled (Hierarchy Mode)
+If you manually drag and drop a photo or burst in macOS Finder from `birds_hierarchy/_Needs_Review/Mallard/` to `birds_hierarchy/Northern_Pintail/` (or into `_No_Bird_Detected/`), running `avicull organize --mode hierarchy` automatically detects the move, reconciles the change into `.avicull/manifest.sqlite` as a durable user override, refreshes `catalog.html`, and locks it against automated reclassification.
+
+### 4. Multi-Level Coexistence & Incremental Runs (Hierarchy Mode)
 You can organize both a specific trip folder and the parent archive:
 ```bash
 # 1. Organize specific trip
@@ -292,13 +320,13 @@ avicull organize --input /Volumes/Photos/Leh
 ```
 `avicull` detects already-cached photos from `.avicull/manifest.sqlite` and only runs inference on the newly added files.
 
-### 4. `scan`: Preflight Validation & Discovery
+### 5. `scan`: Preflight Validation & Discovery
 Inspects photo bundles and sidecars without making changes:
 ```bash
 avicull scan --input /Volumes/Photos/Leh
 ```
 
-### 5. `report`: Query Run Manifest
+### 6. `report`: Query Run Manifest
 Inspect classification results, routing tiers, and confidence scores:
 ```bash
 # Using input directory
@@ -308,14 +336,14 @@ avicull report --input /Volumes/Photos/Leh --format table
 avicull report --db /Volumes/Photos/Leh/.avicull/manifest.sqlite --format json
 ```
 
-### 6. `relink`: Instant Threshold Adjustment
+### 7. `relink`: Instant Threshold Adjustment
 Adjust confidence thresholds (`--min-confidence`) without re-running neural network inference:
 ```bash
 avicull relink --input /Volumes/Photos/Leh --min-confidence 0.80
 ```
 This unlinks previous destination files and re-materializes links according to the new threshold instantly from SQLite state.
 
-### 7. `clean`: Safe Rollback
+### 8. `clean`: Safe Rollback
 Rolls back in-place renames to their original filenames or removes hard-linked files in the hierarchy directory:
 ```bash
 # Clean latest run from input directory
@@ -325,7 +353,7 @@ avicull clean --input /Volumes/Photos/Leh
 avicull clean --db /Volumes/Photos/Leh/.avicull/manifest.sqlite --run-id run-20261025-140000
 ```
 
-### 8. `models`: Manage Decoupled ML & eBird Taxonomy Cache
+### 9. `models`: Manage Decoupled ML & eBird Taxonomy Cache
 Inspect cache status or refresh with the latest official Cornell eBird global taxonomy and BioCLIP embeddings without rebuilding the binary:
 ```bash
 # Check status and age of local models cache
@@ -335,7 +363,7 @@ avicull models status
 avicull models update
 ```
 
-### 9. `update`: Self-Update to Latest Release
+### 10. `update`: Self-Update to Latest Release
 Check for newer GitHub releases or self-update the running `avicull` executable:
 ```bash
 # Check if an update is available without downloading
@@ -349,7 +377,7 @@ sudo avicull update
 ```
 *Note: `avicull` automatically checks for newer releases in the background once every 24 hours. To disable background checks, export `AVICULL_NO_UPDATE_CHECK=1`.*
 
-### 10. `help`: In-Terminal User Manual & Help Topics
+### 11. `help`: In-Terminal User Manual & Help Topics
 Access interactive documentation and deep dives right from your terminal:
 ```bash
 # View comprehensive user manual and commands
