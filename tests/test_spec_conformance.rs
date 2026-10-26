@@ -440,3 +440,112 @@ fn test_model_cache_directory_resolution() {
         && cache_dir.join("species_embeddings.safetensors").exists();
     assert!(is_now_complete, "Complete model cache must be recognized");
 }
+
+#[test]
+fn test_cloud_storage_automatic_organic_pipeline() {
+    use std::process::Command;
+
+    // Simulate a cloud storage input path matching macOS FileProvider / CloudStorage convention
+    let dir = tempdir().expect("create temp dir");
+    let cloud_input = dir
+        .path()
+        .join("Library")
+        .join("CloudStorage")
+        .join("ProtonDrive-user@example.com")
+        .join("My Photos");
+    fs::create_dir_all(&cloud_input).expect("create simulated cloud dir");
+
+    // Create realistic sample photos with sidecars
+    let photo1 = cloud_input.join("DSC_0101.JPG");
+    let xmp1 = cloud_input.join("DSC_0101.XMP");
+    let photo2 = cloud_input.join("DSC_0102.JPG");
+
+    File::create(&photo1)
+        .expect("create photo1")
+        .write_all(b"SIMULATED CLOUD PHOTO DATA 1")
+        .expect("write photo1");
+    File::create(&xmp1)
+        .expect("create xmp1")
+        .write_all(b"<x:xmpmeta>sidecar 1</x:xmpmeta>")
+        .expect("write xmp1");
+    File::create(&photo2)
+        .expect("create photo2")
+        .write_all(b"SIMULATED CLOUD PHOTO DATA 2")
+        .expect("write photo2");
+
+    // Execute organic organize without manual eviction or custom flags
+    // Verifies that organize auto-detects cloud backend, uses in-place renames,
+    // partitions into bounded chunks, evicts downloaded files, and generates bird_catalog.html
+    let output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            cloud_input.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize on cloud storage");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        output.status.success(),
+        "avicull organize failed on simulated cloud storage: STDOUT:\n{}\nSTDERR:\n{}",
+        stdout,
+        stderr
+    );
+
+    // 1. Verify chunk loop ran automatically with default cache budget
+    assert!(
+        stdout.contains("Processing chunk"),
+        "stdout should report automatic chunked processing: {}",
+        stdout
+    );
+    assert!(
+        stdout.contains("cache budget: 5GB"),
+        "stdout should reflect default 5GB cache budget: {}",
+        stdout
+    );
+
+    // 2. Verify bird_catalog.html was generated automatically
+    let catalog_path = cloud_input.join("bird_catalog.html");
+    assert!(
+        catalog_path.exists(),
+        "bird_catalog.html must be generated in cloud input root"
+    );
+    let catalog_html = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        catalog_html.contains("Avicull Photo Catalog"),
+        "catalog html must contain title"
+    );
+
+    // 3. Verify SQLite manifest was created in cloud input
+    let db_path = cloud_input.join(".avicull/manifest.sqlite");
+    assert!(
+        db_path.exists(),
+        ".avicull/manifest.sqlite must be created in cloud input"
+    );
+
+    // 4. Verify in-place renames occurred in lockstep with sidecars
+    // Photo 1 should have been renamed along with its .XMP sidecar
+    let entries: Vec<String> = fs::read_dir(&cloud_input)
+        .unwrap()
+        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string()))
+        .collect();
+
+    assert!(
+        entries
+            .iter()
+            .any(|name| name.contains("DSC_0101") && name.ends_with(".JPG")),
+        "Renamed photo 1 must retain original stem: {:?}",
+        entries
+    );
+    assert!(
+        entries
+            .iter()
+            .any(|name| name.contains("DSC_0101") && name.to_uppercase().ends_with(".XMP")),
+        "Renamed XMP sidecar must track photo 1 in lockstep: {:?}",
+        entries
+    );
+}
