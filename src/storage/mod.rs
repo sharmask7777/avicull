@@ -1,6 +1,14 @@
+pub mod cloud;
+pub mod local;
+pub mod network;
+
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+
+pub use cloud::MacOSCloudStorageBackend;
+pub use local::LocalVolumeBackend;
+pub use network::NetworkShareBackend;
 
 /// Identifies the underlying filesystem or storage provider category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,102 +42,31 @@ pub trait StorageBackend: Send + Sync {
 
     /// Moves/renames an asset across directories within the backend.
     fn rename_asset(&self, src: &Path, dst: &Path) -> std::io::Result<()>;
-}
 
-/// Standard local APFS/HFS+ or standard POSIX filesystem volume.
-pub struct LocalVolumeBackend;
-
-impl StorageBackend for LocalVolumeBackend {
-    fn kind(&self) -> StorageKind {
-        StorageKind::LocalVolume
-    }
-
-    fn inspect_locality(&self, path: &Path) -> std::io::Result<FileLocality> {
-        let meta = std::fs::symlink_metadata(path)?;
-        let file_size_bytes = meta.len();
-
-        #[cfg(target_os = "macos")]
-        {
-            use std::os::darwin::fs::MetadataExt;
-            const SF_DATALESS: u32 = 0x4000_0000;
-            let is_dataless = (meta.st_flags() & SF_DATALESS) != 0;
-            Ok(FileLocality {
-                is_dataless,
-                pre_existing_local: !is_dataless,
-                file_size_bytes,
-            })
+    /// Selectively evicts the asset only if it was downloaded by avicull.
+    ///
+    /// Critical invariant: if the file was already resident locally before
+    /// avicull ran (`locality.pre_existing_local == true`), this method MUST
+    /// be a no-op to avoid evicting user files.
+    fn evict_if_downloaded(&self, path: &Path, locality: &FileLocality) -> std::io::Result<()> {
+        if locality.pre_existing_local {
+            return Ok(());
         }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            Ok(FileLocality {
-                is_dataless: false,
-                pre_existing_local: true,
-                file_size_bytes,
-            })
-        }
+        self.evict(path)
     }
 
-    fn materialize(&self, path: &Path) -> std::io::Result<PathBuf> {
-        Ok(path.to_path_buf())
-    }
-
-    fn evict(&self, _path: &Path) -> std::io::Result<()> {
-        Ok(())
-    }
-
-    fn rename_asset(&self, src: &Path, dst: &Path) -> std::io::Result<()> {
-        std::fs::rename(src, dst)
-    }
-}
-
-/// macOS CloudStorage provider (OneDrive, Dropbox, Google Drive, iCloud via FileProvider).
-pub struct MacOSCloudStorageBackend;
-
-impl StorageBackend for MacOSCloudStorageBackend {
-    fn kind(&self) -> StorageKind {
-        StorageKind::MacOSCloudStorage
-    }
-
-    fn inspect_locality(&self, path: &Path) -> std::io::Result<FileLocality> {
-        LocalVolumeBackend.inspect_locality(path)
-    }
-
-    fn materialize(&self, path: &Path) -> std::io::Result<PathBuf> {
-        Ok(path.to_path_buf())
-    }
-
-    fn evict(&self, _path: &Path) -> std::io::Result<()> {
-        Ok(())
-    }
-
-    fn rename_asset(&self, src: &Path, dst: &Path) -> std::io::Result<()> {
-        std::fs::rename(src, dst)
-    }
-}
-
-/// Network filesystem share (SMB / NFS).
-pub struct NetworkShareBackend;
-
-impl StorageBackend for NetworkShareBackend {
-    fn kind(&self) -> StorageKind {
-        StorageKind::NetworkShare
-    }
-
-    fn inspect_locality(&self, path: &Path) -> std::io::Result<FileLocality> {
-        LocalVolumeBackend.inspect_locality(path)
-    }
-
-    fn materialize(&self, path: &Path) -> std::io::Result<PathBuf> {
-        Ok(path.to_path_buf())
-    }
-
-    fn evict(&self, _path: &Path) -> std::io::Result<()> {
-        Ok(())
-    }
-
-    fn rename_asset(&self, src: &Path, dst: &Path) -> std::io::Result<()> {
-        std::fs::rename(src, dst)
+    /// Safely evicts hydrated blocks *before* renaming an asset.
+    ///
+    /// For cloud storage providers, performing eviction before renaming
+    /// ensures clean file state transitions without sync lockouts.
+    fn evict_and_rename(
+        &self,
+        src: &Path,
+        dst: &Path,
+        locality: &FileLocality,
+    ) -> std::io::Result<()> {
+        self.evict_if_downloaded(src, locality)?;
+        self.rename_asset(src, dst)
     }
 }
 
@@ -141,7 +78,7 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
     if path_str.contains("/Library/CloudStorage/")
         || path_str.contains("/Library/Mobile Documents/com~apple~CloudDocs")
     {
-        return Box::new(MacOSCloudStorageBackend);
+        return Box::new(MacOSCloudStorageBackend::new());
     }
 
     // 2. Check extended attributes if path exists
@@ -162,7 +99,7 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
                     if xattrs_str.contains("com.apple.fileprovider")
                         || xattrs_str.contains("com.apple.CloudDocs")
                     {
-                        return Box::new(MacOSCloudStorageBackend);
+                        return Box::new(MacOSCloudStorageBackend::new());
                     }
                 }
             }
@@ -188,7 +125,7 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
                         let fs_type =
                             std::ffi::CStr::from_ptr(stat.f_fstypename.as_ptr()).to_string_lossy();
                         if fs_type == "smbfs" || fs_type == "nfs" {
-                            return Box::new(NetworkShareBackend);
+                            return Box::new(NetworkShareBackend::new());
                         }
                     }
                 }
@@ -197,5 +134,5 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
     }
 
     // 4. Default to standard local volume
-    Box::new(LocalVolumeBackend)
+    Box::new(LocalVolumeBackend::new())
 }
