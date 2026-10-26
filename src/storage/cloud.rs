@@ -53,28 +53,40 @@ impl StorageBackend for MacOSCloudStorageBackend {
     fn evict(&self, path: &Path) -> std::io::Result<()> {
         #[cfg(target_os = "macos")]
         {
-            if let Ok(()) = unsafe { macos_evict_ubiquitous_item(path) } {
+            let native_res = unsafe { macos_evict_ubiquitous_item(path) };
+            if let Ok(()) = native_res {
                 return Ok(());
             }
+
+            let path_str = path.to_string_lossy();
+            if path_str.contains("/Library/Mobile Documents/com~apple~CloudDocs") {
+                let status = Command::new("brctl")
+                    .arg("evict")
+                    .arg(path)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+
+                match status {
+                    Ok(s) if s.success() => return Ok(()),
+                    Ok(s) => {
+                        return Err(std::io::Error::other(format!(
+                            "brctl evict failed with exit status: {}",
+                            s
+                        )))
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+
+            // Return the native NSFileManager error if eviction failed, avoiding invalid CLI usage calls.
+            native_res
         }
 
-        let path_str = path.to_string_lossy();
-        let status = if path_str.contains("/Library/Mobile Documents/com~apple~CloudDocs") {
-            Command::new("brctl").arg("evict").arg(path).status()
-        } else {
-            Command::new("fileproviderctl")
-                .arg("evict")
-                .arg(path)
-                .status()
-        };
-
-        match status {
-            Ok(s) if s.success() => Ok(()),
-            Ok(s) => Err(std::io::Error::other(format!(
-                "Eviction failed with exit status: {}",
-                s
-            ))),
-            Err(e) => Err(e),
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = path;
+            Ok(())
         }
     }
 
@@ -143,9 +155,35 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
     if success {
         Ok(())
     } else {
+        let err_desc = if !error.is_null() {
+            let desc_sel = sel_registerName(c"localizedDescription".as_ptr() as *const _);
+            let desc_obj = objc_msg_send(error, desc_sel);
+            if !desc_obj.is_null() {
+                let utf8_sel = sel_registerName(c"UTF8String".as_ptr() as *const _);
+                type Utf8Fn = unsafe extern "C" fn(
+                    *mut libc::c_void,
+                    *mut libc::c_void,
+                ) -> *const libc::c_char;
+                let get_utf8: Utf8Fn = std::mem::transmute(objc_msgsend_sym);
+                let c_str = get_utf8(desc_obj, utf8_sel);
+                if !c_str.is_null() {
+                    std::ffi::CStr::from_ptr(c_str)
+                        .to_string_lossy()
+                        .into_owned()
+                } else {
+                    "unknown error".to_string()
+                }
+            } else {
+                "unknown error".to_string()
+            }
+        } else {
+            "unknown error".to_string()
+        };
+
         Err(std::io::Error::other(format!(
-            "NSFileManager evict returned false for {}",
-            path.display()
+            "NSFileManager evict returned false for {}: {}",
+            path.display(),
+            err_desc
         )))
     }
 }
