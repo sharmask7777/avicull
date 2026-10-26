@@ -11,7 +11,7 @@ use tempfile::tempdir;
 #[test]
 fn test_catalog_template_generates_avicull_correct_commands() {
     let dir = tempdir().expect("create temp dir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     let item = CatalogItem {
         bundle_id: "bundle-test-1".to_string(),
@@ -46,7 +46,7 @@ fn test_catalog_template_generates_avicull_correct_commands() {
     )
     .expect("generate_html_catalog must succeed");
 
-    let html = fs::read_to_string(&catalog_path).expect("read catalog.html");
+    let html = fs::read_to_string(&catalog_path).expect("read bird_catalog.html");
 
     // Verify buildMoveCommands generates the avicull correct command
     assert!(

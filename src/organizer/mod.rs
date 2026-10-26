@@ -1,6 +1,7 @@
 pub mod correct;
 pub mod inplace;
 pub mod reconcile;
+pub use crate::catalog::DEFAULT_CATALOG_FILENAME;
 pub use correct::*;
 pub use inplace::*;
 pub use reconcile::*;
