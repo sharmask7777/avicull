@@ -182,7 +182,7 @@ pub struct CleanArgs {
     #[arg(long)]
     pub db: Option<PathBuf>,
 
-    /// Specific run_id to unlink (defaults to all runs)
+    /// Specific run_id to clean (defaults to latest run)
     #[arg(long)]
     pub run_id: Option<String>,
 }
@@ -197,8 +197,16 @@ pub struct ReportArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Output format: [csv | json] (default: csv)
-    #[arg(short, long, default_value = "csv")]
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// Specific run_id to report on (defaults to latest run)
+    #[arg(long)]
+    pub run_id: Option<String>,
+
+    /// Output format: json, csv, or table (default: json)
+    #[arg(long, default_value = "json")]
     pub format: String,
 }
 
@@ -208,47 +216,57 @@ pub struct ModelsArgs {
     #[arg(default_value = "status")]
     pub action: String,
 
-    /// Directory containing models (default: ~/.cache/avicull/models)
+    /// Target cache directory (defaults to ~/.cache/avicull/models)
     #[arg(long)]
-    pub models_dir: Option<PathBuf>,
+    pub cache_dir: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]
 pub struct UpdateArgs {
-    /// Verify release authenticity without replacing the binary
-    #[arg(long)]
+    /// Only check if an update is available without downloading or replacing the binary
+    #[arg(long, default_value_t = false)]
     pub check: bool,
-
-    /// Force reinstall even if already running the latest version
-    #[arg(long)]
-    pub force: bool,
-
-    /// Pre-release or custom version tag to install (e.g. "v0.3.0")
-    #[arg(long)]
-    pub version: Option<String>,
 }
 
 #[derive(Args, Debug)]
 pub struct CorrectArgs {
-    /// Path to the photo file to reclassify (relative or absolute)
+    /// Read-only source directory of trip photos (hierarchy mode) or photo root (in-place mode)
     #[arg(short, long)]
-    pub file: PathBuf,
+    pub input: Option<PathBuf>,
 
-    /// Target species common name or taxon ID (e.g., "Plumbeous Water Redstart" or "plwred1")
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// Filename, stem, or bundle ID of the photo asset to reclassify
+    #[arg(short, long)]
+    pub file: String,
+
+    /// Correct species name or directory slug (e.g. "Painted Stork" or "Painted_Stork")
     #[arg(short, long)]
     pub species: String,
 
-    /// Automatically propagate correction to all photos in the same burst cluster
-    #[arg(long)]
-    pub apply_to_burst: bool,
+    /// Organization mode: [in-place | hierarchy]
+    #[arg(long, value_enum)]
+    pub mode: Option<OrganizationMode>,
 
-    /// Non-interactive execution; accept best match without user confirmation
-    #[arg(long)]
-    pub no_prompt: bool,
+    /// Propagate correction to all frames in the same burst
+    #[arg(
+        short = 'b',
+        long = "propagate-burst",
+        visible_alias = "burst",
+        default_value_t = false
+    )]
+    pub propagate_burst: bool,
 }
 
 #[derive(Args, Debug)]
 pub struct HelpArgs {
-    /// Optional topic to display detailed guidance for (e.g., 'scan', 'organize', 'rules', 'models')
+    /// Topic or command to display: [quickstart | organize | scan | invariants | models | update | all]
+    #[arg(value_name = "TOPIC")]
     pub topic: Option<String>,
 }

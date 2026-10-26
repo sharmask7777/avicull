@@ -183,4 +183,10 @@ fn test_cli_organize_in_place_chunked_processing_evicts_downloaded() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(input_dir.join("bird_catalog.html").exists());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Processing chunk"),
+        "stdout should show chunked processing loop: {}",
+        stdout
+    );
 }
