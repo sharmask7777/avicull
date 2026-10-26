@@ -378,3 +378,115 @@ fn test_cli_correct_inplace_mode_updates_manifest_and_renames() {
     assert!(b5.0.is_user_override);
     assert_eq!(b5.0.routing_tier, RoutingTier::ConfirmedSpecies);
 }
+
+#[test]
+fn test_cli_correct_ambiguous_file_fails_with_choices() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip1_dir = input_dir.join("Bharatpur");
+    let trip2_dir = input_dir.join("Corbett");
+    fs::create_dir_all(&trip1_dir).unwrap();
+    fs::create_dir_all(&trip2_dir).unwrap();
+
+    let photo1 = trip1_dir.join("DSC_0001.JPG");
+    let photo2 = trip2_dir.join("DSC_0001.JPG");
+    File::create(&photo1)
+        .unwrap()
+        .write_all(b"JPEG DSC_0001 TRIP 1")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"JPEG DSC_0001 TRIP 2")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in hierarchy mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(
+        org_output.status.success(),
+        "organize failed: stderr: {}",
+        String::from_utf8_lossy(&org_output.stderr)
+    );
+
+    // 2. Run avicull correct with ambiguous query "DSC_0001"
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0001",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct");
+
+    // Non-interactive execution must fail when matches > 1
+    assert!(
+        !correct_output.status.success(),
+        "Ambiguous file query should fail in non-interactive mode"
+    );
+
+    let stderr = String::from_utf8_lossy(&correct_output.stderr);
+    assert!(
+        stderr.contains("Bharatpur/DSC_0001.JPG"),
+        "stderr should list Bharatpur/DSC_0001.JPG choice, got: {}",
+        stderr
+    );
+    assert!(
+        stderr.contains("Corbett/DSC_0001.JPG"),
+        "stderr should list Corbett/DSC_0001.JPG choice, got: {}",
+        stderr
+    );
+
+    // 3. Disambiguating with relative path should succeed
+    let disambiguated_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "Bharatpur/DSC_0001.JPG",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct with relative path");
+
+    assert!(
+        disambiguated_output.status.success(),
+        "Disambiguated correct failed: stderr: {}",
+        String::from_utf8_lossy(&disambiguated_output.stderr)
+    );
+
+    let db_path = input_dir.join("birds_hierarchy/.avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+    let bharatpur_bundle = bundles
+        .iter()
+        .find(|(_, b)| b.trip_folder_name == "Bharatpur")
+        .expect("Bharatpur bundle must exist");
+    assert_eq!(bharatpur_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert!(bharatpur_bundle.0.is_user_override);
+
+    let corbett_bundle = bundles
+        .iter()
+        .find(|(_, b)| b.trip_folder_name == "Corbett")
+        .expect("Corbett bundle must exist");
+    assert_ne!(corbett_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert!(!corbett_bundle.0.is_user_override);
+}
