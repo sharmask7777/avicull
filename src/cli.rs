@@ -1,0 +1,254 @@
+use crate::types::OrganizationMode;
+use clap::{Args, Parser, Subcommand};
+use std::path::PathBuf;
+
+pub use crate::organizer::chunk::parse_size_budget;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "avicull",
+    author = "avicull contributors",
+    version = env!("CARGO_PKG_VERSION"),
+    about = "Local AI Bird Photo Organizer for macOS Apple Silicon",
+    disable_help_subcommand = true
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Verify APFS same-volume hardlink compatibility, sidecar bundles & location resolution
+    Scan(ScanArgs),
+
+    /// Run detection, classification, burst smoothing, and populate hard-linked species tree
+    Organize(OrganizeArgs),
+
+    /// Re-materialize hard links from cached SQLite predictions without re-running ML inference
+    Relink(RelinkArgs),
+
+    /// Unlink all generated hard links in --output for a given run_id (leaving --input untouched)
+    Clean(CleanArgs),
+
+    /// Export a CSV/JSON summary of species counts and _Needs_Review items
+    Report(ReportArgs),
+
+    /// Inspect status or update local eBird taxonomy and AI models cache (~/.cache/avicull/models)
+    Models(ModelsArgs),
+
+    /// Check for newer releases or self-update avicull to the latest prebuilt version
+    Update(UpdateArgs),
+
+    /// Override classification for a photo bundle, update SQLite manifest and disk structure
+    Correct(CorrectArgs),
+
+    /// Display interactive help topics, workflow manuals, and CLI reference
+    Help(HelpArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct ScanArgs {
+    /// Read-only root directory of trip-based bird photos
+    #[arg(short, long)]
+    pub input: PathBuf,
+
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Optional TOML file mapping trip folder keywords to {lat, lon}
+    #[arg(long)]
+    pub locations_file: Option<PathBuf>,
+
+    /// Fallback default latitude
+    #[arg(long)]
+    pub default_lat: Option<f64>,
+
+    /// Fallback default longitude
+    #[arg(long)]
+    pub default_lon: Option<f64>,
+}
+
+#[derive(Args, Debug)]
+pub struct OrganizeArgs {
+    /// Read-only root directory of trip-based bird photos
+    #[arg(short, long)]
+    pub input: PathBuf,
+
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Compute classifications and write SQLite plan without creating filesystem hard links
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+
+    /// Force re-running ML detection and classification on all bundles, bypassing SQLite cache
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
+
+    /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
+    #[arg(long, default_value_t = 0.65)]
+    pub min_confidence: f32,
+
+    /// YOLO11 bird detection confidence floor (default: 0.25)
+    #[arg(long, default_value_t = 0.25)]
+    pub min_detect: f32,
+
+    /// Max timestamp gap for burst clustering in ms (default: 3000)
+    #[arg(long, default_value_t = 3000)]
+    pub burst_window_ms: i64,
+
+    /// Filename score: [burst-consensus | per-frame] (default: burst-consensus)
+    #[arg(long, default_value = "burst-consensus")]
+    pub confidence_mode: String,
+
+    /// Organization mode: [in-place | hierarchy] (default: in-place)
+    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlaceFileRenameToDescriptiveNames)]
+    pub mode: OrganizationMode,
+
+    /// Strength of SINR geographical prior [0.0..2.0] (default: 1.0)
+    #[arg(long, default_value_t = 1.0)]
+    pub geo_prior_weight: f32,
+
+    /// Optional TOML file mapping trip folder keywords to {lat, lon}
+    #[arg(long)]
+    pub locations_file: Option<PathBuf>,
+
+    /// Fallback default latitude
+    #[arg(long)]
+    pub default_lat: Option<f64>,
+
+    /// Fallback default longitude
+    #[arg(long)]
+    pub default_lon: Option<f64>,
+
+    /// Directory containing exported .onnx and .safetensors files
+    #[arg(long)]
+    pub models_dir: Option<PathBuf>,
+
+    /// Rayon worker thread count for I/O and preprocessing
+    #[arg(long)]
+    pub threads: Option<usize>,
+
+    /// Override location name or coordinates (lat,lon) for photos lacking GPS
+    #[arg(short = 'l', long)]
+    pub location: Option<String>,
+
+    /// Run non-interactively without prompting
+    #[arg(long, default_value_t = false)]
+    pub no_prompt: bool,
+
+    /// Maximum cache size budget for chunked processing loop (default: 5GB)
+    #[arg(long, default_value = "5GB")]
+    pub max_cache_size: String,
+}
+
+#[derive(Args, Debug)]
+pub struct RelinkArgs {
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// New threshold for Confirmed vs _Needs_Review (default: 0.65)
+    #[arg(long, default_value_t = 0.65)]
+    pub min_confidence: f32,
+
+    /// Specific run_id to relink (defaults to latest run)
+    #[arg(long)]
+    pub run_id: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct CleanArgs {
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// Specific run_id to unlink (defaults to all runs)
+    #[arg(long)]
+    pub run_id: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct ReportArgs {
+    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub input: Option<PathBuf>,
+
+    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Output format: [csv | json] (default: csv)
+    #[arg(short, long, default_value = "csv")]
+    pub format: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ModelsArgs {
+    /// Action: [status | update] (default: status)
+    #[arg(default_value = "status")]
+    pub action: String,
+
+    /// Directory containing models (default: ~/.cache/avicull/models)
+    #[arg(long)]
+    pub models_dir: Option<PathBuf>,
+}
+
+#[derive(Args, Debug)]
+pub struct UpdateArgs {
+    /// Verify release authenticity without replacing the binary
+    #[arg(long)]
+    pub check: bool,
+
+    /// Force reinstall even if already running the latest version
+    #[arg(long)]
+    pub force: bool,
+
+    /// Pre-release or custom version tag to install (e.g. "v0.3.0")
+    #[arg(long)]
+    pub version: Option<String>,
+}
+
+#[derive(Args, Debug)]
+pub struct CorrectArgs {
+    /// Path to the photo file to reclassify (relative or absolute)
+    #[arg(short, long)]
+    pub file: PathBuf,
+
+    /// Target species common name or taxon ID (e.g., "Plumbeous Water Redstart" or "plwred1")
+    #[arg(short, long)]
+    pub species: String,
+
+    /// Automatically propagate correction to all photos in the same burst cluster
+    #[arg(long)]
+    pub apply_to_burst: bool,
+
+    /// Non-interactive execution; accept best match without user confirmation
+    #[arg(long)]
+    pub no_prompt: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct HelpArgs {
+    /// Optional topic to display detailed guidance for (e.g., 'scan', 'organize', 'rules', 'models')
+    pub topic: Option<String>,
+}

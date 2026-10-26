@@ -1,6 +1,7 @@
 pub mod burst;
 pub mod catalog;
 pub mod classifier;
+pub mod cli;
 pub mod db;
 pub mod detector;
 pub mod geo;
@@ -16,6 +17,7 @@ pub mod update;
 pub use burst::*;
 pub use catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 pub use classifier::*;
+pub use cli::*;
 pub use db::*;
 pub use detector::*;
 pub use geo::*;

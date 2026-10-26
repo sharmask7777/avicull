@@ -1,19 +1,44 @@
+pub mod chunk;
 pub mod correct;
 pub mod inplace;
 pub mod reconcile;
 pub use crate::catalog::DEFAULT_CATALOG_FILENAME;
+pub use chunk::*;
 pub use correct::*;
 pub use inplace::*;
 pub use reconcile::*;
 
 use crate::db::{HardlinkOperation, ManifestDb};
 use crate::scanner::decompose_filename;
-use crate::types::{AssetBundle, BundleDecision, RoutingTier};
+use crate::storage::{StorageBackend, StorageKind};
+use crate::types::{AssetBundle, AvicullError, BundleDecision, OrganizationMode, RoutingTier};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+
+/// Validates that the requested organization mode is supported by the storage backend.
+/// Rejects `--mode hierarchy` on non-local storage backends (CloudStorage / NetworkShare).
+pub fn validate_organization_mode_for_backend(
+    backend: &dyn StorageBackend,
+    mode: OrganizationMode,
+) -> Result<()> {
+    if mode == OrganizationMode::HierarchicalHardlinkHierarchy
+        && backend.kind() != StorageKind::LocalVolume
+    {
+        let storage_desc = match backend.kind() {
+            StorageKind::MacOSCloudStorage => "cloud-synchronized storage",
+            StorageKind::NetworkShare => "network shares (SMB/NFS)",
+            StorageKind::LocalVolume => "local storage",
+        };
+        return Err(AvicullError::HierarchyModeUnsupportedOnRemote {
+            storage_type: storage_desc,
+        }
+        .into());
+    }
+    Ok(())
+}
 
 /// Sanitizes species common names into directory slugs:
 /// Replaces spaces with underscores, strips apostrophes, and replaces non-alphanumerics
