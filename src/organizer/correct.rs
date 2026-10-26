@@ -5,6 +5,7 @@ use crate::organizer::{compute_target_dir, materialize_bundle_hardlinks, sanitiz
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier};
 use anyhow::{anyhow, Context, Result};
 use std::fs;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 /// Applies a direct manual classification correction for a single photo bundle.
@@ -28,68 +29,172 @@ pub fn apply_bundle_correction(
         operating_root
     };
     let query_trim = file_query.trim();
-    let query_stem = Path::new(query_trim)
+    let clean_query = query_trim.strip_prefix("./").unwrap_or(query_trim);
+    let has_path_separator = clean_query.contains('/') || clean_query.contains('\\');
+
+    let query_stem = Path::new(clean_query)
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or(query_trim);
-    let query_file_name = Path::new(query_trim)
+        .unwrap_or(clean_query);
+    let query_file_name = Path::new(clean_query)
         .file_name()
         .and_then(|s| s.to_str())
-        .unwrap_or(query_trim);
+        .unwrap_or(clean_query);
 
     let all_bundles = db.get_all_bundles(None)?;
 
-    let matched = all_bundles.into_iter().find(|(_, bundle)| {
-        if bundle.bundle_id == query_trim {
-            return true;
-        }
-        if bundle.original_stem == query_trim || bundle.original_stem == query_stem {
-            return true;
-        }
-        if let Some(name) = bundle.primary_image.file_name().and_then(|n| n.to_str()) {
-            if name == query_file_name || name == query_trim {
+    // Filter all bundles matching the query by bundle ID, path, or filename/stem
+    let mut matched_bundles: Vec<(BundleDecision, AssetBundle)> = all_bundles
+        .into_iter()
+        .filter(|(_, bundle)| {
+            if bundle.bundle_id == clean_query {
                 return true;
             }
-        }
-        if let Some(stem) = bundle.primary_image.file_stem().and_then(|s| s.to_str()) {
-            if stem == query_stem {
+
+            if has_path_separator {
+                let target_path = Path::new(clean_query);
+                if let Some(ref rel) = bundle.relative_path {
+                    if rel == target_path || rel.ends_with(target_path) {
+                        return true;
+                    }
+                    if rel.with_extension("") == target_path {
+                        return true;
+                    }
+                    if rel.with_extension("") == target_path.with_extension("")
+                        && rel.parent() == target_path.parent()
+                    {
+                        return true;
+                    }
+                }
+                if bundle.primary_image.ends_with(target_path)
+                    || bundle
+                        .primary_image
+                        .with_extension("")
+                        .ends_with(target_path)
+                {
+                    return true;
+                }
+                for comp in &bundle.companion_images {
+                    if comp.ends_with(target_path) || comp.with_extension("").ends_with(target_path)
+                    {
+                        return true;
+                    }
+                }
+                for sc in &bundle.sidecar_files {
+                    if sc.ends_with(target_path) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            if bundle.original_stem == clean_query || bundle.original_stem == query_stem {
                 return true;
             }
-        }
-        for comp in &bundle.companion_images {
-            if let Some(name) = comp.file_name().and_then(|n| n.to_str()) {
-                if name == query_file_name || name == query_trim {
+            if let Some(name) = bundle.primary_image.file_name().and_then(|n| n.to_str()) {
+                if name == query_file_name || name == clean_query {
                     return true;
                 }
             }
-            if let Some(stem) = comp.file_stem().and_then(|s| s.to_str()) {
+            if let Some(stem) = bundle.primary_image.file_stem().and_then(|s| s.to_str()) {
                 if stem == query_stem {
                     return true;
                 }
             }
-        }
-        for sc in &bundle.sidecar_files {
-            if let Some(name) = sc.file_name().and_then(|n| n.to_str()) {
-                if name == query_file_name || name == query_trim {
+            for comp in &bundle.companion_images {
+                if let Some(name) = comp.file_name().and_then(|n| n.to_str()) {
+                    if name == query_file_name || name == clean_query {
+                        return true;
+                    }
+                }
+                if let Some(stem) = comp.file_stem().and_then(|s| s.to_str()) {
+                    if stem == query_stem {
+                        return true;
+                    }
+                }
+            }
+            for sc in &bundle.sidecar_files {
+                if let Some(name) = sc.file_name().and_then(|n| n.to_str()) {
+                    if name == query_file_name || name == clean_query {
+                        return true;
+                    }
+                }
+            }
+            if let Some(ref rel) = bundle.relative_path {
+                if rel == Path::new(clean_query) || rel.ends_with(clean_query) {
                     return true;
                 }
             }
-        }
-        if let Some(ref rel) = bundle.relative_path {
-            if rel == Path::new(query_trim) || rel.ends_with(query_trim) {
-                return true;
-            }
-        }
-        false
-    });
+            false
+        })
+        .collect();
 
-    let (decision, bundle) = match matched {
-        Some(m) => m,
-        None => {
+    let (decision, bundle) = match matched_bundles.len() {
+        0 => {
             return Err(anyhow!(
                 "No photo bundle matching '{}' was found in manifest.",
                 file_query
             ));
+        }
+        1 => matched_bundles.remove(0),
+        _ => {
+            let is_interactive = std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
+            if is_interactive {
+                println!("\nMultiple photo bundles matched query '{}':", file_query);
+                for (i, (dec, b)) in matched_bundles.iter().enumerate() {
+                    let rel = b
+                        .relative_path
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|| b.primary_image.to_string_lossy().to_string());
+                    let date = b
+                        .capture_timestamp_ms
+                        .and_then(|ms| {
+                            chrono::DateTime::from_timestamp_millis(ms)
+                                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                        })
+                        .unwrap_or_else(|| "unknown date".to_string());
+                    println!(
+                        "  [{}] {} (trip: {}, date: {}, current: {})",
+                        i + 1,
+                        rel,
+                        b.trip_folder_name,
+                        date,
+                        dec.assigned_species_slug
+                    );
+                }
+                print!(
+                    "Select bundle to reclassify [1-{}]: ",
+                    matched_bundles.len()
+                );
+                std::io::stdout().flush()?;
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                let choice: usize = input
+                    .trim()
+                    .parse()
+                    .map_err(|_| anyhow!("Invalid selection '{}'. Aborted.", input.trim()))?;
+                if choice < 1 || choice > matched_bundles.len() {
+                    return Err(anyhow!(
+                        "Selection {} out of range [1-{}].",
+                        choice,
+                        matched_bundles.len()
+                    ));
+                }
+                matched_bundles.remove(choice - 1)
+            } else {
+                let mut msg = format!("Multiple photo bundles matched query '{}':\n", file_query);
+                for (_dec, b) in &matched_bundles {
+                    let rel = b
+                        .relative_path
+                        .as_ref()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .unwrap_or_else(|| b.primary_image.to_string_lossy().to_string());
+                    msg.push_str(&format!("  - {}\n", rel));
+                }
+                msg.push_str("Specify an unambiguous relative path using --file (e.g. --file \"<trip>/<file>\").");
+                return Err(anyhow!(msg));
+            }
         }
     };
 
