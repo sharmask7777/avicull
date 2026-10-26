@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
 use avicull::catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 use avicull::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
+use avicull::cli::*;
 use avicull::db::{ExistingBundleMap, ManifestDb};
 use avicull::detector::{
     select_and_pad_bird_crop, BirdDetector, MockBirdDetector, OrtBirdDetector,
@@ -18,281 +19,13 @@ use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
 use avicull::types::{
-    ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
+    AssetBundle, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
 };
-use clap::{Args, Parser, Subcommand};
+use clap::Parser;
 use image::DynamicImage;
 use std::fs::File;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
-
-#[derive(Parser, Debug)]
-#[command(
-    name = "avicull",
-    author = "avicull contributors",
-    version = env!("CARGO_PKG_VERSION"),
-    about = "Local AI Bird Photo Organizer for macOS Apple Silicon",
-    disable_help_subcommand = true
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand, Debug)]
-enum Commands {
-    /// Verify APFS same-volume hardlink compatibility, sidecar bundles & location resolution
-    Scan(ScanArgs),
-
-    /// Run detection, classification, burst smoothing, and populate hard-linked species tree
-    Organize(OrganizeArgs),
-
-    /// Re-materialize hard links from cached SQLite predictions without re-running ML inference
-    Relink(RelinkArgs),
-
-    /// Unlink all generated hard links in --output for a given run_id (leaving --input untouched)
-    Clean(CleanArgs),
-
-    /// Export a CSV/JSON summary of species counts and _Needs_Review items
-    Report(ReportArgs),
-
-    /// Inspect status or update local eBird taxonomy and AI models cache (~/.cache/avicull/models)
-    Models(ModelsArgs),
-
-    /// Check for newer releases or self-update avicull to the latest prebuilt version
-    Update(UpdateArgs),
-
-    /// Override classification for a photo bundle, update SQLite manifest and disk structure
-    Correct(CorrectArgs),
-
-    /// Display interactive help topics, workflow manuals, and CLI reference
-    Help(HelpArgs),
-}
-
-#[derive(Args, Debug)]
-struct ScanArgs {
-    /// Read-only root directory of trip-based bird photos
-    #[arg(short, long)]
-    input: PathBuf,
-
-    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Optional TOML file mapping trip folder keywords to {lat, lon}
-    #[arg(long)]
-    locations_file: Option<PathBuf>,
-
-    /// Fallback default latitude
-    #[arg(long)]
-    default_lat: Option<f64>,
-
-    /// Fallback default longitude
-    #[arg(long)]
-    default_lon: Option<f64>,
-}
-
-#[derive(Args, Debug)]
-struct OrganizeArgs {
-    /// Read-only root directory of trip-based bird photos
-    #[arg(short, long)]
-    input: PathBuf,
-
-    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Compute classifications and write SQLite plan without creating filesystem hard links
-    #[arg(long, default_value_t = false)]
-    dry_run: bool,
-
-    /// Force re-running ML detection and classification on all bundles, bypassing SQLite cache
-    #[arg(long, default_value_t = false)]
-    force: bool,
-
-    /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
-    #[arg(long, default_value_t = 0.65)]
-    min_confidence: f32,
-
-    /// YOLO11 bird detection confidence floor (default: 0.25)
-    #[arg(long, default_value_t = 0.25)]
-    min_detect: f32,
-
-    /// Max timestamp gap for burst clustering in ms (default: 3000)
-    #[arg(long, default_value_t = 3000)]
-    burst_window_ms: i64,
-
-    /// Filename score: [burst-consensus | per-frame] (default: burst-consensus)
-    #[arg(long, default_value = "burst-consensus")]
-    confidence_mode: String,
-
-    /// Organization mode: [in-place | hierarchy] (default: in-place)
-    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlaceFileRenameToDescriptiveNames)]
-    mode: OrganizationMode,
-
-    /// Strength of SINR geographical prior [0.0..2.0] (default: 1.0)
-    #[arg(long, default_value_t = 1.0)]
-    geo_prior_weight: f32,
-
-    /// Optional TOML file mapping trip folder keywords to {lat, lon}
-    #[arg(long)]
-    locations_file: Option<PathBuf>,
-
-    /// Fallback default latitude
-    #[arg(long)]
-    default_lat: Option<f64>,
-
-    /// Fallback default longitude
-    #[arg(long)]
-    default_lon: Option<f64>,
-
-    /// Directory containing exported .onnx and .safetensors files
-    #[arg(long)]
-    models_dir: Option<PathBuf>,
-
-    /// Rayon worker thread count for I/O and preprocessing
-    #[arg(long)]
-    threads: Option<usize>,
-
-    /// Override location name or coordinates (lat,lon) for photos lacking GPS
-    #[arg(short = 'l', long)]
-    location: Option<String>,
-
-    /// Run non-interactively without prompting
-    #[arg(long, default_value_t = false)]
-    no_prompt: bool,
-
-    /// Maximum cache size budget for chunked processing loop (default: 5GB)
-    #[arg(long, default_value = "5GB")]
-    max_cache_size: String,
-}
-
-#[derive(Args, Debug)]
-struct RelinkArgs {
-    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    input: Option<PathBuf>,
-
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Path to manifest.sqlite database directly
-    #[arg(long)]
-    db: Option<PathBuf>,
-
-    /// New threshold for Confirmed vs _Needs_Review (default: 0.65)
-    #[arg(long, default_value_t = 0.65)]
-    min_confidence: f32,
-
-    /// Specific run_id to relink (defaults to latest run)
-    #[arg(long)]
-    run_id: Option<String>,
-}
-
-#[derive(Args, Debug)]
-struct CleanArgs {
-    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    input: Option<PathBuf>,
-
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Path to manifest.sqlite database directly
-    #[arg(long)]
-    db: Option<PathBuf>,
-
-    /// Specific run_id to clean (defaults to latest run)
-    #[arg(long)]
-    run_id: Option<String>,
-}
-
-#[derive(Args, Debug)]
-struct ReportArgs {
-    /// Input trip archive root (defaults output to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    input: Option<PathBuf>,
-
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Path to manifest.sqlite database directly
-    #[arg(long)]
-    db: Option<PathBuf>,
-
-    /// Specific run_id to report on (defaults to latest run)
-    #[arg(long)]
-    run_id: Option<String>,
-
-    /// Output format: json, csv, or table (default: json)
-    #[arg(long, default_value = "json")]
-    format: String,
-}
-
-#[derive(Args, Debug)]
-struct ModelsArgs {
-    /// Action: [status | update] (default: status)
-    #[arg(default_value = "status")]
-    action: String,
-
-    /// Target cache directory (defaults to ~/.cache/avicull/models)
-    #[arg(long)]
-    cache_dir: Option<PathBuf>,
-}
-
-#[derive(Args, Debug)]
-struct UpdateArgs {
-    /// Only check if an update is available without downloading or replacing the binary
-    #[arg(long, default_value_t = false)]
-    check: bool,
-}
-
-#[derive(Args, Debug)]
-struct CorrectArgs {
-    /// Read-only source directory of trip photos (hierarchy mode) or photo root (in-place mode)
-    #[arg(short, long)]
-    input: Option<PathBuf>,
-
-    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
-
-    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
-    #[arg(long)]
-    db: Option<PathBuf>,
-
-    /// Filename, stem, or bundle ID of the photo asset to reclassify
-    #[arg(short, long)]
-    file: String,
-
-    /// Correct species name or directory slug (e.g. "Painted Stork" or "Painted_Stork")
-    #[arg(short, long)]
-    species: String,
-
-    /// Organization mode: [in-place | hierarchy]
-    #[arg(long, value_enum)]
-    mode: Option<OrganizationMode>,
-
-    /// Propagate correction to all frames in the same burst
-    #[arg(
-        short = 'b',
-        long = "propagate-burst",
-        visible_alias = "burst",
-        default_value_t = false
-    )]
-    propagate_burst: bool,
-}
-
-#[derive(Args, Debug)]
-struct HelpArgs {
-    /// Topic or command to display: [quickstart | organize | scan | invariants | models | update | all]
-    #[arg(value_name = "TOPIC")]
-    topic: Option<String>,
-}
-
 fn load_image_for_inference(primary: &Path, companions: &[PathBuf]) -> Result<DynamicImage> {
     // Priority 1: Check companion images for JPEG for ultra-fast decoding
     for comp in companions {
@@ -1032,65 +765,126 @@ fn main() -> Result<()> {
             let detector = Arc::new(detector);
             let classifier = Arc::new(classifier);
 
-            let new_classified = if let Some(ref m_dir) = models_dir {
-                if m_dir.join("species_embeddings.safetensors").exists()
-                    && Path::new("scripts/infer.py").exists()
-                {
-                    println!(
-                        "Running real AI bird detection (YOLO11) and classification (BioCLIP) on {} new bundles...",
-                        new_bundles.len()
-                    );
-                    match run_batch_inference(
-                        &new_bundles,
-                        m_dir,
-                        args.min_detect,
-                        args.geo_prior_weight,
-                        &bundle_regions,
-                    ) {
-                        Ok(res) => res,
-                        Err(e) => {
-                            eprintln!(
-                                "Warning: Real inference error ({}), using fallback: {}",
-                                e, e
-                            );
-                            run_fallback_parallel_classification(
-                                &new_bundles,
-                                &detector,
-                                &classifier,
-                                args.min_detect,
-                                args.geo_prior_weight,
-                                &bundle_regions,
-                            )
+            let max_cache_bytes =
+                avicull::organizer::chunk::parse_size_budget(&args.max_cache_size)?;
+            let new_bundles_owned: Vec<AssetBundle> =
+                new_bundles.iter().map(|&b| b.clone()).collect();
+            let chunks = avicull::organizer::chunk::partition_into_chunks(
+                new_bundles_owned,
+                max_cache_bytes,
+                storage_backend.as_ref(),
+            );
+            let total_chunks = chunks.len();
+
+            let mut new_classified = std::collections::HashMap::new();
+
+            for (chunk_idx, chunk) in chunks.into_iter().enumerate() {
+                println!(
+                    "Processing chunk {}/{} ({} bundles, cache budget: {})...",
+                    chunk_idx + 1,
+                    total_chunks,
+                    chunk.len(),
+                    args.max_cache_size
+                );
+
+                // Materialize dataless cloud files and record locality for later eviction
+                let mut localities = Vec::with_capacity(chunk.len());
+                for bundle in &chunk {
+                    let loc = storage_backend
+                        .inspect_locality(&bundle.primary_image)
+                        .unwrap_or(avicull::storage::FileLocality {
+                            is_dataless: false,
+                            pre_existing_local: true,
+                            file_size_bytes: 0,
+                        });
+                    let _ = storage_backend.materialize(&bundle.primary_image);
+                    localities.push(loc);
+                }
+
+                // Run classification on chunk
+                let chunk_refs: Vec<&AssetBundle> = chunk.iter().collect();
+                let chunk_classified = if let Some(ref m_dir) = models_dir {
+                    if m_dir.join("species_embeddings.safetensors").exists()
+                        && Path::new("scripts/infer.py").exists()
+                    {
+                        match run_batch_inference(
+                            &chunk_refs,
+                            m_dir,
+                            args.min_detect,
+                            args.geo_prior_weight,
+                            &bundle_regions,
+                        ) {
+                            Ok(res) => res,
+                            Err(e) => {
+                                eprintln!(
+                                    "Warning: Real inference error ({}), using fallback: {}",
+                                    e, e
+                                );
+                                run_fallback_parallel_classification(
+                                    &chunk_refs,
+                                    &detector,
+                                    &classifier,
+                                    args.min_detect,
+                                    args.geo_prior_weight,
+                                    &bundle_regions,
+                                )
+                            }
                         }
+                    } else {
+                        run_fallback_parallel_classification(
+                            &chunk_refs,
+                            &detector,
+                            &classifier,
+                            args.min_detect,
+                            args.geo_prior_weight,
+                            &bundle_regions,
+                        )
                     }
                 } else {
-                    println!(
-                        "Running detection and classification on {} new bundles in parallel...",
-                        new_bundles.len()
-                    );
                     run_fallback_parallel_classification(
-                        &new_bundles,
+                        &chunk_refs,
                         &detector,
                         &classifier,
                         args.min_detect,
                         args.geo_prior_weight,
                         &bundle_regions,
                     )
+                };
+
+                // Extract embedded preview for RAW formats if companion missing
+                let previews_dir = operating_root.join(".avicull").join("previews");
+                for bundle in &chunk {
+                    let is_web = bundle
+                        .primary_image
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .map(|e| {
+                            matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
+                        })
+                        .unwrap_or(false);
+                    if !is_web && bundle.companion_images.is_empty() {
+                        let _ = std::fs::create_dir_all(&previews_dir);
+                        let preview_path =
+                            previews_dir.join(format!("{}.jpg", bundle.original_stem));
+                        if !preview_path.exists() {
+                            if let Ok(raw_bytes) = std::fs::read(&bundle.primary_image) {
+                                if let Some(preview_bytes) =
+                                    extract_embedded_jpeg_preview(&raw_bytes)
+                                {
+                                    let _ = std::fs::write(&preview_path, preview_bytes);
+                                }
+                            }
+                        }
+                    }
                 }
-            } else {
-                println!(
-                    "Running detection and classification on {} new bundles in parallel...",
-                    new_bundles.len()
-                );
-                run_fallback_parallel_classification(
-                    &new_bundles,
-                    &detector,
-                    &classifier,
-                    args.min_detect,
-                    args.geo_prior_weight,
-                    &bundle_regions,
-                )
-            };
+
+                // Evict downloaded cloud files for this chunk to honor max cache budget
+                for (bundle, loc) in chunk.iter().zip(localities.iter()) {
+                    let _ = storage_backend.evict_if_downloaded(&bundle.primary_image, loc);
+                }
+
+                new_classified.extend(chunk_classified);
+            }
 
             // Assemble all classified items in all_discovered order
             let mut all_classified_items = Vec::with_capacity(all_discovered.len());
