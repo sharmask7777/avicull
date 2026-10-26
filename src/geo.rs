@@ -13,23 +13,32 @@ struct TomlLocation {
     lon: f64,
 }
 
-/// Extracts EXIF GPS and timestamp from an image file if available.
-pub fn extract_exif_metadata(path: &Path) -> (Option<GpsCoordinate>, Option<i64>) {
+/// Checks if a file is an unhydrated dataless fault on macOS FileProvider.
+/// Returns true if Darwin `SF_DATALESS` (`0x40000000`) is set on `st_flags`.
+pub fn is_dataless_file(path: &Path) -> bool {
     #[cfg(target_os = "macos")]
     {
         use std::os::darwin::fs::MetadataExt;
+        const SF_DATALESS: u32 = 0x4000_0000;
         if let Ok(meta) = std::fs::symlink_metadata(path) {
-            if (meta.st_flags() & 0x40000000) != 0 {
-                // File is a dataless fault in Apple FileProvider.
-                // Do NOT open it to prevent eager hydration during pre-scan.
-                let ts = meta
-                    .modified()
-                    .ok()
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis() as i64);
-                return (None, ts);
-            }
+            return (meta.st_flags() & SF_DATALESS) != 0;
         }
+    }
+    let _ = path;
+    false
+}
+
+/// Extracts EXIF GPS and timestamp from an image file if available.
+pub fn extract_exif_metadata(path: &Path) -> (Option<GpsCoordinate>, Option<i64>) {
+    if is_dataless_file(path) {
+        // File is a dataless fault in Apple FileProvider.
+        // Do NOT open it to prevent eager hydration during pre-scan.
+        let ts = std::fs::symlink_metadata(path)
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64);
+        return (None, ts);
     }
 
     let mut coords: Option<GpsCoordinate> = None;
