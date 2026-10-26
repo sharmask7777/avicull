@@ -702,12 +702,12 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
       <div>
         <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Generated Unix Shell Command (mv):
+          Generated Correction Command (`avicull correct` / `mv`):
         </label>
         <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px;">
-          Note: Run from the photo catalog directory or execute the downloadable script below.
+          Note: Run from the catalog directory or execute apply_corrections.sh to sync the SQLite manifest and relink/rename files.
         </div>
-        <div class="command-box" id="commandOutput">Select a species above to compute destination filename and mv command...</div>
+        <div class="command-box" id="commandOutput">Select a species above to compute destination filename and avicull correct command...</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -877,7 +877,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     const input = document.getElementById('speciesSearchInput');
     if (input) input.value = '';
     document.getElementById('speciesSuggestions').classList.remove('open');
-    document.getElementById('commandOutput').textContent = "Select a species from the autocomplete search above to generate Unix mv commands...";
+    document.getElementById('commandOutput').textContent = "Select a species from the autocomplete search above to generate avicull correct commands...";
 
     document.getElementById('correctionModal').classList.add('open');
   }}
@@ -910,12 +910,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     suggestionsEl.classList.add('open');
   }}
 
-  function selectSpecies(species) {{
-    const input = document.getElementById('speciesSearchInput');
-    if (input) input.value = species;
-    document.getElementById('speciesSuggestions').classList.remove('open');
-
-    if (!activeModalItem) return;
+  function buildMoveCommands(species) {{
+    if (!activeModalItem) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const newSlug = sanitizeSlug(species);
 
@@ -923,6 +919,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (CATALOG_DATA.catalog_dir) {{
       commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
     }}
+
+    commands.push(`if command -v avicull >/dev/null 2>&1; then`);
+    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}"`);
+    commands.push(`else`);
+
     const currentPath = activeModalItem.current_path;
     const lastSlash = currentPath.lastIndexOf('/');
     const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
@@ -967,7 +968,18 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         commands.push(`mv "${{sc}}" "${{newSc}}"`);
       }}
     }}
+    commands.push(`fi`);
 
+    return commands;
+  }}
+
+  function selectSpecies(species) {{
+    const input = document.getElementById('speciesSearchInput');
+    if (input) input.value = species;
+    document.getElementById('speciesSuggestions').classList.remove('open');
+
+    if (!activeModalItem) return;
+    const commands = buildMoveCommands(species);
     const cmdStr = commands.join('\n');
     document.getElementById('commandOutput').textContent = cmdStr;
     activeModalItem._pendingCommands = commands;

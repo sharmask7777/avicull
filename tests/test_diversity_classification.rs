@@ -34,6 +34,7 @@ fn test_diverse_species_routing_not_collapsed_to_single_species() {
             final_confidence: conf,
             assigned_species_slug: slug.to_string(),
             routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
         });
     }
 

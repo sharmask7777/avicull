@@ -211,6 +211,7 @@ fn test_execute_inplace_bundle_rename_lockstep_all_files() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let renames =
@@ -262,6 +263,7 @@ fn test_execute_inplace_bundle_rename_idempotency_skip() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let renames =
@@ -300,6 +302,7 @@ fn test_execute_inplace_bundle_rename_collision_disambiguation() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let renames =
@@ -346,6 +349,7 @@ fn test_inplace_mode_skips_rename_when_no_bird_detected() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: Some("Bangalore".to_string()),
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -358,6 +362,7 @@ fn test_inplace_mode_skips_rename_when_no_bird_detected() {
         final_confidence: 0.05,
         assigned_species_slug: "Unknown_Bird".to_string(),
         routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
     };
 
     // When routing tier is NoBirdDetected, in-place renames must be empty (files untouched)

@@ -1,5 +1,9 @@
+pub mod correct;
 pub mod inplace;
+pub mod reconcile;
+pub use correct::*;
 pub use inplace::*;
+pub use reconcile::*;
 
 use crate::db::{HardlinkOperation, ManifestDb};
 use crate::scanner::decompose_filename;

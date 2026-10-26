@@ -21,6 +21,7 @@ fn test_asset_bundle_serialization_roundtrip() {
             source: LocationSource::ExifGps,
         }),
         resolved_location_name: Some("Bharatpur".to_string()),
+        relative_path: Some(PathBuf::from("2025-11_Bharatpur_Keoladeo/DSC_4011.ARW")),
     };
 
     let serialized = serde_json::to_string(&bundle).expect("serialization failed");
@@ -28,7 +29,7 @@ fn test_asset_bundle_serialization_roundtrip() {
         serde_json::from_str(&serialized).expect("deserialization failed");
     assert_eq!(bundle, deserialized);
 
-    // Verify backward compatibility: missing resolved_location_name in legacy JSON defaults to None
+    // Verify backward compatibility: missing resolved_location_name and relative_path in legacy JSON default safely
     let legacy_json = r#"{
         "bundle_id": "legacy-1",
         "source_inode": 100,
@@ -42,6 +43,7 @@ fn test_asset_bundle_serialization_roundtrip() {
     }"#;
     let legacy_bundle: AssetBundle = serde_json::from_str(legacy_json).unwrap();
     assert_eq!(legacy_bundle.resolved_location_name, None);
+    assert_eq!(legacy_bundle.relative_path, None);
 }
 
 #[test]
@@ -66,12 +68,28 @@ fn test_bundle_decision_serialization_roundtrip() {
         final_confidence: 0.96,
         assigned_species_slug: "Painted_Stork".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
     };
 
     let serialized = serde_json::to_string(&decision).expect("serialization failed");
     let deserialized: BundleDecision =
         serde_json::from_str(&serialized).expect("deserialization failed");
     assert_eq!(decision, deserialized);
+
+    // Verify backward compatibility: missing is_user_override in legacy JSON defaults to false
+    let legacy_decision_json = r#"{
+        "bundle_id": "legacy-decision",
+        "burst_id": null,
+        "detection_confidence": 0.9,
+        "bbox_xyxy_norm": null,
+        "top_predictions": [],
+        "frame_confidence": 0.9,
+        "final_confidence": 0.9,
+        "assigned_species_slug": "Passer_domesticus",
+        "routing_tier": "ConfirmedSpecies"
+    }"#;
+    let legacy_dec: BundleDecision = serde_json::from_str(legacy_decision_json).unwrap();
+    assert!(!legacy_dec.is_user_override);
 }
 
 #[test]

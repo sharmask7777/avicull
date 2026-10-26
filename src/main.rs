@@ -62,6 +62,9 @@ enum Commands {
     /// Check for newer releases or self-update avicull to the latest prebuilt version
     Update(UpdateArgs),
 
+    /// Override classification for a photo bundle, update SQLite manifest and disk structure
+    Correct(CorrectArgs),
+
     /// Display interactive help topics, workflow manuals, and CLI reference
     Help(HelpArgs),
 }
@@ -241,6 +244,33 @@ struct UpdateArgs {
     /// Only check if an update is available without downloading or replacing the binary
     #[arg(long, default_value_t = false)]
     check: bool,
+}
+
+#[derive(Args, Debug)]
+struct CorrectArgs {
+    /// Read-only source directory of trip photos (hierarchy mode) or photo root (in-place mode)
+    #[arg(short, long)]
+    input: Option<PathBuf>,
+
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+
+    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
+    #[arg(long)]
+    db: Option<PathBuf>,
+
+    /// Filename, stem, or bundle ID of the photo asset to reclassify
+    #[arg(short, long)]
+    file: String,
+
+    /// Correct species name or directory slug (e.g. "Painted Stork" or "Painted_Stork")
+    #[arg(short, long)]
+    species: String,
+
+    /// Organization mode: [in-place | hierarchy]
+    #[arg(long, value_enum)]
+    mode: Option<OrganizationMode>,
 }
 
 #[derive(Args, Debug)]
@@ -691,7 +721,7 @@ fn main() -> Result<()> {
             };
 
             let db = ManifestDb::open_or_create(&db_path)?;
-            let existing_bundle_map = if args.force {
+            let mut existing_bundle_map = if args.force {
                 ExistingBundleMap::new()
             } else {
                 db.get_existing_bundle_map().unwrap_or_default()
@@ -822,7 +852,34 @@ fn main() -> Result<()> {
                 }
             }
 
-            // Partition into new vs cached bundles
+            // Reconcile any manual filesystem moves in the output directory (hierarchy mode)
+            if args.mode == OrganizationMode::HierarchicalHardlinkHierarchy
+                && operating_root.exists()
+                && !existing_bundle_map.is_empty()
+            {
+                match avicull::organizer::reconcile_manual_disk_moves(
+                    &operating_root,
+                    &db,
+                    &mut existing_bundle_map,
+                ) {
+                    Ok(count) => {
+                        if count > 0 {
+                            println!(
+                                "Reconciliation: Reconciled {} manual filesystem move(s) into durable SQLite overrides.",
+                                count
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to reconcile manual filesystem moves: {}",
+                            e
+                        );
+                    }
+                }
+            }
+
+            // Partition into new vs cached bundles using bundle_id, source_inode, relative_path, or portable key
             let mut new_bundles = Vec::new();
             let mut cached_items = std::collections::HashMap::new();
 
@@ -996,13 +1053,25 @@ fn main() -> Result<()> {
             }
 
             println!("Applying burst clustering and consensus smoothing...");
-            let decisions = smooth_burst_consensus(
+            let mut decisions = smooth_burst_consensus(
                 &all_classified_items,
                 args.burst_window_ms,
                 0.80,
                 conf_mode,
                 args.min_confidence,
             );
+
+            // Preserve user manual overrides across burst consensus and re-runs
+            for (bundle, decision) in all_discovered.iter().zip(decisions.iter_mut()) {
+                if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
+                    if existing_dec.is_user_override {
+                        decision.assigned_species_slug = existing_dec.assigned_species_slug.clone();
+                        decision.routing_tier = existing_dec.routing_tier;
+                        decision.final_confidence = existing_dec.final_confidence;
+                        decision.is_user_override = true;
+                    }
+                }
+            }
 
             let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
             let mode_str = match args.mode {
@@ -1434,6 +1503,10 @@ fn main() -> Result<()> {
             avicull::update::perform_self_update(args.check)?;
         }
 
+        Commands::Correct(args) => {
+            execute_correct(args)?;
+        }
+
         Commands::Help(args) => {
             let topic = match args.topic.as_deref() {
                 Some(t) => Some(t.parse::<avicull::help::HelpTopic>()?),
@@ -1442,6 +1515,102 @@ fn main() -> Result<()> {
             print!("{}", avicull::help::render_help(topic));
         }
     }
+
+    Ok(())
+}
+
+fn execute_correct(args: CorrectArgs) -> Result<()> {
+    println!("== avicull correct ==");
+
+    let db_path = if let Some(ref db_p) = args.db {
+        db_p.clone()
+    } else if let Some(ref out) = args.output {
+        out.join(".avicull/manifest.sqlite")
+    } else if let Some(ref inp) = args.input {
+        let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
+        let inplace_db = inp.join(".avicull/manifest.sqlite");
+        if hier_db.exists() {
+            hier_db
+        } else if inplace_db.exists() {
+            inplace_db
+        } else {
+            hier_db
+        }
+    } else {
+        let hier_db = PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite");
+        let inplace_db = PathBuf::from(".avicull/manifest.sqlite");
+        if hier_db.exists() {
+            hier_db
+        } else if inplace_db.exists() {
+            inplace_db
+        } else {
+            hier_db
+        }
+    };
+
+    if !db_path.exists() {
+        return Err(anyhow!(
+            "Manifest database not found at '{}'. Run 'avicull organize' first.",
+            db_path.display()
+        ));
+    }
+
+    let db = ManifestDb::open_or_create(&db_path)?;
+
+    let mode = if let Some(m) = args.mode {
+        m
+    } else if let Ok(Some(m)) = db.get_latest_run_mode() {
+        m
+    } else if args.output.is_some() || db_path.to_string_lossy().contains("birds_hierarchy") {
+        OrganizationMode::HierarchicalHardlinkHierarchy
+    } else {
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+    };
+
+    let operating_root = match mode {
+        OrganizationMode::HierarchicalHardlinkHierarchy => args
+            .output
+            .clone()
+            .or_else(|| args.input.as_ref().map(|p| p.join("birds_hierarchy")))
+            .or_else(|| {
+                db_path
+                    .parent()
+                    .and_then(|p| p.parent())
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| p.to_path_buf())
+            })
+            .unwrap_or_else(|| {
+                if Path::new("birds_hierarchy").exists() {
+                    PathBuf::from("birds_hierarchy")
+                } else {
+                    PathBuf::from(".")
+                }
+            }),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames => args
+            .input
+            .clone()
+            .or_else(|| {
+                db_path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| p.to_path_buf())
+            })
+            .unwrap_or_else(|| PathBuf::from(".")),
+    };
+
+    let (updated_dec, bundle) = avicull::organizer::apply_bundle_correction(
+        &db,
+        &operating_root,
+        mode,
+        &args.file,
+        &args.species,
+        args.input.as_deref(),
+    )?;
+
+    println!(
+        "✓ Reclassified '{}' to '{}' (routing_tier: {:?}, is_user_override: 1).",
+        bundle.original_stem, updated_dec.assigned_species_slug, updated_dec.routing_tier
+    );
 
     Ok(())
 }

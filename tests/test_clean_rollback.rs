@@ -51,6 +51,7 @@ fn test_inplace_rename_recording_and_clean_rollback() {
         capture_timestamp_ms: Some(1730000000000), // ~2024-10-27
         gps_coords: None,
         resolved_location_name: Some("Leh".to_string()),
+        relative_path: None,
         source_inode: raw_ino,
     };
 
@@ -181,6 +182,7 @@ fn test_clean_hardlink_operations_unlinks_without_affecting_source() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
         source_inode: src_ino,
     };
 
@@ -202,6 +204,7 @@ fn test_clean_hardlink_operations_unlinks_without_affecting_source() {
         final_confidence: 0.95,
         assigned_species_slug: "Barn_Swallow".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     let db_path = output_dir.join(".avicull/manifest.sqlite");

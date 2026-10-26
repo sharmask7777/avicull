@@ -146,6 +146,7 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -158,6 +159,7 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
         final_confidence: 0.96,
         assigned_species_slug: "Painted_Stork".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     let run_id = "run-001";
@@ -241,6 +243,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let b2 = AssetBundle {
@@ -254,6 +257,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -266,6 +270,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         final_confidence: 0.96,
         assigned_species_slug: "Painted_Stork".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     // Materialize Trip 1
@@ -317,6 +322,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let b2 = AssetBundle {
@@ -330,6 +336,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -342,6 +349,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         final_confidence: 0.90,
         assigned_species_slug: "Chukar".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     // Materialize first file: creates Chukar/IMG_9999_0.90.JPG
@@ -379,6 +387,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
     materialize_bundle_hardlinks(&b3, &decision, &output_dir, "run-1", false).unwrap();
     let dst3 = output_dir.join("Chukar/trip__IMG_9999_0.90_1.JPG");
@@ -406,6 +415,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         capture_timestamp_ms: None,
         gps_coords: None,
         resolved_location_name: None,
+        relative_path: None,
     };
     materialize_bundle_hardlinks(&b4, &decision, &output_dir, "run-1", false).unwrap();
     let dst4 = output_dir.join("Chukar/trip__IMG_9999_0.90_2.JPG");
@@ -451,6 +461,7 @@ fn test_materialize_hardlinks_with_date_and_location() {
         capture_timestamp_ms: Some(1737888000000),
         gps_coords: None,
         resolved_location_name: Some("Saul Kere".to_string()),
+        relative_path: None,
     };
 
     let decision = BundleDecision {
@@ -463,6 +474,7 @@ fn test_materialize_hardlinks_with_date_and_location() {
         final_confidence: 0.98,
         assigned_species_slug: "Brahminy_Kite".to_string(),
         routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
     };
 
     let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, "run-annotated", false)
