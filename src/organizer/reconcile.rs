@@ -62,6 +62,7 @@ pub fn reconcile_manual_disk_moves(
 
         if file_name.starts_with('.')
             || file_name == "catalog.html"
+            || file_name == "bird_catalog.html"
             || file_name == "apply_corrections.sh"
         {
             continue;
@@ -339,6 +340,7 @@ pub fn reconcile_inplace_manual_renames(
 
         if file_name.starts_with('.')
             || file_name == "catalog.html"
+            || file_name == "bird_catalog.html"
             || file_name == "apply_corrections.sh"
         {
             continue;
@@ -438,6 +440,7 @@ pub fn reconcile_inplace_manual_renames(
                         let comp_fname = comp_entry_res.file_name().to_string_lossy().to_string();
                         if comp_fname.starts_with('.')
                             || comp_fname == "catalog.html"
+                            || comp_fname == "bird_catalog.html"
                             || comp_fname == "apply_corrections.sh"
                         {
                             continue;

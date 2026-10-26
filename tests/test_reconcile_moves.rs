@@ -468,8 +468,8 @@ fn test_reconcile_inplace_manual_filename_rename() {
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
 
-    // Verify catalog.html was refreshed and contains Northern_Pintail
-    let catalog_path = input_dir.join("catalog.html");
+    // Verify bird_catalog.html was refreshed and contains Northern_Pintail
+    let catalog_path = input_dir.join("bird_catalog.html");
     assert!(catalog_path.exists());
     let catalog_html = fs::read_to_string(&catalog_path).unwrap();
     assert!(catalog_html.contains("Northern_Pintail"));

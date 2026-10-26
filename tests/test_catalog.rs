@@ -7,7 +7,7 @@ use tempfile::tempdir;
 #[test]
 fn test_generate_html_catalog_basic() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     let item1 = CatalogItem {
         bundle_id: "bundle-1".to_string(),
@@ -92,9 +92,12 @@ fn test_generate_html_catalog_basic() {
     )
     .expect("generate_html_catalog should succeed");
 
-    assert!(catalog_path.exists(), "catalog.html must exist on disk");
+    assert!(
+        catalog_path.exists(),
+        "bird_catalog.html must exist on disk"
+    );
 
-    let html_content = fs::read_to_string(&catalog_path).expect("read catalog.html");
+    let html_content = fs::read_to_string(&catalog_path).expect("read bird_catalog.html");
 
     // HTML5 validity
     assert!(html_content.contains("<!DOCTYPE html>"));
@@ -141,7 +144,7 @@ fn test_generate_html_catalog_basic() {
 #[test]
 fn test_generate_html_catalog_raw_preview_extraction() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     // Create a mock RAW file containing valid SOI and EOI JPEG markers
     let raw_file = dir.path().join("IMG_2001.CR2");
@@ -198,7 +201,7 @@ fn test_generate_html_catalog_raw_preview_extraction() {
 #[test]
 fn test_generate_html_catalog_cloud_evicted_error_handling() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     // Primary image does not exist on disk (cloud-evicted file)
     let non_existent_image = dir.path().join("IMG_EVICTED.CR2");
@@ -238,7 +241,7 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
 #[test]
 fn test_generate_html_catalog_hierarchy_mode() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     let item = CatalogItem {
         bundle_id: "bundle-h".to_string(),
@@ -274,7 +277,7 @@ fn test_generate_html_catalog_hierarchy_mode() {
 #[test]
 fn test_resolve_or_extract_preview_inplace_renamed() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     // Case 1: In-place renamed RAW file (primary_image does not exist, current_path exists)
     let old_raw = dir.path().join("IMG_2002.CR2");
@@ -361,7 +364,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
 #[test]
 fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
     let dir = tempdir().expect("tempdir");
-    let catalog_path = dir.path().join("catalog.html");
+    let catalog_path = dir.path().join("bird_catalog.html");
 
     let item = CatalogItem {
         bundle_id: "bundle-1".to_string(),

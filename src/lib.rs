@@ -13,7 +13,7 @@ pub mod types;
 pub mod update;
 
 pub use burst::*;
-pub use catalog::{generate_html_catalog, CatalogItem};
+pub use catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 pub use classifier::*;
 pub use db::*;
 pub use detector::*;
