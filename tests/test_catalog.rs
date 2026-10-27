@@ -432,3 +432,373 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
         "Batch script apply_corrections.sh must change directory to catalog_dir"
     );
 }
+
+#[test]
+fn test_catalog_species_autocomplete_token_normalization_and_ranking() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        current_path: PathBuf::from("birds_hierarchy/House_Sparrow/IMG_1001.CR2"),
+        primary_image: dir.path().join("IMG_1001.CR2"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: None,
+    };
+
+    generate_html_catalog(
+        "Autocomplete Test",
+        &[item],
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // 1. Verify autocomplete helper functions are present in the generated catalog HTML
+    assert!(
+        html_content.contains("function searchSpeciesAutocomplete("),
+        "searchSpeciesAutocomplete helper must exist"
+    );
+    assert!(
+        html_content.contains("function normalizeAutocompleteTokens("),
+        "normalizeAutocompleteTokens helper must exist"
+    );
+
+    // 2. Extract Javascript logic from HTML and execute test cases in Node.js
+    // Extract script content between <script> and </script>
+    let script_start = html_content
+        .find("<script>")
+        .expect("<script> tag not found");
+    let script_end = html_content
+        .rfind("</script>")
+        .expect("</script> tag not found");
+    let script_content = &html_content[script_start + 8..script_end];
+
+    let runner_js = format!(
+        r#"
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: '{{}}' }};
+    }}
+    return {{
+      textContent: '',
+      value: '',
+      classList: {{ add: () => {{}}, remove: () => {{}} }},
+      style: {{}}
+    }};
+  }},
+  addEventListener: () => {{}}
+}};
+const window = {{
+  matchMedia: () => ({{ matches: false, addEventListener: () => {{}} }})
+}};
+
+{script_content}
+
+const testSpecies = [
+    "White-cheeked Barbet",
+    "Barbet",
+    "Red-vented Bulbul",
+    "Cheeked Pipit",
+    "White-breasted Kingfisher",
+    "Great Barbet",
+    "Barbette Bird"
+];
+
+// Test case 1: "white cheeked barbet" (spaces instead of hyphen) matches "White-cheeked Barbet"
+const res1 = searchSpeciesAutocomplete("white cheeked barbet", testSpecies);
+if (!res1.includes("White-cheeked Barbet")) {{
+    console.error("Failed res1: 'white cheeked barbet' did not match 'White-cheeked Barbet'. Got:", res1);
+    process.exit(1);
+}}
+
+// Test case 2: "white-cheeked" matches "White-cheeked Barbet"
+const res2 = searchSpeciesAutocomplete("white-cheeked", testSpecies);
+if (!res2.includes("White-cheeked Barbet")) {{
+    console.error("Failed res2: 'white-cheeked' did not match. Got:", res2);
+    process.exit(1);
+}}
+
+// Test case 3: "barbet white cheeked" matches "White-cheeked Barbet"
+const res3 = searchSpeciesAutocomplete("barbet white cheeked", testSpecies);
+if (!res3.includes("White-cheeked Barbet")) {{
+    console.error("Failed res3: 'barbet white cheeked' did not match. Got:", res3);
+    process.exit(1);
+}}
+
+// Test case 4: Ranking verification
+// For query "barbet":
+// Rank 1: "Barbet" (Candidate starts with "barbet")
+// Rank 2: "Great Barbet", "White-cheeked Barbet", "Barbette Bird" (all query tokens are prefixes of candidate tokens)
+// Check that "Barbet" comes first
+const resRank = searchSpeciesAutocomplete("barbet", testSpecies);
+if (resRank[0] !== "Barbet") {{
+    console.error("Failed resRank: expected 'Barbet' as #1 rank. Got:", resRank);
+    process.exit(1);
+}}
+
+// For query "white cheeked":
+// Rank 1: "White-cheeked Barbet" (candidate starts with "white cheeked" prefix)
+const resRank2 = searchSpeciesAutocomplete("white cheeked", testSpecies);
+if (resRank2[0] !== "White-cheeked Barbet") {{
+    console.error("Failed resRank2: expected 'White-cheeked Barbet' as #1 rank. Got:", resRank2);
+    process.exit(1);
+}}
+
+// Substring match ranking (Rank 3 vs Rank 2):
+// Query "cheek":
+// "Cheeked Pipit" starts with "cheek" -> Rank 1
+// "White-cheeked Barbet" has token "cheeked" which starts with "cheek" -> Rank 2
+const resRank3 = searchSpeciesAutocomplete("cheek", testSpecies);
+if (resRank3[0] !== "Cheeked Pipit") {{
+    console.error("Failed resRank3: expected 'Cheeked Pipit' as #1 rank. Got:", resRank3);
+    process.exit(1);
+}}
+if (resRank3[1] !== "White-cheeked Barbet") {{
+    console.error("Failed resRank3: expected 'White-cheeked Barbet' as #2 rank. Got:", resRank3);
+    process.exit(1);
+}}
+
+console.log("ALL JS AUTOCOMPLETE TESTS PASSED");
+"#
+    );
+
+    let js_test_file = dir.path().join("test_autocomplete.js");
+    fs::write(&js_test_file, runner_js).expect("write test_autocomplete.js");
+
+    let status = std::process::Command::new("node")
+        .arg(&js_test_file)
+        .status()
+        .expect("failed to execute node");
+
+    assert!(
+        status.success(),
+        "Node test runner for species autocomplete must exit successfully"
+    );
+}
+
+#[test]
+fn test_catalog_no_bird_detected_support_and_command_generation() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item_hierarchy = CatalogItem {
+        bundle_id: "bundle-101".to_string(),
+        original_stem: "IMG_2001".to_string(),
+        current_path: PathBuf::from("birds_hierarchy/House_Sparrow/IMG_2001.CR2"),
+        primary_image: dir.path().join("IMG_2001.CR2"),
+        companion_images: vec![dir.path().join("IMG_2001.JPG")],
+        sidecar_files: vec![dir.path().join("IMG_2001.CR2.xmp")],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: None,
+    };
+
+    generate_html_catalog(
+        "No Bird Hierarchy Test",
+        std::slice::from_ref(&item_hierarchy),
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // 1. Verify speciesList in CatalogPayload contains "No Bird Detected"
+    assert!(
+        html_content.contains(r#""No Bird Detected""#),
+        "Catalog payload species_list must include 'No Bird Detected'"
+    );
+
+    // 2. Verify modal contains the dedicated button for No Bird Detected (False Positive)
+    assert!(
+        html_content.contains("Mark as No Bird Detected (False Positive)")
+            || html_content.contains("markNoBirdDetected"),
+        "Catalog template must contain a button or handler to mark as No Bird Detected"
+    );
+
+    // 3. Test buildMoveCommands in JS via Node.js for both hierarchy and inplace modes
+    let script_start = html_content
+        .find("<script>")
+        .expect("<script> tag not found");
+    let script_end = html_content
+        .rfind("</script>")
+        .expect("</script> tag not found");
+    let script_content = &html_content[script_start + 8..script_end];
+
+    let runner_js = format!(
+        r#"
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: JSON.stringify({{
+        mode: 'hierarchy',
+        catalog_dir: '/fake/dir',
+        species_list: ["House Sparrow", "No Bird Detected"]
+      }}) }};
+    }}
+    return {{
+      textContent: '',
+      value: '',
+      classList: {{ add: () => {{}}, remove: () => {{}} }},
+      style: {{}}
+    }};
+  }},
+  addEventListener: () => {{}}
+}};
+const window = {{
+  matchMedia: () => ({{ matches: false, addEventListener: () => {{}} }})
+}};
+
+{script_content}
+
+// Test Hierarchy Mode with "No Bird Detected"
+CATALOG_DATA.mode = 'hierarchy';
+activeModalItem = {{
+  id: 'bundle-101',
+  original_stem: 'IMG_2001',
+  current_path: 'birds_hierarchy/House_Sparrow/IMG_2001.CR2',
+  primary_filename: 'IMG_2001.CR2',
+  companion_files: ['birds_hierarchy/House_Sparrow/IMG_2001.JPG'],
+  sidecar_files: ['birds_hierarchy/House_Sparrow/IMG_2001.CR2.xmp'],
+  capture_date: '2026-10-25',
+  location_name: 'Leh'
+}};
+
+const cmdsHier = buildMoveCommands("No Bird Detected");
+const cmdsHierStr = cmdsHier.join("\n");
+console.log("Hierarchy commands:\n", cmdsHierStr);
+
+if (!cmdsHierStr.includes('avicull correct --file "IMG_2001" --species "_No_Bird_Detected"')) {{
+  console.error("Failed: avicull correct command did not use _No_Bird_Detected. Got:", cmdsHierStr);
+  process.exit(1);
+}}
+if (!cmdsHierStr.includes('mkdir -p "birds_hierarchy/_No_Bird_Detected"')) {{
+  console.error("Failed: targetDir in hierarchy mode did not use birds_hierarchy/_No_Bird_Detected");
+  process.exit(1);
+}}
+if (!cmdsHierStr.includes('mv "birds_hierarchy/House_Sparrow/IMG_2001.CR2" "birds_hierarchy/_No_Bird_Detected/IMG_2001.CR2"')) {{
+  console.error("Failed: fallback mv did not move to birds_hierarchy/_No_Bird_Detected");
+  process.exit(1);
+}}
+
+// Test In-place Mode with "No Bird Detected" and "_No_Bird_Detected"
+CATALOG_DATA.mode = 'in-place';
+activeModalItem = {{
+  id: 'bundle-102',
+  original_stem: 'IMG_2002',
+  current_path: 'Trip1/IMG_2002.CR2',
+  primary_filename: 'IMG_2002.CR2',
+  companion_files: ['Trip1/IMG_2002.JPG'],
+  sidecar_files: ['Trip1/IMG_2002.CR2.xmp'],
+  capture_date: '2026-10-25',
+  location_name: 'Leh'
+}};
+
+const cmdsInplace = buildMoveCommands("No Bird Detected");
+const cmdsInplaceStr = cmdsInplace.join("\n");
+console.log("In-place commands:\n", cmdsInplaceStr);
+
+if (!cmdsInplaceStr.includes('avicull correct --file "IMG_2002" --species "_No_Bird_Detected"')) {{
+  console.error("Failed: avicull correct command in in-place mode did not use _No_Bird_Detected. Got:", cmdsInplaceStr);
+  process.exit(1);
+}}
+// In in-place mode, destination filename should format with _No_Bird_Detected:
+// e.g., Trip1/IMG_2002_No_Bird_Detected_20261025_Leh.CR2
+if (!cmdsInplaceStr.includes('Trip1/IMG_2002_No_Bird_Detected_20261025_Leh.CR2')) {{
+  console.error("Failed: in-place rename target did not match expected pattern with _No_Bird_Detected. Got:", cmdsInplaceStr);
+  process.exit(1);
+}}
+
+console.log("ALL JS NO_BIRD_DETECTED TESTS PASSED");
+"#
+    );
+
+    let js_test_file = dir.path().join("test_no_bird.js");
+    fs::write(&js_test_file, runner_js).expect("write test_no_bird.js");
+
+    let status = std::process::Command::new("node")
+        .arg(&js_test_file)
+        .status()
+        .expect("failed to execute node");
+
+    assert!(
+        status.success(),
+        "Node test runner for no-bird detected commands must exit successfully"
+    );
+}
+
+#[test]
+fn test_catalog_item_from_bundle_and_decision_user_override_display() {
+    use avicull::types::{AssetBundle, BundleDecision, RoutingTier, SpeciesPrediction};
+
+    let bundle = AssetBundle {
+        bundle_id: "bundle-override-1".to_string(),
+        source_inode: 42,
+        trip_folder_name: "Kerala".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        primary_image: PathBuf::from("IMG_9999.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: None,
+    };
+
+    let ml_prediction = SpeciesPrediction {
+        taxon_id: "houspa".to_string(),
+        common_name: "House Sparrow".to_string(),
+        folder_slug: "House_Sparrow".to_string(),
+        scientific_name: "Passer domesticus".to_string(),
+        visual_prob: 0.85,
+        geo_prior: 0.90,
+        combined_score: 0.88,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "bundle-override-1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![ml_prediction],
+        frame_confidence: 0.88,
+        final_confidence: 1.0,
+        assigned_species_slug: "White-cheeked_Barbet".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
+    };
+
+    let catalog_item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+
+    // When is_user_override is true, assigned_species must display the user's override slug cleaned with spaces,
+    // NOT the ML model's top prediction ("House Sparrow")!
+    assert_eq!(
+        catalog_item.assigned_species, "White-cheeked Barbet",
+        "CatalogItem must reflect user override rather than ML top prediction"
+    );
+    assert_eq!(
+        catalog_item.scientific_name,
+        None,
+        "Scientific name should be None or matched for manual override when not explicitly provided"
+    );
+}

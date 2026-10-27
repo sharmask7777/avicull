@@ -70,7 +70,10 @@ impl CatalogItem {
         let (assigned_species, scientific_name) = match decision.routing_tier {
             RoutingTier::NoBirdDetected => ("_No_Bird_Detected".to_string(), None),
             _ => {
-                if let Some(top) = decision.top_predictions.first() {
+                if decision.is_user_override {
+                    let cleaned = decision.assigned_species_slug.replace('_', " ");
+                    (cleaned, None)
+                } else if let Some(top) = decision.top_predictions.first() {
                     (top.common_name.clone(), Some(top.scientific_name.clone()))
                 } else {
                     let cleaned = decision.assigned_species_slug.replace('_', " ");
@@ -276,6 +279,7 @@ pub fn generate_html_catalog(
     };
 
     let mut species_list = load_species_taxonomy_list();
+    species_list.push("No Bird Detected".to_string());
     for item in items {
         if !item.assigned_species.starts_with('_') && !item.assigned_species.is_empty() {
             species_list.push(item.assigned_species.clone());

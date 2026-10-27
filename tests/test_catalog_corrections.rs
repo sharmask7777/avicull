@@ -65,6 +65,28 @@ fn test_catalog_template_generates_avicull_correct_commands() {
         "Template must probe for avicull CLI availability before fallback"
     );
 
+    // Verify binary discovery hierarchy and catalog auto-regeneration in batch script
+    assert!(
+        html.contains("findAvicullCmd"),
+        "Template must provide avicull binary discovery logic"
+    );
+    assert!(
+        html.contains("target/release/avicull"),
+        "Template must search local target/release/avicull builds"
+    );
+    assert!(
+        html.contains(".cargo/bin/avicull"),
+        "Template must search cargo bin avicull installs"
+    );
+    assert!(
+        html.contains("cargo run --release --bin avicull --"),
+        "Template must fall back to cargo run before raw mv fallback"
+    );
+    assert!(
+        html.contains("organize"),
+        "Batch script apply_corrections.sh must re-run organize to regenerate bird_catalog.html"
+    );
+
     // Verify modal guidance mentions syncing SQLite manifest
     assert!(
         html.contains("sync the SQLite manifest"),

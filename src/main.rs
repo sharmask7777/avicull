@@ -479,7 +479,7 @@ fn main() -> Result<()> {
                 db.get_existing_bundle_map().unwrap_or_default()
             };
 
-            let mut reconciled_moves_count = 0;
+            let mut _reconciled_moves_count = 0;
             if is_inplace && operating_root.exists() && !existing_bundle_map.is_empty() {
                 match avicull::organizer::reconcile_inplace_manual_renames(
                     &operating_root,
@@ -487,7 +487,7 @@ fn main() -> Result<()> {
                     &mut existing_bundle_map,
                 ) {
                     Ok(count) => {
-                        reconciled_moves_count = count;
+                        _reconciled_moves_count = count;
                         if count > 0 {
                             println!(
                                 "Reconciliation: Reconciled {} manual in-place rename(s) into durable SQLite overrides.",
@@ -645,7 +645,7 @@ fn main() -> Result<()> {
                     &mut existing_bundle_map,
                 ) {
                     Ok(count) => {
-                        reconciled_moves_count += count;
+                        _reconciled_moves_count += count;
                         if count > 0 {
                             println!(
                                 "Reconciliation: Reconciled {} manual filesystem move(s) into durable SQLite overrides.",
@@ -702,33 +702,30 @@ fn main() -> Result<()> {
 
             if !existing_bundle_map.is_empty() && new_bundles.is_empty() {
                 let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
-                if !catalog_path.exists() || reconciled_moves_count > 0 {
-                    let trip_name = args
-                        .input
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("Avian Photos");
-                    println!(
-                        "Generating standalone offline HTML photo catalog at '{}'...",
-                        catalog_path.display()
-                    );
-                    let mut catalog_items = Vec::with_capacity(all_discovered.len());
-                    for bundle in &all_discovered {
-                        if let Some((existing_decision, _)) =
-                            existing_bundle_map.get_by_bundle(bundle)
-                        {
-                            let cat_item = CatalogItem::from_bundle_and_decision(
-                                bundle,
-                                existing_decision,
-                                Some(bundle.primary_image.clone()),
-                                Some(bundle.companion_images.clone()),
-                                Some(bundle.sidecar_files.clone()),
-                            );
-                            catalog_items.push(cat_item);
-                        }
+                let trip_name = args
+                    .input
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("Avian Photos");
+                println!(
+                    "Generating standalone offline HTML photo catalog at '{}'...",
+                    catalog_path.display()
+                );
+                let mut catalog_items = Vec::with_capacity(all_discovered.len());
+                for bundle in &all_discovered {
+                    if let Some((existing_decision, _)) = existing_bundle_map.get_by_bundle(bundle)
+                    {
+                        let cat_item = CatalogItem::from_bundle_and_decision(
+                            bundle,
+                            existing_decision,
+                            Some(bundle.primary_image.clone()),
+                            Some(bundle.companion_images.clone()),
+                            Some(bundle.sidecar_files.clone()),
+                        );
+                        catalog_items.push(cat_item);
                     }
-                    generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
                 }
+                generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
 
                 println!(
                     "✓ All {} photo bundles are already up to date in '{}'.",

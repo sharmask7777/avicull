@@ -1036,3 +1036,140 @@ fn test_cli_correct_evicts_renamed_file_if_dataless() {
         .expect("correct in-place");
     assert!(correct_output.status.success());
 }
+
+#[test]
+fn test_cli_correct_no_bird_detected_variants() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Bharatpur");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo1 = trip_dir.join("DSC_0010.JPG");
+    let photo2 = trip_dir.join("DSC_0020.JPG");
+    File::create(&photo1)
+        .unwrap()
+        .write_all(b"JPEG 10")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"JPEG 20")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    // 1. Correct DSC_0010 with --species "No Bird Detected"
+    let correct1 = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0010",
+            "--species",
+            "No Bird Detected",
+        ])
+        .output()
+        .expect("failed to run avicull correct 1");
+    println!(
+        "correct1 stdout: {}",
+        String::from_utf8_lossy(&correct1.stdout)
+    );
+    println!(
+        "correct1 stderr: {}",
+        String::from_utf8_lossy(&correct1.stderr)
+    );
+    assert!(
+        correct1.status.success(),
+        "avicull correct 'No Bird Detected' failed: {}",
+        String::from_utf8_lossy(&correct1.stderr)
+    );
+
+    // Verify manifest for DSC_0010
+    let bundles1 = db.get_all_bundles(None).unwrap();
+    let b10 = bundles1
+        .iter()
+        .find(|(_, b)| b.original_stem == "DSC_0010")
+        .expect("DSC_0010 bundle");
+    assert_eq!(b10.0.routing_tier, RoutingTier::NoBirdDetected);
+    assert_eq!(b10.0.assigned_species_slug, "_No_Bird_Detected");
+    let no_bird_dir = output_dir.join("_No_Bird_Detected");
+    assert!(no_bird_dir.exists());
+    let entries: Vec<_> = fs::read_dir(&no_bird_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        entries.iter().any(|p| {
+            let n = p.file_name().unwrap().to_string_lossy();
+            n.starts_with("DSC_0010") && n.ends_with(".JPG")
+        }),
+        "Hardlink for DSC_0010 must exist in _No_Bird_Detected directory"
+    );
+
+    // 2. Correct DSC_0020 with --species "No_Bird_Detected"
+    let correct2 = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0020",
+            "--species",
+            "No_Bird_Detected",
+        ])
+        .output()
+        .expect("failed to run avicull correct 2");
+    assert!(
+        correct2.status.success(),
+        "avicull correct 'No_Bird_Detected' failed: {}",
+        String::from_utf8_lossy(&correct2.stderr)
+    );
+
+    // Verify manifest for DSC_0020
+    let bundles2 = db.get_all_bundles(None).unwrap();
+    let b20 = bundles2
+        .iter()
+        .find(|(_, b)| b.original_stem == "DSC_0020")
+        .expect("DSC_0020 bundle");
+    assert_eq!(b20.0.routing_tier, RoutingTier::NoBirdDetected);
+    assert_eq!(b20.0.assigned_species_slug, "_No_Bird_Detected");
+    let entries2: Vec<_> = fs::read_dir(&no_bird_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        entries2.iter().any(|p| {
+            let n = p.file_name().unwrap().to_string_lossy();
+            n.starts_with("DSC_0020") && n.ends_with(".JPG")
+        }),
+        "Hardlink for DSC_0020 must exist in _No_Bird_Detected directory"
+    );
+
+    // Verify manifest for DSC_0020
+    let bundles2 = db.get_all_bundles(None).unwrap();
+    let b20 = bundles2
+        .iter()
+        .find(|(_, b)| b.original_stem == "DSC_0020")
+        .expect("DSC_0020 bundle");
+    assert_eq!(b20.0.routing_tier, RoutingTier::NoBirdDetected);
+    assert_eq!(b20.0.assigned_species_slug, "_No_Bird_Detected");
+}

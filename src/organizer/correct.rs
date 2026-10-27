@@ -168,7 +168,12 @@ pub fn find_species_typo_suggestion(
     taxonomy: &[TaxonomyEntry],
 ) -> Option<SpeciesTypoSuggestion> {
     let trimmed = input.trim();
-    if trimmed.is_empty() || trimmed == "_No_Bird_Detected" || trimmed == "NoBirdDetected" {
+    if trimmed.is_empty()
+        || trimmed == "_No_Bird_Detected"
+        || trimmed == "NoBirdDetected"
+        || trimmed.eq_ignore_ascii_case("No Bird Detected")
+        || trimmed.eq_ignore_ascii_case("No_Bird_Detected")
+    {
         return None;
     }
 
@@ -464,7 +469,12 @@ pub fn apply_bundle_correction(
             (false, new_species)
         };
 
-    if species_to_check != "_No_Bird_Detected" && species_to_check != "NoBirdDetected" {
+    let is_no_bird = species_to_check == "_No_Bird_Detected"
+        || species_to_check == "NoBirdDetected"
+        || species_to_check.eq_ignore_ascii_case("No Bird Detected")
+        || species_to_check.eq_ignore_ascii_case("No_Bird_Detected");
+
+    if !is_no_bird {
         let taxonomy = load_taxonomy_records();
         if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
             if is_interactive_session() {
@@ -495,17 +505,20 @@ pub fn apply_bundle_correction(
         }
     }
 
-    let (routing_tier, target_slug) =
-        if resolved_species == "_No_Bird_Detected" || resolved_species == "NoBirdDetected" {
-            (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
-        } else if let Some(stripped) = resolved_species.strip_prefix("_Needs_Review/") {
-            (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
-        } else {
-            (
-                RoutingTier::ConfirmedSpecies,
-                sanitize_species_slug(&resolved_species),
-            )
-        };
+    let (routing_tier, target_slug) = if resolved_species == "_No_Bird_Detected"
+        || resolved_species == "NoBirdDetected"
+        || resolved_species.eq_ignore_ascii_case("No Bird Detected")
+        || resolved_species.eq_ignore_ascii_case("No_Bird_Detected")
+    {
+        (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
+    } else if let Some(stripped) = resolved_species.strip_prefix("_Needs_Review/") {
+        (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
+    } else {
+        (
+            RoutingTier::ConfirmedSpecies,
+            sanitize_species_slug(&resolved_species),
+        )
+    };
 
     let target_dir = match routing_tier {
         RoutingTier::ConfirmedSpecies => operating_root.join(&target_slug),
