@@ -1412,7 +1412,7 @@ fn test_catalog_embedded_base64_thumbnails() {
 
     generate_html_catalog(
         "Embed Test Trip",
-        &[item.clone()],
+        std::slice::from_ref(&item),
         OrganizationMode::InPlaceFileRenameToDescriptiveNames,
         &catalog_path,
     )
@@ -1488,7 +1488,7 @@ fn test_catalog_standalone_dynamic_high_res_replacement() {
 
     generate_html_catalog(
         "Dynamic High-Res Test Trip",
-        &[item.clone()],
+        std::slice::from_ref(&item),
         OrganizationMode::InPlaceFileRenameToDescriptiveNames,
         &catalog_path,
     )
