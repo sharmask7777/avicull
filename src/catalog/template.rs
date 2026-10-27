@@ -717,9 +717,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       </div>
 
       <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Select Correct Species (eBird Taxonomy Autocomplete):
-        </label>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
+            Select Correct Species (eBird Taxonomy Autocomplete):
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            Mark as No Bird Detected (False Positive)
+          </button>
+        </div>
         <div class="autocomplete-wrap">
           <input type="text" id="speciesSearchInput" class="autocomplete-input" placeholder="Start typing bird name (e.g. Painted Stork)..." autocomplete="off" oninput="handleSpeciesAutocomplete()"/>
           <div class="suggestions-list" id="speciesSuggestions"></div>
@@ -941,18 +946,69 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     activeModalItem = null;
   }}
 
+  function normalizeAutocompleteString(str) {{
+    if (!str) return '';
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }}
+
+  function normalizeAutocompleteTokens(str) {{
+    const normalized = normalizeAutocompleteString(str);
+    return normalized ? normalized.split(/\s+/) : [];
+  }}
+
+  function searchSpeciesAutocomplete(query, candidates) {{
+    if (!query || !candidates) return [];
+    const normQueryStr = normalizeAutocompleteString(query);
+    const queryTokens = normalizeAutocompleteTokens(query);
+    if (queryTokens.length === 0) return [];
+
+    let scored = [];
+
+    for (const cand of candidates) {{
+      const normCandStr = normalizeAutocompleteString(cand);
+      const candTokens = normalizeAutocompleteTokens(cand);
+      if (candTokens.length === 0) continue;
+
+      const allTokensMatch = queryTokens.every(qTok =>
+        candTokens.some(cTok => cTok.includes(qTok))
+      );
+      if (!allTokensMatch) continue;
+
+      let rank = 3;
+      if (normCandStr.startsWith(normQueryStr)) {{
+        rank = 1;
+      }} else {{
+        const allPrefixes = queryTokens.every(qTok =>
+          candTokens.some(cTok => cTok.startsWith(qTok))
+        );
+        if (allPrefixes) {{
+          rank = 2;
+        }}
+      }}
+
+      scored.push({{ species: cand, rank: rank, length: cand.length }});
+    }}
+
+    scored.sort((a, b) => {{
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.species.localeCompare(b.species);
+    }});
+
+    return scored.map(item => item.species);
+  }}
+
   function handleSpeciesAutocomplete() {{
     const input = document.getElementById('speciesSearchInput');
     const suggestionsEl = document.getElementById('speciesSuggestions');
     if (!input || !suggestionsEl) return;
 
-    const val = input.value.trim().toLowerCase();
+    const val = input.value.trim();
     if (!val || val.length < 2) {{
       suggestionsEl.classList.remove('open');
       return;
     }}
 
-    const matches = speciesList.filter(s => s.toLowerCase().includes(val)).slice(0, 15);
+    const matches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
     if (matches.length === 0) {{
       suggestionsEl.classList.remove('open');
       return;
@@ -964,18 +1020,40 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     suggestionsEl.classList.add('open');
   }}
 
+  function findAvicullCmd() {{
+    return `
+# Locate avicull binary
+AVICULL_CMD=""
+if command -v avicull >/dev/null 2>&1; then
+  AVICULL_CMD="avicull"
+elif [ -f "./target/release/avicull" ]; then
+  AVICULL_CMD="./target/release/avicull"
+elif [ -f "../target/release/avicull" ]; then
+  AVICULL_CMD="../target/release/avicull"
+elif [ -f "../../target/release/avicull" ]; then
+  AVICULL_CMD="../../target/release/avicull"
+elif [ -f "$HOME/.cargo/bin/avicull" ]; then
+  AVICULL_CMD="$HOME/.cargo/bin/avicull"
+elif command -v cargo >/dev/null 2>&1 && [ -f "Cargo.toml" -o -f "../Cargo.toml" -o -f "../../Cargo.toml" ]; then
+  AVICULL_CMD="cargo run --release --bin avicull --"
+fi
+`;
+  }}
+
   function buildMoveCommands(species) {{
     if (!activeModalItem) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const newSlug = sanitizeSlug(species);
+    const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
+    const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
       commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
     }}
 
-    commands.push(`if command -v avicull >/dev/null 2>&1; then`);
-    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}"`);
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}"`);
     commands.push(`else`);
 
     const currentPath = activeModalItem.current_path;
@@ -1009,7 +1087,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       if (datePart && datePart.toLowerCase() !== 'unknown') tags.push(datePart);
       if (locPart && locPart.toLowerCase() !== 'unknown') tags.push(locPart);
 
-      const targetStem = tags.length > 0 ? `${{originalStem}}_${{tags.join('_')}}` : originalStem;
+      // Avoid double underscore if newSlug starts with '_' (e.g. _No_Bird_Detected)
+      let targetStem = originalStem;
+      if (tags.length > 0) {{
+        if (tags[0].startsWith('_')) {{
+          const first = tags[0];
+          const rest = tags.slice(1);
+          targetStem = rest.length > 0 ? `${{originalStem}}${{first}}_${{rest.join('_')}}` : `${{originalStem}}${{first}}`;
+        }} else {{
+          targetStem = `${{originalStem}}_${{tags.join('_')}}`;
+        }}
+      }}
 
       // Primary file extension
       const primaryExt = getExtension(activeModalItem.primary_filename);
@@ -1032,6 +1120,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     commands.push(`fi`);
 
     return commands;
+  }}
+
+  function markNoBirdDetected() {{
+    selectSpecies("No Bird Detected");
   }}
 
   function selectSpecies(species) {{
@@ -1083,6 +1175,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       return;
     }}
 
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+
     const scriptContent = [
       "#!/usr/bin/env bash",
       "# Avicull Mislabel Corrections Batch Script",
@@ -1092,6 +1187,12 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
       "",
       ...batchCommands,
+      "",
+      findAvicullCmd().trim(),
+      "if [ -n \"$AVICULL_CMD\" ]; then",
+      "  echo 'Regenerating catalog with updated SQLite overrides...'",
+      `  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
+      "fi",
       "",
       "echo '✓ All avicull mislabel corrections applied successfully!'",
       ""
