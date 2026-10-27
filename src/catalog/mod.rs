@@ -443,14 +443,13 @@ pub fn generate_base64_micro_thumbnail(item: &CatalogItem, output_root: &Path) -
         } else {
             return None;
         }
-    } else if let Some(src_path) = candidate_path {
+    } else {
+        let src_path = candidate_path?;
         if let Ok(dyn_img) = image::open(src_path) {
             downsample_to_micro_jpeg(&dyn_img)?
         } else {
             return None;
         }
-    } else {
-        return None;
     };
 
     let b64 = encode_base64(&micro_jpeg_bytes);
