@@ -1268,7 +1268,10 @@ fi
 
   function addToBatch() {{
     if (!activeModalItem || !activeModalItem._pendingCommands) return;
-    batchCommands.push(...activeModalItem._pendingCommands);
+    batchCommands.push({{
+      stem: activeModalItem.original_stem,
+      commands: [...activeModalItem._pendingCommands]
+    }});
     const count = batchCommands.length;
     const batchCountEl = document.getElementById('batchCount');
     if (batchCountEl) batchCountEl.textContent = count;
@@ -1281,32 +1284,123 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
-    if (forDownload) {{
+    const normalizeBatch = (entries) => {{
+      let items = [];
+      let currentLines = [];
+      let currentStem = "";
+      let ifDepth = 0;
+
+      for (const entry of entries) {{
+        if (typeof entry === 'object' && entry && entry.commands) {{
+          if (currentLines.length > 0) {{
+            items.push({{ stem: currentStem || 'item', commands: currentLines }});
+            currentLines = [];
+            currentStem = '';
+            ifDepth = 0;
+          }}
+          items.push(entry);
+          continue;
+        }}
+
+        const str = String(entry);
+        const m = str.match(/--file\s+"([^"]+)"/) || str.match(/mv\s+"[^"]*?([^\/"]+)\.[a-zA-Z0-9]+"/);
+        if (m && !currentStem) currentStem = m[1];
+
+        const lines = str.split('\n');
+        for (const l of lines) {{
+          const trimmed = l.trim();
+          if (/^if\b/.test(trimmed)) ifDepth++;
+          if (/^fi\b/.test(trimmed)) ifDepth--;
+        }}
+
+        currentLines.push(str);
+
+        if (ifDepth <= 0 && currentStem && currentLines.length > 0) {{
+          items.push({{ stem: currentStem, commands: currentLines }});
+          currentLines = [];
+          currentStem = '';
+          ifDepth = 0;
+        }}
+      }}
+
+      if (currentLines.length > 0) {{
+        items.push({{ stem: currentStem || 'item', commands: currentLines }});
+      }}
+
+      return items;
+    }};
+
+    const normalizedItems = normalizeBatch(batchCommands);
+
+    const renderItemBlock = (entry, indent) => {{
+      const stem = entry.stem || 'item';
+      const cmds = entry.commands || [];
+
+      let cleanCmds = cmds
+        .flatMap(cmd => cmd.split('\n'))
+        .filter(line => !line.trim().startsWith('#'))
+        .map(cmd => `${{indent}}    ${{cmd}}`);
+
       return [
-        "#!/usr/bin/env bash",
-        "# Avicull Mislabel Corrections Batch Script",
-        "# Generated automatically by avicull standalone catalog",
-        "set -euo pipefail",
-        "",
-        `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
-        "",
-        ...batchCommands,
-        "",
-        findAvicullCmd().trim(),
-        "if [ -n \"$AVICULL_CMD\" ]; then",
-        "  echo 'Regenerating catalog with updated SQLite overrides...'",
-        `  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
-        "fi",
-        "",
-        "echo '✓ All avicull mislabel corrections applied successfully!'",
-        ""
-      ].join('\n');
+        `${{indent}}  if run_correction "${{stem}}" <<'AVICULL_ITEM_EOF'`,
+        ...cleanCmds,
+        `AVICULL_ITEM_EOF`,
+        `${{indent}}  then`,
+        `${{indent}}    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))`,
+        `${{indent}}  else`,
+        `${{indent}}    echo "[WARN] Correction failed or file missing for: ${{stem}} (skipping)"`,
+        `${{indent}}    FAILED_COUNT=$((FAILED_COUNT + 1))`,
+        `${{indent}}  fi`
+      ];
+    }};
+
+    if (forDownload) {{
+      let bodyLines = [];
+      bodyLines.push("#!/usr/bin/env bash");
+      bodyLines.push("# Avicull Mislabel Corrections Batch Script");
+      bodyLines.push("# Generated automatically by avicull standalone catalog");
+      bodyLines.push("set -u");
+      bodyLines.push("");
+      bodyLines.push(`cd "${{CATALOG_DATA.catalog_dir || '.'}}"`);
+      bodyLines.push("");
+      bodyLines.push(findAvicullCmd().trim());
+      bodyLines.push("export AVICULL_CMD");
+      bodyLines.push("");
+      bodyLines.push("SUCCESS_COUNT=0");
+      bodyLines.push("FAILED_COUNT=0");
+      bodyLines.push("");
+      bodyLines.push("run_correction() {{");
+      bodyLines.push("  local item_label=\"$1\"");
+      bodyLines.push("  bash -e");
+      bodyLines.push("}}");
+      bodyLines.push("");
+
+      for (const item of normalizedItems) {{
+        bodyLines.push(...renderItemBlock(item, ""));
+        bodyLines.push("");
+      }}
+
+      bodyLines.push("if [ -n \"$AVICULL_CMD\" ]; then");
+      bodyLines.push("  echo 'Regenerating catalog with updated SQLite overrides...'");
+      bodyLines.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+      bodyLines.push("fi");
+      bodyLines.push("");
+      bodyLines.push("echo \"\"");
+      bodyLines.push("if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+      bodyLines.push("  echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+      bodyLines.push("  exit 1");
+      bodyLines.push("else");
+      bodyLines.push("  echo '✓ All avicull mislabel corrections applied successfully!'");
+      bodyLines.push("fi");
+      bodyLines.push("");
+
+      return bodyLines.join('\n');
     }}
 
-    const cleanBatchCmds = batchCommands
-      .flatMap(cmd => cmd.split('\n'))
-      .filter(line => !line.trim().startsWith('#'))
-      .map(cmd => "  " + cmd);
+    let bodyLines = [];
+    bodyLines.push("(");
+    bodyLines.push(`  cd "${{CATALOG_DATA.catalog_dir || '.'}}"`);
+    bodyLines.push("");
 
     const cleanFindCmds = findAvicullCmd()
       .trim()
@@ -1314,22 +1408,37 @@ fi
       .filter(line => !line.trim().startsWith('#'))
       .map(line => "  " + line);
 
-    return [
-      "(",
-      "  set -e",
-      `  cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
-      "",
-      ...cleanBatchCmds,
-      "",
-      ...cleanFindCmds,
-      "  if [ -n \"$AVICULL_CMD\" ]; then",
-      "    echo 'Regenerating catalog with updated SQLite overrides...'",
-      `    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
-      "  fi",
-      "  echo '✓ All avicull mislabel corrections applied successfully!'",
-      ")",
-      ""
-    ].join('\n');
+    bodyLines.push(...cleanFindCmds);
+    bodyLines.push("  export AVICULL_CMD");
+    bodyLines.push("  SUCCESS_COUNT=0");
+    bodyLines.push("  FAILED_COUNT=0");
+    bodyLines.push("");
+    bodyLines.push("  run_correction() {{");
+    bodyLines.push("    local item_label=\"$1\"");
+    bodyLines.push("    bash -e");
+    bodyLines.push("  }}");
+    bodyLines.push("");
+
+    for (const item of normalizedItems) {{
+      bodyLines.push(...renderItemBlock(item, ""));
+      bodyLines.push("");
+    }}
+
+    bodyLines.push("  if [ -n \"$AVICULL_CMD\" ]; then");
+    bodyLines.push("    echo 'Regenerating catalog with updated SQLite overrides...'");
+    bodyLines.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+    bodyLines.push("  fi");
+    bodyLines.push("  echo \"\"");
+    bodyLines.push("  if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+    bodyLines.push("    echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+    bodyLines.push("    return 1 2>/dev/null || exit 1");
+    bodyLines.push("  else");
+    bodyLines.push("    echo '✓ All avicull mislabel corrections applied successfully!'");
+    bodyLines.push("  fi");
+    bodyLines.push(")");
+    bodyLines.push("");
+
+    return bodyLines.join('\n');
   }}
 
   function copyBatchScript() {{

@@ -1679,3 +1679,279 @@ fn test_catalog_standalone_dynamic_high_res_replacement() {
     println!("Node stderr: {}", stderr);
     assert!(node_output.status.success(), "Node test failed: {}", stderr);
 }
+
+#[test]
+fn test_apply_corrections_resilient_to_missing_files() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("SourcePhotos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    // Create 3 photo bundles: Item1 (valid), Item2 (missing underlying file), Item3 (valid)
+    let photo1 = input_dir.join("IMG_101.JPG");
+    let photo2 = input_dir.join("IMG_102.JPG");
+    let photo3 = input_dir.join("IMG_103.JPG");
+
+    File::create(&photo1)
+        .unwrap()
+        .write_all(b"IMG_101 JPEG DATA")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"IMG_102 JPEG DATA")
+        .unwrap();
+    File::create(&photo3)
+        .unwrap()
+        .write_all(b"IMG_103 JPEG DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // Organize input photos
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists());
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract JSON catalog data and JS code
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let script_marker = "<script>\n";
+    let script_start =
+        html_content.find(script_marker).expect("script start") + script_marker.len();
+    let script_end = html_content[script_start..]
+        .find("</script>")
+        .expect("script end")
+        + script_start;
+    let js_code = &html_content[script_start..script_end];
+
+    // Use node to queue corrections for all 3 items, then generate batch scripts
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let clipboardContent = '';
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: rawJson }};
+    }}
+    return {{ textContent: '', value: '', classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{
+  clipboard: {{
+    writeText: async (text) => {{
+      clipboardContent = text;
+      return Promise.resolve();
+    }}
+  }}
+}};
+const window = {{}};
+
+{js_code}
+
+// Queue correction for item 1 -> Osprey
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_101');
+batchCommands.push(...buildMoveCommands('Osprey'));
+
+// Queue correction for item 2 -> Golden_Eagle
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_102');
+batchCommands.push(...buildMoveCommands('Golden_Eagle'));
+
+// Queue correction for item 3 -> Peregrine_Falcon
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_103');
+batchCommands.push(...buildMoveCommands('Peregrine_Falcon'));
+
+const downloadScript = generateBatchScriptContent(true);
+copyBatchScript();
+
+setTimeout(() => {{
+  console.log(JSON.stringify({{
+    downloadScript: downloadScript,
+    clipboardScript: clipboardContent
+  }}));
+}}, 50);
+"#,
+        raw_json = json_data_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner for batch script generation");
+
+    assert!(
+        node_output.status.success(),
+        "Node script failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let output_str = String::from_utf8_lossy(&node_output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(output_str.trim()).expect("parse node json output");
+
+    let download_script = parsed["downloadScript"].as_str().expect("downloadScript");
+    let clipboard_script = parsed["clipboardScript"].as_str().expect("clipboardScript");
+
+    // Before running the script, intentionally delete the file for item 2!
+    // In hierarchy mode, find where IMG_102 is and delete it.
+    let mut found_102 = false;
+    for entry in walkdir::WalkDir::new(&output_dir) {
+        let entry = entry.unwrap();
+        if entry.file_type().is_file() {
+            let fname = entry.file_name().to_string_lossy();
+            if fname.starts_with("IMG_102") && fname.ends_with(".JPG") {
+                fs::remove_file(entry.path()).unwrap();
+                found_102 = true;
+                break;
+            }
+        }
+    }
+    assert!(
+        found_102,
+        "Must have found and deleted IMG_102 before running correction script"
+    );
+
+    // Also delete source photo2 to simulate item being gone completely
+    let _ = fs::remove_file(&photo2);
+
+    // Save download_script to disk and execute it via bash
+    let script_file = output_dir.join("apply_corrections.sh");
+    fs::write(&script_file, download_script).unwrap();
+    println!("Generated download_script:\n{}", download_script);
+
+    let avicull_bin_dir = Path::new(env!("CARGO_BIN_EXE_avicull"))
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let exec_output = Command::new("bash")
+        .arg(script_file.to_str().unwrap())
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                avicull_bin_dir,
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .expect("execute apply_corrections.sh");
+
+    let stdout = String::from_utf8_lossy(&exec_output.stdout);
+    let stderr = String::from_utf8_lossy(&exec_output.stderr);
+    println!("Execution stdout:\n{}", stdout);
+    println!("Execution stderr:\n{}", stderr);
+
+    // Assert that the script did NOT abort prematurely on IMG_102:
+    // It should have logged a warning for IMG_102
+    assert!(
+        stdout.contains("[WARN]") || stderr.contains("[WARN]"),
+        "Script must log a [WARN] message for the failed/skipped item"
+    );
+
+    // Assert that summary output reflects failed count and succeeded count
+    assert!(
+        stdout.contains("failed/skipped")
+            || stdout.contains("failed")
+            || stdout.contains("skipped"),
+        "Script must print a summary indicating failed/skipped item(s)"
+    );
+
+    // Verify valid items (IMG_101 -> Osprey and IMG_103 -> Peregrine_Falcon) were both successfully processed!
+    let osprey_dir = output_dir.join("Osprey");
+    assert!(
+        osprey_dir.exists(),
+        "Osprey directory must exist for item 1"
+    );
+    let osprey_entries: Vec<_> = fs::read_dir(&osprey_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        osprey_entries.iter().any(|p| p
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("IMG_101")),
+        "IMG_101 must have been moved to Osprey directory"
+    );
+
+    let falcon_dir = output_dir.join("Peregrine_Falcon");
+    assert!(
+        falcon_dir.exists(),
+        "Peregrine_Falcon directory must exist for item 3"
+    );
+    let falcon_entries: Vec<_> = fs::read_dir(&falcon_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        falcon_entries.iter().any(|p| p
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("IMG_103")),
+        "IMG_103 must have been moved to Peregrine_Falcon directory"
+    );
+
+    // Verify manifest database has overrides for 101 and 103
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+    let b101 = bundles
+        .iter()
+        .find(|(_d, b)| b.original_stem == "IMG_101")
+        .expect("IMG_101 in db");
+    assert_eq!(b101.0.assigned_species_slug, "Osprey");
+    assert!(b101.0.is_user_override);
+
+    let b103 = bundles
+        .iter()
+        .find(|(_d, b)| b.original_stem == "IMG_103")
+        .expect("IMG_103 in db");
+    assert_eq!(b103.0.assigned_species_slug, "Peregrine_Falcon");
+    assert!(b103.0.is_user_override);
+
+    // The script should exit with non-zero when FAILED_COUNT > 0
+    assert!(
+        !exec_output.status.success(),
+        "Script should exit with non-zero exit code when some items failed"
+    );
+
+    // Also verify clipboard script contains the resilient error isolation logic
+    assert!(
+        clipboard_script.contains("FAILED_COUNT")
+            || clipboard_script.contains("apply_single_correction")
+            || clipboard_script.contains("[WARN]"),
+        "Clipboard script must also include resilient execution logic"
+    );
+}
