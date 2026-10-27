@@ -1194,3 +1194,190 @@ console.log(cmds.join('\n'));
         "Inodes must match across hard links"
     );
 }
+
+#[test]
+fn test_copy_batch_script_zsh_interactive_compatibility_and_no_shebang() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("SourcePhotos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let photo = input_dir.join("IMG_9999.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG IMG_9999 DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists());
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let script_marker = "<script>\n";
+    let script_start =
+        html_content.find(script_marker).expect("script start") + script_marker.len();
+    let script_end = html_content[script_start..]
+        .find("</script>")
+        .expect("script end")
+        + script_start;
+    let js_code = &html_content[script_start..script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let clipboardContent = '';
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: rawJson }};
+    }}
+    return {{ textContent: '', value: '', classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{
+  clipboard: {{
+    writeText: async (text) => {{
+      clipboardContent = text;
+      return Promise.resolve();
+    }}
+  }}
+}};
+const window = {{}};
+
+{js_code}
+
+const item = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_9999');
+if (!item) throw new Error('Item IMG_9999 not found in CATALOG_DATA');
+activeModalItem = item;
+const cmds = buildMoveCommands('Osprey');
+batchCommands.push(...cmds);
+
+const downloadScript = generateBatchScriptContent(true);
+copyBatchScript();
+
+setTimeout(() => {{
+  console.log(JSON.stringify({{
+    downloadScript: downloadScript,
+    clipboardScript: clipboardContent
+  }}));
+}}, 50);
+"#,
+        raw_json = json_data_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner for batch script generation");
+
+    assert!(
+        node_output.status.success(),
+        "Node script failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let output_str = String::from_utf8_lossy(&node_output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(output_str.trim()).expect("parse node json output");
+
+    let download_script = parsed["downloadScript"].as_str().expect("downloadScript");
+    let clipboard_script = parsed["clipboardScript"].as_str().expect("clipboardScript");
+
+    // Download script must retain shebang for file execution
+    assert!(
+        download_script.starts_with("#!/usr/bin/env bash"),
+        "download script must have #!/usr/bin/env bash shebang"
+    );
+
+    // Clipboard script must NOT contain shebang (causes zsh event not found)
+    assert!(
+        !clipboard_script.contains("#!/usr/bin/env"),
+        "clipboard script must NOT contain #!/usr/bin/env shebang"
+    );
+    assert!(
+        clipboard_script.trim_start().starts_with('('),
+        "clipboard script must be wrapped in a subshell ( ... )"
+    );
+    assert!(
+        clipboard_script.trim_end().ends_with(')'),
+        "clipboard script must close the subshell with )"
+    );
+
+    // Verify clipboard script executes cleanly in interactive zsh without history expansion failure
+    let avicull_bin_dir = Path::new(env!("CARGO_BIN_EXE_avicull"))
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let zsh_input = format!(
+        "unsetopt INTERACTIVE_COMMENTS\nexport PATH=\"{}:$PATH\"\n{}\nexit\n",
+        avicull_bin_dir, clipboard_script
+    );
+
+    let mut child = Command::new("zsh")
+        .args(["-f", "-i", "-s"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn zsh process");
+
+    {
+        let stdin = child.stdin.as_mut().expect("failed to open stdin");
+        stdin.write_all(zsh_input.as_bytes()).unwrap();
+    }
+
+    let zsh_res = child.wait_with_output().expect("wait on zsh");
+    let zsh_stderr = String::from_utf8_lossy(&zsh_res.stderr);
+    let zsh_stdout = String::from_utf8_lossy(&zsh_res.stdout);
+
+    assert!(
+        !zsh_stderr.contains("event not found"),
+        "zsh triggered history expansion error: stderr: {}\nstdout: {}",
+        zsh_stderr,
+        zsh_stdout
+    );
+    assert!(
+        !zsh_stdout.contains("event not found"),
+        "zsh triggered history expansion error in stdout: {}",
+        zsh_stdout
+    );
+    assert!(
+        zsh_res.status.success(),
+        "interactive zsh execution failed: stderr: {}\nstdout: {}",
+        zsh_stderr,
+        zsh_stdout
+    );
+}

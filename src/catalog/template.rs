@@ -1202,27 +1202,57 @@ fi
     closeModal();
   }}
 
-  function generateBatchScriptContent() {{
+  function generateBatchScriptContent(forDownload) {{
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
+    if (forDownload) {{
+      return [
+        "#!/usr/bin/env bash",
+        "# Avicull Mislabel Corrections Batch Script",
+        "# Generated automatically by avicull standalone catalog",
+        "set -euo pipefail",
+        "",
+        `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
+        "",
+        ...batchCommands,
+        "",
+        findAvicullCmd().trim(),
+        "if [ -n \"$AVICULL_CMD\" ]; then",
+        "  echo 'Regenerating catalog with updated SQLite overrides...'",
+        `  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
+        "fi",
+        "",
+        "echo '✓ All avicull mislabel corrections applied successfully!'",
+        ""
+      ].join('\n');
+    }}
+
+    const cleanBatchCmds = batchCommands
+      .flatMap(cmd => cmd.split('\n'))
+      .filter(line => !line.trim().startsWith('#'))
+      .map(cmd => "  " + cmd);
+
+    const cleanFindCmds = findAvicullCmd()
+      .trim()
+      .split('\n')
+      .filter(line => !line.trim().startsWith('#'))
+      .map(line => "  " + line);
+
     return [
-      "#!/usr/bin/env bash",
-      "# Avicull Mislabel Corrections Batch Script",
-      "# Generated automatically by avicull standalone catalog",
-      "set -euo pipefail",
+      "(",
+      "  set -e",
+      `  cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
       "",
-      `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
+      ...cleanBatchCmds,
       "",
-      ...batchCommands,
-      "",
-      findAvicullCmd().trim(),
-      "if [ -n \"$AVICULL_CMD\" ]; then",
-      "  echo 'Regenerating catalog with updated SQLite overrides...'",
-      `  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
-      "fi",
-      "",
-      "echo '✓ All avicull mislabel corrections applied successfully!'",
+      ...cleanFindCmds,
+      "  if [ -n \"$AVICULL_CMD\" ]; then",
+      "    echo 'Regenerating catalog with updated SQLite overrides...'",
+      `    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
+      "  fi",
+      "  echo '✓ All avicull mislabel corrections applied successfully!'",
+      ")",
       ""
     ].join('\n');
   }}
@@ -1233,7 +1263,7 @@ fi
       return;
     }}
 
-    const scriptContent = generateBatchScriptContent();
+    const scriptContent = generateBatchScriptContent(false);
     navigator.clipboard.writeText(scriptContent).then(() => {{
       const btn = document.getElementById('btnCopyBatchScript');
       if (btn) {{
@@ -1252,7 +1282,7 @@ fi
       return;
     }}
 
-    const scriptContent = generateBatchScriptContent();
+    const scriptContent = generateBatchScriptContent(true);
 
     const blob = new Blob([scriptContent], {{ type: 'text/x-sh' }});
     const url = URL.createObjectURL(blob);
