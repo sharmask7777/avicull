@@ -138,6 +138,8 @@ pub struct CatalogPayloadItem {
     pub preview_url: String,
     pub local_src: String,
     pub thumb_src: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedded_thumb_data_uri: Option<String>,
     pub is_local: bool,
     pub assigned_species: String,
     pub scientific_name: Option<String>,
@@ -200,6 +202,7 @@ pub fn generate_html_catalog(
         let persistent_thumb = ensure_persistent_thumbnail(item, output_root);
         let thumb_src = persistent_thumb
             .unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
+        let embedded_thumb_data_uri = generate_base64_micro_thumbnail(item, output_root);
 
         let current_path_rel = to_relative_string(&item.current_path, output_root);
         let local_src = current_path_rel.clone();
@@ -257,6 +260,7 @@ pub fn generate_html_catalog(
             preview_url,
             local_src,
             thumb_src,
+            embedded_thumb_data_uri,
             is_local,
             assigned_species: item.assigned_species.clone(),
             scientific_name: item.scientific_name.clone(),
@@ -319,6 +323,147 @@ pub fn generate_html_catalog(
         .with_context(|| format!("Failed to write catalog HTML to {:?}", output_path))?;
 
     Ok(())
+}
+
+/// Standard RFC 4648 Base64 encoding using pure bit operations (zero external dependencies).
+pub fn encode_base64(bytes: &[u8]) -> String {
+    const STANDARD_CHARS: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+
+    for chunk in bytes.chunks(3) {
+        match chunk.len() {
+            3 => {
+                let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
+                encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[((n >> 6) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[(n & 63) as usize] as char);
+            }
+            2 => {
+                let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8);
+                encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[((n >> 6) & 63) as usize] as char);
+                encoded.push('=');
+            }
+            1 => {
+                let n = (chunk[0] as u32) << 16;
+                encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
+                encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
+                encoded.push('=');
+                encoded.push('=');
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    encoded
+}
+
+/// Generates a lightweight base64 micro-thumbnail data URI (max dimension ~300px, quality ~65)
+/// embedded directly into the HTML catalog JSON payload so the gallery renders standalone
+/// without requiring local synchronization of `.avicull/`.
+pub fn generate_base64_micro_thumbnail(item: &CatalogItem, output_root: &Path) -> Option<String> {
+    // 1. Try reading an existing persistent preview thumbnail if present on disk
+    let previews_dir = output_root.join(".avicull").join("previews");
+    let preview_path = previews_dir.join(format!("{}.jpg", item.original_stem));
+
+    let preview_bytes_opt = if preview_path.exists() {
+        fs::read(&preview_path).ok()
+    } else {
+        None
+    };
+
+    // 2. If no persistent preview, try extracting embedded JPEG from RAW, or opening image
+    let (raw_image_bytes, candidate_path) = match preview_bytes_opt {
+        Some(bytes) => (Some(bytes), None),
+        None => {
+            let active_primary = if item.current_path.exists() {
+                &item.current_path
+            } else {
+                &item.primary_image
+            };
+
+            if active_primary.exists() {
+                if let Ok(file_bytes) = fs::read(active_primary) {
+                    if let Some(preview_bytes) = extract_embedded_jpeg_preview(&file_bytes) {
+                        (Some(preview_bytes), None)
+                    } else {
+                        // Check companion or readable image path
+                        let candidate = if let Some(comp) = item.companion_images.first() {
+                            if comp.exists() {
+                                Some(comp.as_path())
+                            } else {
+                                None
+                            }
+                        } else {
+                            let is_web = active_primary
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .map(|e| {
+                                    matches!(
+                                        e.to_lowercase().as_str(),
+                                        "jpg" | "jpeg" | "png" | "webp"
+                                    )
+                                })
+                                .unwrap_or(false);
+                            if is_web {
+                                Some(active_primary.as_path())
+                            } else {
+                                None
+                            }
+                        };
+                        (None, candidate)
+                    }
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            }
+        }
+    };
+
+    // Now convert or downsample image into a compact JPEG byte buffer
+    let micro_jpeg_bytes = if let Some(bytes) = raw_image_bytes {
+        // If the bytes are already a compact JPEG (under 25KB), check dimension or use directly
+        if bytes.len() <= 25 * 1024 {
+            if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+                if dyn_img.width() <= 320 && dyn_img.height() <= 320 {
+                    bytes
+                } else {
+                    downsample_to_micro_jpeg(&dyn_img)?
+                }
+            } else {
+                bytes
+            }
+        } else if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+            downsample_to_micro_jpeg(&dyn_img)?
+        } else {
+            return None;
+        }
+    } else if let Some(src_path) = candidate_path {
+        if let Ok(dyn_img) = image::open(src_path) {
+            downsample_to_micro_jpeg(&dyn_img)?
+        } else {
+            return None;
+        }
+    } else {
+        return None;
+    };
+
+    let b64 = encode_base64(&micro_jpeg_bytes);
+    Some(format!("data:image/jpeg;base64,{}", b64))
+}
+
+fn downsample_to_micro_jpeg(img: &image::DynamicImage) -> Option<Vec<u8>> {
+    let thumb = img.thumbnail(300, 300);
+    let mut buf = Vec::new();
+    let mut cursor = std::io::Cursor::new(&mut buf);
+    let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 68);
+    encoder.encode_image(&thumb).ok()?;
+    Some(buf)
 }
 
 /// Resolves or extracts preview thumbnail path for an item relative to output_root.

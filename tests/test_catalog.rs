@@ -1381,3 +1381,79 @@ setTimeout(() => {{
         zsh_stdout
     );
 }
+
+#[test]
+fn test_catalog_embedded_base64_thumbnails() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Create a real JPEG image in the tempdir
+    let img_path = dir.path().join("IMG_9999.JPG");
+    let img = image::RgbImage::new(400, 300);
+    img.save(&img_path).expect("save test image");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-embed-1".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        current_path: img_path.clone(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Lammergeier".to_string(),
+        scientific_name: Some("Gypaetus barbatus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.99,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Embed Test Trip",
+        &[item.clone()],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract the embedded JSON payload
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content
+        .find(marker)
+        .expect("must contain catalog-data script tag")
+        + marker.len();
+    let end_idx = html_content[start_idx..]
+        .find("</script>")
+        .expect("must contain closing script tag");
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let parsed: serde_json::Value = serde_json::from_str(json_str).expect("valid json payload");
+    let items = parsed["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 1);
+
+    let first_item = &items[0];
+    let thumb_uri = first_item["embedded_thumb_data_uri"]
+        .as_str()
+        .expect("embedded_thumb_data_uri must be present and a string");
+
+    assert!(
+        thumb_uri.starts_with("data:image/jpeg;base64,"),
+        "embedded_thumb_data_uri must start with data:image/jpeg;base64,"
+    );
+
+    // Verify it's valid base64 and decodes to a valid JPEG
+    let b64_part = &thumb_uri["data:image/jpeg;base64,".len()..];
+    assert!(!b64_part.is_empty(), "base64 payload must not be empty");
+
+    // Also test standalone function generate_base64_micro_thumbnail
+    let standalone_uri = avicull::catalog::generate_base64_micro_thumbnail(&item, dir.path());
+    assert!(
+        standalone_uri.is_some(),
+        "generate_base64_micro_thumbnail must succeed for valid image"
+    );
+    assert_eq!(standalone_uri.as_deref(), Some(thumb_uri));
+}
