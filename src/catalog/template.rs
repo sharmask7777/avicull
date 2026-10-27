@@ -654,6 +654,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       <span class="badge-mode">{mode_display}</span>
     </div>
     <div class="header-actions">
+      <button class="btn btn-secondary" id="btnCopyBatchScript" onclick="copyBatchScript()" title="Copy bash script for all queued mislabel corrections to clipboard">
+        Copy Batch Script (<span id="batchCountCopy">0</span>)
+      </button>
       <button class="btn btn-secondary" id="btnDownloadBatch" onclick="downloadBatchScript()" title="Download bash script for all queued mislabel corrections">
         <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         Download apply_corrections.sh (<span id="batchCount">0</span>)
@@ -1026,16 +1029,38 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 AVICULL_CMD=""
 if command -v avicull >/dev/null 2>&1; then
   AVICULL_CMD="avicull"
+elif [ -x "/usr/local/bin/avicull" ]; then
+  AVICULL_CMD="/usr/local/bin/avicull"
+elif [ -x "/opt/homebrew/bin/avicull" ]; then
+  AVICULL_CMD="/opt/homebrew/bin/avicull"
+elif [ -x "$HOME/.cargo/bin/avicull" ]; then
+  AVICULL_CMD="$HOME/.cargo/bin/avicull"
 elif [ -f "./target/release/avicull" ]; then
   AVICULL_CMD="./target/release/avicull"
 elif [ -f "../target/release/avicull" ]; then
   AVICULL_CMD="../target/release/avicull"
 elif [ -f "../../target/release/avicull" ]; then
   AVICULL_CMD="../../target/release/avicull"
+elif [ -f "../../../target/release/avicull" ]; then
+  AVICULL_CMD="../../../target/release/avicull"
 elif [ -f "$HOME/.cargo/bin/avicull" ]; then
   AVICULL_CMD="$HOME/.cargo/bin/avicull"
-elif command -v cargo >/dev/null 2>&1 && [ -f "Cargo.toml" -o -f "../Cargo.toml" -o -f "../../Cargo.toml" ]; then
-  AVICULL_CMD="cargo run --release --bin avicull --"
+else
+  # Upward search loop for Cargo.toml or target/release/avicull
+  SEARCH_DIR="."
+  for _ in 1 2 3 4 5; do
+    if [ -f "$SEARCH_DIR/target/release/avicull" ]; then
+      AVICULL_CMD="$SEARCH_DIR/target/release/avicull"
+      break
+    elif [ -f "$SEARCH_DIR/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
+      AVICULL_CMD="cargo run --manifest-path $SEARCH_DIR/Cargo.toml --release --bin avicull --"
+      break
+    fi
+    SEARCH_DIR="$SEARCH_DIR/.."
+  done
+  if [ -z "$AVICULL_CMD" ] && command -v cargo >/dev/null 2>&1 && [ -f "Cargo.toml" -o -f "../Cargo.toml" -o -f "../../Cargo.toml" ]; then
+    AVICULL_CMD="cargo run --release --bin avicull --"
+  fi
 fi
 `;
   }}
@@ -1045,6 +1070,7 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
     const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
+    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
@@ -1063,19 +1089,19 @@ fi
 
     if (isHierarchy) {{
       const targetDir = `birds_hierarchy/${{newSlug}}`;
-      commands.push(`mkdir -p "${{targetDir}}"`);
+      commands.push(`  mkdir -p "${{targetDir}}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       const newPath = `${{targetDir}}/${{filename}}`;
-      commands.push(`mv "${{currentPath}}" "${{newPath}}"`);
+      commands.push(`  mv "${{currentPath}}" "${{newPath}}"`);
 
       for (const sc of allSidecars) {{
         const scSlash = sc.lastIndexOf('/');
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
         commands.push(`mv "${{sc}}" "${{targetDir}}/${{scFilename}}"`);
       }}
-      commands.push(`if command -v fileproviderctl >/dev/null 2>&1; then`);
-      commands.push(`  fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
-      commands.push(`fi`);
+      commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+      commands.push(`    fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
+      commands.push(`  fi`);
     }} else {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = activeModalItem.original_stem;
@@ -1102,7 +1128,7 @@ fi
       // Primary file extension
       const primaryExt = getExtension(activeModalItem.primary_filename);
       const newPrimary = (dir ? dir + '/' : '') + targetStem + primaryExt;
-      commands.push(`mv "${{currentPath}}" "${{newPrimary}}"`);
+      commands.push(`  mv "${{currentPath}}" "${{newPrimary}}"`);
 
       // Companion and sidecar files
       for (const sc of allSidecars) {{
@@ -1111,12 +1137,15 @@ fi
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
         const scExt = getCompoundExtension(scFilename);
         const newSc = (scDir ? scDir + '/' : '') + targetStem + scExt;
-        commands.push(`mv "${{sc}}" "${{newSc}}"`);
+        commands.push(`  mv "${{sc}}" "${{newSc}}"`);
       }}
-      commands.push(`if command -v fileproviderctl >/dev/null 2>&1; then`);
-      commands.push(`  fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
-      commands.push(`fi`);
+      commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+      commands.push(`    fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
+      commands.push(`  fi`);
     }}
+    commands.push(`  if [ -n "$AVICULL_CMD" ]; then`);
+    commands.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+    commands.push(`  fi`);
     commands.push(`fi`);
 
     return commands;
@@ -1165,20 +1194,19 @@ fi
   function addToBatch() {{
     if (!activeModalItem || !activeModalItem._pendingCommands) return;
     batchCommands.push(...activeModalItem._pendingCommands);
-    document.getElementById('batchCount').textContent = batchCommands.length;
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
     closeModal();
   }}
 
-  function downloadBatchScript() {{
-    if (batchCommands.length === 0) {{
-      alert("No mislabel corrections have been added to the batch yet. Click 'Correct Species' on any photo and select 'Add to Batch Script'.");
-      return;
-    }}
-
+  function generateBatchScriptContent() {{
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
-    const scriptContent = [
+    return [
       "#!/usr/bin/env bash",
       "# Avicull Mislabel Corrections Batch Script",
       "# Generated automatically by avicull standalone catalog",
@@ -1197,6 +1225,34 @@ fi
       "echo '✓ All avicull mislabel corrections applied successfully!'",
       ""
     ].join('\n');
+  }}
+
+  function copyBatchScript() {{
+    if (batchCommands.length === 0) {{
+      alert("No mislabel corrections have been added to the batch yet. Click 'Correct Species' on any photo and select 'Add to Batch Script'.");
+      return;
+    }}
+
+    const scriptContent = generateBatchScriptContent();
+    navigator.clipboard.writeText(scriptContent).then(() => {{
+      const btn = document.getElementById('btnCopyBatchScript');
+      if (btn) {{
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => {{ btn.textContent = orig; }}, 1500);
+      }}
+    }}).catch(() => {{
+      alert("Batch Script: \n\n" + scriptContent);
+    }});
+  }}
+
+  function downloadBatchScript() {{
+    if (batchCommands.length === 0) {{
+      alert("No mislabel corrections have been added to the batch yet. Click 'Correct Species' on any photo and select 'Add to Batch Script'.");
+      return;
+    }}
+
+    const scriptContent = generateBatchScriptContent();
 
     const blob = new Blob([scriptContent], {{ type: 'text/x-sh' }});
     const url = URL.createObjectURL(blob);
