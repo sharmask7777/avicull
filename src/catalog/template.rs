@@ -784,16 +784,60 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       .replace(/^_+|_+$/g, '');
   }}
 
+  function attemptHighResSwap(img, item) {{
+    if (!img || !item) return;
+    const isLocal = item.is_local !== false;
+    const localSrc = item.local_src || item.preview_url;
+    if (!isLocal || !localSrc) return;
+
+    const probe = new Image();
+    probe.onload = () => {{
+      img.src = localSrc;
+    }};
+    probe.onerror = () => {{
+      // Gracefully keep embedded thumbnail baseline; tag card as cloud/evicted
+      const card = img.closest ? img.closest('.card') : document.getElementById('card-' + item.id);
+      if (card) {{
+        card.classList.add('evicted');
+      }}
+    }};
+    probe.src = localSrc;
+  }}
+
   function handleImageError(img, itemId) {{
-    if (img.dataset.thumbSrc && img.src !== img.dataset.thumbSrc) {{
-      img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
-      img.src = img.dataset.thumbSrc;
-      const card = img.closest('.card');
+    const item = items.find(i => i.id === itemId);
+    const embeddedUri = item ? item.embedded_thumb_data_uri : null;
+    const fallbackThumb = (item ? item.thumb_src : null) || img.dataset.thumbSrc;
+
+    // First attempt to fall back to embedded data URI if high-res failed
+    if (embeddedUri && img.src !== embeddedUri) {{
+      img.onerror = function() {{
+        if (fallbackThumb && img.src !== fallbackThumb) {{
+          img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
+          img.src = fallbackThumb;
+        }} else {{
+          handleFinalImageFallback(img, itemId);
+        }}
+      }};
+      img.src = embeddedUri;
+      const card = img.closest ? img.closest('.card') : null;
       if (card) {{
         card.classList.add('evicted');
       }}
       return;
     }}
+
+    // Secondary fallback to thumbSrc
+    if (fallbackThumb && img.src !== fallbackThumb) {{
+      img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
+      img.src = fallbackThumb;
+      const card = img.closest ? img.closest('.card') : null;
+      if (card) {{
+        card.classList.add('evicted');
+      }}
+      return;
+    }}
+
     handleFinalImageFallback(img, itemId);
   }}
 
@@ -868,13 +912,13 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = isLocal ? (item.local_src || item.preview_url) : (item.thumb_src || item.preview_url);
+      const initialSrc = item.embedded_thumb_data_uri || item.thumb_src || item.preview_url;
       const evictedClass = isLocal ? '' : ' evicted';
 
       return `
-        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}">
+        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}">
           <div class="card-media">
-            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
+            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
             <span class="badge-cloud">☁️ Cloud</span>
             <span class="badge-tier ${{tierBadgeClass}}">${{tierLabel}}</span>
           </div>
@@ -898,6 +942,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
       `;
     }}).join('');
+
+    // Trigger progressive background high-res probing for locally available images
+    filtered.forEach(item => {{
+      const card = document.getElementById('card-' + item.id);
+      if (card) {{
+        const img = card.querySelector('img');
+        if (img) {{
+          attemptHighResSwap(img, item);
+        }}
+      }}
+    }});
   }}
 
   function setFilter(tier, btn) {{
@@ -921,19 +976,39 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     document.getElementById('modalCurrentPath').textContent = activeModalItem.current_path;
     const thumb = document.getElementById('modalPhotoThumb');
     if (thumb) {{
-      const initialThumb = (activeModalItem.is_local !== false)
-        ? (activeModalItem.local_src || activeModalItem.preview_url)
-        : (activeModalItem.thumb_src || activeModalItem.preview_url);
+      const embeddedUri = activeModalItem.embedded_thumb_data_uri;
+      const fallbackThumb = activeModalItem.thumb_src || activeModalItem.preview_url;
+      const initialThumb = embeddedUri || fallbackThumb;
       thumb.src = initialThumb;
-      thumb.dataset.thumbSrc = activeModalItem.thumb_src || activeModalItem.preview_url;
+      thumb.dataset.embeddedSrc = embeddedUri || '';
+      thumb.dataset.thumbSrc = fallbackThumb;
       thumb.onerror = () => {{
-        if (thumb.dataset.thumbSrc && thumb.src !== thumb.dataset.thumbSrc) {{
-          thumb.src = thumb.dataset.thumbSrc;
+        if (embeddedUri && thumb.src !== embeddedUri) {{
+          thumb.src = embeddedUri;
+        }} else if (fallbackThumb && thumb.src !== fallbackThumb) {{
+          thumb.src = fallbackThumb;
         }} else {{
           thumb.style.display = 'none';
         }}
       }};
       thumb.style.display = 'block';
+
+      // Upgrade modal thumb to high-res if available locally
+      if (activeModalItem.is_local !== false) {{
+        const modalLocalSrc = activeModalItem.local_src || activeModalItem.preview_url;
+        if (modalLocalSrc) {{
+          const modalProbe = new Image();
+          modalProbe.onload = () => {{
+            if (activeModalItem && activeModalItem.id === itemId) {{
+              thumb.src = modalLocalSrc;
+            }}
+          }};
+          modalProbe.onerror = () => {{
+            // Leave thumbnail in place
+          }};
+          modalProbe.src = modalLocalSrc;
+        }}
+      }}
     }}
 
     const input = document.getElementById('speciesSearchInput');

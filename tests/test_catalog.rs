@@ -1457,3 +1457,225 @@ fn test_catalog_embedded_base64_thumbnails() {
     );
     assert_eq!(standalone_uri.as_deref(), Some(thumb_uri));
 }
+
+#[test]
+fn test_catalog_standalone_dynamic_high_res_replacement() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Create a real JPEG image in the tempdir
+    let img_path = dir.path().join("IMG_8888.JPG");
+    let img = image::RgbImage::new(400, 300);
+    img.save(&img_path).expect("save test image");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-embed-dyn-1".to_string(),
+        original_stem: "IMG_8888".to_string(),
+        current_path: img_path.clone(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Golden Eagle".to_string(),
+        scientific_name: Some("Aquila chrysaetos".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Dynamic High-Res Test Trip",
+        &[item.clone()],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    // Remove any .avicull/ directory if it was created, proving 100% standalone rendering
+    let avicull_dir = dir.path().join(".avicull");
+    if avicull_dir.exists() {
+        fs::remove_dir_all(&avicull_dir).expect("remove .avicull");
+    }
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // 1. Verify card initial src uses embedded thumbnail URI as baseline
+    assert!(
+        html_content.contains("embedded_thumb_data_uri"),
+        "Catalog HTML must reference embedded_thumb_data_uri"
+    );
+
+    // 2. Verify dynamic high-res probing logic is present in the JavaScript
+    assert!(
+        html_content.contains("upgradeCardHighRes") || html_content.contains("attemptHighResSwap"),
+        "Catalog HTML must contain dynamic high-res upgrade probing function"
+    );
+
+    // 3. Verify probe.onload updates img.src to high-res local_src
+    assert!(
+        html_content.contains("probe.onload"),
+        "Catalog script must use an Image probe with probe.onload"
+    );
+
+    // 4. Verify probe.onerror does not break image and gracefully marks cloud badge
+    assert!(
+        html_content.contains("probe.onerror"),
+        "Catalog script must handle probe.onerror gracefully"
+    );
+
+    // 5. Verify modal photo preview uses high-res probe / embedded thumb fallback
+    assert!(
+        html_content.contains("modalPhotoThumb"),
+        "Catalog must contain modalPhotoThumb logic"
+    );
+
+    // 6. Execute node.js DOM simulation to test probe onload and onerror behaviors
+    let js_test_code = format!(
+        r#"
+        const html = `{}`;
+        // Extract script content
+        const scriptStart = html.lastIndexOf("<script>");
+        const scriptEnd = html.lastIndexOf("</script>");
+        const scriptCode = html.substring(scriptStart + 8, scriptEnd);
+
+        // Minimal DOM mock
+        const galleryGridObj = {{ innerHTML: '' }};
+        const cardsMap = {{}};
+        const modalThumbObj = {{ src: '', dataset: {{}}, style: {{}} }};
+        global.document = {{
+          getElementById: (id) => {{
+            if (id === 'catalog-data') {{
+              return {{ textContent: JSON.stringify({{ items: [
+                {{
+                  id: "bundle-embed-dyn-1",
+                  assigned_species: "Golden Eagle",
+                  scientific_name: "Aquila chrysaetos",
+                  routing_tier: "ConfirmedSpecies",
+                  confidence: 0.98,
+                  current_path: "IMG_8888.JPG",
+                  primary_filename: "IMG_8888.JPG",
+                  local_src: "IMG_8888.JPG",
+                  thumb_src: ".avicull/previews/IMG_8888.jpg",
+                  embedded_thumb_data_uri: "data:image/jpeg;base64,mockthumb",
+                  is_local: true
+                }}
+              ] }}) }};
+            }}
+            if (id === 'galleryGrid') return galleryGridObj;
+            if (id === 'searchInput') return {{ value: '' }};
+            if (id === 'modalPhotoThumb') return modalThumbObj;
+            if (id === 'modalCurrentSpecies') return {{ textContent: '' }};
+            if (id === 'modalCurrentPath') return {{ textContent: '' }};
+            if (id === 'speciesSearchInput') return {{ value: '' }};
+            if (id === 'speciesSuggestions') return {{ classList: {{ remove: () => {{}} }} }};
+            if (id === 'commandOutput') return {{ textContent: '' }};
+            if (id === 'correctionModal') return {{ classList: {{ add: () => {{}}, remove: () => {{}} }} }};
+            if (id.startsWith('card-')) {{
+              if (!cardsMap[id]) {{
+                const imgObj = {{ src: 'data:image/jpeg;base64,mockthumb' }};
+                cardsMap[id] = {{
+                  classList: {{ add: () => {{}}, remove: () => {{}} }},
+                  querySelector: (sel) => (sel === 'img' ? imgObj : null)
+                }};
+              }}
+              return cardsMap[id];
+            }}
+            return null;
+          }},
+          querySelectorAll: () => [],
+          addEventListener: () => {{}}
+        }};
+
+        let probeInstances = [];
+        global.Image = class {{
+          constructor() {{
+            this.src = '';
+            this.onload = null;
+            this.onerror = null;
+            probeInstances.push(this);
+          }}
+        }};
+
+        // Eval script code
+        eval(scriptCode);
+
+        // Call renderGallery
+        renderGallery();
+        const grid = global.document.getElementById('galleryGrid');
+        if (!grid.innerHTML.includes('data:image/jpeg;base64,mockthumb')) {{
+          console.error("FAIL: rendered HTML does not use embedded thumbnail initially! innerHTML was:", grid.innerHTML);
+          process.exit(1);
+        }}
+
+        // Verify probe instance was created and attempted to load local_src
+        if (probeInstances.length === 0) {{
+          console.error("FAIL: No probe image was created!");
+          process.exit(1);
+        }}
+        const probe = probeInstances[0];
+        if (probe.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: Probe src is not IMG_8888.JPG! Got:", probe.src);
+          process.exit(1);
+        }}
+
+        // Simulate probe.onload
+        const cardImg = cardsMap['card-bundle-embed-dyn-1'].querySelector('img');
+        probe.onload();
+        if (cardImg.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: cardImg src was not upgraded to high-res on onload! Got:", cardImg.src);
+          process.exit(1);
+        }}
+
+        // Test probe.onerror graceful handling
+        let evictedAdded = false;
+        cardsMap['card-bundle-embed-dyn-1'].classList.add = (c) => {{
+          if (c === 'evicted') evictedAdded = true;
+        }};
+        probe.onerror();
+        if (!evictedAdded) {{
+          console.error("FAIL: card was not tagged as evicted on probe.onerror!");
+          process.exit(1);
+        }}
+
+        // Test modal photo thumb upgrade
+        openModal('bundle-embed-dyn-1');
+        const modalThumb = global.document.getElementById('modalPhotoThumb');
+        if (modalThumb.src !== 'data:image/jpeg;base64,mockthumb') {{
+          console.error("FAIL: modal thumb initial src not set to embedded thumb! Got:", modalThumb.src);
+          process.exit(1);
+        }}
+        // Modal probe instance should be created
+        const modalProbe = probeInstances[probeInstances.length - 1];
+        modalProbe.onload();
+        if (modalThumb.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: modal thumb not upgraded to high-res on onload! Got:", modalThumb.src);
+          process.exit(1);
+        }}
+
+        console.log("SUCCESS: Catalog JS renders embedded thumb and initiates probe");
+        "#,
+        html_content
+            .replace('\\', "\\\\")
+            .replace('`', "\\`")
+            .replace('$', "\\$")
+    );
+
+    let mut temp_js = tempfile::NamedTempFile::new().expect("create temp js");
+    temp_js
+        .write_all(js_test_code.as_bytes())
+        .expect("write js");
+
+    let node_output = Command::new("node")
+        .arg(temp_js.path())
+        .output()
+        .expect("run node");
+
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    let stderr = String::from_utf8_lossy(&node_output.stderr);
+    println!("Node stdout: {}", stdout);
+    println!("Node stderr: {}", stderr);
+    assert!(node_output.status.success(), "Node test failed: {}", stderr);
+}
