@@ -121,6 +121,28 @@ impl ExistingBundleMap {
             })
     }
 
+    /// Removes a bundle from all map indices.
+    pub fn remove(&mut self, bundle_id: &str) -> Option<(BundleDecision, AssetBundle)> {
+        if let Some(removed) = self.by_id.remove(bundle_id) {
+            let inode = removed.1.source_inode;
+            let rel_path = removed.1.relative_path.clone();
+            let key = (
+                removed.1.trip_folder_name.clone(),
+                removed.1.original_stem.clone(),
+            );
+            if inode != 0 {
+                self.by_inode.remove(&inode);
+            }
+            if let Some(rel) = rel_path {
+                self.by_relative_path.remove(&rel);
+            }
+            self.by_portable_key.remove(&key);
+            Some(removed)
+        } else {
+            None
+        }
+    }
+
     /// Updates the decision for a bundle across all map indices.
     pub fn update_decision(&mut self, bundle_id: &str, new_decision: BundleDecision) {
         if let Some(entry) = self.by_id.get_mut(bundle_id) {
@@ -493,6 +515,22 @@ impl ManifestDb {
             params![new_species_slug, tier_str, final_conf, bundle_id],
         )?;
         Ok(())
+    }
+
+    /// Prunes/deletes a bundle and its related operations from SQLite manifest.
+    pub fn delete_bundle(&self, bundle_id: &str) -> Result<bool> {
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        tx.execute(
+            "DELETE FROM hardlink_operations WHERE bundle_id = ?1",
+            params![bundle_id],
+        )?;
+        let rows = tx.execute(
+            "DELETE FROM bundles WHERE bundle_id = ?1",
+            params![bundle_id],
+        )?;
+        tx.commit()?;
+        Ok(rows > 0)
     }
 
     /// Returns whether the bundle was recorded as dataless during its processing run.

@@ -515,6 +515,29 @@ fn main() -> Result<()> {
                 all_discovered.len()
             );
 
+            // Prune missing/deleted bundles from manifest so catalog and state accurately reflect surviving files
+            if !existing_bundle_map.is_empty() {
+                match avicull::organizer::prune_missing_bundles_from_manifest(
+                    &all_discovered,
+                    &db,
+                    &mut existing_bundle_map,
+                ) {
+                    Ok(pruned) if pruned > 0 => {
+                        println!(
+                            "Reconciliation: Pruned {} deleted bundle(s) from SQLite manifest.",
+                            pruned
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to prune missing bundles from manifest: {}",
+                            e
+                        );
+                    }
+                    _ => {}
+                }
+            }
+
             let def_coords = match (args.default_lat, args.default_lon) {
                 (Some(la), Some(lo)) => Some((la, lo)),
                 _ => None,

@@ -204,6 +204,38 @@ pub fn reconcile_manual_disk_moves(
     Ok(reconciled_bundle_ids.len())
 }
 
+/// Purges bundles from the database and in-memory map if their assets no longer
+/// exist on disk in the input tree.
+pub fn prune_missing_bundles_from_manifest(
+    discovered_bundles: &[crate::types::AssetBundle],
+    db: &ManifestDb,
+    existing_bundle_map: &mut ExistingBundleMap,
+) -> Result<usize> {
+    if existing_bundle_map.is_empty() {
+        return Ok(0);
+    }
+
+    let mut surviving_bundle_ids = HashSet::new();
+    for bundle in discovered_bundles {
+        if let Some((_, old_bundle)) = existing_bundle_map.get_by_bundle(bundle) {
+            surviving_bundle_ids.insert(old_bundle.bundle_id.clone());
+        }
+    }
+
+    let all_existing_ids: Vec<String> = existing_bundle_map.by_id.keys().cloned().collect();
+    let mut pruned_count = 0;
+
+    for id in all_existing_ids {
+        if !surviving_bundle_ids.contains(&id) {
+            let _ = db.delete_bundle(&id);
+            existing_bundle_map.remove(&id);
+            pruned_count += 1;
+        }
+    }
+
+    Ok(pruned_count)
+}
+
 /// Extracts the species slug and routing tier from an in-place filename stem.
 ///
 /// Handles stems formatted as `<original_stem>_<Species>[_<Date>][_<Location>]`,

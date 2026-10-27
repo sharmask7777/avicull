@@ -784,16 +784,60 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       .replace(/^_+|_+$/g, '');
   }}
 
+  function attemptHighResSwap(img, item) {{
+    if (!img || !item) return;
+    const isLocal = item.is_local !== false;
+    const localSrc = item.local_src || item.preview_url;
+    if (!isLocal || !localSrc) return;
+
+    const probe = new Image();
+    probe.onload = () => {{
+      img.src = localSrc;
+    }};
+    probe.onerror = () => {{
+      // Gracefully keep embedded thumbnail baseline; tag card as cloud/evicted
+      const card = img.closest ? img.closest('.card') : document.getElementById('card-' + item.id);
+      if (card) {{
+        card.classList.add('evicted');
+      }}
+    }};
+    probe.src = localSrc;
+  }}
+
   function handleImageError(img, itemId) {{
-    if (img.dataset.thumbSrc && img.src !== img.dataset.thumbSrc) {{
-      img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
-      img.src = img.dataset.thumbSrc;
-      const card = img.closest('.card');
+    const item = items.find(i => i.id === itemId);
+    const embeddedUri = item ? item.embedded_thumb_data_uri : null;
+    const fallbackThumb = (item ? item.thumb_src : null) || img.dataset.thumbSrc;
+
+    // First attempt to fall back to embedded data URI if high-res failed
+    if (embeddedUri && img.src !== embeddedUri) {{
+      img.onerror = function() {{
+        if (fallbackThumb && img.src !== fallbackThumb) {{
+          img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
+          img.src = fallbackThumb;
+        }} else {{
+          handleFinalImageFallback(img, itemId);
+        }}
+      }};
+      img.src = embeddedUri;
+      const card = img.closest ? img.closest('.card') : null;
       if (card) {{
         card.classList.add('evicted');
       }}
       return;
     }}
+
+    // Secondary fallback to thumbSrc
+    if (fallbackThumb && img.src !== fallbackThumb) {{
+      img.onerror = function() {{ handleFinalImageFallback(img, itemId); }};
+      img.src = fallbackThumb;
+      const card = img.closest ? img.closest('.card') : null;
+      if (card) {{
+        card.classList.add('evicted');
+      }}
+      return;
+    }}
+
     handleFinalImageFallback(img, itemId);
   }}
 
@@ -868,13 +912,13 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = isLocal ? (item.local_src || item.preview_url) : (item.thumb_src || item.preview_url);
+      const initialSrc = item.embedded_thumb_data_uri || item.thumb_src || item.preview_url;
       const evictedClass = isLocal ? '' : ' evicted';
 
       return `
-        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}">
+        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}">
           <div class="card-media">
-            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
+            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
             <span class="badge-cloud">☁️ Cloud</span>
             <span class="badge-tier ${{tierBadgeClass}}">${{tierLabel}}</span>
           </div>
@@ -898,6 +942,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
       `;
     }}).join('');
+
+    // Trigger progressive background high-res probing for locally available images
+    filtered.forEach(item => {{
+      const card = document.getElementById('card-' + item.id);
+      if (card) {{
+        const img = card.querySelector('img');
+        if (img) {{
+          attemptHighResSwap(img, item);
+        }}
+      }}
+    }});
   }}
 
   function setFilter(tier, btn) {{
@@ -921,19 +976,39 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     document.getElementById('modalCurrentPath').textContent = activeModalItem.current_path;
     const thumb = document.getElementById('modalPhotoThumb');
     if (thumb) {{
-      const initialThumb = (activeModalItem.is_local !== false)
-        ? (activeModalItem.local_src || activeModalItem.preview_url)
-        : (activeModalItem.thumb_src || activeModalItem.preview_url);
+      const embeddedUri = activeModalItem.embedded_thumb_data_uri;
+      const fallbackThumb = activeModalItem.thumb_src || activeModalItem.preview_url;
+      const initialThumb = embeddedUri || fallbackThumb;
       thumb.src = initialThumb;
-      thumb.dataset.thumbSrc = activeModalItem.thumb_src || activeModalItem.preview_url;
+      thumb.dataset.embeddedSrc = embeddedUri || '';
+      thumb.dataset.thumbSrc = fallbackThumb;
       thumb.onerror = () => {{
-        if (thumb.dataset.thumbSrc && thumb.src !== thumb.dataset.thumbSrc) {{
-          thumb.src = thumb.dataset.thumbSrc;
+        if (embeddedUri && thumb.src !== embeddedUri) {{
+          thumb.src = embeddedUri;
+        }} else if (fallbackThumb && thumb.src !== fallbackThumb) {{
+          thumb.src = fallbackThumb;
         }} else {{
           thumb.style.display = 'none';
         }}
       }};
       thumb.style.display = 'block';
+
+      // Upgrade modal thumb to high-res if available locally
+      if (activeModalItem.is_local !== false) {{
+        const modalLocalSrc = activeModalItem.local_src || activeModalItem.preview_url;
+        if (modalLocalSrc) {{
+          const modalProbe = new Image();
+          modalProbe.onload = () => {{
+            if (activeModalItem && activeModalItem.id === itemId) {{
+              thumb.src = modalLocalSrc;
+            }}
+          }};
+          modalProbe.onerror = () => {{
+            // Leave thumbnail in place
+          }};
+          modalProbe.src = modalLocalSrc;
+        }}
+      }}
     }}
 
     const input = document.getElementById('speciesSearchInput');
@@ -1193,7 +1268,10 @@ fi
 
   function addToBatch() {{
     if (!activeModalItem || !activeModalItem._pendingCommands) return;
-    batchCommands.push(...activeModalItem._pendingCommands);
+    batchCommands.push({{
+      stem: activeModalItem.original_stem,
+      commands: [...activeModalItem._pendingCommands]
+    }});
     const count = batchCommands.length;
     const batchCountEl = document.getElementById('batchCount');
     if (batchCountEl) batchCountEl.textContent = count;
@@ -1206,32 +1284,123 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
-    if (forDownload) {{
+    const normalizeBatch = (entries) => {{
+      let items = [];
+      let currentLines = [];
+      let currentStem = "";
+      let ifDepth = 0;
+
+      for (const entry of entries) {{
+        if (typeof entry === 'object' && entry && entry.commands) {{
+          if (currentLines.length > 0) {{
+            items.push({{ stem: currentStem || 'item', commands: currentLines }});
+            currentLines = [];
+            currentStem = '';
+            ifDepth = 0;
+          }}
+          items.push(entry);
+          continue;
+        }}
+
+        const str = String(entry);
+        const m = str.match(/--file\s+"([^"]+)"/) || str.match(/mv\s+"[^"]*?([^\/"]+)\.[a-zA-Z0-9]+"/);
+        if (m && !currentStem) currentStem = m[1];
+
+        const lines = str.split('\n');
+        for (const l of lines) {{
+          const trimmed = l.trim();
+          if (/^if\b/.test(trimmed)) ifDepth++;
+          if (/^fi\b/.test(trimmed)) ifDepth--;
+        }}
+
+        currentLines.push(str);
+
+        if (ifDepth <= 0 && currentStem && currentLines.length > 0) {{
+          items.push({{ stem: currentStem, commands: currentLines }});
+          currentLines = [];
+          currentStem = '';
+          ifDepth = 0;
+        }}
+      }}
+
+      if (currentLines.length > 0) {{
+        items.push({{ stem: currentStem || 'item', commands: currentLines }});
+      }}
+
+      return items;
+    }};
+
+    const normalizedItems = normalizeBatch(batchCommands);
+
+    const renderItemBlock = (entry, indent) => {{
+      const stem = entry.stem || 'item';
+      const cmds = entry.commands || [];
+
+      let cleanCmds = cmds
+        .flatMap(cmd => cmd.split('\n'))
+        .filter(line => !line.trim().startsWith('#'))
+        .map(cmd => `${{indent}}    ${{cmd}}`);
+
       return [
-        "#!/usr/bin/env bash",
-        "# Avicull Mislabel Corrections Batch Script",
-        "# Generated automatically by avicull standalone catalog",
-        "set -euo pipefail",
-        "",
-        `cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
-        "",
-        ...batchCommands,
-        "",
-        findAvicullCmd().trim(),
-        "if [ -n \"$AVICULL_CMD\" ]; then",
-        "  echo 'Regenerating catalog with updated SQLite overrides...'",
-        `  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
-        "fi",
-        "",
-        "echo '✓ All avicull mislabel corrections applied successfully!'",
-        ""
-      ].join('\n');
+        `${{indent}}  if run_correction "${{stem}}" <<'AVICULL_ITEM_EOF'`,
+        ...cleanCmds,
+        `AVICULL_ITEM_EOF`,
+        `${{indent}}  then`,
+        `${{indent}}    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))`,
+        `${{indent}}  else`,
+        `${{indent}}    echo "[WARN] Correction failed or file missing for: ${{stem}} (skipping)"`,
+        `${{indent}}    FAILED_COUNT=$((FAILED_COUNT + 1))`,
+        `${{indent}}  fi`
+      ];
+    }};
+
+    if (forDownload) {{
+      let bodyLines = [];
+      bodyLines.push("#!/usr/bin/env bash");
+      bodyLines.push("# Avicull Mislabel Corrections Batch Script");
+      bodyLines.push("# Generated automatically by avicull standalone catalog");
+      bodyLines.push("set -u");
+      bodyLines.push("");
+      bodyLines.push(`cd "${{CATALOG_DATA.catalog_dir || '.'}}"`);
+      bodyLines.push("");
+      bodyLines.push(findAvicullCmd().trim());
+      bodyLines.push("export AVICULL_CMD");
+      bodyLines.push("");
+      bodyLines.push("SUCCESS_COUNT=0");
+      bodyLines.push("FAILED_COUNT=0");
+      bodyLines.push("");
+      bodyLines.push("run_correction() {{");
+      bodyLines.push("  local item_label=\"$1\"");
+      bodyLines.push("  bash -e");
+      bodyLines.push("}}");
+      bodyLines.push("");
+
+      for (const item of normalizedItems) {{
+        bodyLines.push(...renderItemBlock(item, ""));
+        bodyLines.push("");
+      }}
+
+      bodyLines.push("if [ -n \"$AVICULL_CMD\" ]; then");
+      bodyLines.push("  echo 'Regenerating catalog with updated SQLite overrides...'");
+      bodyLines.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+      bodyLines.push("fi");
+      bodyLines.push("");
+      bodyLines.push("echo \"\"");
+      bodyLines.push("if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+      bodyLines.push("  echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+      bodyLines.push("  exit 1");
+      bodyLines.push("else");
+      bodyLines.push("  echo '✓ All avicull mislabel corrections applied successfully!'");
+      bodyLines.push("fi");
+      bodyLines.push("");
+
+      return bodyLines.join('\n');
     }}
 
-    const cleanBatchCmds = batchCommands
-      .flatMap(cmd => cmd.split('\n'))
-      .filter(line => !line.trim().startsWith('#'))
-      .map(cmd => "  " + cmd);
+    let bodyLines = [];
+    bodyLines.push("(");
+    bodyLines.push(`  cd "${{CATALOG_DATA.catalog_dir || '.'}}"`);
+    bodyLines.push("");
 
     const cleanFindCmds = findAvicullCmd()
       .trim()
@@ -1239,22 +1408,37 @@ fi
       .filter(line => !line.trim().startsWith('#'))
       .map(line => "  " + line);
 
-    return [
-      "(",
-      "  set -e",
-      `  cd "${{CATALOG_DATA.catalog_dir || '.'}}"`,
-      "",
-      ...cleanBatchCmds,
-      "",
-      ...cleanFindCmds,
-      "  if [ -n \"$AVICULL_CMD\" ]; then",
-      "    echo 'Regenerating catalog with updated SQLite overrides...'",
-      `    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`,
-      "  fi",
-      "  echo '✓ All avicull mislabel corrections applied successfully!'",
-      ")",
-      ""
-    ].join('\n');
+    bodyLines.push(...cleanFindCmds);
+    bodyLines.push("  export AVICULL_CMD");
+    bodyLines.push("  SUCCESS_COUNT=0");
+    bodyLines.push("  FAILED_COUNT=0");
+    bodyLines.push("");
+    bodyLines.push("  run_correction() {{");
+    bodyLines.push("    local item_label=\"$1\"");
+    bodyLines.push("    bash -e");
+    bodyLines.push("  }}");
+    bodyLines.push("");
+
+    for (const item of normalizedItems) {{
+      bodyLines.push(...renderItemBlock(item, ""));
+      bodyLines.push("");
+    }}
+
+    bodyLines.push("  if [ -n \"$AVICULL_CMD\" ]; then");
+    bodyLines.push("    echo 'Regenerating catalog with updated SQLite overrides...'");
+    bodyLines.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+    bodyLines.push("  fi");
+    bodyLines.push("  echo \"\"");
+    bodyLines.push("  if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+    bodyLines.push("    echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+    bodyLines.push("    return 1 2>/dev/null || exit 1");
+    bodyLines.push("  else");
+    bodyLines.push("    echo '✓ All avicull mislabel corrections applied successfully!'");
+    bodyLines.push("  fi");
+    bodyLines.push(")");
+    bodyLines.push("");
+
+    return bodyLines.join('\n');
   }}
 
   function copyBatchScript() {{

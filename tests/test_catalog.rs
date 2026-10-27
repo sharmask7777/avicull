@@ -1381,3 +1381,577 @@ setTimeout(() => {{
         zsh_stdout
     );
 }
+
+#[test]
+fn test_catalog_embedded_base64_thumbnails() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Create a real JPEG image in the tempdir
+    let img_path = dir.path().join("IMG_9999.JPG");
+    let img = image::RgbImage::new(400, 300);
+    img.save(&img_path).expect("save test image");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-embed-1".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        current_path: img_path.clone(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Lammergeier".to_string(),
+        scientific_name: Some("Gypaetus barbatus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.99,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Embed Test Trip",
+        std::slice::from_ref(&item),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract the embedded JSON payload
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content
+        .find(marker)
+        .expect("must contain catalog-data script tag")
+        + marker.len();
+    let end_idx = html_content[start_idx..]
+        .find("</script>")
+        .expect("must contain closing script tag");
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let parsed: serde_json::Value = serde_json::from_str(json_str).expect("valid json payload");
+    let items = parsed["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 1);
+
+    let first_item = &items[0];
+    let thumb_uri = first_item["embedded_thumb_data_uri"]
+        .as_str()
+        .expect("embedded_thumb_data_uri must be present and a string");
+
+    assert!(
+        thumb_uri.starts_with("data:image/jpeg;base64,"),
+        "embedded_thumb_data_uri must start with data:image/jpeg;base64,"
+    );
+
+    // Verify it's valid base64 and decodes to a valid JPEG
+    let b64_part = &thumb_uri["data:image/jpeg;base64,".len()..];
+    assert!(!b64_part.is_empty(), "base64 payload must not be empty");
+
+    // Also test standalone function generate_base64_micro_thumbnail
+    let standalone_uri = avicull::catalog::generate_base64_micro_thumbnail(&item, dir.path());
+    assert!(
+        standalone_uri.is_some(),
+        "generate_base64_micro_thumbnail must succeed for valid image"
+    );
+    assert_eq!(standalone_uri.as_deref(), Some(thumb_uri));
+}
+
+#[test]
+fn test_catalog_standalone_dynamic_high_res_replacement() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Create a real JPEG image in the tempdir
+    let img_path = dir.path().join("IMG_8888.JPG");
+    let img = image::RgbImage::new(400, 300);
+    img.save(&img_path).expect("save test image");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-embed-dyn-1".to_string(),
+        original_stem: "IMG_8888".to_string(),
+        current_path: img_path.clone(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Golden Eagle".to_string(),
+        scientific_name: Some("Aquila chrysaetos".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Dynamic High-Res Test Trip",
+        std::slice::from_ref(&item),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    // Remove any .avicull/ directory if it was created, proving 100% standalone rendering
+    let avicull_dir = dir.path().join(".avicull");
+    if avicull_dir.exists() {
+        fs::remove_dir_all(&avicull_dir).expect("remove .avicull");
+    }
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // 1. Verify card initial src uses embedded thumbnail URI as baseline
+    assert!(
+        html_content.contains("embedded_thumb_data_uri"),
+        "Catalog HTML must reference embedded_thumb_data_uri"
+    );
+
+    // 2. Verify dynamic high-res probing logic is present in the JavaScript
+    assert!(
+        html_content.contains("upgradeCardHighRes") || html_content.contains("attemptHighResSwap"),
+        "Catalog HTML must contain dynamic high-res upgrade probing function"
+    );
+
+    // 3. Verify probe.onload updates img.src to high-res local_src
+    assert!(
+        html_content.contains("probe.onload"),
+        "Catalog script must use an Image probe with probe.onload"
+    );
+
+    // 4. Verify probe.onerror does not break image and gracefully marks cloud badge
+    assert!(
+        html_content.contains("probe.onerror"),
+        "Catalog script must handle probe.onerror gracefully"
+    );
+
+    // 5. Verify modal photo preview uses high-res probe / embedded thumb fallback
+    assert!(
+        html_content.contains("modalPhotoThumb"),
+        "Catalog must contain modalPhotoThumb logic"
+    );
+
+    // 6. Execute node.js DOM simulation to test probe onload and onerror behaviors
+    let js_test_code = format!(
+        r#"
+        const html = `{}`;
+        // Extract script content
+        const scriptStart = html.lastIndexOf("<script>");
+        const scriptEnd = html.lastIndexOf("</script>");
+        const scriptCode = html.substring(scriptStart + 8, scriptEnd);
+
+        // Minimal DOM mock
+        const galleryGridObj = {{ innerHTML: '' }};
+        const cardsMap = {{}};
+        const modalThumbObj = {{ src: '', dataset: {{}}, style: {{}} }};
+        global.document = {{
+          getElementById: (id) => {{
+            if (id === 'catalog-data') {{
+              return {{ textContent: JSON.stringify({{ items: [
+                {{
+                  id: "bundle-embed-dyn-1",
+                  assigned_species: "Golden Eagle",
+                  scientific_name: "Aquila chrysaetos",
+                  routing_tier: "ConfirmedSpecies",
+                  confidence: 0.98,
+                  current_path: "IMG_8888.JPG",
+                  primary_filename: "IMG_8888.JPG",
+                  local_src: "IMG_8888.JPG",
+                  thumb_src: ".avicull/previews/IMG_8888.jpg",
+                  embedded_thumb_data_uri: "data:image/jpeg;base64,mockthumb",
+                  is_local: true
+                }}
+              ] }}) }};
+            }}
+            if (id === 'galleryGrid') return galleryGridObj;
+            if (id === 'searchInput') return {{ value: '' }};
+            if (id === 'modalPhotoThumb') return modalThumbObj;
+            if (id === 'modalCurrentSpecies') return {{ textContent: '' }};
+            if (id === 'modalCurrentPath') return {{ textContent: '' }};
+            if (id === 'speciesSearchInput') return {{ value: '' }};
+            if (id === 'speciesSuggestions') return {{ classList: {{ remove: () => {{}} }} }};
+            if (id === 'commandOutput') return {{ textContent: '' }};
+            if (id === 'correctionModal') return {{ classList: {{ add: () => {{}}, remove: () => {{}} }} }};
+            if (id.startsWith('card-')) {{
+              if (!cardsMap[id]) {{
+                const imgObj = {{ src: 'data:image/jpeg;base64,mockthumb' }};
+                cardsMap[id] = {{
+                  classList: {{ add: () => {{}}, remove: () => {{}} }},
+                  querySelector: (sel) => (sel === 'img' ? imgObj : null)
+                }};
+              }}
+              return cardsMap[id];
+            }}
+            return null;
+          }},
+          querySelectorAll: () => [],
+          addEventListener: () => {{}}
+        }};
+
+        let probeInstances = [];
+        global.Image = class {{
+          constructor() {{
+            this.src = '';
+            this.onload = null;
+            this.onerror = null;
+            probeInstances.push(this);
+          }}
+        }};
+
+        // Eval script code
+        eval(scriptCode);
+
+        // Call renderGallery
+        renderGallery();
+        const grid = global.document.getElementById('galleryGrid');
+        if (!grid.innerHTML.includes('data:image/jpeg;base64,mockthumb')) {{
+          console.error("FAIL: rendered HTML does not use embedded thumbnail initially! innerHTML was:", grid.innerHTML);
+          process.exit(1);
+        }}
+
+        // Verify probe instance was created and attempted to load local_src
+        if (probeInstances.length === 0) {{
+          console.error("FAIL: No probe image was created!");
+          process.exit(1);
+        }}
+        const probe = probeInstances[0];
+        if (probe.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: Probe src is not IMG_8888.JPG! Got:", probe.src);
+          process.exit(1);
+        }}
+
+        // Simulate probe.onload
+        const cardImg = cardsMap['card-bundle-embed-dyn-1'].querySelector('img');
+        probe.onload();
+        if (cardImg.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: cardImg src was not upgraded to high-res on onload! Got:", cardImg.src);
+          process.exit(1);
+        }}
+
+        // Test probe.onerror graceful handling
+        let evictedAdded = false;
+        cardsMap['card-bundle-embed-dyn-1'].classList.add = (c) => {{
+          if (c === 'evicted') evictedAdded = true;
+        }};
+        probe.onerror();
+        if (!evictedAdded) {{
+          console.error("FAIL: card was not tagged as evicted on probe.onerror!");
+          process.exit(1);
+        }}
+
+        // Test modal photo thumb upgrade
+        openModal('bundle-embed-dyn-1');
+        const modalThumb = global.document.getElementById('modalPhotoThumb');
+        if (modalThumb.src !== 'data:image/jpeg;base64,mockthumb') {{
+          console.error("FAIL: modal thumb initial src not set to embedded thumb! Got:", modalThumb.src);
+          process.exit(1);
+        }}
+        // Modal probe instance should be created
+        const modalProbe = probeInstances[probeInstances.length - 1];
+        modalProbe.onload();
+        if (modalThumb.src !== 'IMG_8888.JPG') {{
+          console.error("FAIL: modal thumb not upgraded to high-res on onload! Got:", modalThumb.src);
+          process.exit(1);
+        }}
+
+        console.log("SUCCESS: Catalog JS renders embedded thumb and initiates probe");
+        "#,
+        html_content
+            .replace('\\', "\\\\")
+            .replace('`', "\\`")
+            .replace('$', "\\$")
+    );
+
+    let mut temp_js = tempfile::NamedTempFile::new().expect("create temp js");
+    temp_js
+        .write_all(js_test_code.as_bytes())
+        .expect("write js");
+
+    let node_output = Command::new("node")
+        .arg(temp_js.path())
+        .output()
+        .expect("run node");
+
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    let stderr = String::from_utf8_lossy(&node_output.stderr);
+    println!("Node stdout: {}", stdout);
+    println!("Node stderr: {}", stderr);
+    assert!(node_output.status.success(), "Node test failed: {}", stderr);
+}
+
+#[test]
+fn test_apply_corrections_resilient_to_missing_files() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("SourcePhotos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    // Create 3 photo bundles: Item1 (valid), Item2 (missing underlying file), Item3 (valid)
+    let photo1 = input_dir.join("IMG_101.JPG");
+    let photo2 = input_dir.join("IMG_102.JPG");
+    let photo3 = input_dir.join("IMG_103.JPG");
+
+    File::create(&photo1)
+        .unwrap()
+        .write_all(b"IMG_101 JPEG DATA")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"IMG_102 JPEG DATA")
+        .unwrap();
+    File::create(&photo3)
+        .unwrap()
+        .write_all(b"IMG_103 JPEG DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // Organize input photos
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists());
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract JSON catalog data and JS code
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let script_marker = "<script>\n";
+    let script_start =
+        html_content.find(script_marker).expect("script start") + script_marker.len();
+    let script_end = html_content[script_start..]
+        .find("</script>")
+        .expect("script end")
+        + script_start;
+    let js_code = &html_content[script_start..script_end];
+
+    // Use node to queue corrections for all 3 items, then generate batch scripts
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let clipboardContent = '';
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: rawJson }};
+    }}
+    return {{ textContent: '', value: '', classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{
+  clipboard: {{
+    writeText: async (text) => {{
+      clipboardContent = text;
+      return Promise.resolve();
+    }}
+  }}
+}};
+const window = {{}};
+
+{js_code}
+
+// Queue correction for item 1 -> Osprey
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_101');
+batchCommands.push(...buildMoveCommands('Osprey'));
+
+// Queue correction for item 2 -> Golden_Eagle
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_102');
+batchCommands.push(...buildMoveCommands('Golden_Eagle'));
+
+// Queue correction for item 3 -> Peregrine_Falcon
+activeModalItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_103');
+batchCommands.push(...buildMoveCommands('Peregrine_Falcon'));
+
+const downloadScript = generateBatchScriptContent(true);
+copyBatchScript();
+
+setTimeout(() => {{
+  console.log(JSON.stringify({{
+    downloadScript: downloadScript,
+    clipboardScript: clipboardContent
+  }}));
+}}, 50);
+"#,
+        raw_json = json_data_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner for batch script generation");
+
+    assert!(
+        node_output.status.success(),
+        "Node script failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let output_str = String::from_utf8_lossy(&node_output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(output_str.trim()).expect("parse node json output");
+
+    let download_script = parsed["downloadScript"].as_str().expect("downloadScript");
+    let clipboard_script = parsed["clipboardScript"].as_str().expect("clipboardScript");
+
+    // Before running the script, intentionally delete the file for item 2!
+    // In hierarchy mode, find where IMG_102 is and delete it.
+    let mut found_102 = false;
+    for entry in walkdir::WalkDir::new(&output_dir) {
+        let entry = entry.unwrap();
+        if entry.file_type().is_file() {
+            let fname = entry.file_name().to_string_lossy();
+            if fname.starts_with("IMG_102") && fname.ends_with(".JPG") {
+                fs::remove_file(entry.path()).unwrap();
+                found_102 = true;
+                break;
+            }
+        }
+    }
+    assert!(
+        found_102,
+        "Must have found and deleted IMG_102 before running correction script"
+    );
+
+    // Also delete source photo2 to simulate item being gone completely
+    let _ = fs::remove_file(&photo2);
+
+    // Save download_script to disk and execute it via bash
+    let script_file = output_dir.join("apply_corrections.sh");
+    fs::write(&script_file, download_script).unwrap();
+    println!("Generated download_script:\n{}", download_script);
+
+    let avicull_bin_dir = Path::new(env!("CARGO_BIN_EXE_avicull"))
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let exec_output = Command::new("bash")
+        .arg(script_file.to_str().unwrap())
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                avicull_bin_dir,
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .output()
+        .expect("execute apply_corrections.sh");
+
+    let stdout = String::from_utf8_lossy(&exec_output.stdout);
+    let stderr = String::from_utf8_lossy(&exec_output.stderr);
+    println!("Execution stdout:\n{}", stdout);
+    println!("Execution stderr:\n{}", stderr);
+
+    // Assert that the script did NOT abort prematurely on IMG_102:
+    // It should have logged a warning for IMG_102
+    assert!(
+        stdout.contains("[WARN]") || stderr.contains("[WARN]"),
+        "Script must log a [WARN] message for the failed/skipped item"
+    );
+
+    // Assert that summary output reflects failed count and succeeded count
+    assert!(
+        stdout.contains("failed/skipped")
+            || stdout.contains("failed")
+            || stdout.contains("skipped"),
+        "Script must print a summary indicating failed/skipped item(s)"
+    );
+
+    // Verify valid items (IMG_101 -> Osprey and IMG_103 -> Peregrine_Falcon) were both successfully processed!
+    let osprey_dir = output_dir.join("Osprey");
+    assert!(
+        osprey_dir.exists(),
+        "Osprey directory must exist for item 1"
+    );
+    let osprey_entries: Vec<_> = fs::read_dir(&osprey_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        osprey_entries.iter().any(|p| p
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("IMG_101")),
+        "IMG_101 must have been moved to Osprey directory"
+    );
+
+    let falcon_dir = output_dir.join("Peregrine_Falcon");
+    assert!(
+        falcon_dir.exists(),
+        "Peregrine_Falcon directory must exist for item 3"
+    );
+    let falcon_entries: Vec<_> = fs::read_dir(&falcon_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert!(
+        falcon_entries.iter().any(|p| p
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("IMG_103")),
+        "IMG_103 must have been moved to Peregrine_Falcon directory"
+    );
+
+    // Verify manifest database has overrides for 101 and 103
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+    let b101 = bundles
+        .iter()
+        .find(|(_d, b)| b.original_stem == "IMG_101")
+        .expect("IMG_101 in db");
+    assert_eq!(b101.0.assigned_species_slug, "Osprey");
+    assert!(b101.0.is_user_override);
+
+    let b103 = bundles
+        .iter()
+        .find(|(_d, b)| b.original_stem == "IMG_103")
+        .expect("IMG_103 in db");
+    assert_eq!(b103.0.assigned_species_slug, "Peregrine_Falcon");
+    assert!(b103.0.is_user_override);
+
+    // The script should exit with non-zero when FAILED_COUNT > 0
+    assert!(
+        !exec_output.status.success(),
+        "Script should exit with non-zero exit code when some items failed"
+    );
+
+    // Also verify clipboard script contains the resilient error isolation logic
+    assert!(
+        clipboard_script.contains("FAILED_COUNT")
+            || clipboard_script.contains("apply_single_correction")
+            || clipboard_script.contains("[WARN]"),
+        "Clipboard script must also include resilient execution logic"
+    );
+}

@@ -474,3 +474,142 @@ fn test_reconcile_inplace_manual_filename_rename() {
     let catalog_html = fs::read_to_string(&catalog_path).unwrap();
     assert!(catalog_html.contains("Northern_Pintail"));
 }
+
+#[test]
+fn test_reconciliation_handles_deleted_files() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Bharatpur");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo1 = trip_dir.join("IMG_0001.JPG");
+    let photo2 = trip_dir.join("IMG_0002.JPG");
+    let photo3 = trip_dir.join("IMG_0003.JPG");
+
+    File::create(&photo1).unwrap().write_all(b"PHOTO1").unwrap();
+    File::create(&photo2).unwrap().write_all(b"PHOTO2").unwrap();
+    File::create(&photo3).unwrap().write_all(b"PHOTO3").unwrap();
+
+    let fixture_models_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Initial organize in hierarchy mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("initial organize failed");
+    assert!(
+        org_output.status.success(),
+        "initial organize should succeed"
+    );
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    assert!(db_path.exists());
+
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let initial_map = db.get_existing_bundle_map().unwrap();
+    assert_eq!(initial_map.len(), 3, "All 3 bundles recorded initially");
+
+    // 2. Delete IMG_0002.JPG completely from source disk
+    fs::remove_file(&photo2).expect("remove photo2");
+
+    // Also remove the corresponding hardlink for IMG_0002 in birds_hierarchy so disk state is clean
+    for entry in walkdir::WalkDir::new(&output_dir).into_iter().flatten() {
+        if entry.file_type().is_file() {
+            let fname = entry.file_name().to_string_lossy();
+            if fname.contains("IMG_0002") {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
+
+    // 3. User manually moves IMG_0001 into a new species folder: birds_hierarchy/Mallard/
+    let mut moved_img_0001 = false;
+    let target_mallard_dir = output_dir.join("Mallard");
+    fs::create_dir_all(&target_mallard_dir).unwrap();
+
+    for entry in walkdir::WalkDir::new(&output_dir).into_iter().flatten() {
+        if entry.file_type().is_file() {
+            let fname = entry.file_name().to_string_lossy();
+            if fname.contains("IMG_0001") && !entry.path().starts_with(&target_mallard_dir) {
+                let dest = target_mallard_dir.join(entry.file_name());
+                fs::rename(entry.path(), &dest).unwrap();
+                moved_img_0001 = true;
+                break;
+            }
+        }
+    }
+    assert!(moved_img_0001, "IMG_0001 should have been found and moved");
+
+    // 4. Re-run organize
+    let rerun_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("rerun organize failed");
+
+    let stdout_str = String::from_utf8_lossy(&rerun_output.stdout);
+    let stderr_str = String::from_utf8_lossy(&rerun_output.stderr);
+    assert!(
+        rerun_output.status.success(),
+        "rerun organize must succeed. stderr: {}\nstdout: {}",
+        stderr_str,
+        stdout_str
+    );
+
+    // 5. Verify reconciliation results:
+    // IMG_0001 was reconciled to Mallard override
+    let updated_map = db.get_existing_bundle_map().unwrap();
+    let (dec1, _) = updated_map
+        .by_id
+        .values()
+        .find(|(_, b)| b.original_stem == "IMG_0001")
+        .expect("IMG_0001 must exist in manifest");
+    assert_eq!(dec1.assigned_species_slug, "Mallard");
+    assert!(dec1.is_user_override);
+
+    // 6. Verify bird_catalog.html reflects surviving files:
+    // It contains IMG_0001 and IMG_0003, and does NOT contain IMG_0002
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists(), "bird_catalog.html must exist");
+    let catalog_html = fs::read_to_string(&catalog_path).unwrap();
+
+    assert!(
+        catalog_html.contains("IMG_0001"),
+        "catalog must contain surviving IMG_0001"
+    );
+    assert!(
+        catalog_html.contains("IMG_0003"),
+        "catalog must contain surviving IMG_0003"
+    );
+    assert!(
+        !catalog_html.contains("IMG_0002"),
+        "catalog must NOT contain deleted IMG_0002"
+    );
+
+    // Also verify manifest purge/prune of deleted bundles if prune logic is in place
+    assert!(
+        updated_map
+            .get_by_portable_key("Bharatpur", "IMG_0002")
+            .is_none(),
+        "Deleted bundle IMG_0002 should be pruned from manifest"
+    );
+}
