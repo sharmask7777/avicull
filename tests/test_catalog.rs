@@ -1,7 +1,11 @@
 use avicull::catalog::{generate_html_catalog, CatalogItem, ClassifiedBundleItem};
+use avicull::db::ManifestDb;
 use avicull::types::{OrganizationMode, RoutingTier, SpeciesPrediction};
-use std::fs;
-use std::path::PathBuf;
+use std::fs::{self, File};
+use std::io::Write;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
@@ -800,5 +804,393 @@ fn test_catalog_item_from_bundle_and_decision_user_override_display() {
         catalog_item.scientific_name,
         None,
         "Scientific name should be None or matched for manual override when not explicitly provided"
+    );
+}
+
+#[test]
+fn test_catalog_template_generates_command_structure_and_binary_discovery() {
+    let dir = tempdir().expect("create temp dir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-test-1".to_string(),
+        original_stem: "IMG_5501".to_string(),
+        current_path: PathBuf::from("birds_hierarchy/House_Sparrow/IMG_5501.CR2"),
+        primary_image: dir.path().join("IMG_5501.CR2"),
+        companion_images: vec![dir.path().join("IMG_5501.JPG")],
+        sidecar_files: vec![dir.path().join("IMG_5501.CR2.xmp")],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "houspa".to_string(),
+            common_name: "House Sparrow".to_string(),
+            folder_slug: "House_Sparrow".to_string(),
+            scientific_name: "Passer domesticus".to_string(),
+            visual_prob: 0.95,
+            geo_prior: 0.90,
+            combined_score: 0.95,
+        }],
+        is_local: None,
+    };
+
+    generate_html_catalog(
+        "Catalog Correction Test",
+        &[item],
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog must succeed");
+
+    let html = fs::read_to_string(&catalog_path).expect("read bird_catalog.html");
+
+    // Verify buildMoveCommands generates the avicull correct command
+    assert!(
+        html.contains("function buildMoveCommands("),
+        "Template must define buildMoveCommands to structure correction commands"
+    );
+    assert!(
+        html.contains(
+            r#"avicull correct --file "${activeModalItem.original_stem}" --species "${newSlug}""#
+        ),
+        "Template must output 'avicull correct --file ... --species ...' command"
+    );
+    assert!(
+        html.contains("command -v avicull"),
+        "Template must probe for avicull CLI availability before fallback"
+    );
+
+    // Verify binary discovery hierarchy and catalog auto-regeneration in batch script
+    assert!(
+        html.contains("findAvicullCmd"),
+        "Template must provide avicull binary discovery logic"
+    );
+    assert!(
+        html.contains("target/release/avicull"),
+        "Template must search local target/release/avicull builds"
+    );
+    assert!(
+        html.contains(".cargo/bin/avicull"),
+        "Template must search cargo bin avicull installs"
+    );
+    assert!(
+        html.contains("/usr/local/bin/avicull"),
+        "Template must search /usr/local/bin/avicull"
+    );
+    assert!(
+        html.contains("/opt/homebrew/bin/avicull"),
+        "Template must search /opt/homebrew/bin/avicull"
+    );
+    assert!(
+        html.contains("copyBatchScript()"),
+        "Template must provide copyBatchScript function"
+    );
+    assert!(
+        html.contains("btnCopyBatchScript"),
+        "Template must provide btnCopyBatchScript button"
+    );
+    assert!(
+        html.contains("cargo run --release --bin avicull --"),
+        "Template must fall back to cargo run before raw mv fallback"
+    );
+    assert!(
+        html.contains("organize"),
+        "Batch script apply_corrections.sh must re-run organize to regenerate bird_catalog.html"
+    );
+
+    // Verify modal guidance mentions syncing SQLite manifest
+    assert!(
+        html.contains("sync the SQLite manifest"),
+        "Modal guidance must inform users that running the command/script syncs the SQLite manifest"
+    );
+}
+
+#[test]
+fn test_batch_correction_script_execution_and_manifest_update() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("SourcePhotos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let photo = input_dir.join("DSC_9001.JPG");
+    let sidecar = input_dir.join("DSC_9001.xmp");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG DSC_9001 DATA")
+        .unwrap();
+    File::create(&sidecar)
+        .unwrap()
+        .write_all(b"<xmp>DSC_9001 SIDECAR</xmp>")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // Initial organization of photos in hierarchy mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    assert!(db_path.exists());
+
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let initial_bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(initial_bundles.len(), 1);
+    assert_ne!(initial_bundles[0].0.assigned_species_slug, "Painted_Stork");
+
+    // Simulate batch script generated by catalog template
+    let avicull_bin_dir = Path::new(env!("CARGO_BIN_EXE_avicull"))
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let script_path = output_dir.join("apply_corrections.sh");
+    let script_content = format!(
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+cd "{catalog_dir}"
+export PATH="{bin_dir}:$PATH"
+
+if command -v avicull >/dev/null 2>&1; then
+  avicull correct --file "DSC_9001" --species "Painted_Stork"
+else
+  mkdir -p "birds_hierarchy/Painted_Stork"
+  mv "birds_hierarchy/{orig_slug}/DSC_9001.JPG" "birds_hierarchy/Painted_Stork/DSC_9001.JPG"
+fi
+"#,
+        catalog_dir = output_dir.display(),
+        bin_dir = avicull_bin_dir,
+        orig_slug = initial_bundles[0].0.assigned_species_slug,
+    );
+
+    fs::write(&script_path, script_content).unwrap();
+
+    // Execute apply_corrections.sh via bash
+    let script_run = Command::new("bash")
+        .arg(script_path.to_str().unwrap())
+        .output()
+        .expect("execute apply_corrections.sh");
+
+    assert!(
+        script_run.status.success(),
+        "apply_corrections.sh failed: stderr: {}",
+        String::from_utf8_lossy(&script_run.stderr)
+    );
+
+    // Verify SQLite manifest was durably updated with override
+    let updated_bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(updated_bundles.len(), 1);
+    let (decision, _bundle) = &updated_bundles[0];
+    assert_eq!(decision.assigned_species_slug, "Painted_Stork");
+    assert_eq!(decision.routing_tier, RoutingTier::ConfirmedSpecies);
+    assert!(
+        (decision.final_confidence - 1.0).abs() < f32::EPSILON,
+        "final_confidence should be 1.0"
+    );
+    assert!(decision.is_user_override, "is_user_override must be true");
+
+    // Verify hard link moved to new species directory
+    let new_species_dir = output_dir.join("Painted_Stork");
+    assert!(
+        new_species_dir.exists(),
+        "Target directory Painted_Stork must exist"
+    );
+    let entries: Vec<_> = fs::read_dir(&new_species_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    let target_photo = entries
+        .iter()
+        .find(|p| {
+            let name = p.file_name().unwrap().to_string_lossy();
+            name.starts_with("DSC_9001") && name.ends_with(".JPG")
+        })
+        .expect("Target photo must exist in Painted_Stork");
+
+    let src_meta = fs::metadata(&photo).unwrap();
+    let dst_meta = fs::metadata(target_photo).unwrap();
+    assert_eq!(
+        src_meta.ino(),
+        dst_meta.ino(),
+        "Inodes must match across hard links"
+    );
+}
+
+#[test]
+fn test_single_command_subshell_execution_and_manifest_update() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("SourcePhotos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let photo = input_dir.join("IMG_1234.JPG");
+    let sidecar = input_dir.join("IMG_1234.xmp");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG IMG_1234 DATA")
+        .unwrap();
+    File::create(&sidecar)
+        .unwrap()
+        .write_all(b"<xmp>IMG_1234 SIDECAR</xmp>")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(org_output.status.success());
+
+    let output_dir = input_dir.join("birds_hierarchy");
+    let catalog_path = output_dir.join("bird_catalog.html");
+    assert!(catalog_path.exists());
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract JSON data and JS script from HTML
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let script_marker = "<script>\n";
+    let script_start =
+        html_content.find(script_marker).expect("script start") + script_marker.len();
+    let script_end = html_content[script_start..]
+        .find("</script>")
+        .expect("script end")
+        + script_start;
+    let js_code = &html_content[script_start..script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: rawJson }};
+    }}
+    return {{ textContent: '', value: '', classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const window = {{}};
+
+{js_code}
+
+const item = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_1234');
+if (!item) throw new Error('Item IMG_1234 not found in CATALOG_DATA');
+activeModalItem = item;
+const cmds = buildMoveCommands('Brahminy Kite');
+console.log(cmds.join('\n'));
+"#,
+        raw_json = json_data_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node script to generate single command");
+
+    assert!(
+        node_output.status.success(),
+        "Node script failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let generated_bash = String::from_utf8_lossy(&node_output.stdout).to_string();
+    assert!(
+        generated_bash.contains("avicull correct --file \"IMG_1234\" --species \"Brahminy_Kite\"")
+            || generated_bash
+                .contains("$AVICULL_CMD correct --file \"IMG_1234\" --species \"Brahminy_Kite\""),
+        "Generated bash must contain avicull correct command"
+    );
+
+    // Run generated bash command in a real bash subshell
+    let avicull_bin_dir = Path::new(env!("CARGO_BIN_EXE_avicull"))
+        .parent()
+        .unwrap()
+        .to_str()
+        .unwrap();
+
+    let subshell_script = format!(
+        "export PATH=\"{}:$PATH\"\nset -e\n{}",
+        avicull_bin_dir, generated_bash
+    );
+
+    let bash_exec = Command::new("bash")
+        .arg("-c")
+        .arg(&subshell_script)
+        .output()
+        .expect("execute generated single correction bash command");
+
+    assert!(
+        bash_exec.status.success(),
+        "Generated single correction bash command failed: stderr: {}",
+        String::from_utf8_lossy(&bash_exec.stderr)
+    );
+
+    // Verify SQLite manifest and filesystem reflect the correction
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let updated_bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(updated_bundles.len(), 1);
+    let (decision, _bundle) = &updated_bundles[0];
+    assert_eq!(decision.assigned_species_slug, "Brahminy_Kite");
+    assert!(decision.is_user_override);
+
+    let target_dir = output_dir.join("Brahminy_Kite");
+    assert!(target_dir.exists());
+    let entries: Vec<_> = fs::read_dir(&target_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    let target_photo = entries
+        .iter()
+        .find(|p| {
+            let name = p.file_name().unwrap().to_string_lossy();
+            name.starts_with("IMG_1234") && name.ends_with(".JPG")
+        })
+        .expect("Target photo IMG_1234*.JPG must exist in Brahminy_Kite");
+
+    let src_meta = fs::metadata(&photo).unwrap();
+    let dst_meta = fs::metadata(target_photo).unwrap();
+    assert_eq!(
+        src_meta.ino(),
+        dst_meta.ino(),
+        "Inodes must match across hard links"
     );
 }
