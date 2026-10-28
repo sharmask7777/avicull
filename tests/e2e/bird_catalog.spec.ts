@@ -377,6 +377,44 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       await expect(page.locator('#btnDownloadBatch')).toContainText('Download apply_corrections.sh (1)');
     });
 
+    test('supports subdirectory location override scope and populates hierarchical options', async ({ page }) => {
+      const locBadge = page.locator('#headerLocationBadge');
+      await locBadge.click();
+      const locModal = page.locator('#locationModal');
+      await expect(locModal).toHaveClass(/open/);
+
+      // Select "Subdirectory / Sub-folder..." scope
+      const scopeSelect = page.locator('#locationScopeSelect');
+      await scopeSelect.selectOption('directory');
+
+      // Subdirectory selector row becomes visible
+      const subdirRow = page.locator('#locationSubdirRow');
+      await expect(subdirRow).toBeVisible();
+
+      const subdirSelect = page.locator('#locationSubdirSelect');
+      await expect(subdirSelect).toBeVisible();
+
+      // Verify subdirectories from fixture are populated
+      const options = await subdirSelect.locator('option').allTextContents();
+      expect(options.some(opt => opt.includes('Leh Valley'))).toBe(true);
+      expect(options.some(opt => opt.includes('Shey Marshes'))).toBe(true);
+
+      // Choose "Leh Valley/Shey Marshes"
+      await subdirSelect.selectOption('Leh Valley/Shey Marshes');
+
+      // Fill in location
+      const locInput = page.locator('#locationInput');
+      await locInput.fill('Shey, Ladakh');
+
+      // Verify generated command targets the subdirectory with --dir
+      const cmdBox = page.locator('#locationCommandOutput');
+      await expect(cmdBox).toContainText('avicull location --dir "Leh Valley/Shey Marshes" --location "Shey, Ladakh"');
+
+      // Close modal
+      await page.locator('#locationModal .modal-close').click();
+      await expect(locModal).not.toHaveClass(/open/);
+    });
+
     test('opens reclassification review diff modal from location dialog and supports Take/Keep toggles', async ({ page }) => {
       const locBadge = page.locator('#headerLocationBadge');
       await locBadge.click();

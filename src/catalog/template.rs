@@ -992,9 +992,19 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
           Location Scope / Target:
         </label>
-        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationInput()">
+        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
           <option value="trip">Whole Trip / Directory</option>
+          <option value="directory">Subdirectory / Sub-folder...</option>
           <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+        </select>
+      </div>
+
+      <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Select Subdirectory / Sub-folder:
+        </label>
+        <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
+          <option value="">-- Choose Subdirectory --</option>
         </select>
       </div>
 
@@ -1374,16 +1384,39 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       `;
     }}).join('');
 
-    // Trigger progressive background high-res probing for locally available images
-    filtered.forEach(item => {{
-      const card = document.getElementById('card-' + item.id);
-      if (card) {{
-        const img = card.querySelector('img');
-        if (img) {{
-          attemptHighResSwap(img, item);
-        }}
+    // Progressive background high-res probing using IntersectionObserver to prevent memory exhaustion and UI hangs
+    if (typeof window !== 'undefined' && window.IntersectionObserver) {{
+      if (window._highResObserver) {{
+        window._highResObserver.disconnect();
       }}
-    }});
+      window._highResObserver = new IntersectionObserver((entries, observer) => {{
+        entries.forEach(entry => {{
+          if (entry.isIntersecting) {{
+            const card = entry.target;
+            const itemId = card.id ? card.id.replace(/^card-/, '') : null;
+            const item = items.find(i => i.id === itemId);
+            const img = card.querySelector('img');
+            if (img && item) {{
+              attemptHighResSwap(img, item);
+            }}
+            observer.unobserve(card);
+          }}
+        }});
+      }}, {{ rootMargin: '200px' }});
+
+      filtered.forEach(item => {{
+        const card = document.getElementById('card-' + item.id);
+        if (card) window._highResObserver.observe(card);
+      }});
+    }} else {{
+      filtered.slice(0, 30).forEach(item => {{
+        const card = document.getElementById('card-' + item.id);
+        if (card) {{
+          const img = card.querySelector('img');
+          if (img) attemptHighResSwap(img, item);
+        }}
+      }});
+    }}
   }}
 
   function setFilter(tier, btn) {{
@@ -1985,6 +2018,60 @@ fi
     URL.revokeObjectURL(url);
   }}
 
+  function populateSubdirectories() {{
+    const select = document.getElementById('locationSubdirSelect');
+    if (!select) return;
+
+    // Preserve existing selection if possible
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
+
+    let dirSet = new Set();
+    if (Array.isArray(CATALOG_DATA.directories)) {{
+      CATALOG_DATA.directories.forEach(d => dirSet.add(d));
+    }}
+    items.forEach(item => {{
+      if (item.subdirectory) {{
+        let parts = item.subdirectory.split('/');
+        let accum = '';
+        parts.forEach(p => {{
+          accum = accum ? accum + '/' + p : p;
+          dirSet.add(accum);
+        }});
+      }}
+    }});
+
+    const sortedDirs = Array.from(dirSet).sort();
+    sortedDirs.forEach(dir => {{
+      const opt = document.createElement('option');
+      opt.value = dir;
+      // Indent based on nesting level for visual hierarchy
+      const depth = (dir.match(/\//g) || []).length;
+      const indent = '\u00A0\u00A0\u00A0\u00A0'.repeat(depth);
+      const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+      opt.textContent = indent + prefix + dir;
+      select.appendChild(opt);
+    }});
+
+    if (currentVal && dirSet.has(currentVal)) {{
+      select.value = currentVal;
+    }}
+  }}
+
+  function handleLocationScopeChange() {{
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    const subdirRow = document.getElementById('locationSubdirRow');
+    if (!scopeSelect || !subdirRow) return;
+
+    if (scopeSelect.value === 'directory') {{
+      subdirRow.style.display = 'block';
+      populateSubdirectories();
+    }} else {{
+      subdirRow.style.display = 'none';
+    }}
+    handleLocationInput();
+  }}
+
   function openLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.add('open');
@@ -1992,6 +2079,7 @@ fi
     const scopeSelect = document.getElementById('locationScopeSelect');
     if (scopeSelect) {{
       scopeSelect.value = selectedIds.size > 0 ? 'selection' : 'trip';
+      handleLocationScopeChange();
     }}
     if (input) {{
       input.value = CATALOG_DATA.trip_location_name || '';
@@ -2019,6 +2107,14 @@ fi
         if (item) {{
           commands.push(`  avicull location --file "${{item.original_stem}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --file "${{item.original_stem}}" --location "${{locStr}}"`);
         }}
+      }}
+    }} else if (scope === 'directory') {{
+      const subdirSelect = document.getElementById('locationSubdirSelect');
+      const chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+      if (chosenDir) {{
+        commands.push(`  avicull location --dir "${{chosenDir}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --dir "${{chosenDir}}" --location "${{locStr}}"`);
+      }} else {{
+        commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
       }}
     }} else {{
       commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);

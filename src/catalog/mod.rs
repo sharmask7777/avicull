@@ -143,6 +143,8 @@ pub struct CatalogPayload {
     pub mode: String,
     pub catalog_dir: String,
     pub trip_location_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directories: Vec<String>,
     pub generated_at: String,
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
@@ -337,11 +339,30 @@ pub fn generate_html_catalog(
 
     let trip_location_name = items.iter().find_map(|i| i.location_name.clone());
 
+    // Collect all unique directories and ancestor subdirectories
+    let mut dir_set = HashSet::new();
+    for item in items {
+        if let Some(ref subdir) = item.subdirectory {
+            let path = Path::new(subdir);
+            let mut current = Some(path);
+            while let Some(p) = current {
+                let s = p.to_string_lossy().to_string();
+                if !s.is_empty() && s != "." {
+                    dir_set.insert(s);
+                }
+                current = p.parent();
+            }
+        }
+    }
+    let mut directories: Vec<String> = dir_set.into_iter().collect();
+    directories.sort();
+
     let payload = CatalogPayload {
         trip_name: trip_name.to_string(),
         mode: mode_str.to_string(),
         catalog_dir: catalog_dir_str,
         trip_location_name,
+        directories,
         generated_at: Utc::now().to_rfc3339(),
         stats,
         items: payload_items,
