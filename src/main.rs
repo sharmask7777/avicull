@@ -604,52 +604,69 @@ fn main() -> Result<()> {
                     args.location.as_deref(),
                 )?;
 
+                // Apply strict 4-tier location precedence:
+                // 1. Embedded EXIF GPS (immutable)
+                // 2. Explicit image-level override (bundle_locations table)
+                // 3. Hierarchical subdirectory/parent override (directory_locations table)
+                // 4. Resolved trip-level gazetteer match
                 for bundle in &mut all_discovered {
-                    let has_exif_gps = bundle
-                        .gps_coords
-                        .map(|c| c.source == LocationSource::ExifGps)
-                        .unwrap_or(false);
+                    let _ = avicull::location::resolver::apply_location_precedence(bundle, &db);
 
-                    if let Some(loc) = resolved.get(&bundle.trip_folder_name) {
-                        bundle.resolved_location_name = Some(loc.name.clone());
-                        if !has_exif_gps {
+                    if bundle.gps_coords.is_none() {
+                        if let Some(loc) = resolved.get(&bundle.trip_folder_name) {
+                            bundle.resolved_location_name = Some(loc.name.clone());
                             bundle.gps_coords = Some(GpsCoordinate {
                                 latitude: loc.latitude,
                                 longitude: loc.longitude,
                                 source: LocationSource::TripFolderGazetteer,
                             });
+                            if !loc.region_code.is_empty() {
+                                bundle_regions
+                                    .insert(bundle.bundle_id.clone(), loc.region_code.clone());
+                            }
                         }
-                        if !loc.region_code.is_empty() {
-                            bundle_regions
-                                .insert(bundle.bundle_id.clone(), loc.region_code.clone());
-                        }
-                    } else if let Ok(Some(cached_loc)) =
-                        db.get_directory_location(&bundle.trip_folder_name)
-                    {
-                        bundle.resolved_location_name = Some(cached_loc.name.clone());
-                        if !has_exif_gps && bundle.gps_coords.is_none() {
-                            bundle.gps_coords = Some(GpsCoordinate {
-                                latitude: cached_loc.latitude,
-                                longitude: cached_loc.longitude,
-                                source: LocationSource::TripFolderGazetteer,
-                            });
-                        }
-                        if !cached_loc.region_code.is_empty() {
-                            bundle_regions.insert(bundle.bundle_id.clone(), cached_loc.region_code);
+                    } else if bundle.resolved_location_name.is_some() {
+                        // If region_code exists in db, record it
+                        if let Ok(Some(cached_loc)) = db.get_bundle_location(&bundle.bundle_id) {
+                            if !cached_loc.region_code.is_empty() {
+                                bundle_regions
+                                    .insert(bundle.bundle_id.clone(), cached_loc.region_code);
+                            }
+                        } else if let Ok(Some(cached_loc)) = db.get_hierarchical_directory_location(
+                            bundle
+                                .relative_path
+                                .as_deref()
+                                .unwrap_or(&bundle.primary_image),
+                        ) {
+                            if !cached_loc.region_code.is_empty() {
+                                bundle_regions
+                                    .insert(bundle.bundle_id.clone(), cached_loc.region_code);
+                            }
                         }
                     }
                 }
             }
 
-            // Ensure any bundles that already have cached directory location in db have their region_code and location attached
+            // Ensure any remaining bundles have precedence applied
             for bundle in &mut all_discovered {
-                if bundle.resolved_location_name.is_none() {
-                    if let Ok(Some(loc)) = db.get_directory_location(&bundle.trip_folder_name) {
-                        bundle.resolved_location_name = Some(loc.name);
-                    }
-                }
+                let _ = avicull::location::resolver::apply_location_precedence(bundle, &db);
                 if !bundle_regions.contains_key(&bundle.bundle_id) {
-                    if let Ok(Some(loc)) = db.get_directory_location(&bundle.trip_folder_name) {
+                    if let Ok(Some(loc)) = db.get_bundle_location(&bundle.bundle_id) {
+                        if !loc.region_code.is_empty() {
+                            bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
+                        }
+                    } else if let Ok(Some(loc)) = db.get_hierarchical_directory_location(
+                        bundle
+                            .relative_path
+                            .as_deref()
+                            .unwrap_or(&bundle.primary_image),
+                    ) {
+                        if !loc.region_code.is_empty() {
+                            bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
+                        }
+                    } else if let Ok(Some(loc)) =
+                        db.get_directory_location(&bundle.trip_folder_name)
+                    {
                         if !loc.region_code.is_empty() {
                             bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
                         }
@@ -1605,14 +1622,30 @@ fn execute_location(args: LocationArgs) -> Result<()> {
             )
         })?;
 
-    // If dir is specified, apply to that specific directory key; otherwise apply to all directories in db or default
-    let dir_key = args.dir.clone().unwrap_or_else(|| ".".to_string());
-    db.set_directory_location(&dir_key, &resolved)?;
+    if let Some(ref file_target) = args.file {
+        // Resolve target bundle by stem, filename, or bundle_id
+        let target_bundle = db
+            .find_bundle_by_query(file_target)?
+            .ok_or_else(|| anyhow!("Photo bundle '{}' not found in database", file_target))?;
 
-    println!(
-        "✓ Set directory '{}' location to '{}' (region: '{}')",
-        dir_key, resolved.name, resolved.region_code
-    );
+        db.set_bundle_location(&target_bundle.bundle_id, &resolved)?;
+        println!(
+            "✓ Set photo '{}' ({}) location to '{}' (region: '{}')",
+            target_bundle.original_stem,
+            target_bundle.bundle_id,
+            resolved.name,
+            resolved.region_code
+        );
+    } else {
+        // Apply to directory or subdirectory
+        let dir_key = args.dir.clone().unwrap_or_else(|| ".".to_string());
+        db.set_directory_location(&dir_key, &resolved)?;
+
+        println!(
+            "✓ Set directory '{}' location to '{}' (region: '{}')",
+            dir_key, resolved.name, resolved.region_code
+        );
+    }
 
     Ok(())
 }

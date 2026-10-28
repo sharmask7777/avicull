@@ -29,6 +29,8 @@ fn test_generate_html_catalog_basic() {
         confidence: 0.94,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![SpeciesPrediction {
             taxon_id: "houspa".to_string(),
             common_name: "House Sparrow".to_string(),
@@ -57,6 +59,8 @@ fn test_generate_html_catalog_basic() {
         confidence: 0.52,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![SpeciesPrediction {
             taxon_id: "blared1".to_string(),
             common_name: "Black Redstart".to_string(),
@@ -85,6 +89,8 @@ fn test_generate_html_catalog_basic() {
         confidence: 0.12,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -177,6 +183,8 @@ fn test_generate_html_catalog_raw_preview_extraction() {
         confidence: 0.98,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -228,6 +236,8 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
         confidence: 0.91,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -268,6 +278,8 @@ fn test_generate_html_catalog_hierarchy_mode() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -317,6 +329,8 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         confidence: 0.98,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -340,6 +354,8 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -392,6 +408,8 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -456,6 +474,8 @@ fn test_catalog_species_autocomplete_token_normalization_and_ranking() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -613,6 +633,8 @@ fn test_catalog_no_bird_detected_support_and_command_generation() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: None,
     };
@@ -826,6 +848,8 @@ fn test_catalog_template_generates_command_structure_and_binary_discovery() {
         confidence: 0.95,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![SpeciesPrediction {
             taxon_id: "houspa".to_string(),
             common_name: "House Sparrow".to_string(),
@@ -1406,6 +1430,8 @@ fn test_catalog_embedded_base64_thumbnails() {
         confidence: 0.99,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
     };
@@ -1482,6 +1508,8 @@ fn test_catalog_standalone_dynamic_high_res_replacement() {
         confidence: 0.98,
         capture_date: Some("2026-10-25".to_string()),
         location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
     };
@@ -1978,6 +2006,8 @@ fn test_catalog_finder_multiselect_and_bulk_correction_js() {
                 confidence: 0.65,
                 capture_date: Some("2026-10-25".to_string()),
                 location_name: Some("Leh".to_string()),
+                location_source: None,
+                subdirectory: None,
                 top_predictions: vec![],
                 is_local: Some(true),
             }

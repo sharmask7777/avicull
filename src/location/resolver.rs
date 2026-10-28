@@ -2,9 +2,72 @@
 
 use crate::location::gazetteer::GazetteerEngine;
 use crate::manifest::ManifestDb;
+use crate::types::{AssetBundle, GpsCoordinate, LocationSource};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
+
+/// Applies strict four-tier location precedence to an AssetBundle:
+/// 1. Embedded EXIF GPS (hardware camera coordinates are strictly immutable)
+/// 2. Image-level explicit location override (bundle_locations table)
+/// 3. Subdirectory / parent hierarchical location override (directory_locations table)
+/// 4. Default / existing gazetteer fallback
+pub fn apply_location_precedence(bundle: &mut AssetBundle, manifest: &ManifestDb) -> Result<()> {
+    // Tier 1: Hardware EXIF GPS coordinates strictly override everything
+    if let Some(coords) = bundle.gps_coords {
+        if coords.source == LocationSource::ExifGps {
+            return Ok(());
+        }
+    }
+
+    // Tier 2: Explicit image-level override
+    if let Some(img_loc) = manifest.get_bundle_location(&bundle.bundle_id)? {
+        bundle.resolved_location_name = Some(img_loc.name);
+        bundle.gps_coords = Some(GpsCoordinate {
+            latitude: img_loc.latitude,
+            longitude: img_loc.longitude,
+            source: LocationSource::ImageLocationOverride,
+        });
+        return Ok(());
+    }
+
+    // Tier 3: Hierarchical directory/subdirectory override
+    let dir_to_check = if let Some(ref rel) = bundle.relative_path {
+        rel.parent().map(|p| p.to_path_buf())
+    } else {
+        bundle.primary_image.parent().map(|p| p.to_path_buf())
+    };
+
+    if let Some(ref dir_path) = dir_to_check {
+        let is_subfolder = dir_path.components().count() > 1;
+        if let Some(dir_loc) = manifest.get_hierarchical_directory_location(dir_path)? {
+            let source = if is_subfolder {
+                LocationSource::SubdirectoryGazetteer
+            } else {
+                LocationSource::TripFolderGazetteer
+            };
+            bundle.resolved_location_name = Some(dir_loc.name);
+            bundle.gps_coords = Some(GpsCoordinate {
+                latitude: dir_loc.latitude,
+                longitude: dir_loc.longitude,
+                source,
+            });
+            return Ok(());
+        }
+    }
+
+    // Tier 4: Trip folder name fallback if present in directory_locations
+    if let Some(trip_loc) = manifest.get_directory_location(&bundle.trip_folder_name)? {
+        bundle.resolved_location_name = Some(trip_loc.name);
+        bundle.gps_coords = Some(GpsCoordinate {
+            latitude: trip_loc.latitude,
+            longitude: trip_loc.longitude,
+            source: LocationSource::TripFolderGazetteer,
+        });
+    }
+
+    Ok(())
+}
 
 /// Authoritative resolved geographic location for a trip directory.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

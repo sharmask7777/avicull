@@ -68,9 +68,17 @@ pub struct LocationArgs {
     #[arg(short, long)]
     pub dir: Option<String>,
 
+    /// Filename, stem, or bundle ID of a specific photo asset to assign the location to
+    #[arg(short, long)]
+    pub file: Option<String>,
+
     /// Location name or GPS coordinates (e.g. "Leh" or "34.1526, 77.5771")
     #[arg(short, long)]
     pub location: String,
+
+    /// Trigger reclassification of affected photos using the updated location priors
+    #[arg(short, long, default_value_t = false)]
+    pub reclassify: bool,
 }
 
 #[derive(Args, Debug)]

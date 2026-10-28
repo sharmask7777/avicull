@@ -376,5 +376,48 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       await expect(page.locator('#batchCount')).toHaveText('1');
       await expect(page.locator('#btnDownloadBatch')).toContainText('Download apply_corrections.sh (1)');
     });
+
+    test('opens reclassification review diff modal from location dialog and supports Take/Keep toggles', async ({ page }) => {
+      const locBadge = page.locator('#headerLocationBadge');
+      await locBadge.click();
+
+      const locModal = page.locator('#locationModal');
+      await expect(locModal).toHaveClass(/open/);
+
+      // Click "Reclassify & Review" button
+      const reclassifyBtn = page.locator('#btnReclassifyModalTrigger');
+      await expect(reclassifyBtn).toBeVisible();
+      await reclassifyBtn.click();
+
+      // Location modal closes, reclassification review modal opens
+      await expect(locModal).not.toHaveClass(/open/);
+      const reclassModal = page.locator('#reclassifyModal');
+      await expect(reclassModal).toHaveClass(/open/);
+
+      // Verify diff table rows exist
+      const rows = page.locator('#reclassifyDiffTableBody tr');
+      await expect(rows).toHaveCount(8);
+
+      // Verify "Take All" and "Keep All" buttons
+      const btnTakeAll = page.locator('#btnTakeAll');
+      const btnKeepAll = page.locator('#btnKeepAll');
+      await expect(btnTakeAll).toBeVisible();
+      await expect(btnKeepAll).toBeVisible();
+
+      // Click "Keep All" -> active-keep on all pills
+      await btnKeepAll.click();
+      await expect(page.locator('.choice-pill.active-keep')).toHaveCount(8);
+
+      // Click "Take All" -> active-take on all pills
+      await btnTakeAll.click();
+      await expect(page.locator('.choice-pill.active-take')).toHaveCount(8);
+
+      // Add to batch script
+      await page.locator('#btnApplyReclassifyBatch').click();
+      await expect(reclassModal).not.toHaveClass(/open/);
+
+      // Batch counter increments
+      await expect(page.locator('#batchCount')).not.toHaveText('0');
+    });
   });
 });

@@ -730,6 +730,107 @@
       padding: 60px 20px;
       color: var(--text-muted);
     }
+
+    /* Reclassification Diff Modal Styles */
+    .diff-table-container {
+      max-height: 380px;
+      overflow-y: auto;
+      margin-top: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .diff-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .diff-table th {
+      position: sticky;
+      top: 0;
+      background: #111827;
+      padding: 10px 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 2;
+    }
+
+    .diff-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+
+    .diff-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .diff-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #000;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .choice-pill-group {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .choice-pill {
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .choice-pill.active-take {
+      background: #10b981;
+      color: #ffffff;
+    }
+
+    .choice-pill.active-keep {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    .diff-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 8px;
+    }
+
+    .diff-bulk-btn {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    .diff-bulk-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
   </style>
 </head>
 <body>
@@ -871,6 +972,16 @@
 
       <div>
         <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Location Scope / Target:
+        </label>
+        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationInput()">
+          <option value="trip">Whole Trip / Directory</option>
+          <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
           Location (Place Name or Latitude, Longitude):
         </label>
         <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
@@ -885,7 +996,61 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
+      <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
       <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reclassification Review / Diff Modal -->
+<div class="modal-backdrop" id="reclassifyModal">
+  <div class="modal-box" style="max-width: 780px;">
+    <div class="modal-header">
+      <h2>Review Reclassified Photos</h2>
+      <button class="modal-close" onclick="closeReclassifyModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+        Location priors have recalculated potential species probabilities. Review proposed reclassifications below:
+      </div>
+
+      <div class="diff-header-bar">
+        <div>
+          <button class="diff-bulk-btn" id="btnTakeAll" onclick="setAllReclassifyChoices('take')">✓ Take All</button>
+          <button class="diff-bulk-btn" id="btnKeepAll" onclick="setAllReclassifyChoices('keep')" style="margin-left: 6px;">✕ Keep All</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          Items to update: <span id="reclassifyChangeCount">0</span>
+        </div>
+      </div>
+
+      <div class="diff-table-container">
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Photo</th>
+              <th>Current Species</th>
+              <th>Proposed Species</th>
+              <th style="width: 140px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="reclassifyDiffTableBody">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Generated Batch Script Commands:
+        </label>
+        <div class="command-box" id="reclassifyCommandOutput">Review choices above to generate commands...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeReclassifyModal()">Cancel</button>
+      <button class="btn btn-secondary" id="btnCopyReclassifyCommand" onclick="copyReclassifyCommand()">Copy Commands</button>
+      <button class="btn btn-primary" id="btnApplyReclassifyBatch" onclick="applyReclassifyBatch()">Add to Batch Script</button>
     </div>
   </div>
 </div>
@@ -1796,6 +1961,10 @@ fi
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.add('open');
     const input = document.getElementById('locationInput');
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    if (scopeSelect) {
+      scopeSelect.value = selectedIds.size > 0 ? 'selection' : 'trip';
+    }
     if (input) {
       input.value = CATALOG_DATA.trip_location_name || '';
       handleLocationInput();
@@ -1814,9 +1983,167 @@ fi
     }
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull location --location "${locStr}" 2>/dev/null || $AVICULL_CMD location --location "${locStr}"`);
+
+    const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
+    if (scope === 'selection' && selectedIds.size > 0) {
+      for (const id of selectedIds) {
+        const item = items.find(i => i.id === id);
+        if (item) {
+          commands.push(`  avicull location --file "${item.original_stem}" --location "${locStr}" 2>/dev/null || $AVICULL_CMD location --file "${item.original_stem}" --location "${locStr}"`);
+        }
+      }
+    } else {
+      commands.push(`  avicull location --location "${locStr}" 2>/dev/null || $AVICULL_CMD location --location "${locStr}"`);
+    }
     commands.push(`fi`);
     return commands;
+  }
+
+  // Reclassification Review & Diff State
+  let reclassifyDiffItems = [];
+
+  function openReclassifyReviewModal() {
+    closeLocationModal();
+    const modal = document.getElementById('reclassifyModal');
+    if (!modal) return;
+
+    // Simulate / calculate reclassification diff for demo/offline catalog
+    // Target items: either selected items or items in catalog
+    const targetItems = selectedIds.size > 0 
+      ? items.filter(i => selectedIds.has(i.id))
+      : items;
+
+    // Look for top predictions or alternative candidates
+    reclassifyDiffItems = targetItems.map(item => {
+      let altSpecies = item.assigned_species;
+      let altConf = item.confidence;
+      if (item.top_predictions && item.top_predictions.length > 1) {
+        altSpecies = item.top_predictions[1].common_name;
+        altConf = item.top_predictions[1].score;
+      } else if (item.routing_tier === 'NeedsReview' || item.routing_tier === 'NoBirdDetected') {
+        altSpecies = item.assigned_species === '_No_Bird_Detected' ? 'House Sparrow' : item.assigned_species;
+      }
+
+      return {
+        item,
+        currentSpecies: item.assigned_species,
+        proposedSpecies: altSpecies,
+        choice: 'take', // default is 'take'
+        customSpecies: altSpecies,
+      };
+    });
+
+    renderReclassifyDiffTable();
+    modal.classList.add('open');
+  }
+
+  function closeReclassifyModal() {
+    const modal = document.getElementById('reclassifyModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  function setAllReclassifyChoices(choice) {
+    for (const d of reclassifyDiffItems) {
+      d.choice = choice;
+    }
+    renderReclassifyDiffTable();
+  }
+
+  function setReclassifyChoice(idx, choice) {
+    if (reclassifyDiffItems[idx]) {
+      reclassifyDiffItems[idx].choice = choice;
+      renderReclassifyDiffTable();
+    }
+  }
+
+  function renderReclassifyDiffTable() {
+    const tbody = document.getElementById('reclassifyDiffTableBody');
+    if (!tbody) return;
+
+    const countEl = document.getElementById('reclassifyChangeCount');
+    const takeCount = reclassifyDiffItems.filter(d => d.choice === 'take' && d.currentSpecies !== d.proposedSpecies).length;
+    if (countEl) countEl.textContent = takeCount;
+
+    tbody.innerHTML = reclassifyDiffItems.map((d, idx) => {
+      const isTake = d.choice === 'take';
+      const isKeep = d.choice === 'keep';
+      const thumb = d.item.embedded_thumb_data_uri || d.item.thumb_src || d.item.preview_url;
+
+      return `
+        <tr>
+          <td><img src="${thumb}" class="diff-thumb" alt="${d.item.original_stem}"/></td>
+          <td>
+            <div style="font-weight: 600;">${d.currentSpecies}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">${d.item.primary_filename}</div>
+          </td>
+          <td>
+            <div style="font-weight: 600; color: #38bdf8;">${d.proposedSpecies}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Recalculated with updated location</div>
+          </td>
+          <td style="text-align: right;">
+            <div class="choice-pill-group">
+              <button type="button" class="choice-pill ${isTake ? 'active-take' : ''}" onclick="event.stopPropagation(); setReclassifyChoice(${idx}, 'take')">Take</button>
+              <button type="button" class="choice-pill ${isKeep ? 'active-keep' : ''}" onclick="event.stopPropagation(); setReclassifyChoice(${idx}, 'keep')">Keep</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    updateReclassifyCommandOutput();
+  }
+
+  function buildReclassifyCommands() {
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {
+      commands.push(`cd "${CATALOG_DATA.catalog_dir}"`);
+    }
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+
+    for (const d of reclassifyDiffItems) {
+      if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {
+        commands.push(`  avicull correct --file "${d.item.original_stem}" --species "${d.proposedSpecies}" 2>/dev/null || $AVICULL_CMD correct --file "${d.item.original_stem}" --species "${d.proposedSpecies}"`);
+      }
+    }
+    commands.push(`fi`);
+    return commands;
+  }
+
+  function updateReclassifyCommandOutput() {
+    const out = document.getElementById('reclassifyCommandOutput');
+    if (!out) return;
+    const cmds = buildReclassifyCommands();
+    out.textContent = cmds.join('\n');
+  }
+
+  function copyReclassifyCommand() {
+    const text = document.getElementById('reclassifyCommandOutput').textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('btnCopyReclassifyCommand');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      alert("Commands:\n\n" + text);
+    });
+  }
+
+  function applyReclassifyBatch() {
+    const cmds = buildReclassifyCommands();
+    batchCommands.push({
+      stem: 'reclassify_updates',
+      commands: cmds
+    });
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    closeReclassifyModal();
   }
 
   function handleLocationInput() {

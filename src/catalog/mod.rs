@@ -30,6 +30,10 @@ pub struct CatalogItem {
     pub confidence: f32,
     pub capture_date: Option<String>,
     pub location_name: Option<String>,
+    #[serde(default)]
+    pub location_source: Option<String>,
+    #[serde(default)]
+    pub subdirectory: Option<String>,
     pub top_predictions: Vec<SpeciesPrediction>,
 }
 
@@ -53,6 +57,8 @@ impl Default for CatalogItem {
             confidence: 0.0,
             capture_date: None,
             location_name: None,
+            location_source: None,
+            subdirectory: None,
             top_predictions: Vec::new(),
         }
     }
@@ -86,6 +92,18 @@ impl CatalogItem {
             chrono::DateTime::from_timestamp_millis(ts).map(|dt| dt.format("%Y-%m-%d").to_string())
         });
 
+        let location_source = bundle.gps_coords.map(|g| format!("{:?}", g.source));
+        let subdirectory = bundle.relative_path.as_ref().and_then(|p| {
+            p.parent().and_then(|parent| {
+                let s = parent.to_string_lossy().to_string();
+                if s.is_empty() || s == "." {
+                    None
+                } else {
+                    Some(s)
+                }
+            })
+        });
+
         Self {
             bundle_id: bundle.bundle_id.clone(),
             original_stem: bundle.original_stem.clone(),
@@ -101,6 +119,8 @@ impl CatalogItem {
             confidence: decision.final_confidence,
             capture_date,
             location_name: bundle.resolved_location_name.clone(),
+            location_source,
+            subdirectory,
             top_predictions: decision.top_predictions.clone(),
         }
     }
@@ -148,6 +168,10 @@ pub struct CatalogPayloadItem {
     pub confidence: f32,
     pub capture_date: Option<String>,
     pub location_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subdirectory: Option<String>,
     pub companion_files: Vec<String>,
     pub sidecar_files: Vec<String>,
     pub top_predictions: Vec<PayloadPrediction>,
@@ -269,6 +293,8 @@ pub fn generate_html_catalog(
             confidence: item.confidence,
             capture_date: item.capture_date.clone(),
             location_name: item.location_name.clone(),
+            location_source: item.location_source.clone(),
+            subdirectory: item.subdirectory.clone(),
             companion_files,
             sidecar_files,
             top_predictions: top_preds,
