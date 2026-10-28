@@ -1,0 +1,9 @@
+{
+  "name": "avicull-root",
+  "version": "0.2.7",
+  "private": true,
+  "scripts": {
+    "test:e2e": "npm --prefix tests/e2e test",
+    "generate:fixture": "cargo run --example generate_fixture_catalog"
+  }
+}

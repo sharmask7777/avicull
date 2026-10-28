@@ -122,6 +122,7 @@ pub struct CatalogPayload {
     pub trip_name: String,
     pub mode: String,
     pub catalog_dir: String,
+    pub trip_location_name: Option<String>,
     pub generated_at: String,
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
@@ -308,10 +309,13 @@ pub fn generate_html_catalog(
         .to_string_lossy()
         .to_string();
 
+    let trip_location_name = items.iter().find_map(|i| i.location_name.clone());
+
     let payload = CatalogPayload {
         trip_name: trip_name.to_string(),
         mode: mode_str.to_string(),
         catalog_dir: catalog_dir_str,
+        trip_location_name,
         generated_at: Utc::now().to_rfc3339(),
         stats,
         items: payload_items,

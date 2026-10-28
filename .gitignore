@@ -8,3 +8,6 @@ __pycache__/
 *.pyc
 /dist/
 .aider*
+node_modules/
+test-results/
+playwright-report/
