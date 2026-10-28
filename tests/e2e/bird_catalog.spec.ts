@@ -346,4 +346,35 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       await expect(page.locator('#btnDownloadBatch')).toContainText('Download apply_corrections.sh (2)');
     });
   });
+
+  test.describe('Trip Location Override Modal', () => {
+    test('displays current trip location in header and opens location modal', async ({ page }) => {
+      const locBadge = page.locator('#headerLocationBadge');
+      await expect(locBadge).toBeVisible();
+      await expect(page.locator('#headerLocationText')).toContainText('Leh, Ladakh');
+
+      // Click location badge to open modal
+      await locBadge.click();
+      const locModal = page.locator('#locationModal');
+      await expect(locModal).toHaveClass(/open/);
+
+      // Input shows current location
+      const locInput = page.locator('#locationInput');
+      await expect(locInput).toHaveValue('Leh, Ladakh');
+
+      // Update location to "Keoladeo, Bharatpur"
+      await locInput.fill('Keoladeo, Bharatpur');
+
+      const cmdBox = page.locator('#locationCommandOutput');
+      await expect(cmdBox).toContainText('avicull location --location "Keoladeo, Bharatpur"');
+
+      // Add to batch script
+      await page.locator('#btnAddLocationToBatch').click();
+      await expect(locModal).not.toHaveClass(/open/);
+
+      // Header batch count increments by 1
+      await expect(page.locator('#batchCount')).toHaveText('1');
+      await expect(page.locator('#btnDownloadBatch')).toContainText('Download apply_corrections.sh (1)');
+    });
+  });
 });

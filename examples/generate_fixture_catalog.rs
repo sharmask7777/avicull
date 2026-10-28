@@ -229,6 +229,7 @@ fn create_payload() -> CatalogPayload {
         trip_name: "Himalayan & Plains Birding 2026".to_string(),
         mode: "in-place".to_string(),
         catalog_dir: "/mock/photos/birds_hierarchy".to_string(),
+        trip_location_name: Some("Leh, Ladakh".to_string()),
         generated_at: "2026-10-28T09:00:00Z".to_string(),
         stats,
         items,

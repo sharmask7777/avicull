@@ -9,6 +9,12 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         _ => "In-Place Renamed",
     };
 
+    let trip_location_display = payload
+        .trip_location_name
+        .as_deref()
+        .map(html_escape)
+        .unwrap_or_else(|| "Set Location".to_string());
+
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
@@ -93,6 +99,26 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+    }}
+
+    .badge-location {{
+      font-size: 0.8rem;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }}
+
+    .badge-location:hover {{
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #34d399;
     }}
 
     .header-actions {{
@@ -731,6 +757,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     <div class="brand-title">
       <h1>{trip_name}</h1>
       <span class="badge-mode">{mode_display}</span>
+      <button class="badge-location" id="headerLocationBadge" onclick="openLocationModal()" title="View or edit trip location for accurate regional bird classifications">
+        📍 <span id="headerLocationText">{trip_location_display}</span>
+      </button>
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" id="btnCopyBatchScript" onclick="copyBatchScript()" title="Copy bash script for all queued mislabel corrections to clipboard">
@@ -842,6 +871,39 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     <div class="modal-footer">
       <button class="btn btn-secondary" id="btnCopyCommand" onclick="copyCurrentCommand()">Copy Command</button>
       <button class="btn btn-primary" id="btnAddToBatch" onclick="addToBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Trip Location Override Modal -->
+<div class="modal-backdrop" id="locationModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Update Trip Geographic Location</h2>
+      <button class="modal-close" onclick="closeLocationModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+        Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+      </div>
+
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Location (Place Name or Latitude, Longitude):
+        </label>
+        <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
+      </div>
+
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Generated Location Command (`avicull location`):
+        </label>
+        <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
+      <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
     </div>
   </div>
 </div>
@@ -1748,10 +1810,87 @@ fi
     URL.revokeObjectURL(url);
   }}
 
+  function openLocationModal() {{
+    const modal = document.getElementById('locationModal');
+    if (modal) modal.classList.add('open');
+    const input = document.getElementById('locationInput');
+    if (input) {{
+      input.value = CATALOG_DATA.trip_location_name || '';
+      handleLocationInput();
+    }}
+  }}
+
+  function closeLocationModal() {{
+    const modal = document.getElementById('locationModal');
+    if (modal) modal.classList.remove('open');
+  }}
+
+  function buildLocationCommands(locStr) {{
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {{
+      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+    }}
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+    commands.push(`fi`);
+    return commands;
+  }}
+
+  function handleLocationInput() {{
+    const input = document.getElementById('locationInput');
+    const out = document.getElementById('locationCommandOutput');
+    if (!input || !out) return;
+    const val = input.value.trim();
+    if (!val) {{
+      out.textContent = "Enter a location name or coordinates above to generate location command...";
+      return;
+    }}
+    const cmds = buildLocationCommands(val);
+    out.textContent = cmds.join('\n');
+  }}
+
+  function copyLocationCommand() {{
+    const text = document.getElementById('locationCommandOutput').textContent;
+    if (!text || text.startsWith("Enter a location")) return;
+    navigator.clipboard.writeText(text).then(() => {{
+      const btn = document.getElementById('btnCopyLocationCommand');
+      if (btn) {{
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => {{ btn.textContent = orig; }}, 1500);
+      }}
+    }}).catch(() => {{
+      alert("Command:\n\n" + text);
+    }});
+  }}
+
+  function addLocationToBatch() {{
+    const input = document.getElementById('locationInput');
+    const val = input ? input.value.trim() : '';
+    if (!val) return;
+    const cmds = buildLocationCommands(val);
+    batchCommands.push({{
+      stem: 'location_update',
+      commands: cmds
+    }});
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    closeLocationModal();
+  }}
+
   // Keyboard shortcuts for selection
   document.addEventListener('keydown', (e) => {{
     // Escape clears selection or closes modal
     if (e.key === 'Escape') {{
+      const locModal = document.getElementById('locationModal');
+      if (locModal && locModal.classList.contains('open')) {{
+        closeLocationModal();
+        return;
+      }}
       const modal = document.getElementById('correctionModal');
       if (modal && modal.classList.contains('open')) {{
         closeModal();
@@ -1785,6 +1924,7 @@ fi
         confirmed_count = payload.stats.confirmed_count,
         needs_review_count = payload.stats.needs_review_count,
         no_bird_count = payload.stats.no_bird_count,
+        trip_location_display = trip_location_display,
         json_data = json_data
     )
 }

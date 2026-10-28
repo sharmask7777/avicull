@@ -43,8 +43,34 @@ pub enum Commands {
     /// Override classification for a photo bundle, update SQLite manifest and disk structure
     Correct(CorrectArgs),
 
+    /// Set or update the geographic location (GPS coordinates or gazetteer place name) for a directory
+    Location(LocationArgs),
+
     /// Display interactive help topics, workflow manuals, and CLI reference
     Help(HelpArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct LocationArgs {
+    /// Read-only source directory of trip photos (hierarchy mode) or photo root (in-place mode)
+    #[arg(short, long)]
+    pub input: Option<PathBuf>,
+
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// Directory or trip folder key to assign the location to
+    #[arg(short, long)]
+    pub dir: Option<String>,
+
+    /// Location name or GPS coordinates (e.g. "Leh" or "34.1526, 77.5771")
+    #[arg(short, long)]
+    pub location: String,
 }
 
 #[derive(Args, Debug)]

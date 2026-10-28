@@ -1443,6 +1443,10 @@ fn main() -> Result<()> {
             execute_correct(args)?;
         }
 
+        Commands::Location(args) => {
+            execute_location(args)?;
+        }
+
         Commands::Help(args) => {
             let topic = match args.topic.as_deref() {
                 Some(t) => Some(t.parse::<avicull::help::HelpTopic>()?),
@@ -1550,6 +1554,65 @@ fn execute_correct(args: CorrectArgs) -> Result<()> {
             bundle.original_stem, updated_dec.assigned_species_slug, updated_dec.routing_tier
         );
     }
+
+    Ok(())
+}
+
+fn execute_location(args: LocationArgs) -> Result<()> {
+    println!("== avicull location ==");
+
+    let db_path = if let Some(ref db_p) = args.db {
+        db_p.clone()
+    } else if let Some(ref out) = args.output {
+        out.join(".avicull/manifest.sqlite")
+    } else if let Some(ref inp) = args.input {
+        let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
+        let inplace_db = inp.join(".avicull/manifest.sqlite");
+        if hier_db.exists() {
+            hier_db
+        } else if inplace_db.exists() {
+            inplace_db
+        } else {
+            hier_db
+        }
+    } else {
+        let hier_db = PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite");
+        let inplace_db = PathBuf::from(".avicull/manifest.sqlite");
+        if hier_db.exists() {
+            hier_db
+        } else if inplace_db.exists() {
+            inplace_db
+        } else {
+            hier_db
+        }
+    };
+
+    if !db_path.exists() {
+        return Err(anyhow!(
+            "Manifest database not found at '{}'. Run 'avicull organize' first.",
+            db_path.display()
+        ));
+    }
+
+    let db = ManifestDb::open_or_create(&db_path)?;
+    let engine = GazetteerEngine::load_embedded()?;
+
+    let resolved = avicull::location::resolver::resolve_from_override(&args.location, &engine)
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not resolve location '{}'. Specify 'lat, lon' (e.g. '34.1526, 77.5771') or a known place name.",
+                args.location
+            )
+        })?;
+
+    // If dir is specified, apply to that specific directory key; otherwise apply to all directories in db or default
+    let dir_key = args.dir.clone().unwrap_or_else(|| ".".to_string());
+    db.set_directory_location(&dir_key, &resolved)?;
+
+    println!(
+        "✓ Set directory '{}' location to '{}' ({:.4}, {:.4}, region: '{}')",
+        dir_key, resolved.name, resolved.latitude, resolved.longitude, resolved.region_code
+    );
 
     Ok(())
 }
