@@ -3,7 +3,7 @@
   "version": "0.2.7",
   "private": true,
   "scripts": {
-    "test:e2e": "npm --prefix tests/e2e test",
+    "test:e2e": "cargo run --example generate_fixture_catalog && npm --prefix tests/e2e test",
     "generate:fixture": "cargo run --example generate_fixture_catalog"
   }
 }
