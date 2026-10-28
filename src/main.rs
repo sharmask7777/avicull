@@ -1610,8 +1610,8 @@ fn execute_location(args: LocationArgs) -> Result<()> {
     db.set_directory_location(&dir_key, &resolved)?;
 
     println!(
-        "✓ Set directory '{}' location to '{}' ({:.4}, {:.4}, region: '{}')",
-        dir_key, resolved.name, resolved.latitude, resolved.longitude, resolved.region_code
+        "✓ Set directory '{}' location to '{}' (region: '{}')",
+        dir_key, resolved.name, resolved.region_code
     );
 
     Ok(())
