@@ -1955,3 +1955,190 @@ setTimeout(() => {{
         "Clipboard script must also include resilient execution logic"
     );
 }
+
+#[test]
+fn test_catalog_finder_multiselect_and_bulk_correction_js() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let items: Vec<CatalogItem> = (1..=5)
+        .map(|i| {
+            let stem = format!("IMG_{:04}", 2000 + i);
+            CatalogItem {
+                bundle_id: format!("bundle-{}", i),
+                original_stem: stem.clone(),
+                current_path: PathBuf::from(format!("birds_hierarchy/NeedsReview/{}.CR2", stem)),
+                primary_image: dir.path().join(format!("{}.CR2", stem)),
+                companion_images: vec![],
+                sidecar_files: vec![],
+                relative_preview_path: None,
+                assigned_species: "Common Swift".to_string(),
+                scientific_name: Some("Apus apus".to_string()),
+                routing_tier: RoutingTier::NeedsReview,
+                confidence: 0.65,
+                capture_date: Some("2026-10-25".to_string()),
+                location_name: Some("Leh".to_string()),
+                top_predictions: vec![],
+                is_local: Some(true),
+            }
+        })
+        .collect();
+
+    generate_html_catalog(
+        "Multi-Select Trip",
+        &items,
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Check that CSS contains styling for selection
+    assert!(
+        html_content.contains(".card.selected"),
+        "Catalog HTML must contain CSS for .card.selected"
+    );
+    assert!(
+        html_content.contains("selection-bar"),
+        "Catalog HTML must contain floating selection action bar CSS/HTML"
+    );
+
+    // Extract script content between <script> and </script>
+    let script_start = html_content
+        .find("<script>")
+        .expect("<script> tag not found");
+    let script_end = html_content
+        .rfind("</script>")
+        .expect("</script> tag not found");
+    let script_content = &html_content[script_start + 8..script_end];
+
+    // Extract catalog json
+    let json_start = html_content
+        .find(r#"<script id="catalog-data" type="application/json">"#)
+        .expect("catalog-data tag not found");
+    let json_open_end = html_content[json_start..]
+        .find('>')
+        .expect("catalog-data open tag end");
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("catalog-data close tag");
+    let catalog_json_str = &html_content[json_start + json_open_end + 1..json_start + json_end];
+
+    // Verify JavaScript multi-select behavior via Node.js
+    let node_test_script = format!(
+        r#"
+const catalogJson = `{json_str}`;
+
+// Mock minimal DOM environment
+let selectedClasses = new Map();
+let mockElements = new Map();
+
+global.document = {{
+    getElementById: (id) => {{
+        if (id === 'catalog-data') {{
+            return {{ textContent: catalogJson }};
+        }}
+        if (!mockElements.has(id)) {{
+            mockElements.set(id, {{
+                id: id,
+                classList: {{
+                    add: (cls) => {{}},
+                    remove: (cls) => {{}},
+                    contains: (cls) => false,
+                }},
+                dataset: {{}},
+                style: {{}},
+                textContent: '',
+                value: '',
+                innerHTML: '',
+            }});
+        }}
+        return mockElements.get(id);
+    }},
+    querySelectorAll: (sel) => [],
+    addEventListener: () => {{}},
+}};
+global.window = {{}};
+global.Image = class {{
+    constructor() {{
+        this.src = '';
+    }}
+}};
+
+// Evaluate catalog script
+{script_content}
+
+// Test 1: Single click selects one item and clears previous
+if (typeof handleCardClick !== 'function') {{
+    console.error("handleCardClick function missing");
+    process.exit(1);
+}}
+
+handleCardClick('bundle-1', {{ metaKey: false, ctrlKey: false, shiftKey: false }});
+if (selectedIds.size !== 1 || !selectedIds.has('bundle-1')) {{
+    console.error("Single click should select only bundle-1, got:", Array.from(selectedIds));
+    process.exit(1);
+}}
+
+// Test 2: Cmd/Ctrl click adds disjoint selection
+handleCardClick('bundle-3', {{ metaKey: true, ctrlKey: false, shiftKey: false }});
+if (selectedIds.size !== 2 || !selectedIds.has('bundle-1') || !selectedIds.has('bundle-3')) {{
+    console.error("Cmd+click should toggle disjoint item, got:", Array.from(selectedIds));
+    process.exit(1);
+}}
+
+// Test 3: Shift click selects contiguous range from lastSelectedId ('bundle-3') to 'bundle-5'
+handleCardClick('bundle-5', {{ metaKey: false, ctrlKey: false, shiftKey: true }});
+// Range from bundle-3 to bundle-5 in [1, 2, 3, 4, 5] includes 3, 4, 5
+if (!selectedIds.has('bundle-3') || !selectedIds.has('bundle-4') || !selectedIds.has('bundle-5')) {{
+    console.error("Shift+click should select contiguous range [3..5], got:", Array.from(selectedIds));
+    process.exit(1);
+}}
+
+// Test 4: Open modal with multiple items selected
+openModal(['bundle-3', 'bundle-4', 'bundle-5']);
+if (!activeModalItems || activeModalItems.length !== 3) {{
+    console.error("Modal should have 3 activeModalItems, got:", activeModalItems);
+    process.exit(1);
+}}
+
+// Test 5: Selecting a species generates commands for all active items and adds to batchCommands
+selectSpecies("Tibetan Snowcock");
+if (batchCommands.length !== 0) {{
+    console.error("selectSpecies alone shouldn't immediately add to batchCommands");
+    process.exit(1);
+}}
+
+addActiveModalToBatch();
+if (batchCommands.length !== 3) {{
+    console.error("addActiveModalToBatch should add all 3 items to batchCommands, got:", batchCommands.length);
+    process.exit(1);
+}}
+
+console.log("SUCCESS: Finder multi-select and bulk modal operations verified");
+"#,
+        json_str = catalog_json_str.trim(),
+        script_content = script_content
+    );
+
+    let script_runner = dir.path().join("test_multiselect.js");
+    fs::write(&script_runner, node_test_script).expect("write test script");
+
+    let node_output = std::process::Command::new("node")
+        .arg(&script_runner)
+        .output()
+        .expect("run node");
+
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    let stderr = String::from_utf8_lossy(&node_output.stderr);
+    println!("Node stdout: {}", stdout);
+    println!("Node stderr: {}", stderr);
+
+    assert!(
+        node_output.status.success(),
+        "Node.js multi-select test failed: STDOUT: {}\nSTDERR: {}",
+        stdout,
+        stderr
+    );
+}

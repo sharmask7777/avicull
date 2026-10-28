@@ -450,6 +450,85 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       color: #94a3b8;
     }}
 
+    /* Card Selection & Multi-Select Styling */
+    .card.selected {{
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px var(--accent-blue), 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+      background: rgba(30, 58, 138, 0.15);
+    }}
+
+    .card-select-badge {{
+      display: none;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    }}
+
+    .card.selected .card-select-badge {{
+      display: flex;
+    }}
+
+    /* Floating Selection Action Bar */
+    .selection-bar {{
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(59, 130, 246, 0.3);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 10px 20px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 100;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      opacity: 0;
+      pointer-events: none;
+    }}
+
+    .selection-bar.visible {{
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }}
+
+    .selection-bar-count {{
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }}
+
+    .selection-bar-count span {{
+      background: var(--accent-blue);
+      color: white;
+      border-radius: 9999px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+    }}
+
+    .selection-bar-actions {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+
     .preview-fallback-sub {{
       font-size: 0.7rem;
       color: #64748b;
@@ -703,6 +782,22 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   </div>
 </div>
 
+<!-- Floating Multi-Selection Action Bar -->
+<div class="selection-bar" id="selectionBar">
+  <div class="selection-bar-count">
+    Selected: <span id="selectedCountBadge">0</span>
+  </div>
+  <div class="selection-bar-actions">
+    <button class="btn btn-secondary btn-sm" onclick="clearSelection()" title="Clear selection (Esc)" style="padding: 6px 12px; font-size: 0.8rem;">
+      Clear
+    </button>
+    <button class="btn btn-primary btn-sm" id="btnCorrectSelected" onclick="openModalForSelection()" style="padding: 6px 14px; font-size: 0.8rem; background: var(--accent-blue); color: #fff; font-weight: 600; border-radius: 9999px;">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 4px;"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+      Correct Selected (<span id="selectedCountBtn">0</span>)
+    </button>
+  </div>
+</div>
+
 <!-- Mislabel Correction Modal -->
 <div class="modal-backdrop" id="correctionModal">
   <div class="modal-box">
@@ -772,7 +867,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let currentFilter = 'all';
   let searchQuery = '';
   let activeModalItem = null;
+  let activeModalItems = [];
   let batchCommands = [];
+  let selectedIds = new Set();
+  let lastSelectedId = null;
 
   function sanitizeSlug(name) {{
     if (!name) return "";
@@ -857,11 +955,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     `;
   }}
 
-  function renderGallery() {{
-    const grid = document.getElementById('galleryGrid');
-    if (!grid) return;
-
-    const filtered = items.filter(item => {{
+  function getFilteredItems() {{
+    return items.filter(item => {{
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
       if (!searchQuery) return true;
@@ -874,6 +969,100 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const fn = (item.primary_filename || '').toLowerCase();
       return sp.includes(q) || sc.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
     }});
+  }}
+
+  function updateSelectionUI() {{
+    const count = selectedIds.size;
+    const bar = document.getElementById('selectionBar');
+    const badge = document.getElementById('selectedCountBadge');
+    const btnCount = document.getElementById('selectedCountBtn');
+
+    if (badge) badge.textContent = count;
+    if (btnCount) btnCount.textContent = count;
+
+    if (bar) {{
+      if (count > 0) {{
+        bar.classList.add('visible');
+      }} else {{
+        bar.classList.remove('visible');
+      }}
+    }}
+
+    // Update selection state on cards
+    document.querySelectorAll('.card').forEach(card => {{
+      const id = card.id ? card.id.replace(/^card-/, '') : '';
+      if (selectedIds.has(id)) {{
+        card.classList.add('selected');
+      }} else {{
+        card.classList.remove('selected');
+      }}
+    }});
+  }}
+
+  function handleCardClick(itemId, event) {{
+    const e = event || window.event || {{}};
+    const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+    const isShift = e.shiftKey;
+
+    if (isCmdOrCtrl) {{
+      // Disjoint selection toggle
+      if (selectedIds.has(itemId)) {{
+        selectedIds.delete(itemId);
+      }} else {{
+        selectedIds.add(itemId);
+        lastSelectedId = itemId;
+      }}
+    }} else if (isShift && lastSelectedId) {{
+      // Contiguous range selection based on currently filtered cards
+      const visible = getFilteredItems();
+      const visibleIds = visible.map(i => i.id);
+      const startIdx = visibleIds.indexOf(lastSelectedId);
+      const targetIdx = visibleIds.indexOf(itemId);
+
+      if (startIdx !== -1 && targetIdx !== -1) {{
+        const [low, high] = startIdx < targetIdx ? [startIdx, targetIdx] : [targetIdx, startIdx];
+        for (let i = low; i <= high; i++) {{
+          selectedIds.add(visibleIds[i]);
+        }}
+      }} else {{
+        selectedIds.add(itemId);
+        lastSelectedId = itemId;
+      }}
+    }} else {{
+      // Single selection: clear previous unless clicking on already single-selected
+      selectedIds.clear();
+      selectedIds.add(itemId);
+      lastSelectedId = itemId;
+    }}
+
+    updateSelectionUI();
+  }}
+
+  function clearSelection() {{
+    selectedIds.clear();
+    lastSelectedId = null;
+    updateSelectionUI();
+  }}
+
+  function selectAllVisible() {{
+    const visible = getFilteredItems();
+    visible.forEach(i => selectedIds.add(i.id));
+    if (visible.length > 0) {{
+      lastSelectedId = visible[visible.length - 1].id;
+    }}
+    updateSelectionUI();
+  }}
+
+  function openModalForSelection() {{
+    if (selectedIds.size === 0) return;
+    openModal(Array.from(selectedIds));
+  }}
+
+  function renderGallery() {{
+    const grid = document.getElementById('galleryGrid');
+    if (!grid) return;
+
+    const filtered = getFilteredItems();
 
     if (filtered.length === 0) {{
       grid.innerHTML = `<div class="empty-state"><h3>No photos matched your filter or search query.</h3></div>`;
@@ -914,9 +1103,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const isLocal = item.is_local !== false;
       const initialSrc = item.embedded_thumb_data_uri || item.thumb_src || item.preview_url;
       const evictedClass = isLocal ? '' : ' evicted';
+      const isSelected = selectedIds.has(item.id);
+      const selectedClass = isSelected ? ' selected' : '';
 
       return `
-        <div class="card${{evictedClass}}" id="card-${{item.id}}" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}">
+        <div class="card${{evictedClass}}${{selectedClass}}" id="card-${{item.id}}" onclick="handleCardClick('${{item.id}}', event)" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}">
+          <div class="card-select-badge">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
           <div class="card-media">
             <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
             <span class="badge-cloud">☁️ Cloud</span>
@@ -933,7 +1127,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             </div>
             <div class="card-path" title="${{item.current_path}}">${{item.current_path}}</div>
             <div class="card-actions">
-              <button class="btn-correct" onclick="openModal('${{item.id}}')">
+              <button class="btn-correct" onclick="event.stopPropagation(); handleCorrectButtonClick('${{item.id}}')">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
                 Correct Species
               </button>
@@ -968,13 +1162,44 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     renderGallery();
   }}
 
-  function openModal(itemId) {{
-    activeModalItem = items.find(i => i.id === itemId);
-    if (!activeModalItem) return;
+  function handleCorrectButtonClick(itemId) {{
+    // If the clicked card is already in the selected set, keep selection and open for all
+    if (selectedIds.has(itemId) && selectedIds.size > 1) {{
+      openModal(Array.from(selectedIds));
+    }} else {{
+      selectedIds.clear();
+      selectedIds.add(itemId);
+      lastSelectedId = itemId;
+      updateSelectionUI();
+      openModal([itemId]);
+    }}
+  }}
 
-    document.getElementById('modalCurrentSpecies').textContent = activeModalItem.assigned_species;
-    document.getElementById('modalCurrentPath').textContent = activeModalItem.current_path;
+  function openModal(itemIds) {{
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    activeModalItems = items.filter(i => ids.includes(i.id));
+    if (activeModalItems.length === 0) return;
+    activeModalItem = activeModalItems[0];
+
+    const isMulti = activeModalItems.length > 1;
     const thumb = document.getElementById('modalPhotoThumb');
+    const speciesEl = document.getElementById('modalCurrentSpecies');
+    const pathEl = document.getElementById('modalCurrentPath');
+
+    if (isMulti) {{
+      if (speciesEl) {{
+        speciesEl.textContent = `${{activeModalItems.length}} Photos Selected`;
+      }}
+      if (pathEl) {{
+        const stems = activeModalItems.map(i => i.original_stem).slice(0, 5).join(', ');
+        const more = activeModalItems.length > 5 ? ` +${{activeModalItems.length - 5}} more` : '';
+        pathEl.textContent = stems + more;
+      }}
+    }} else {{
+      if (speciesEl) speciesEl.textContent = activeModalItem.assigned_species;
+      if (pathEl) pathEl.textContent = activeModalItem.current_path;
+    }}
+
     if (thumb) {{
       const embeddedUri = activeModalItem.embedded_thumb_data_uri;
       const fallbackThumb = activeModalItem.thumb_src || activeModalItem.preview_url;
@@ -999,7 +1224,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         if (modalLocalSrc) {{
           const modalProbe = new Image();
           modalProbe.onload = () => {{
-            if (activeModalItem && activeModalItem.id === itemId) {{
+            if (activeModalItem && activeModalItem.id === activeModalItems[0].id) {{
               thumb.src = modalLocalSrc;
             }}
           }};
@@ -1013,15 +1238,24 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
     const input = document.getElementById('speciesSearchInput');
     if (input) input.value = '';
-    document.getElementById('speciesSuggestions').classList.remove('open');
-    document.getElementById('commandOutput').textContent = "Select a species from the autocomplete search above to generate avicull correct commands...";
+    const suggestions = document.getElementById('speciesSuggestions');
+    if (suggestions) suggestions.classList.remove('open');
+    const cmdOutput = document.getElementById('commandOutput');
+    if (cmdOutput) {{
+      cmdOutput.textContent = isMulti
+        ? `Select a species from autocomplete above to generate commands for all ${{activeModalItems.length}} photos...`
+        : "Select a species from the autocomplete search above to generate avicull correct commands...";
+    }}
 
-    document.getElementById('correctionModal').classList.add('open');
+    const modal = document.getElementById('correctionModal');
+    if (modal) modal.classList.add('open');
   }}
 
   function closeModal() {{
-    document.getElementById('correctionModal').classList.remove('open');
+    const modal = document.getElementById('correctionModal');
+    if (modal) modal.classList.remove('open');
     activeModalItem = null;
+    activeModalItems = [];
   }}
 
   function normalizeAutocompleteString(str) {{
@@ -1140,8 +1374,8 @@ fi
 `;
   }}
 
-  function buildMoveCommands(species) {{
-    if (!activeModalItem) return [];
+  function buildMoveCommandsForItem(item, species) {{
+    if (!item) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
     const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
@@ -1152,15 +1386,16 @@ fi
       commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
     }}
 
+    const targetItem = item || activeModalItem;
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}"`);
+    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{targetItem.original_stem}}" --species "${{newSlug}}"`);
     commands.push(`else`);
 
-    const currentPath = activeModalItem.current_path;
+    const currentPath = item.current_path;
     const lastSlash = currentPath.lastIndexOf('/');
     const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
-    const allSidecars = [...(activeModalItem.sidecar_files || []), ...(activeModalItem.companion_files || [])];
+    const allSidecars = [...(item.sidecar_files || []), ...(item.companion_files || [])];
 
     if (isHierarchy) {{
       const targetDir = `birds_hierarchy/${{newSlug}}`;
@@ -1179,9 +1414,9 @@ fi
       commands.push(`  fi`);
     }} else {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
-      const originalStem = activeModalItem.original_stem;
-      const datePart = activeModalItem.capture_date ? activeModalItem.capture_date.replace(/[-:/]/g, '') : '';
-      const locPart = activeModalItem.location_name ? sanitizeSlug(activeModalItem.location_name) : '';
+      const originalStem = item.original_stem;
+      const datePart = item.capture_date ? item.capture_date.replace(/[-:/]/g, '') : '';
+      const locPart = item.location_name ? sanitizeSlug(item.location_name) : '';
 
       let tags = [];
       if (newSlug) tags.push(newSlug);
@@ -1201,7 +1436,7 @@ fi
       }}
 
       // Primary file extension
-      const primaryExt = getExtension(activeModalItem.primary_filename);
+      const primaryExt = getExtension(item.primary_filename);
       const newPrimary = (dir ? dir + '/' : '') + targetStem + primaryExt;
       commands.push(`  mv "${{currentPath}}" "${{newPrimary}}"`);
 
@@ -1226,6 +1461,20 @@ fi
     return commands;
   }}
 
+  function buildMoveCommands(species) {{
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return [];
+    if (targets.length === 1) {{
+      return buildMoveCommandsForItem(targets[0], species);
+    }}
+    // Concatenate commands for all targets
+    let allCommands = [];
+    for (const it of targets) {{
+      allCommands.push(...buildMoveCommandsForItem(it, species));
+    }}
+    return allCommands;
+  }}
+
   function markNoBirdDetected() {{
     selectSpecies("No Bird Detected");
   }}
@@ -1233,13 +1482,21 @@ fi
   function selectSpecies(species) {{
     const input = document.getElementById('speciesSearchInput');
     if (input) input.value = species;
-    document.getElementById('speciesSuggestions').classList.remove('open');
+    const suggestions = document.getElementById('speciesSuggestions');
+    if (suggestions) suggestions.classList.remove('open');
 
-    if (!activeModalItem) return;
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return;
+
+    for (const it of targets) {{
+      it._pendingCommands = buildMoveCommandsForItem(it, species);
+    }}
+
     const commands = buildMoveCommands(species);
     const cmdStr = commands.join('\n');
-    document.getElementById('commandOutput').textContent = cmdStr;
-    activeModalItem._pendingCommands = commands;
+    const cmdOutput = document.getElementById('commandOutput');
+    if (cmdOutput) cmdOutput.textContent = cmdStr;
+    if (activeModalItem) activeModalItem._pendingCommands = commands;
   }}
 
   function getExtension(filename) {{
@@ -1266,18 +1523,30 @@ fi
     }});
   }}
 
-  function addToBatch() {{
-    if (!activeModalItem || !activeModalItem._pendingCommands) return;
-    batchCommands.push({{
-      stem: activeModalItem.original_stem,
-      commands: [...activeModalItem._pendingCommands]
-    }});
+  function addActiveModalToBatch() {{
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return;
+
+    for (const it of targets) {{
+      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
+      if (cmds && cmds.length > 0) {{
+        batchCommands.push({{
+          stem: it.original_stem,
+          commands: [...cmds]
+        }});
+      }}
+    }}
+
     const count = batchCommands.length;
     const batchCountEl = document.getElementById('batchCount');
     if (batchCountEl) batchCountEl.textContent = count;
     const batchCountCopyEl = document.getElementById('batchCountCopy');
     if (batchCountCopyEl) batchCountCopyEl.textContent = count;
     closeModal();
+  }}
+
+  function addToBatch() {{
+    addActiveModalToBatch();
   }}
 
   function generateBatchScriptContent(forDownload) {{
@@ -1478,6 +1747,27 @@ fi
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }}
+
+  // Keyboard shortcuts for selection
+  document.addEventListener('keydown', (e) => {{
+    // Escape clears selection or closes modal
+    if (e.key === 'Escape') {{
+      const modal = document.getElementById('correctionModal');
+      if (modal && modal.classList.contains('open')) {{
+        closeModal();
+      }} else if (selectedIds.size > 0) {{
+        clearSelection();
+      }}
+    }}
+    // Cmd+A or Ctrl+A (when not typing in an input) selects all visible photos
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {{
+      const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      if (tag !== 'input' && tag !== 'textarea') {{
+        e.preventDefault();
+        selectAllVisible();
+      }}
+    }}
+  }});
 
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {{
