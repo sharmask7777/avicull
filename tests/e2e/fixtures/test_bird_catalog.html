@@ -2064,31 +2064,81 @@ fi
     const takeCount = reclassifyDiffItems.filter(d => d.choice === 'take' && d.currentSpecies !== d.proposedSpecies).length;
     if (countEl) countEl.textContent = takeCount;
 
-    tbody.innerHTML = reclassifyDiffItems.map((d, idx) => {
+    tbody.textContent = '';
+    reclassifyDiffItems.forEach((d, idx) => {
       const isTake = d.choice === 'take';
       const isKeep = d.choice === 'keep';
       const thumb = d.item.embedded_thumb_data_uri || d.item.thumb_src || d.item.preview_url;
 
-      return `
-        <tr>
-          <td><img src="${thumb}" class="diff-thumb" alt="${d.item.original_stem}"/></td>
-          <td>
-            <div style="font-weight: 600;">${d.currentSpecies}</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">${d.item.primary_filename}</div>
-          </td>
-          <td>
-            <div style="font-weight: 600; color: #38bdf8;">${d.proposedSpecies}</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">Recalculated with updated location</div>
-          </td>
-          <td style="text-align: right;">
-            <div class="choice-pill-group">
-              <button type="button" class="choice-pill ${isTake ? 'active-take' : ''}" onclick="event.stopPropagation(); setReclassifyChoice(${idx}, 'take')">Take</button>
-              <button type="button" class="choice-pill ${isKeep ? 'active-keep' : ''}" onclick="event.stopPropagation(); setReclassifyChoice(${idx}, 'keep')">Keep</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
+      const tr = document.createElement('tr');
+
+      // Col 1: Thumbnail
+      const tdThumb = document.createElement('td');
+      const img = document.createElement('img');
+      img.src = thumb || '';
+      img.className = 'diff-thumb';
+      img.alt = d.item.original_stem || '';
+      tdThumb.appendChild(img);
+      tr.appendChild(tdThumb);
+
+      // Col 2: Current Species & filename
+      const tdCurr = document.createElement('td');
+      const currSpeciesDiv = document.createElement('div');
+      currSpeciesDiv.style.fontWeight = '600';
+      currSpeciesDiv.textContent = d.currentSpecies || '';
+      const currFileDiv = document.createElement('div');
+      currFileDiv.style.fontSize = '0.75rem';
+      currFileDiv.style.color = 'var(--text-muted)';
+      currFileDiv.textContent = d.item.primary_filename || '';
+      tdCurr.appendChild(currSpeciesDiv);
+      tdCurr.appendChild(currFileDiv);
+      tr.appendChild(tdCurr);
+
+      // Col 3: Proposed Species
+      const tdProp = document.createElement('td');
+      const propSpeciesDiv = document.createElement('div');
+      propSpeciesDiv.style.fontWeight = '600';
+      propSpeciesDiv.style.color = '#38bdf8';
+      propSpeciesDiv.textContent = d.proposedSpecies || '';
+      const propDescDiv = document.createElement('div');
+      propDescDiv.style.fontSize = '0.75rem';
+      propDescDiv.style.color = 'var(--text-muted)';
+      propDescDiv.textContent = 'Recalculated with updated location';
+      tdProp.appendChild(propSpeciesDiv);
+      tdProp.appendChild(propDescDiv);
+      tr.appendChild(tdProp);
+
+      // Col 4: Action pills
+      const tdAction = document.createElement('td');
+      tdAction.style.textAlign = 'right';
+      const pillGroup = document.createElement('div');
+      pillGroup.className = 'choice-pill-group';
+
+      const btnTake = document.createElement('button');
+      btnTake.type = 'button';
+      btnTake.className = `choice-pill ${isTake ? 'active-take' : ''}`;
+      btnTake.textContent = 'Take';
+      btnTake.onclick = (e) => {
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'take');
+      };
+
+      const btnKeep = document.createElement('button');
+      btnKeep.type = 'button';
+      btnKeep.className = `choice-pill ${isKeep ? 'active-keep' : ''}`;
+      btnKeep.textContent = 'Keep';
+      btnKeep.onclick = (e) => {
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'keep');
+      };
+
+      pillGroup.appendChild(btnTake);
+      pillGroup.appendChild(btnKeep);
+      tdAction.appendChild(pillGroup);
+      tr.appendChild(tdAction);
+
+      tbody.appendChild(tr);
+    });
 
     updateReclassifyCommandOutput();
   }
