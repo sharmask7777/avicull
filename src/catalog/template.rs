@@ -1099,6 +1099,16 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let selectedIds = new Set();
   let lastSelectedId = null;
 
+  function sanitizeMediaUri(uri) {{
+    if (!uri) return "";
+    const trimmed = String(uri).trim();
+    // Allow safe data URIs, local file URLs, or relative paths
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('file://') || trimmed.startsWith('/') || trimmed.startsWith('./') || !trimmed.includes(':')) {{
+      return trimmed;
+    }}
+    return "";
+  }}
+
   function sanitizeSlug(name) {{
     if (!name) return "";
     return name
@@ -2092,11 +2102,19 @@ fi
 
       // Col 1: Thumbnail
       const tdThumb = document.createElement('td');
-      const img = document.createElement('img');
-      img.src = thumb || '';
-      img.className = 'diff-thumb';
-      img.alt = d.item.original_stem || '';
-      tdThumb.appendChild(img);
+      const safeThumb = sanitizeMediaUri(thumb);
+      if (safeThumb) {{
+        const img = document.createElement('img');
+        img.src = safeThumb;
+        img.className = 'diff-thumb';
+        img.alt = d.item.original_stem || '';
+        tdThumb.appendChild(img);
+      }} else {{
+        const placeholder = document.createElement('div');
+        placeholder.className = 'diff-thumb';
+        placeholder.style.background = 'var(--border-color)';
+        tdThumb.appendChild(placeholder);
+      }}
       tr.appendChild(tdThumb);
 
       // Col 2: Current Species & filename
