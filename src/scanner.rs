@@ -328,15 +328,67 @@ pub fn scan_input_tree_with_skip(
 /// Parses JPEG segment markers and lengths (skipping APP1 EXIF thumbnails)
 /// and returns the largest complete preview stream found.
 pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
-    let mut largest: Option<Vec<u8>> = None;
-    let mut max_len = 0;
-
     let len = raw_bytes.len();
     if len < 4 {
         return None;
     }
 
-    // Helper to find the end of a JPEG starting at an SOI offset
+    // Fast-path: Check Canon CR2 / TIFF container header (II or MM)
+    // In Canon RAW files, IFD0 contains the exact offset and byte count of the full-resolution
+    // embedded JPEG preview via StripOffsets (0x0111) and StripByteCounts (0x0117).
+    if len >= 32 && (raw_bytes.starts_with(b"II\x2a\x00") || raw_bytes.starts_with(b"MM\x00\x2a")) {
+        let is_le = raw_bytes[0] == b'I';
+        let read_u16 = |buf: &[u8]| -> u16 {
+            if is_le {
+                u16::from_le_bytes([buf[0], buf[1]])
+            } else {
+                u16::from_be_bytes([buf[0], buf[1]])
+            }
+        };
+        let read_u32 = |buf: &[u8]| -> u32 {
+            if is_le {
+                u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]])
+            } else {
+                u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]])
+            }
+        };
+
+        let ifd0_offset = read_u32(&raw_bytes[4..8]) as usize;
+        if ifd0_offset + 2 <= len {
+            let num_entries = read_u16(&raw_bytes[ifd0_offset..ifd0_offset + 2]) as usize;
+            let mut strip_offset: Option<usize> = None;
+            let mut strip_byte_counts: Option<usize> = None;
+
+            let mut entry_pos = ifd0_offset + 2;
+            for _ in 0..num_entries {
+                if entry_pos + 12 > len {
+                    break;
+                }
+                let tag = read_u16(&raw_bytes[entry_pos..entry_pos + 2]);
+                let val_slice = &raw_bytes[entry_pos + 8..entry_pos + 12];
+                if tag == 0x0111 {
+                    strip_offset = Some(read_u32(val_slice) as usize);
+                } else if tag == 0x0117 {
+                    strip_byte_counts = Some(read_u32(val_slice) as usize);
+                }
+                entry_pos += 12;
+            }
+
+            if let (Some(off), Some(count)) = (strip_offset, strip_byte_counts) {
+                if off + count <= len && count > 4 {
+                    let candidate = &raw_bytes[off..off + count];
+                    if candidate.starts_with(&[0xFF, 0xD8]) && candidate.ends_with(&[0xFF, 0xD9]) {
+                        return Some(candidate.to_vec());
+                    }
+                }
+            }
+        }
+    }
+
+    let mut largest: Option<Vec<u8>> = None;
+    let mut max_len = 0;
+
+    // Helper to find the end of a valid JPEG starting at an SOI offset
     let parse_jpeg_end = |start: usize| -> Option<usize> {
         if start + 2 >= len || raw_bytes[start] != 0xFF || raw_bytes[start + 1] != 0xD8 {
             return None;
@@ -369,6 +421,11 @@ pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
             if marker == 0xD8 || (0xD0..=0xD7).contains(&marker) || marker == 0x00 {
                 pos += 2;
                 continue;
+            }
+
+            // Reject lossless / RAW sensor JPEG streams with lossless frame markers (SOF3 / 0xC3)
+            if marker == 0xC3 {
+                return None;
             }
 
             // Start of Scan (SOS): scan data follows until EOI

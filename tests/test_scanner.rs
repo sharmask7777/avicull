@@ -217,11 +217,16 @@ fn test_scanner_sidecar_bundling() {
 fn test_extract_embedded_jpeg_preview() {
     let mut fake_raw = Vec::new();
     fake_raw.extend_from_slice(b"SOME RAW HEADER BYTES");
-    // Insert smaller embedded JPEG
-    fake_raw.extend_from_slice(&[0xFF, 0xD8, 0x01, 0x02, 0xFF, 0xD9]);
+    // Insert smaller embedded JPEG with valid SOF0 marker (0xFF, 0xC0)
+    fake_raw.extend_from_slice(&[
+        0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x10, 0x00, 0x10, 0x01, 0x01, 0x11, 0x00,
+        0xFF, 0xD9,
+    ]);
     fake_raw.extend_from_slice(b"INTERMEDIATE BYTES");
-    // Insert larger embedded preview JPEG
-    let mut large_jpeg = vec![0xFF, 0xD8];
+    // Insert larger embedded preview JPEG with valid SOF0 marker
+    let mut large_jpeg = vec![
+        0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x20, 0x00, 0x20, 0x01, 0x01, 0x11, 0x00,
+    ];
     large_jpeg.extend_from_slice(&[0x42; 256]);
     large_jpeg.extend_from_slice(&[0xFF, 0xD9]);
     fake_raw.extend_from_slice(&large_jpeg);
@@ -229,4 +234,33 @@ fn test_extract_embedded_jpeg_preview() {
 
     let extracted = extract_embedded_jpeg_preview(&fake_raw).expect("Failed to extract preview");
     assert_eq!(extracted, large_jpeg);
+}
+
+#[test]
+fn test_extract_embedded_jpeg_ignores_lossless_raw_streams_without_standard_sof() {
+    // RAW files often have a huge lossless compressed sensor stream with SOI/EOI
+    // and SOF3 (0xFFC3) or DHT (0xFFC4) without standard SOF0/SOF1/SOF2 baseline display markers.
+    // The extractor must ignore this non-displayable sensor stream and pick the displayable JPEG preview.
+    let mut fake_raw = Vec::new();
+    fake_raw.extend_from_slice(b"RAW_HEADER");
+
+    // Displayable preview JPEG (32x32 SOF0, size ~100 bytes)
+    let mut display_preview = vec![
+        0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x20, 0x00, 0x20, 0x01, 0x01,
+    ];
+    display_preview.extend_from_slice(&[0x55; 100]);
+    display_preview.extend_from_slice(&[0xFF, 0xD9]);
+    fake_raw.extend_from_slice(&display_preview);
+
+    // Much larger RAW sensor stream (SOF3 / lossless 0xFFC3, size 5000 bytes)
+    let mut sensor_stream = vec![
+        0xFF, 0xD8, 0xFF, 0xC3, 0x00, 0x0B, 0x0E, 0x00, 0x80, 0x00, 0x80, 0x01, 0x01,
+    ];
+    sensor_stream.extend_from_slice(&[0xAA; 5000]);
+    sensor_stream.extend_from_slice(&[0xFF, 0xD9]);
+    fake_raw.extend_from_slice(&sensor_stream);
+
+    let extracted = extract_embedded_jpeg_preview(&fake_raw)
+        .expect("Must extract displayable preview ignoring sensor stream");
+    assert_eq!(extracted, display_preview);
 }

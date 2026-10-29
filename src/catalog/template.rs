@@ -1348,7 +1348,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = item.embedded_thumb_data_uri || item.thumb_src || item.preview_url;
+      const initialSrc = (item.thumb_src && !item.thumb_src.startsWith('data:'))
+        ? item.thumb_src
+        : (item.preview_url && !item.preview_url.startsWith('data:'))
+        ? item.preview_url
+        : (item.embedded_thumb_data_uri || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='200'></svg>");
       const evictedClass = isLocal ? '' : ' evicted';
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
@@ -1397,6 +1401,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             const item = items.find(i => i.id === itemId);
             const img = card.querySelector('img');
             if (img && item) {{
+              if (item.embedded_thumb_data_uri && (!img.src || img.src.includes('data:image/svg') || img.src.includes('<svg'))) {{
+                img.src = item.embedded_thumb_data_uri;
+              }}
               attemptHighResSwap(img, item);
             }}
             observer.unobserve(card);
