@@ -734,6 +734,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       white-space: pre-wrap;
       word-break: break-all;
       line-height: 1.6;
+      max-height: 180px;
+      overflow-y: auto;
     }}
 
     .modal-footer {{
@@ -753,7 +755,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
     /* Reclassification Diff Modal Styles */
     .diff-table-container {{
+      min-height: 220px;
       max-height: 380px;
+      flex-shrink: 0;
       overflow-y: auto;
       margin-top: 12px;
       border: 1px solid var(--border-color);
@@ -1048,6 +1052,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-secondary" onclick="copyBulkLocationCommands()">Copy Commands</button>
+          <button class="btn btn-primary" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
           <button class="btn btn-primary" onclick="applyBulkLocationBatch()">Add to Batch Script</button>
         </div>
       </div>
@@ -1069,7 +1074,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     </div>
     <div class="modal-body">
       <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
-        Location priors have recalculated potential species probabilities. Review proposed reclassifications below:
+        Location priors have recalculated potential species probabilities. Review proposed reclassifications below<span id="reclassifyScopeDesc" style="font-weight:600;color:var(--text-primary);"></span>:
       </div>
 
       <div class="diff-header-bar">
@@ -2157,8 +2162,10 @@ fi
   // --- Bulk Location Override by Subdirectory ---
 
   let bulkLocationRowsData = [];
+  let activeLocationTab = 'single';
 
   function switchLocationTab(tab) {{
+    activeLocationTab = tab;
     const singlePanel = document.getElementById('locationSinglePanel');
     const bulkPanel = document.getElementById('bulkLocationPanel');
     const tabSingle = document.getElementById('tabSingle');
@@ -2315,34 +2322,96 @@ fi
 
   // Reclassification Review & Diff State
   let reclassifyDiffItems = [];
+  let reclassifyScopeContext = {{ scope: 'trip', location: '', dir: '' }};
 
   function openReclassifyReviewModal() {{
     closeLocationModal();
     const modal = document.getElementById('reclassifyModal');
     if (!modal) return;
 
-    // Simulate / calculate reclassification diff for demo/offline catalog
-    // Target items: either selected items or items in catalog
-    const targetItems = selectedIds.size > 0 
-      ? items.filter(i => selectedIds.has(i.id))
-      : items;
+    // Detect scope from location modal:
+    const isBulkTab = (activeLocationTab === 'bulk');
+    let targetItems = [];
+    let locValue = '';
+    let chosenDir = '';
+    let scopeDesc = '';
+
+    if (isBulkTab) {{
+      const activeRows = bulkLocationRowsData.filter(r => r.subdir && r.location && r.location.trim());
+      if (activeRows.length > 0) {{
+        const subdirsSet = new Set(activeRows.map(r => r.subdir));
+        targetItems = items.filter(i => {{
+          if (!i.subdirectory) return false;
+          for (const s of subdirsSet) {{
+            if (i.subdirectory === s || i.subdirectory.startsWith(s + '/')) return true;
+          }}
+          return false;
+        }});
+        reclassifyScopeContext = {{ scope: 'bulk', rows: activeRows }};
+        scopeDesc = `Directory Overrides (${{activeRows.length}} directories)`;
+      }} else {{
+        targetItems = [];
+        reclassifyScopeContext = {{ scope: 'bulk', rows: [] }};
+        scopeDesc = 'Directory Overrides';
+      }}
+    }} else {{
+      const scopeSelect = document.getElementById('locationScopeSelect');
+      const scope = scopeSelect ? scopeSelect.value : 'trip';
+      const locInput = document.getElementById('locationInput');
+      locValue = locInput ? locInput.value.trim() : '';
+
+      if (scope === 'selection' && selectedIds.size > 0) {{
+        targetItems = items.filter(i => selectedIds.has(i.id));
+        reclassifyScopeContext = {{ scope: 'selection', location: locValue, selectedIds: Array.from(selectedIds) }};
+        scopeDesc = `Selected Photos (${{targetItems.length}})`;
+      }} else if (scope === 'directory') {{
+        const subdirSelect = document.getElementById('locationSubdirSelect');
+        chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+        if (chosenDir) {{
+          targetItems = items.filter(i => i.subdirectory && (i.subdirectory === chosenDir || i.subdirectory.startsWith(chosenDir + '/')));
+        }} else {{
+          targetItems = items;
+        }}
+        reclassifyScopeContext = {{ scope: 'directory', dir: chosenDir, location: locValue }};
+        scopeDesc = chosenDir ? `Subdirectory "${{chosenDir}}"` : 'All Subdirectories';
+      }} else {{
+        targetItems = items;
+        reclassifyScopeContext = {{ scope: 'trip', location: locValue }};
+        scopeDesc = 'Entire Trip';
+      }}
+    }}
+
+    const scopeDescEl = document.getElementById('reclassifyScopeDesc');
+    if (scopeDescEl) {{
+      scopeDescEl.textContent = scopeDesc ? ` (${{scopeDesc}})` : '';
+    }}
 
     // Look for top predictions or alternative candidates
     reclassifyDiffItems = targetItems.map(item => {{
       let altSpecies = item.assigned_species;
       let altConf = item.confidence;
       if (item.top_predictions && item.top_predictions.length > 1) {{
-        altSpecies = item.top_predictions[1].common_name;
-        altConf = item.top_predictions[1].score;
-      }} else if (item.routing_tier === 'NeedsReview' || item.routing_tier === 'NoBirdDetected') {{
-        altSpecies = item.assigned_species === '_No_Bird_Detected' ? 'House Sparrow' : item.assigned_species;
+        const firstPred = item.top_predictions[0];
+        const secondPred = item.top_predictions[1];
+        const firstScore = firstPred.score || firstPred.combined_score || 0;
+        const secondScore = secondPred.score || secondPred.combined_score || 0;
+
+        if (item.assigned_species === firstPred.common_name && firstScore >= 0.85) {{
+          altSpecies = firstPred.common_name;
+        }} else {{
+          altSpecies = (item.assigned_species === firstPred.common_name) ? secondPred.common_name : firstPred.common_name;
+          altConf = secondScore;
+        }}
+      }} else if (item.routing_tier === 'NeedsReview') {{
+        altSpecies = item.assigned_species;
       }}
 
+      const willChange = altSpecies !== item.assigned_species;
       return {{
         item,
         currentSpecies: item.assigned_species,
         proposedSpecies: altSpecies,
-        choice: 'take', // default is 'take'
+        choice: willChange ? 'take' : 'keep',
         customSpecies: altSpecies,
       }};
     }});
@@ -2379,6 +2448,21 @@ fi
     if (countEl) countEl.textContent = takeCount;
 
     tbody.textContent = '';
+
+    if (reclassifyDiffItems.length === 0) {{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 4;
+      td.style.textAlign = 'center';
+      td.style.padding = '36px 16px';
+      td.style.color = 'var(--text-muted)';
+      td.textContent = 'No photos found matching the selected location scope.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      updateReclassifyCommandOutput();
+      return;
+    }}
+
     reclassifyDiffItems.forEach((d, idx) => {{
       const isTake = d.choice === 'take';
       const isKeep = d.choice === 'keep';
@@ -2468,14 +2552,52 @@ fi
   function buildReclassifyCommands() {{
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
-      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+      commands.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
     }}
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
 
+    if (reclassifyScopeContext.scope === 'bulk' && reclassifyScopeContext.rows) {{
+      for (const row of reclassifyScopeContext.rows) {{
+        if (row.subdir && row.location && row.location.trim()) {{
+          const escSub = escapeShellArg(row.subdir);
+          const escLoc = escapeShellArg(row.location.trim());
+          commands.push(`  avicull location --dir "${{escSub}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escSub}}" --location "${{escLoc}}" --reclassify`);
+        }}
+      }}
+    }} else if (reclassifyScopeContext.scope === 'directory' && reclassifyScopeContext.dir) {{
+      const escDir = escapeShellArg(reclassifyScopeContext.dir);
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {{
+        commands.push(`  avicull location --dir "${{escDir}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escDir}}" --location "${{escLoc}}" --reclassify`);
+      }} else {{
+        commands.push(`  avicull location --dir "${{escDir}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escDir}}" --reclassify`);
+      }}
+    }} else if (reclassifyScopeContext.scope === 'selection') {{
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      for (const id of (reclassifyScopeContext.selectedIds || [])) {{
+        const item = items.find(i => i.id === id);
+        if (item) {{
+          const escStem = escapeShellArg(item.original_stem);
+          if (escLoc) {{
+            commands.push(`  avicull location --file "${{escStem}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --file "${{escStem}}" --location "${{escLoc}}" --reclassify`);
+          }}
+        }}
+      }}
+    }} else {{
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {{
+        commands.push(`  avicull location --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --location "${{escLoc}}" --reclassify`);
+      }} else {{
+        commands.push(`  avicull location --reclassify 2>/dev/null || $AVICULL_CMD location --reclassify`);
+      }}
+    }}
+
     for (const d of reclassifyDiffItems) {{
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
-        commands.push(`  avicull correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}" 2>/dev/null || $AVICULL_CMD correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}"`);
+        const escStem = escapeShellArg(d.item.original_stem);
+        const escSpec = escapeShellArg(d.proposedSpecies);
+        commands.push(`  avicull correct --file "${{escStem}}" --species "${{escSpec}}" 2>/dev/null || $AVICULL_CMD correct --file "${{escStem}}" --species "${{escSpec}}"`);
       }}
     }}
     commands.push(`fi`);
