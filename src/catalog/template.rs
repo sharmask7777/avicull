@@ -364,17 +364,19 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       color: var(--text-secondary);
     }}
 
-    .card-meta {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      font-size: 0.775rem;
+    .card-date {{
+      font-size: 0.78rem;
       color: var(--text-muted);
       margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }}
 
-    .meta-item {{
-      display: inline-flex;
+    .card-location {{
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: flex;
       align-items: center;
       gap: 4px;
     }}
@@ -732,6 +734,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       white-space: pre-wrap;
       word-break: break-all;
       line-height: 1.6;
+      max-height: 180px;
+      overflow-y: auto;
     }}
 
     .modal-footer {{
@@ -751,7 +755,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
     /* Reclassification Diff Modal Styles */
     .diff-table-container {{
+      min-height: 220px;
       max-height: 380px;
+      flex-shrink: 0;
       overflow-y: auto;
       margin-top: 12px;
       border: 1px solid var(--border-color);
@@ -984,45 +990,74 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       <button class="modal-close" onclick="closeLocationModal()">&times;</button>
     </div>
     <div class="modal-body">
-      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-        Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border-color);padding-bottom:8px;">
+        <button id="tabSingle" class="btn btn-secondary" onclick="switchLocationTab('single')"
+                style="font-size:0.8rem;padding:4px 12px;background:var(--accent-blue);">Single / Selection</button>
+        <button id="tabBulk" class="btn btn-secondary" onclick="switchLocationTab('bulk')"
+                style="font-size:0.8rem;padding:4px 12px;">Directory Overrides</button>
       </div>
 
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Location Scope / Target:
-        </label>
-        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
-          <option value="trip">Whole Trip / Directory</option>
-          <option value="directory">Subdirectory / Sub-folder...</option>
-          <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
-        </select>
+      <div id="locationSinglePanel">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+          Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location Scope / Target:
+          </label>
+          <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
+            <option value="trip">Whole Trip / Directory</option>
+            <option value="directory">Subdirectory / Sub-folder...</option>
+            <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+          </select>
+        </div>
+
+        <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Select Subdirectory / Sub-folder:
+          </label>
+          <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
+            <option value="">-- Choose Subdirectory --</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location (Place Name or Latitude, Longitude):
+          </label>
+          <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Generated Location Command (`avicull location`):
+          </label>
+          <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+        </div>
       </div>
 
-      <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Select Subdirectory / Sub-folder:
-        </label>
-        <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
-          <option value="">-- Choose Subdirectory --</option>
-        </select>
-      </div>
-
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Location (Place Name or Latitude, Longitude):
-        </label>
-        <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
-      </div>
-
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Generated Location Command (`avicull location`):
-        </label>
-        <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+      <div id="bulkLocationPanel" style="display:none;">
+        <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:8px;">
+          Set a different location for each subdirectory. Each row generates an independent
+          <code>avicull location --dir … --location …</code> command.
+        </p>
+        <div id="bulkLocationRows"></div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="addBulkLocationRow()">+ Add Directory Row</button>
+        <div style="margin-top:14px;">
+          <label style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:block;">
+            Generated Commands:
+          </label>
+          <div class="command-box" id="bulkLocationCommandOutput">Add rows above to generate commands…</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-secondary" onclick="copyBulkLocationCommands()">Copy Commands</button>
+          <button class="btn btn-primary" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
+          <button class="btn btn-primary" onclick="applyBulkLocationBatch()">Add to Batch Script</button>
+        </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" id="locationModalFooter">
       <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
       <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
       <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
@@ -1039,7 +1074,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     </div>
     <div class="modal-body">
       <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
-        Location priors have recalculated potential species probabilities. Review proposed reclassifications below:
+        Location priors have recalculated potential species probabilities. Review proposed reclassifications below<span id="reclassifyScopeDesc" style="font-weight:600;color:var(--text-primary);"></span>:
       </div>
 
       <div class="diff-header-bar">
@@ -1108,6 +1143,33 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let batchCommands = [];
   let selectedIds = new Set();
   let lastSelectedId = null;
+
+  function escHtml(str) {{
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }}
+
+  function escapeShellArg(str) {{
+    if (!str) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
+  }}
+
+  function updateBatchUI() {{
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+  }}
 
   function sanitizeMediaUri(uri) {{
     if (!uri) return "";
@@ -1330,17 +1392,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       }}
 
       const locationMarkup = item.location_name ? `
-        <span class="meta-item">
+        <div class="card-location">
           <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
           ${{item.location_name}}
-        </span>
+        </div>
       ` : '';
 
       const dateMarkup = item.capture_date ? `
-        <span class="meta-item">
+        <div class="card-date">
           <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
           ${{item.capture_date}}
-        </span>
+        </div>
       ` : '';
 
       const scientificMarkup = item.scientific_name ? `
@@ -1372,10 +1434,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
               <span>${{item.assigned_species}}</span>
             </div>
             ${{scientificMarkup}}
-            <div class="card-meta">
-              ${{locationMarkup}}
-              ${{dateMarkup}}
-            </div>
+            ${{dateMarkup}}
+            ${{locationMarkup}}
             <div class="card-path" title="${{item.current_path}}">${{item.current_path}}</div>
             <div class="card-actions">
               <button class="btn-correct" onclick="event.stopPropagation(); handleCorrectButtonClick('${{item.id}}')">
@@ -1814,11 +1874,7 @@ fi
       }}
     }}
 
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeModal();
   }}
 
@@ -2025,14 +2081,7 @@ fi
     URL.revokeObjectURL(url);
   }}
 
-  function populateSubdirectories() {{
-    const select = document.getElementById('locationSubdirSelect');
-    if (!select) return;
-
-    // Preserve existing selection if possible
-    const currentVal = select.value;
-    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
-
+  function getAllSubdirectories() {{
     let dirSet = new Set();
     if (Array.isArray(CATALOG_DATA.directories)) {{
       CATALOG_DATA.directories.forEach(d => dirSet.add(d));
@@ -2047,8 +2096,18 @@ fi
         }});
       }}
     }});
+    return Array.from(dirSet).sort();
+  }}
 
-    const sortedDirs = Array.from(dirSet).sort();
+  function populateSubdirectories() {{
+    const select = document.getElementById('locationSubdirSelect');
+    if (!select) return;
+
+    // Preserve existing selection if possible
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
+
+    const sortedDirs = getAllSubdirectories();
     sortedDirs.forEach(dir => {{
       const opt = document.createElement('option');
       opt.value = dir;
@@ -2060,7 +2119,7 @@ fi
       select.appendChild(opt);
     }});
 
-    if (currentVal && dirSet.has(currentVal)) {{
+    if (currentVal && sortedDirs.includes(currentVal)) {{
       select.value = currentVal;
     }}
   }}
@@ -2082,6 +2141,7 @@ fi
   function openLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.add('open');
+    switchLocationTab('single');
     const input = document.getElementById('locationInput');
     const scopeSelect = document.getElementById('locationScopeSelect');
     if (scopeSelect) {{
@@ -2097,6 +2157,136 @@ fi
   function closeLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.remove('open');
+  }}
+
+  // --- Bulk Location Override by Subdirectory ---
+
+  let bulkLocationRowsData = [];
+  let activeLocationTab = 'single';
+
+  function switchLocationTab(tab) {{
+    activeLocationTab = tab;
+    const singlePanel = document.getElementById('locationSinglePanel');
+    const bulkPanel = document.getElementById('bulkLocationPanel');
+    const tabSingle = document.getElementById('tabSingle');
+    const tabBulk = document.getElementById('tabBulk');
+    const modalFooter = document.getElementById('locationModalFooter');
+    if (tab === 'bulk') {{
+      if (singlePanel) singlePanel.style.display = 'none';
+      if (bulkPanel) bulkPanel.style.display = 'block';
+      if (tabBulk) tabBulk.style.background = 'var(--accent-blue)';
+      if (tabSingle) tabSingle.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'none';
+      if (bulkLocationRowsData.length === 0) addBulkLocationRow();
+    }} else {{
+      if (singlePanel) singlePanel.style.display = 'block';
+      if (bulkPanel) bulkPanel.style.display = 'none';
+      if (tabSingle) tabSingle.style.background = 'var(--accent-blue)';
+      if (tabBulk) tabBulk.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'flex';
+    }}
+  }}
+
+  function addBulkLocationRow() {{
+    bulkLocationRowsData.push({{ subdir: '', location: '' }});
+    renderBulkLocationRows();
+  }}
+
+  function removeBulkLocationRow(idx) {{
+    bulkLocationRowsData.splice(idx, 1);
+    renderBulkLocationRows();
+  }}
+
+  function updateBulkRow(idx, field, value) {{
+    if (bulkLocationRowsData[idx]) {{
+      bulkLocationRowsData[idx][field] = value;
+      renderBulkLocationPreview();
+    }}
+  }}
+
+  function renderBulkLocationRows() {{
+    const container = document.getElementById('bulkLocationRows');
+    if (!container) return;
+
+    const sortedDirs = getAllSubdirectories();
+
+    container.innerHTML = bulkLocationRowsData.map((row, idx) => {{
+      const opts = sortedDirs.map(d => {{
+        const depth = (d.match(/\//g) || []).length;
+        const indent = '\u00A0\u00A0'.repeat(depth);
+        const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+        const sel = row.subdir === d ? ' selected' : '';
+        return `<option value="${{escHtml(d)}}"${{sel}}>${{indent}}${{prefix}}${{escHtml(d)}}</option>`;
+      }}).join('');
+
+      return `
+        <div class="bulk-loc-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <select style="flex:0 0 200px;" onchange="updateBulkRow(${{idx}},'subdir',this.value)">
+            <option value="">-- Subdirectory --</option>
+            ${{opts}}
+          </select>
+          <input type="text" style="flex:1;" placeholder="Location (place name or lat,lon)"
+                 value="${{escHtml(row.location)}}" oninput="updateBulkRow(${{idx}},'location',this.value)"/>
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.8rem;"
+                  onclick="removeBulkLocationRow(${{idx}})">&#x2715;</button>
+        </div>
+      `;
+    }}).join('');
+
+    renderBulkLocationPreview();
+  }}
+
+  function buildBulkLocationCommands() {{
+    const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
+    if (validRows.length === 0) return [];
+
+    let lines = [];
+    if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
+    lines.push(findAvicullCmd().trim());
+    lines.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    validRows.forEach(r => {{
+      const safeDir = escapeShellArg(r.subdir);
+      const safeLoc = escapeShellArg(r.location.trim());
+      lines.push(`  avicull location --dir "${{safeDir}}" --location "${{safeLoc}}" 2>/dev/null || $AVICULL_CMD location --dir "${{safeDir}}" --location "${{safeLoc}}"`);
+    }});
+    lines.push(`fi`);
+    return lines;
+  }}
+
+  function renderBulkLocationPreview() {{
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+
+    const lines = buildBulkLocationCommands();
+    if (lines.length === 0) {{
+      box.textContent = 'Add rows above to generate commands\u2026';
+      return;
+    }}
+    box.textContent = lines.join('\n');
+  }}
+
+  function copyBulkLocationCommands() {{
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+    navigator.clipboard.writeText(box.textContent).catch(() => {{
+      const ta = document.createElement('textarea');
+      ta.value = box.textContent;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }});
+  }}
+
+  function applyBulkLocationBatch() {{
+    const cmds = buildBulkLocationCommands();
+    if (cmds.length === 0) return;
+    batchCommands.push({{
+      stem: 'bulk_location_overrides',
+      commands: cmds
+    }});
+    updateBatchUI();
+    closeLocationModal();
   }}
 
   function buildLocationCommands(locStr) {{
@@ -2132,34 +2322,96 @@ fi
 
   // Reclassification Review & Diff State
   let reclassifyDiffItems = [];
+  let reclassifyScopeContext = {{ scope: 'trip', location: '', dir: '' }};
 
   function openReclassifyReviewModal() {{
     closeLocationModal();
     const modal = document.getElementById('reclassifyModal');
     if (!modal) return;
 
-    // Simulate / calculate reclassification diff for demo/offline catalog
-    // Target items: either selected items or items in catalog
-    const targetItems = selectedIds.size > 0 
-      ? items.filter(i => selectedIds.has(i.id))
-      : items;
+    // Detect scope from location modal:
+    const isBulkTab = (activeLocationTab === 'bulk');
+    let targetItems = [];
+    let locValue = '';
+    let chosenDir = '';
+    let scopeDesc = '';
+
+    if (isBulkTab) {{
+      const activeRows = bulkLocationRowsData.filter(r => r.subdir && r.location && r.location.trim());
+      if (activeRows.length > 0) {{
+        const subdirsSet = new Set(activeRows.map(r => r.subdir));
+        targetItems = items.filter(i => {{
+          if (!i.subdirectory) return false;
+          for (const s of subdirsSet) {{
+            if (i.subdirectory === s || i.subdirectory.startsWith(s + '/')) return true;
+          }}
+          return false;
+        }});
+        reclassifyScopeContext = {{ scope: 'bulk', rows: activeRows }};
+        scopeDesc = `Directory Overrides (${{activeRows.length}} directories)`;
+      }} else {{
+        targetItems = [];
+        reclassifyScopeContext = {{ scope: 'bulk', rows: [] }};
+        scopeDesc = 'Directory Overrides';
+      }}
+    }} else {{
+      const scopeSelect = document.getElementById('locationScopeSelect');
+      const scope = scopeSelect ? scopeSelect.value : 'trip';
+      const locInput = document.getElementById('locationInput');
+      locValue = locInput ? locInput.value.trim() : '';
+
+      if (scope === 'selection' && selectedIds.size > 0) {{
+        targetItems = items.filter(i => selectedIds.has(i.id));
+        reclassifyScopeContext = {{ scope: 'selection', location: locValue, selectedIds: Array.from(selectedIds) }};
+        scopeDesc = `Selected Photos (${{targetItems.length}})`;
+      }} else if (scope === 'directory') {{
+        const subdirSelect = document.getElementById('locationSubdirSelect');
+        chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+        if (chosenDir) {{
+          targetItems = items.filter(i => i.subdirectory && (i.subdirectory === chosenDir || i.subdirectory.startsWith(chosenDir + '/')));
+        }} else {{
+          targetItems = items;
+        }}
+        reclassifyScopeContext = {{ scope: 'directory', dir: chosenDir, location: locValue }};
+        scopeDesc = chosenDir ? `Subdirectory "${{chosenDir}}"` : 'All Subdirectories';
+      }} else {{
+        targetItems = items;
+        reclassifyScopeContext = {{ scope: 'trip', location: locValue }};
+        scopeDesc = 'Entire Trip';
+      }}
+    }}
+
+    const scopeDescEl = document.getElementById('reclassifyScopeDesc');
+    if (scopeDescEl) {{
+      scopeDescEl.textContent = scopeDesc ? ` (${{scopeDesc}})` : '';
+    }}
 
     // Look for top predictions or alternative candidates
     reclassifyDiffItems = targetItems.map(item => {{
       let altSpecies = item.assigned_species;
       let altConf = item.confidence;
       if (item.top_predictions && item.top_predictions.length > 1) {{
-        altSpecies = item.top_predictions[1].common_name;
-        altConf = item.top_predictions[1].score;
-      }} else if (item.routing_tier === 'NeedsReview' || item.routing_tier === 'NoBirdDetected') {{
-        altSpecies = item.assigned_species === '_No_Bird_Detected' ? 'House Sparrow' : item.assigned_species;
+        const firstPred = item.top_predictions[0];
+        const secondPred = item.top_predictions[1];
+        const firstScore = firstPred.score || firstPred.combined_score || 0;
+        const secondScore = secondPred.score || secondPred.combined_score || 0;
+
+        if (item.assigned_species === firstPred.common_name && firstScore >= 0.85) {{
+          altSpecies = firstPred.common_name;
+        }} else {{
+          altSpecies = (item.assigned_species === firstPred.common_name) ? secondPred.common_name : firstPred.common_name;
+          altConf = secondScore;
+        }}
+      }} else if (item.routing_tier === 'NeedsReview') {{
+        altSpecies = item.assigned_species;
       }}
 
+      const willChange = altSpecies !== item.assigned_species;
       return {{
         item,
         currentSpecies: item.assigned_species,
         proposedSpecies: altSpecies,
-        choice: 'take', // default is 'take'
+        choice: willChange ? 'take' : 'keep',
         customSpecies: altSpecies,
       }};
     }});
@@ -2196,6 +2448,21 @@ fi
     if (countEl) countEl.textContent = takeCount;
 
     tbody.textContent = '';
+
+    if (reclassifyDiffItems.length === 0) {{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 4;
+      td.style.textAlign = 'center';
+      td.style.padding = '36px 16px';
+      td.style.color = 'var(--text-muted)';
+      td.textContent = 'No photos found matching the selected location scope.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      updateReclassifyCommandOutput();
+      return;
+    }}
+
     reclassifyDiffItems.forEach((d, idx) => {{
       const isTake = d.choice === 'take';
       const isKeep = d.choice === 'keep';
@@ -2285,14 +2552,52 @@ fi
   function buildReclassifyCommands() {{
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
-      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+      commands.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
     }}
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
 
+    if (reclassifyScopeContext.scope === 'bulk' && reclassifyScopeContext.rows) {{
+      for (const row of reclassifyScopeContext.rows) {{
+        if (row.subdir && row.location && row.location.trim()) {{
+          const escSub = escapeShellArg(row.subdir);
+          const escLoc = escapeShellArg(row.location.trim());
+          commands.push(`  avicull location --dir "${{escSub}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escSub}}" --location "${{escLoc}}" --reclassify`);
+        }}
+      }}
+    }} else if (reclassifyScopeContext.scope === 'directory' && reclassifyScopeContext.dir) {{
+      const escDir = escapeShellArg(reclassifyScopeContext.dir);
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {{
+        commands.push(`  avicull location --dir "${{escDir}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escDir}}" --location "${{escLoc}}" --reclassify`);
+      }} else {{
+        commands.push(`  avicull location --dir "${{escDir}}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${{escDir}}" --reclassify`);
+      }}
+    }} else if (reclassifyScopeContext.scope === 'selection') {{
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      for (const id of (reclassifyScopeContext.selectedIds || [])) {{
+        const item = items.find(i => i.id === id);
+        if (item) {{
+          const escStem = escapeShellArg(item.original_stem);
+          if (escLoc) {{
+            commands.push(`  avicull location --file "${{escStem}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --file "${{escStem}}" --location "${{escLoc}}" --reclassify`);
+          }}
+        }}
+      }}
+    }} else {{
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {{
+        commands.push(`  avicull location --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --location "${{escLoc}}" --reclassify`);
+      }} else {{
+        commands.push(`  avicull location --reclassify 2>/dev/null || $AVICULL_CMD location --reclassify`);
+      }}
+    }}
+
     for (const d of reclassifyDiffItems) {{
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
-        commands.push(`  avicull correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}" 2>/dev/null || $AVICULL_CMD correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}"`);
+        const escStem = escapeShellArg(d.item.original_stem);
+        const escSpec = escapeShellArg(d.proposedSpecies);
+        commands.push(`  avicull correct --file "${{escStem}}" --species "${{escSpec}}" 2>/dev/null || $AVICULL_CMD correct --file "${{escStem}}" --species "${{escSpec}}"`);
       }}
     }}
     commands.push(`fi`);
@@ -2327,11 +2632,7 @@ fi
       stem: 'reclassify_updates',
       commands: cmds
     }});
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeReclassifyModal();
   }}
 
@@ -2372,11 +2673,7 @@ fi
       stem: 'location_update',
       commands: cmds
     }});
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeLocationModal();
   }}
 
