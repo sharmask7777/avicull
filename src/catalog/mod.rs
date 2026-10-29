@@ -370,8 +370,23 @@ pub fn generate_html_catalog(
     };
 
     let html_content = template::render_catalog_html(&payload);
-    fs::write(output_path, html_content)
-        .with_context(|| format!("Failed to write catalog HTML to {:?}", output_path))?;
+
+    // Write via a temporary file in standard temporary storage first, then copy to destination.
+    // Cloud storage fileprovider mounts (e.g. Proton Drive / iCloud Drive) can deadlock
+    // in kernel open() if direct O_TRUNC/O_CREAT is held by file coordination daemons.
+    let temp_file = tempfile::Builder::new()
+        .prefix("bird_catalog_")
+        .suffix(".tmp")
+        .tempfile_in(std::env::temp_dir())
+        .with_context(|| "Failed to create temporary file for catalog HTML")?;
+    fs::write(temp_file.path(), html_content)
+        .with_context(|| "Failed to write catalog HTML to temporary file")?;
+
+    if output_path.exists() {
+        let _ = fs::remove_file(output_path);
+    }
+    fs::copy(temp_file.path(), output_path)
+        .with_context(|| format!("Failed to copy catalog HTML to {:?}", output_path))?;
 
     Ok(())
 }
