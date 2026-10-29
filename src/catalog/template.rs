@@ -381,12 +381,6 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       gap: 4px;
     }}
 
-    .meta-item {{
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }}
-
     .card-path {{
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 0.72rem;
@@ -992,42 +986,70 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       <button class="modal-close" onclick="closeLocationModal()">&times;</button>
     </div>
     <div class="modal-body">
-      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-        Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border-color);padding-bottom:8px;">
+        <button id="tabSingle" class="btn btn-secondary" onclick="switchLocationTab('single')"
+                style="font-size:0.8rem;padding:4px 12px;background:var(--accent-blue);">Single / Selection</button>
+        <button id="tabBulk" class="btn btn-secondary" onclick="switchLocationTab('bulk')"
+                style="font-size:0.8rem;padding:4px 12px;">Directory Overrides</button>
       </div>
 
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Location Scope / Target:
-        </label>
-        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
-          <option value="trip">Whole Trip / Directory</option>
-          <option value="directory">Subdirectory / Sub-folder...</option>
-          <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
-        </select>
+      <div id="locationSinglePanel">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+          Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location Scope / Target:
+          </label>
+          <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
+            <option value="trip">Whole Trip / Directory</option>
+            <option value="directory">Subdirectory / Sub-folder...</option>
+            <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+          </select>
+        </div>
+
+        <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Select Subdirectory / Sub-folder:
+          </label>
+          <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
+            <option value="">-- Choose Subdirectory --</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location (Place Name or Latitude, Longitude):
+          </label>
+          <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Generated Location Command (`avicull location`):
+          </label>
+          <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+        </div>
       </div>
 
-      <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Select Subdirectory / Sub-folder:
-        </label>
-        <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
-          <option value="">-- Choose Subdirectory --</option>
-        </select>
-      </div>
-
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Location (Place Name or Latitude, Longitude):
-        </label>
-        <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
-      </div>
-
-      <div>
-        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-          Generated Location Command (`avicull location`):
-        </label>
-        <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+      <div id="bulkLocationPanel" style="display:none;">
+        <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:8px;">
+          Set a different location for each subdirectory. Each row generates an independent
+          <code>avicull location --dir … --location …</code> command.
+        </p>
+        <div id="bulkLocationRows"></div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="addBulkLocationRow()">+ Add Directory Row</button>
+        <div style="margin-top:14px;">
+          <label style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:block;">
+            Generated Commands:
+          </label>
+          <div class="command-box" id="bulkLocationCommandOutput">Add rows above to generate commands…</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-secondary" onclick="copyBulkLocationCommands()">Copy Commands</button>
+          <button class="btn btn-primary" onclick="applyBulkLocationBatch()">Add to Batch Script</button>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -2103,6 +2125,122 @@ fi
   function closeLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.remove('open');
+  }}
+
+  // --- Bulk Location Override by Subdirectory ---
+
+  let bulkLocationRowsData = [];
+
+  function switchLocationTab(tab) {{
+    const singlePanel = document.getElementById('locationSinglePanel');
+    const bulkPanel = document.getElementById('bulkLocationPanel');
+    const tabSingle = document.getElementById('tabSingle');
+    const tabBulk = document.getElementById('tabBulk');
+    if (tab === 'bulk') {{
+      if (singlePanel) singlePanel.style.display = 'none';
+      if (bulkPanel) bulkPanel.style.display = 'block';
+      if (tabBulk) tabBulk.style.background = 'var(--accent-blue)';
+      if (tabSingle) tabSingle.style.background = '';
+      if (bulkLocationRowsData.length === 0) addBulkLocationRow();
+    }} else {{
+      if (singlePanel) singlePanel.style.display = 'block';
+      if (bulkPanel) bulkPanel.style.display = 'none';
+      if (tabSingle) tabSingle.style.background = 'var(--accent-blue)';
+      if (tabBulk) tabBulk.style.background = '';
+    }}
+  }}
+
+  function addBulkLocationRow() {{
+    bulkLocationRowsData.push({{ subdir: '', location: '' }});
+    renderBulkLocationRows();
+  }}
+
+  function removeBulkLocationRow(idx) {{
+    bulkLocationRowsData.splice(idx, 1);
+    renderBulkLocationRows();
+  }}
+
+  function updateBulkRow(idx, field, value) {{
+    if (bulkLocationRowsData[idx]) {{
+      bulkLocationRowsData[idx][field] = value;
+      renderBulkLocationPreview();
+    }}
+  }}
+
+  function renderBulkLocationRows() {{
+    const container = document.getElementById('bulkLocationRows');
+    if (!container) return;
+
+    const dirSet = new Set(CATALOG_DATA.directories || []);
+    items.forEach(item => {{ if (item.subdirectory) dirSet.add(item.subdirectory); }});
+    const sortedDirs = Array.from(dirSet).sort();
+
+    container.innerHTML = bulkLocationRowsData.map((row, idx) => {{
+      const opts = sortedDirs.map(d => {{
+        const depth = (d.match(/\//g) || []).length;
+        const indent = '\u00A0\u00A0'.repeat(depth);
+        const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+        const sel = row.subdir === d ? ' selected' : '';
+        return `<option value="${{d}}"${{sel}}>${{indent}}${{prefix}}${{d}}</option>`;
+      }}).join('');
+
+      return `
+        <div class="bulk-loc-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <select style="flex:0 0 200px;" onchange="updateBulkRow(${{idx}},'subdir',this.value)">
+            <option value="">-- Subdirectory --</option>
+            ${{opts}}
+          </select>
+          <input type="text" style="flex:1;" placeholder="Location (place name or lat,lon)"
+                 value="${{row.location}}" oninput="updateBulkRow(${{idx}},'location',this.value)"/>
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.8rem;"
+                  onclick="removeBulkLocationRow(${{idx}})">&#x2715;</button>
+        </div>
+      `;
+    }}).join('');
+
+    renderBulkLocationPreview();
+  }}
+
+  function renderBulkLocationPreview() {{
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+
+    const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
+    if (validRows.length === 0) {{
+      box.textContent = 'Add rows above to generate commands\u2026';
+      return;
+    }}
+
+    let lines = [];
+    if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+    lines.push(findAvicullCmd().trim());
+    lines.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    validRows.forEach(r => {{
+      lines.push(`  avicull location --dir "${{r.subdir}}" --location "${{r.location}}" 2>/dev/null || $AVICULL_CMD location --dir "${{r.subdir}}" --location "${{r.location}}"`);
+    }});
+    lines.push(`fi`);
+    box.textContent = lines.join('\n');
+  }}
+
+  function copyBulkLocationCommands() {{
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+    navigator.clipboard.writeText(box.textContent).catch(() => {{
+      const ta = document.createElement('textarea');
+      ta.value = box.textContent;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }});
+  }}
+
+  function applyBulkLocationBatch() {{
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box || !box.textContent.trim() || box.textContent.startsWith('Add rows')) return;
+    batchCommands.push(box.textContent);
+    updateBatchUI();
+    closeLocationModal();
   }}
 
   function buildLocationCommands(locStr) {{
