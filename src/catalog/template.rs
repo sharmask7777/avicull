@@ -364,13 +364,21 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       color: var(--text-secondary);
     }}
 
-    .card-meta {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      font-size: 0.775rem;
+    .card-date {{
+      font-size: 0.78rem;
       color: var(--text-muted);
       margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }}
+
+    .card-location {{
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }}
 
     .meta-item {{
@@ -1330,17 +1338,17 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       }}
 
       const locationMarkup = item.location_name ? `
-        <span class="meta-item">
+        <div class="card-location">
           <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
           ${{item.location_name}}
-        </span>
+        </div>
       ` : '';
 
       const dateMarkup = item.capture_date ? `
-        <span class="meta-item">
+        <div class="card-date">
           <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
           ${{item.capture_date}}
-        </span>
+        </div>
       ` : '';
 
       const scientificMarkup = item.scientific_name ? `
@@ -1372,10 +1380,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
               <span>${{item.assigned_species}}</span>
             </div>
             ${{scientificMarkup}}
-            <div class="card-meta">
-              ${{locationMarkup}}
-              ${{dateMarkup}}
-            </div>
+            ${{dateMarkup}}
+            ${{locationMarkup}}
             <div class="card-path" title="${{item.current_path}}">${{item.current_path}}</div>
             <div class="card-actions">
               <button class="btn-correct" onclick="event.stopPropagation(); handleCorrectButtonClick('${{item.id}}')">
