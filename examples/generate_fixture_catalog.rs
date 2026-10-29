@@ -28,6 +28,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.95,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Leh Palace".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec!["IMG_1001_House_Sparrow_20261025_Leh.JPG".to_string()],
             sidecar_files: vec!["IMG_1001_House_Sparrow_20261025_Leh.CR2.xmp".to_string()],
             top_predictions: vec![PayloadPrediction {
@@ -52,6 +54,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.91,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Shey Marshes".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec!["IMG_1002_Eurasian_Tree_Sparrow_20261025_Leh.CR2.xmp".to_string()],
             top_predictions: vec![PayloadPrediction {
@@ -76,6 +80,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.58,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Lodhi Gardens".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![PayloadPrediction {
@@ -100,6 +106,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.92,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Pangot".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![PayloadPrediction {
@@ -124,6 +132,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.49,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Thiksey".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![PayloadPrediction {
@@ -148,6 +158,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.10,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Leh Highway".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![],
@@ -168,6 +180,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.05,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Nubra Valley".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![],
@@ -191,6 +205,8 @@ fn create_payload() -> CatalogPayload {
             confidence: 0.97,
             capture_date: Some("2026-10-25".to_string()),
             location_name: Some("Okhla Sanctuary".to_string()),
+            location_source: None,
+            subdirectory: None,
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![PayloadPrediction {
@@ -230,6 +246,11 @@ fn create_payload() -> CatalogPayload {
         mode: "in-place".to_string(),
         catalog_dir: "/mock/photos/birds_hierarchy".to_string(),
         trip_location_name: Some("Leh, Ladakh".to_string()),
+        directories: vec![
+            "Leh Valley".to_string(),
+            "Leh Valley/Shey Marshes".to_string(),
+            "Chambal Sanctuary".to_string(),
+        ],
         generated_at: "2026-10-28T09:00:00Z".to_string(),
         stats,
         items,

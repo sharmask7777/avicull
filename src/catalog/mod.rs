@@ -30,6 +30,10 @@ pub struct CatalogItem {
     pub confidence: f32,
     pub capture_date: Option<String>,
     pub location_name: Option<String>,
+    #[serde(default)]
+    pub location_source: Option<String>,
+    #[serde(default)]
+    pub subdirectory: Option<String>,
     pub top_predictions: Vec<SpeciesPrediction>,
 }
 
@@ -53,6 +57,8 @@ impl Default for CatalogItem {
             confidence: 0.0,
             capture_date: None,
             location_name: None,
+            location_source: None,
+            subdirectory: None,
             top_predictions: Vec::new(),
         }
     }
@@ -86,6 +92,18 @@ impl CatalogItem {
             chrono::DateTime::from_timestamp_millis(ts).map(|dt| dt.format("%Y-%m-%d").to_string())
         });
 
+        let location_source = bundle.gps_coords.map(|g| format!("{:?}", g.source));
+        let subdirectory = bundle.relative_path.as_ref().and_then(|p| {
+            p.parent().and_then(|parent| {
+                let s = parent.to_string_lossy().to_string();
+                if s.is_empty() || s == "." {
+                    None
+                } else {
+                    Some(s)
+                }
+            })
+        });
+
         Self {
             bundle_id: bundle.bundle_id.clone(),
             original_stem: bundle.original_stem.clone(),
@@ -101,6 +119,8 @@ impl CatalogItem {
             confidence: decision.final_confidence,
             capture_date,
             location_name: bundle.resolved_location_name.clone(),
+            location_source,
+            subdirectory,
             top_predictions: decision.top_predictions.clone(),
         }
     }
@@ -123,6 +143,8 @@ pub struct CatalogPayload {
     pub mode: String,
     pub catalog_dir: String,
     pub trip_location_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directories: Vec<String>,
     pub generated_at: String,
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
@@ -148,6 +170,10 @@ pub struct CatalogPayloadItem {
     pub confidence: f32,
     pub capture_date: Option<String>,
     pub location_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subdirectory: Option<String>,
     pub companion_files: Vec<String>,
     pub sidecar_files: Vec<String>,
     pub top_predictions: Vec<PayloadPrediction>,
@@ -269,6 +295,8 @@ pub fn generate_html_catalog(
             confidence: item.confidence,
             capture_date: item.capture_date.clone(),
             location_name: item.location_name.clone(),
+            location_source: item.location_source.clone(),
+            subdirectory: item.subdirectory.clone(),
             companion_files,
             sidecar_files,
             top_predictions: top_preds,
@@ -311,11 +339,30 @@ pub fn generate_html_catalog(
 
     let trip_location_name = items.iter().find_map(|i| i.location_name.clone());
 
+    // Collect all unique directories and ancestor subdirectories
+    let mut dir_set = HashSet::new();
+    for item in items {
+        if let Some(ref subdir) = item.subdirectory {
+            let path = Path::new(subdir);
+            let mut current = Some(path);
+            while let Some(p) = current {
+                let s = p.to_string_lossy().to_string();
+                if !s.is_empty() && s != "." {
+                    dir_set.insert(s);
+                }
+                current = p.parent();
+            }
+        }
+    }
+    let mut directories: Vec<String> = dir_set.into_iter().collect();
+    directories.sort();
+
     let payload = CatalogPayload {
         trip_name: trip_name.to_string(),
         mode: mode_str.to_string(),
         catalog_dir: catalog_dir_str,
         trip_location_name,
+        directories,
         generated_at: Utc::now().to_rfc3339(),
         stats,
         items: payload_items,
@@ -323,8 +370,23 @@ pub fn generate_html_catalog(
     };
 
     let html_content = template::render_catalog_html(&payload);
-    fs::write(output_path, html_content)
-        .with_context(|| format!("Failed to write catalog HTML to {:?}", output_path))?;
+
+    // Write via a temporary file in standard temporary storage first, then copy to destination.
+    // Cloud storage fileprovider mounts (e.g. Proton Drive / iCloud Drive) can deadlock
+    // in kernel open() if direct O_TRUNC/O_CREAT is held by file coordination daemons.
+    let temp_file = tempfile::Builder::new()
+        .prefix("bird_catalog_")
+        .suffix(".tmp")
+        .tempfile_in(std::env::temp_dir())
+        .with_context(|| "Failed to create temporary file for catalog HTML")?;
+    fs::write(temp_file.path(), html_content)
+        .with_context(|| "Failed to write catalog HTML to temporary file")?;
+
+    if output_path.exists() {
+        let _ = fs::remove_file(output_path);
+    }
+    fs::copy(temp_file.path(), output_path)
+        .with_context(|| format!("Failed to copy catalog HTML to {:?}", output_path))?;
 
     Ok(())
 }

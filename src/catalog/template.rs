@@ -748,6 +748,107 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       padding: 60px 20px;
       color: var(--text-muted);
     }}
+
+    /* Reclassification Diff Modal Styles */
+    .diff-table-container {{
+      max-height: 380px;
+      overflow-y: auto;
+      margin-top: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      position: relative;
+    }}
+
+    .diff-table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }}
+
+    .diff-table th {{
+      position: sticky;
+      top: 0;
+      background: #111827;
+      padding: 10px 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 2;
+    }}
+
+    .diff-table td {{
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }}
+
+    .diff-table tr:hover {{
+      background: rgba(255, 255, 255, 0.02);
+    }}
+
+    .diff-thumb {{
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #000;
+      display: inline-block;
+      vertical-align: middle;
+    }}
+
+    .choice-pill-group {{
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+    }}
+
+    .choice-pill {{
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }}
+
+    .choice-pill.active-take {{
+      background: #10b981;
+      color: #ffffff;
+    }}
+
+    .choice-pill.active-keep {{
+      background: #3b82f6;
+      color: #ffffff;
+    }}
+
+    .diff-header-bar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 8px;
+    }}
+
+    .diff-bulk-btn {{
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }}
+
+    .diff-bulk-btn:hover {{
+      background: rgba(255, 255, 255, 0.1);
+    }}
   </style>
 </head>
 <body>
@@ -889,6 +990,26 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
       <div>
         <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Location Scope / Target:
+        </label>
+        <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
+          <option value="trip">Whole Trip / Directory</option>
+          <option value="directory">Subdirectory / Sub-folder...</option>
+          <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+        </select>
+      </div>
+
+      <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Select Subdirectory / Sub-folder:
+        </label>
+        <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
+          <option value="">-- Choose Subdirectory --</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
           Location (Place Name or Latitude, Longitude):
         </label>
         <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
@@ -903,7 +1024,61 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
+      <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
       <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reclassification Review / Diff Modal -->
+<div class="modal-backdrop" id="reclassifyModal">
+  <div class="modal-box" style="max-width: 780px;">
+    <div class="modal-header">
+      <h2>Review Reclassified Photos</h2>
+      <button class="modal-close" onclick="closeReclassifyModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+        Location priors have recalculated potential species probabilities. Review proposed reclassifications below:
+      </div>
+
+      <div class="diff-header-bar">
+        <div>
+          <button class="diff-bulk-btn" id="btnTakeAll" onclick="setAllReclassifyChoices('take')">✓ Take All</button>
+          <button class="diff-bulk-btn" id="btnKeepAll" onclick="setAllReclassifyChoices('keep')" style="margin-left: 6px;">✕ Keep All</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          Items to update: <span id="reclassifyChangeCount">0</span>
+        </div>
+      </div>
+
+      <div class="diff-table-container">
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Photo</th>
+              <th>Current Species</th>
+              <th>Proposed Species</th>
+              <th style="width: 140px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="reclassifyDiffTableBody">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Generated Batch Script Commands:
+        </label>
+        <div class="command-box" id="reclassifyCommandOutput">Review choices above to generate commands...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeReclassifyModal()">Cancel</button>
+      <button class="btn btn-secondary" id="btnCopyReclassifyCommand" onclick="copyReclassifyCommand()">Copy Commands</button>
+      <button class="btn btn-primary" id="btnApplyReclassifyBatch" onclick="applyReclassifyBatch()">Add to Batch Script</button>
     </div>
   </div>
 </div>
@@ -933,6 +1108,16 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let batchCommands = [];
   let selectedIds = new Set();
   let lastSelectedId = null;
+
+  function sanitizeMediaUri(uri) {{
+    if (!uri) return "";
+    const trimmed = String(uri).trim();
+    // Allow safe data URIs, local file URLs, or relative paths
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('file://') || trimmed.startsWith('/') || trimmed.startsWith('./') || !trimmed.includes(':')) {{
+      return trimmed;
+    }}
+    return "";
+  }}
 
   function sanitizeSlug(name) {{
     if (!name) return "";
@@ -1163,7 +1348,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = item.embedded_thumb_data_uri || item.thumb_src || item.preview_url;
+      const initialSrc = (item.thumb_src && !item.thumb_src.startsWith('data:'))
+        ? item.thumb_src
+        : (item.preview_url && !item.preview_url.startsWith('data:'))
+        ? item.preview_url
+        : (item.embedded_thumb_data_uri || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='200'></svg>");
       const evictedClass = isLocal ? '' : ' evicted';
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
@@ -1199,16 +1388,42 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       `;
     }}).join('');
 
-    // Trigger progressive background high-res probing for locally available images
-    filtered.forEach(item => {{
-      const card = document.getElementById('card-' + item.id);
-      if (card) {{
-        const img = card.querySelector('img');
-        if (img) {{
-          attemptHighResSwap(img, item);
-        }}
+    // Progressive background high-res probing using IntersectionObserver to prevent memory exhaustion and UI hangs
+    if (typeof window !== 'undefined' && window.IntersectionObserver) {{
+      if (window._highResObserver) {{
+        window._highResObserver.disconnect();
       }}
-    }});
+      window._highResObserver = new IntersectionObserver((entries, observer) => {{
+        entries.forEach(entry => {{
+          if (entry.isIntersecting) {{
+            const card = entry.target;
+            const itemId = card.id ? card.id.replace(/^card-/, '') : null;
+            const item = items.find(i => i.id === itemId);
+            const img = card.querySelector('img');
+            if (img && item) {{
+              if (item.embedded_thumb_data_uri && (!img.src || img.src.includes('data:image/svg') || img.src.includes('<svg'))) {{
+                img.src = item.embedded_thumb_data_uri;
+              }}
+              attemptHighResSwap(img, item);
+            }}
+            observer.unobserve(card);
+          }}
+        }});
+      }}, {{ rootMargin: '200px' }});
+
+      filtered.forEach(item => {{
+        const card = document.getElementById('card-' + item.id);
+        if (card) window._highResObserver.observe(card);
+      }});
+    }} else {{
+      filtered.slice(0, 30).forEach(item => {{
+        const card = document.getElementById('card-' + item.id);
+        if (card) {{
+          const img = card.querySelector('img');
+          if (img) attemptHighResSwap(img, item);
+        }}
+      }});
+    }}
   }}
 
   function setFilter(tier, btn) {{
@@ -1810,10 +2025,69 @@ fi
     URL.revokeObjectURL(url);
   }}
 
+  function populateSubdirectories() {{
+    const select = document.getElementById('locationSubdirSelect');
+    if (!select) return;
+
+    // Preserve existing selection if possible
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
+
+    let dirSet = new Set();
+    if (Array.isArray(CATALOG_DATA.directories)) {{
+      CATALOG_DATA.directories.forEach(d => dirSet.add(d));
+    }}
+    items.forEach(item => {{
+      if (item.subdirectory) {{
+        let parts = item.subdirectory.split('/');
+        let accum = '';
+        parts.forEach(p => {{
+          accum = accum ? accum + '/' + p : p;
+          dirSet.add(accum);
+        }});
+      }}
+    }});
+
+    const sortedDirs = Array.from(dirSet).sort();
+    sortedDirs.forEach(dir => {{
+      const opt = document.createElement('option');
+      opt.value = dir;
+      // Indent based on nesting level for visual hierarchy
+      const depth = (dir.match(/\//g) || []).length;
+      const indent = '\u00A0\u00A0\u00A0\u00A0'.repeat(depth);
+      const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+      opt.textContent = indent + prefix + dir;
+      select.appendChild(opt);
+    }});
+
+    if (currentVal && dirSet.has(currentVal)) {{
+      select.value = currentVal;
+    }}
+  }}
+
+  function handleLocationScopeChange() {{
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    const subdirRow = document.getElementById('locationSubdirRow');
+    if (!scopeSelect || !subdirRow) return;
+
+    if (scopeSelect.value === 'directory') {{
+      subdirRow.style.display = 'block';
+      populateSubdirectories();
+    }} else {{
+      subdirRow.style.display = 'none';
+    }}
+    handleLocationInput();
+  }}
+
   function openLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.add('open');
     const input = document.getElementById('locationInput');
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    if (scopeSelect) {{
+      scopeSelect.value = selectedIds.size > 0 ? 'selection' : 'trip';
+      handleLocationScopeChange();
+    }}
     if (input) {{
       input.value = CATALOG_DATA.trip_location_name || '';
       handleLocationInput();
@@ -1832,9 +2106,233 @@ fi
     }}
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+
+    const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
+    if (scope === 'selection' && selectedIds.size > 0) {{
+      for (const id of selectedIds) {{
+        const item = items.find(i => i.id === id);
+        if (item) {{
+          commands.push(`  avicull location --file "${{item.original_stem}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --file "${{item.original_stem}}" --location "${{locStr}}"`);
+        }}
+      }}
+    }} else if (scope === 'directory') {{
+      const subdirSelect = document.getElementById('locationSubdirSelect');
+      const chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+      if (chosenDir) {{
+        commands.push(`  avicull location --dir "${{chosenDir}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --dir "${{chosenDir}}" --location "${{locStr}}"`);
+      }} else {{
+        commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+      }}
+    }} else {{
+      commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+    }}
     commands.push(`fi`);
     return commands;
+  }}
+
+  // Reclassification Review & Diff State
+  let reclassifyDiffItems = [];
+
+  function openReclassifyReviewModal() {{
+    closeLocationModal();
+    const modal = document.getElementById('reclassifyModal');
+    if (!modal) return;
+
+    // Simulate / calculate reclassification diff for demo/offline catalog
+    // Target items: either selected items or items in catalog
+    const targetItems = selectedIds.size > 0 
+      ? items.filter(i => selectedIds.has(i.id))
+      : items;
+
+    // Look for top predictions or alternative candidates
+    reclassifyDiffItems = targetItems.map(item => {{
+      let altSpecies = item.assigned_species;
+      let altConf = item.confidence;
+      if (item.top_predictions && item.top_predictions.length > 1) {{
+        altSpecies = item.top_predictions[1].common_name;
+        altConf = item.top_predictions[1].score;
+      }} else if (item.routing_tier === 'NeedsReview' || item.routing_tier === 'NoBirdDetected') {{
+        altSpecies = item.assigned_species === '_No_Bird_Detected' ? 'House Sparrow' : item.assigned_species;
+      }}
+
+      return {{
+        item,
+        currentSpecies: item.assigned_species,
+        proposedSpecies: altSpecies,
+        choice: 'take', // default is 'take'
+        customSpecies: altSpecies,
+      }};
+    }});
+
+    renderReclassifyDiffTable();
+    modal.classList.add('open');
+  }}
+
+  function closeReclassifyModal() {{
+    const modal = document.getElementById('reclassifyModal');
+    if (modal) modal.classList.remove('open');
+  }}
+
+  function setAllReclassifyChoices(choice) {{
+    for (const d of reclassifyDiffItems) {{
+      d.choice = choice;
+    }}
+    renderReclassifyDiffTable();
+  }}
+
+  function setReclassifyChoice(idx, choice) {{
+    if (reclassifyDiffItems[idx]) {{
+      reclassifyDiffItems[idx].choice = choice;
+      renderReclassifyDiffTable();
+    }}
+  }}
+
+  function renderReclassifyDiffTable() {{
+    const tbody = document.getElementById('reclassifyDiffTableBody');
+    if (!tbody) return;
+
+    const countEl = document.getElementById('reclassifyChangeCount');
+    const takeCount = reclassifyDiffItems.filter(d => d.choice === 'take' && d.currentSpecies !== d.proposedSpecies).length;
+    if (countEl) countEl.textContent = takeCount;
+
+    tbody.textContent = '';
+    reclassifyDiffItems.forEach((d, idx) => {{
+      const isTake = d.choice === 'take';
+      const isKeep = d.choice === 'keep';
+      const thumb = d.item.embedded_thumb_data_uri || d.item.thumb_src || d.item.preview_url;
+
+      const tr = document.createElement('tr');
+
+      // Col 1: Thumbnail
+      const tdThumb = document.createElement('td');
+      const safeThumb = sanitizeMediaUri(thumb);
+      if (safeThumb) {{
+        const img = document.createElement('img');
+        img.src = safeThumb;
+        img.className = 'diff-thumb';
+        img.alt = d.item.original_stem || '';
+        tdThumb.appendChild(img);
+      }} else {{
+        const placeholder = document.createElement('div');
+        placeholder.className = 'diff-thumb';
+        placeholder.style.background = 'var(--border-color)';
+        tdThumb.appendChild(placeholder);
+      }}
+      tr.appendChild(tdThumb);
+
+      // Col 2: Current Species & filename
+      const tdCurr = document.createElement('td');
+      const currSpeciesDiv = document.createElement('div');
+      currSpeciesDiv.style.fontWeight = '600';
+      currSpeciesDiv.textContent = d.currentSpecies || '';
+      const currFileDiv = document.createElement('div');
+      currFileDiv.style.fontSize = '0.75rem';
+      currFileDiv.style.color = 'var(--text-muted)';
+      currFileDiv.textContent = d.item.primary_filename || '';
+      tdCurr.appendChild(currSpeciesDiv);
+      tdCurr.appendChild(currFileDiv);
+      tr.appendChild(tdCurr);
+
+      // Col 3: Proposed Species
+      const tdProp = document.createElement('td');
+      const propSpeciesDiv = document.createElement('div');
+      propSpeciesDiv.style.fontWeight = '600';
+      propSpeciesDiv.style.color = '#38bdf8';
+      propSpeciesDiv.textContent = d.proposedSpecies || '';
+      const propDescDiv = document.createElement('div');
+      propDescDiv.style.fontSize = '0.75rem';
+      propDescDiv.style.color = 'var(--text-muted)';
+      propDescDiv.textContent = 'Recalculated with updated location';
+      tdProp.appendChild(propSpeciesDiv);
+      tdProp.appendChild(propDescDiv);
+      tr.appendChild(tdProp);
+
+      // Col 4: Action pills
+      const tdAction = document.createElement('td');
+      tdAction.style.textAlign = 'right';
+      const pillGroup = document.createElement('div');
+      pillGroup.className = 'choice-pill-group';
+
+      const btnTake = document.createElement('button');
+      btnTake.type = 'button';
+      btnTake.className = `choice-pill ${{isTake ? 'active-take' : ''}}`;
+      btnTake.textContent = 'Take';
+      btnTake.onclick = (e) => {{
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'take');
+      }};
+
+      const btnKeep = document.createElement('button');
+      btnKeep.type = 'button';
+      btnKeep.className = `choice-pill ${{isKeep ? 'active-keep' : ''}}`;
+      btnKeep.textContent = 'Keep';
+      btnKeep.onclick = (e) => {{
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'keep');
+      }};
+
+      pillGroup.appendChild(btnTake);
+      pillGroup.appendChild(btnKeep);
+      tdAction.appendChild(pillGroup);
+      tr.appendChild(tdAction);
+
+      tbody.appendChild(tr);
+    }});
+
+    updateReclassifyCommandOutput();
+  }}
+
+  function buildReclassifyCommands() {{
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {{
+      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
+    }}
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+
+    for (const d of reclassifyDiffItems) {{
+      if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
+        commands.push(`  avicull correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}" 2>/dev/null || $AVICULL_CMD correct --file "${{d.item.original_stem}}" --species "${{d.proposedSpecies}}"`);
+      }}
+    }}
+    commands.push(`fi`);
+    return commands;
+  }}
+
+  function updateReclassifyCommandOutput() {{
+    const out = document.getElementById('reclassifyCommandOutput');
+    if (!out) return;
+    const cmds = buildReclassifyCommands();
+    out.textContent = cmds.join('\n');
+  }}
+
+  function copyReclassifyCommand() {{
+    const text = document.getElementById('reclassifyCommandOutput').textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {{
+      const btn = document.getElementById('btnCopyReclassifyCommand');
+      if (btn) {{
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => {{ btn.textContent = orig; }}, 1500);
+      }}
+    }}).catch(() => {{
+      alert("Commands:\n\n" + text);
+    }});
+  }}
+
+  function applyReclassifyBatch() {{
+    const cmds = buildReclassifyCommands();
+    batchCommands.push({{
+      stem: 'reclassify_updates',
+      commands: cmds
+    }});
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    closeReclassifyModal();
   }}
 
   function handleLocationInput() {{

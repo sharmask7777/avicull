@@ -206,6 +206,8 @@ impl HelpTopic {
                    relink      Re-materialize output hard links from cached SQLite database\n\
                    clean       Losslessly revert in-place renames or unlink generated hard links\n\
                    report      Export species summary counts and review manifests\n\
+                   correct     Override classification for a photo bundle and update manifest\n\
+                   location    Set or update geographic location per directory, subdirectory or image\n\
                    models      Check status of neural weights and eBird taxonomy cache\n\
                    update      Check for newer releases or self-update to latest binary\n\
                    help        Display interactive topic guides and troubleshooting documentation\n\n\

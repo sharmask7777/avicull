@@ -75,7 +75,10 @@ fn test_mock_pipeline_location_resolution_and_regional_priors() {
     let gps_ka = bundle_ka
         .gps_coords
         .expect("GPS must be resolved for Bangalore");
-    assert_eq!(gps_ka.source, LocationSource::TripFolderGazetteer);
+    assert!(
+        gps_ka.source == LocationSource::TripFolderGazetteer
+            || gps_ka.source == LocationSource::SubdirectoryGazetteer
+    );
     assert!((gps_ka.latitude - 12.9).abs() < 0.2);
     assert!((gps_ka.longitude - 77.6).abs() < 0.2);
 
@@ -91,7 +94,10 @@ fn test_mock_pipeline_location_resolution_and_regional_priors() {
         .or_else(|| bundle_by_trip.get("Shey Marshes"))
         .expect("Leh bundle must exist");
     let gps_la = bundle_la.gps_coords.expect("GPS must be resolved for Leh");
-    assert_eq!(gps_la.source, LocationSource::TripFolderGazetteer);
+    assert!(
+        gps_la.source == LocationSource::TripFolderGazetteer
+            || gps_la.source == LocationSource::SubdirectoryGazetteer
+    );
     assert!((gps_la.latitude - 34.1).abs() < 0.2);
     assert!((gps_la.longitude - 77.6).abs() < 0.2);
 

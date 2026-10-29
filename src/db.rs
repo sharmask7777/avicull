@@ -256,11 +256,22 @@ impl ManifestDb {
                 updated_at INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS bundle_locations (
+                bundle_id TEXT PRIMARY KEY,
+                resolved_name TEXT NOT NULL,
+                region_code TEXT NOT NULL,
+                latitude REAL NOT NULL,
+                longitude REAL NOT NULL,
+                source TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
             CREATE INDEX IF NOT EXISTS idx_pending_run ON pending_failures(run_id);
             CREATE INDEX IF NOT EXISTS idx_dir_loc_region ON directory_locations(region_code);
+            CREATE INDEX IF NOT EXISTS idx_bundle_loc_region ON bundle_locations(region_code);
             "#,
         )?;
 
@@ -1214,6 +1225,26 @@ impl ManifestDb {
         }
     }
 
+    /// Retrieves the resolved location for a trip directory path or any of its parent ancestors,
+    /// selecting the most specific (deepest) match.
+    pub fn get_hierarchical_directory_location(
+        &self,
+        path: &Path,
+    ) -> Result<Option<crate::location::resolver::ResolvedLocation>> {
+        let mut curr = Some(path);
+        while let Some(p) = curr {
+            let s = p.to_string_lossy();
+            if !s.is_empty() && s != "." {
+                if let Some(loc) = self.get_directory_location(&s)? {
+                    return Ok(Some(loc));
+                }
+            }
+            curr = p.parent();
+        }
+        // Finally check "." or empty root if present
+        self.get_directory_location(".")
+    }
+
     /// Saves or updates the resolved location for a trip directory path.
     pub fn set_directory_location(
         &self,
@@ -1228,6 +1259,85 @@ impl ManifestDb {
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 path_key,
+                loc.name,
+                loc.region_code,
+                loc.latitude,
+                loc.longitude,
+                loc.source,
+                updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Retrieves the resolved location for a specific photo bundle, if explicitly overridden.
+    pub fn get_bundle_location(
+        &self,
+        bundle_id: &str,
+    ) -> Result<Option<crate::location::resolver::ResolvedLocation>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT resolved_name, region_code, latitude, longitude, source
+             FROM bundle_locations WHERE bundle_id = ?1",
+        )?;
+        let mut rows = stmt.query(params![bundle_id])?;
+        if let Some(row) = rows.next()? {
+            let name: String = row.get(0)?;
+            let region_code: String = row.get(1)?;
+            let latitude: f64 = row.get(2)?;
+            let longitude: f64 = row.get(3)?;
+            let source: String = row.get(4)?;
+            Ok(Some(crate::location::resolver::ResolvedLocation {
+                name,
+                region_code,
+                latitude,
+                longitude,
+                source,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Finds a bundle by bundle_id, original_stem, or primary filename.
+    pub fn find_bundle_by_query(&self, query: &str) -> Result<Option<crate::types::AssetBundle>> {
+        let clean_query = query.trim().strip_prefix("./").unwrap_or(query.trim());
+        let stem = std::path::Path::new(clean_query)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(clean_query);
+
+        let all = self.get_all_bundles(None)?;
+        for (_, bundle) in all {
+            if bundle.bundle_id == clean_query
+                || bundle.original_stem == stem
+                || bundle.original_stem == clean_query
+                || bundle
+                    .primary_image
+                    .file_name()
+                    .map(|f| f.to_string_lossy() == clean_query)
+                    .unwrap_or(false)
+            {
+                return Ok(Some(bundle));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Saves or updates the explicit location override for a photo bundle.
+    pub fn set_bundle_location(
+        &self,
+        bundle_id: &str,
+        loc: &crate::location::resolver::ResolvedLocation,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let updated_at = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT OR REPLACE INTO bundle_locations (
+                bundle_id, resolved_name, region_code, latitude, longitude, source, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                bundle_id,
                 loc.name,
                 loc.region_code,
                 loc.latitude,

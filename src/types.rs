@@ -28,8 +28,10 @@ pub struct GpsCoordinate {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LocationSource {
     ExifGps,
-    SiblingPropagation,
+    ImageLocationOverride,
+    SubdirectoryGazetteer,
     TripFolderGazetteer,
+    SiblingPropagation,
     UserDefaultRegion,
 }
 

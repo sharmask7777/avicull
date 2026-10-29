@@ -512,7 +512,28 @@ sudo avicull update
 ```
 *Note: `avicull` automatically checks for newer releases in the background once every 24 hours. To disable background checks, export `AVICULL_NO_UPDATE_CHECK=1`.*
 
-### 11. `help`: In-Terminal User Manual & Help Topics
+### 11. `location`: Granular Location Management & Priors
+
+Assign GPS coordinates or an eBird gazetteer region to an entire trip, a specific subdirectory, or an individual photo:
+```bash
+# Set trip-level location by place name or coordinates
+avicull location --dir "Leh" --location "Leh, Ladakh"
+avicull location --dir "Leh" --location "34.1526, 77.5771"
+
+# Set location for a specific subdirectory (e.g. within a parent archive)
+avicull location --dir "pictures_bangalore/Turahalli forest Aug 2024" --location "Turahalli Forest, Bangalore"
+
+# Set location override for an individual photo
+avicull location --file "IMG_4001" --location "Bharatpur Bird Sanctuary"
+```
+
+#### Strict Location Precedence Invariant:
+$$\text{Embedded EXIF GPS} > \text{Image Location Override} > \text{Subdirectory Override} > \text{Parent Directory Override}$$
+- **Camera EXIF GPS is Strictly Immutable**: If a photo already has hardware GPS coordinates embedded in its EXIF metadata, `avicull` preserves those coordinates under all circumstances. Overrides are never applied over camera EXIF.
+- **Hierarchical Subdirectory Matching**: Subdirectory locations match against the deepest matching subfolder first, falling back to parent folder locations.
+- **Interactive Catalog Manager**: In `bird_catalog.html`, click the 📍 location badge or select photo ranges to update locations, re-run classifications, and review proposed changes in the interactive diff modal.
+
+### 12. `help`: In-Terminal User Manual & Help Topics
 Access interactive documentation and deep dives right from your terminal:
 ```bash
 # View comprehensive user manual and commands
