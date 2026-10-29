@@ -1052,7 +1052,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" id="locationModalFooter">
       <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
       <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
       <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
@@ -1138,6 +1138,33 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let batchCommands = [];
   let selectedIds = new Set();
   let lastSelectedId = null;
+
+  function escHtml(str) {{
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }}
+
+  function escapeShellArg(str) {{
+    if (!str) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
+  }}
+
+  function updateBatchUI() {{
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+  }}
 
   function sanitizeMediaUri(uri) {{
     if (!uri) return "";
@@ -1842,11 +1869,7 @@ fi
       }}
     }}
 
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeModal();
   }}
 
@@ -2053,14 +2076,7 @@ fi
     URL.revokeObjectURL(url);
   }}
 
-  function populateSubdirectories() {{
-    const select = document.getElementById('locationSubdirSelect');
-    if (!select) return;
-
-    // Preserve existing selection if possible
-    const currentVal = select.value;
-    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
-
+  function getAllSubdirectories() {{
     let dirSet = new Set();
     if (Array.isArray(CATALOG_DATA.directories)) {{
       CATALOG_DATA.directories.forEach(d => dirSet.add(d));
@@ -2075,8 +2091,18 @@ fi
         }});
       }}
     }});
+    return Array.from(dirSet).sort();
+  }}
 
-    const sortedDirs = Array.from(dirSet).sort();
+  function populateSubdirectories() {{
+    const select = document.getElementById('locationSubdirSelect');
+    if (!select) return;
+
+    // Preserve existing selection if possible
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
+
+    const sortedDirs = getAllSubdirectories();
     sortedDirs.forEach(dir => {{
       const opt = document.createElement('option');
       opt.value = dir;
@@ -2088,7 +2114,7 @@ fi
       select.appendChild(opt);
     }});
 
-    if (currentVal && dirSet.has(currentVal)) {{
+    if (currentVal && sortedDirs.includes(currentVal)) {{
       select.value = currentVal;
     }}
   }}
@@ -2110,6 +2136,7 @@ fi
   function openLocationModal() {{
     const modal = document.getElementById('locationModal');
     if (modal) modal.classList.add('open');
+    switchLocationTab('single');
     const input = document.getElementById('locationInput');
     const scopeSelect = document.getElementById('locationScopeSelect');
     if (scopeSelect) {{
@@ -2136,17 +2163,20 @@ fi
     const bulkPanel = document.getElementById('bulkLocationPanel');
     const tabSingle = document.getElementById('tabSingle');
     const tabBulk = document.getElementById('tabBulk');
+    const modalFooter = document.getElementById('locationModalFooter');
     if (tab === 'bulk') {{
       if (singlePanel) singlePanel.style.display = 'none';
       if (bulkPanel) bulkPanel.style.display = 'block';
       if (tabBulk) tabBulk.style.background = 'var(--accent-blue)';
       if (tabSingle) tabSingle.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'none';
       if (bulkLocationRowsData.length === 0) addBulkLocationRow();
     }} else {{
       if (singlePanel) singlePanel.style.display = 'block';
       if (bulkPanel) bulkPanel.style.display = 'none';
       if (tabSingle) tabSingle.style.background = 'var(--accent-blue)';
       if (tabBulk) tabBulk.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'flex';
     }}
   }}
 
@@ -2171,9 +2201,7 @@ fi
     const container = document.getElementById('bulkLocationRows');
     if (!container) return;
 
-    const dirSet = new Set(CATALOG_DATA.directories || []);
-    items.forEach(item => {{ if (item.subdirectory) dirSet.add(item.subdirectory); }});
-    const sortedDirs = Array.from(dirSet).sort();
+    const sortedDirs = getAllSubdirectories();
 
     container.innerHTML = bulkLocationRowsData.map((row, idx) => {{
       const opts = sortedDirs.map(d => {{
@@ -2181,7 +2209,7 @@ fi
         const indent = '\u00A0\u00A0'.repeat(depth);
         const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
         const sel = row.subdir === d ? ' selected' : '';
-        return `<option value="${{d}}"${{sel}}>${{indent}}${{prefix}}${{d}}</option>`;
+        return `<option value="${{escHtml(d)}}"${{sel}}>${{indent}}${{prefix}}${{escHtml(d)}}</option>`;
       }}).join('');
 
       return `
@@ -2191,7 +2219,7 @@ fi
             ${{opts}}
           </select>
           <input type="text" style="flex:1;" placeholder="Location (place name or lat,lon)"
-                 value="${{row.location}}" oninput="updateBulkRow(${{idx}},'location',this.value)"/>
+                 value="${{escHtml(row.location)}}" oninput="updateBulkRow(${{idx}},'location',this.value)"/>
           <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.8rem;"
                   onclick="removeBulkLocationRow(${{idx}})">&#x2715;</button>
         </div>
@@ -2201,24 +2229,32 @@ fi
     renderBulkLocationPreview();
   }}
 
+  function buildBulkLocationCommands() {{
+    const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
+    if (validRows.length === 0) return [];
+
+    let lines = [];
+    if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
+    lines.push(findAvicullCmd().trim());
+    lines.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    validRows.forEach(r => {{
+      const safeDir = escapeShellArg(r.subdir);
+      const safeLoc = escapeShellArg(r.location.trim());
+      lines.push(`  avicull location --dir "${{safeDir}}" --location "${{safeLoc}}" 2>/dev/null || $AVICULL_CMD location --dir "${{safeDir}}" --location "${{safeLoc}}"`);
+    }});
+    lines.push(`fi`);
+    return lines;
+  }}
+
   function renderBulkLocationPreview() {{
     const box = document.getElementById('bulkLocationCommandOutput');
     if (!box) return;
 
-    const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
-    if (validRows.length === 0) {{
+    const lines = buildBulkLocationCommands();
+    if (lines.length === 0) {{
       box.textContent = 'Add rows above to generate commands\u2026';
       return;
     }}
-
-    let lines = [];
-    if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
-    lines.push(findAvicullCmd().trim());
-    lines.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    validRows.forEach(r => {{
-      lines.push(`  avicull location --dir "${{r.subdir}}" --location "${{r.location}}" 2>/dev/null || $AVICULL_CMD location --dir "${{r.subdir}}" --location "${{r.location}}"`);
-    }});
-    lines.push(`fi`);
     box.textContent = lines.join('\n');
   }}
 
@@ -2236,9 +2272,12 @@ fi
   }}
 
   function applyBulkLocationBatch() {{
-    const box = document.getElementById('bulkLocationCommandOutput');
-    if (!box || !box.textContent.trim() || box.textContent.startsWith('Add rows')) return;
-    batchCommands.push(box.textContent);
+    const cmds = buildBulkLocationCommands();
+    if (cmds.length === 0) return;
+    batchCommands.push({{
+      stem: 'bulk_location_overrides',
+      commands: cmds
+    }});
     updateBatchUI();
     closeLocationModal();
   }}
@@ -2471,11 +2510,7 @@ fi
       stem: 'reclassify_updates',
       commands: cmds
     }});
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeReclassifyModal();
   }}
 
@@ -2516,11 +2551,7 @@ fi
       stem: 'location_update',
       commands: cmds
     }});
-    const count = batchCommands.length;
-    const batchCountEl = document.getElementById('batchCount');
-    if (batchCountEl) batchCountEl.textContent = count;
-    const batchCountCopyEl = document.getElementById('batchCountCopy');
-    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+    updateBatchUI();
     closeLocationModal();
   }}
 
