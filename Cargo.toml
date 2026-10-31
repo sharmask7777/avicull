@@ -1,6 +1,6 @@
 [package]
 name = "avicull"
-version = "0.2.13"
+version = "0.2.14"
 edition = "2021"
 authors = ["avicull contributors"]
 description = "Local AI Bird Photo Organizer for macOS Apple Silicon"
