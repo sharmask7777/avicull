@@ -1724,15 +1724,18 @@ fi
     }}
 
     const targetItem = item || activeModalItem;
+    const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --file "${{activeModalItem.original_stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{targetItem.original_stem}}" --species "${{newSlug}}"`);
+    commands.push(`  avicull correct --file "${{activeModalItem ? activeModalItem.original_stem : stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{stem}}" --species "${{newSlug}}"`);
     commands.push(`else`);
 
     const currentPath = item.current_path;
     const lastSlash = currentPath.lastIndexOf('/');
     const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
     const allSidecars = [...(item.sidecar_files || []), ...(item.companion_files || [])];
+
+    const isLocal = item.is_local !== false;
 
     if (isHierarchy) {{
       const targetDir = `birds_hierarchy/${{newSlug}}`;
@@ -1746,9 +1749,11 @@ fi
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
         commands.push(`mv "${{sc}}" "${{targetDir}}/${{scFilename}}"`);
       }}
-      commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
-      commands.push(`    fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
-      commands.push(`  fi`);
+      if (!isLocal) {{
+        commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+        commands.push(`    fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
+        commands.push(`  fi`);
+      }}
     }} else {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = item.original_stem;
@@ -1774,8 +1779,18 @@ fi
 
       // Primary file extension
       const primaryExt = getExtension(item.primary_filename);
+      const searchDir = dir || '.';
       const newPrimary = (dir ? dir + '/' : '') + targetStem + primaryExt;
-      commands.push(`  mv "${{currentPath}}" "${{newPrimary}}"`);
+      commands.push(`  PRIMARY_SRC="${{currentPath}}"`);
+      commands.push(`  if [ ! -f "$PRIMARY_SRC" ]; then`);
+      commands.push(`    PRIMARY_CANDIDATE=$(find "${{searchDir}}" -maxdepth 1 -name "${{originalStem}}*${{primaryExt}}" 2>/dev/null | head -n 1)`);
+      commands.push(`    if [ -n "$PRIMARY_CANDIDATE" ] && [ -f "$PRIMARY_CANDIDATE" ]; then`);
+      commands.push(`      PRIMARY_SRC="$PRIMARY_CANDIDATE"`);
+      commands.push(`    fi`);
+      commands.push(`  fi`);
+      commands.push(`  if [ -f "$PRIMARY_SRC" ] && [ "$PRIMARY_SRC" != "${{newPrimary}}" ]; then`);
+      commands.push(`    mv "$PRIMARY_SRC" "${{newPrimary}}"`);
+      commands.push(`  fi`);
 
       // Companion and sidecar files
       for (const sc of allSidecars) {{
@@ -1784,11 +1799,23 @@ fi
         const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
         const scExt = getCompoundExtension(scFilename);
         const newSc = (scDir ? scDir + '/' : '') + targetStem + scExt;
-        commands.push(`  mv "${{sc}}" "${{newSc}}"`);
+        const scSearchDir = scDir || '.';
+        commands.push(`  SC_SRC="${{sc}}"`);
+        commands.push(`  if [ ! -f "$SC_SRC" ]; then`);
+        commands.push(`    SC_CANDIDATE=$(find "${{scSearchDir}}" -maxdepth 1 -name "${{originalStem}}*${{scExt}}" 2>/dev/null | head -n 1)`);
+        commands.push(`    if [ -n "$SC_CANDIDATE" ] && [ -f "$SC_CANDIDATE" ]; then`);
+        commands.push(`      SC_SRC="$SC_CANDIDATE"`);
+        commands.push(`    fi`);
+        commands.push(`  fi`);
+        commands.push(`  if [ -f "$SC_SRC" ] && [ "$SC_SRC" != "${{newSc}}" ]; then`);
+        commands.push(`    mv "$SC_SRC" "${{newSc}}"`);
+        commands.push(`  fi`);
       }}
-      commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
-      commands.push(`    fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
-      commands.push(`  fi`);
+      if (!isLocal) {{
+        commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+        commands.push(`    fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
+        commands.push(`  fi`);
+      }}
     }}
     commands.push(`  if [ -n "$AVICULL_CMD" ]; then`);
     commands.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
@@ -1850,13 +1877,19 @@ fi
     const text = document.getElementById('commandOutput').textContent;
     if (!text || text.startsWith("Select a species")) return;
 
-    navigator.clipboard.writeText(text).then(() => {{
+    // Filter comment lines before copying to clipboard to prevent 'zsh: command not found: #'
+    const cleanText = text
+      .split('\n')
+      .filter(line => !line.trim().startsWith('#'))
+      .join('\n');
+
+    navigator.clipboard.writeText(cleanText).then(() => {{
       const btn = document.getElementById('btnCopyCommand');
       const orig = btn.textContent;
       btn.textContent = "Copied!";
       setTimeout(() => {{ btn.textContent = orig; }}, 1500);
     }}).catch(() => {{
-      alert("Command: \n\n" + text);
+      alert("Command: \n\n" + cleanText);
     }});
   }}
 
@@ -1867,10 +1900,18 @@ fi
     for (const it of targets) {{
       const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
       if (cmds && cmds.length > 0) {{
-        batchCommands.push({{
-          stem: it.original_stem,
-          commands: [...cmds]
-        }});
+        const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && b.stem === it.original_stem));
+        if (existingIdx >= 0) {{
+          batchCommands[existingIdx] = {{
+            stem: it.original_stem,
+            commands: [...cmds]
+          }};
+        }} else {{
+          batchCommands.push({{
+            stem: it.original_stem,
+            commands: [...cmds]
+          }});
+        }}
       }}
     }}
 

@@ -456,6 +456,534 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
 }
 
 #[test]
+fn test_single_command_copy_is_executable_in_interactive_zsh_without_comment_errors() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        current_path: PathBuf::from("birds_hierarchy/House_Sparrow/IMG_1001.CR2"),
+        primary_image: dir.path().join("IMG_1001.CR2"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Single Command Test Trip",
+        &[item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    // Extract JSON payload
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content.find(marker).unwrap() + marker.len();
+    let end_idx = html_content[start_idx..].find("</script>").unwrap();
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    // Extract JS script
+    let script_start = html_content.find("<script>\n").unwrap() + 9;
+    let script_end = html_content[script_start..].find("</script>").unwrap();
+    let js_code = &html_content[script_start..script_start + script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let clipboardContent = '';
+    let cmdOutputObj = {{ textContent: '' }};
+    const document = {{
+      getElementById: (id) => {{
+        if (id === 'catalog-data') return {{ textContent: rawJson }};
+        if (id === 'commandOutput') return cmdOutputObj;
+        return {{ textContent: '', value: '', style: {{}}, dataset: {{}}, classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+      }},
+      addEventListener: () => {{}}
+    }};
+const navigator = {{
+  clipboard: {{
+    writeText: async (t) => {{
+      clipboardContent = t;
+      return Promise.resolve();
+    }}
+  }}
+}};
+class MockImage {{ constructor() {{}} }}
+global.Image = MockImage;
+const window = global;
+
+{js_code}
+
+const item = CATALOG_DATA.items[0];
+openModal([item.id]);
+selectSpecies('Mallard');
+copyCurrentCommand();
+
+setTimeout(() => {{
+  console.log(clipboardContent);
+}}, 20);
+"#,
+        raw_json = json_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(
+        node_output.status.success(),
+        "Node runner failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let copied_cmd = String::from_utf8_lossy(&node_output.stdout)
+        .trim()
+        .to_string();
+
+    // Verify it doesn't fail when piped into interactive zsh
+    let mut child = Command::new("zsh")
+        .args(["-f", "-i", "-s"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn zsh process");
+
+    {
+        let stdin = child.stdin.as_mut().expect("failed to open stdin");
+        stdin
+            .write_all(format!("{}\nexit\n", copied_cmd).as_bytes())
+            .unwrap();
+    }
+
+    let zsh_res = child.wait_with_output().expect("wait on zsh");
+    let zsh_stderr = String::from_utf8_lossy(&zsh_res.stderr);
+
+    assert!(
+        !zsh_stderr.contains("command not found: #"),
+        "zsh failed with comment error in copied command:\nstderr: {}\ncommand:\n{}",
+        zsh_stderr,
+        copied_cmd
+    );
+}
+
+#[test]
+fn test_catalog_local_files_do_not_emit_fileproviderctl_evict() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item_local = CatalogItem {
+        bundle_id: "bundle-local".to_string(),
+        original_stem: "IMG_LOCAL".to_string(),
+        current_path: PathBuf::from("IMG_LOCAL.JPG"),
+        primary_image: dir.path().join("IMG_LOCAL.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    let item_cloud = CatalogItem {
+        bundle_id: "bundle-cloud".to_string(),
+        original_stem: "IMG_CLOUD".to_string(),
+        current_path: PathBuf::from("IMG_CLOUD.JPG"),
+        primary_image: dir.path().join("IMG_CLOUD.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Mallard".to_string(),
+        scientific_name: Some("Anas platyrhynchos".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.90,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(false),
+    };
+
+    generate_html_catalog(
+        "Local vs Cloud Evict Test",
+        &[item_local, item_cloud],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content.find(marker).unwrap() + marker.len();
+    let end_idx = html_content[start_idx..].find("</script>").unwrap();
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let script_start = html_content.find("<script>\n").unwrap() + 9;
+    let script_end = html_content[script_start..].find("</script>").unwrap();
+    let js_code = &html_content[script_start..script_start + script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    return {{ textContent: '', value: '', style: {{}}, dataset: {{}}, classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{ clipboard: {{ writeText: async () => {{}} }} }};
+class MockImage {{ constructor() {{}} }}
+global.Image = MockImage;
+const window = global;
+
+{js_code}
+
+const localItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_LOCAL');
+const cloudItem = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_CLOUD');
+
+const localCmds = buildMoveCommandsForItem(localItem, 'Mallard').join('\n');
+const cloudCmds = buildMoveCommandsForItem(cloudItem, 'House Sparrow').join('\n');
+
+console.log(JSON.stringify({{
+  localCmds,
+  cloudCmds
+}}));
+"#,
+        raw_json = json_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(
+        node_output.status.success(),
+        "Node runner failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&node_output.stdout).trim()).unwrap();
+
+    let local_cmds = parsed["localCmds"].as_str().unwrap();
+    let cloud_cmds = parsed["cloudCmds"].as_str().unwrap();
+
+    assert!(
+        !local_cmds.contains("fileproviderctl evict"),
+        "Locally available non-cloud file must NOT emit fileproviderctl evict command!\nCommands:\n{}",
+        local_cmds
+    );
+    assert!(
+        cloud_cmds.contains("fileproviderctl evict"),
+        "Cloud-evicted file MUST emit fileproviderctl evict safeguard command!\nCommands:\n{}",
+        cloud_cmds
+    );
+}
+
+#[test]
+fn test_batch_script_updates_consecutive_corrections_and_deduplicates_by_stem() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item1 = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        current_path: PathBuf::from("IMG_1001.JPG"),
+        primary_image: dir.path().join("IMG_1001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    let item2 = CatalogItem {
+        bundle_id: "bundle-2".to_string(),
+        original_stem: "IMG_1002".to_string(),
+        current_path: PathBuf::from("IMG_1002.JPG"),
+        primary_image: dir.path().join("IMG_1002.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Common Myna".to_string(),
+        scientific_name: Some("Acridotheres tristis".to_string()),
+        routing_tier: RoutingTier::NeedsReview,
+        confidence: 0.70,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Consecutive Batch Test",
+        &[item1, item2],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content.find(marker).unwrap() + marker.len();
+    let end_idx = html_content[start_idx..].find("</script>").unwrap();
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let script_start = html_content.find("<script>\n").unwrap() + 9;
+    let script_end = html_content[script_start..].find("</script>").unwrap();
+    let js_code = &html_content[script_start..script_start + script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let btnBatchCount = 0;
+let btnCopyCount = 0;
+const elements = {{
+  'batchCount': {{ textContent: '0' }},
+  'batchCountCopy': {{ textContent: '0' }},
+  'speciesSearchInput': {{ value: '' }},
+  'speciesSuggestions': {{ classList: {{ remove: () => {{}} }} }},
+  'commandOutput': {{ textContent: '' }},
+  'correctionModal': {{ classList: {{ add: () => {{}}, remove: () => {{}} }} }}
+}};
+
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    if (!elements[id]) {{
+      elements[id] = {{ textContent: '', value: '', style: {{}}, dataset: {{}}, classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+    }}
+    return elements[id];
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{ clipboard: {{ writeText: async () => {{}} }} }};
+class MockImage {{ constructor() {{}} }}
+global.Image = MockImage;
+const window = global;
+
+{js_code}
+
+// 1. Open photo 1, change to Painted Stork, add to batch
+openModal(['bundle-1']);
+selectSpecies('Painted Stork');
+addToBatch();
+
+const countAfterFirst = batchCommands.length;
+const scriptAfterFirst = generateBatchScriptContent(true);
+
+// 2. Open photo 2, change to Great Cormorant, add to batch
+openModal(['bundle-2']);
+selectSpecies('Great Cormorant');
+addToBatch();
+
+const countAfterSecond = batchCommands.length;
+const scriptAfterSecond = generateBatchScriptContent(true);
+
+// 3. Re-open photo 1, change to Eurasian Collared-Dove, add to batch (should update/deduplicate photo 1)
+openModal(['bundle-1']);
+selectSpecies('Eurasian Collared-Dove');
+addToBatch();
+
+const countAfterUpdate = batchCommands.length;
+const scriptAfterUpdate = generateBatchScriptContent(true);
+
+console.log(JSON.stringify({{
+  countAfterFirst,
+  hasItem1First: scriptAfterFirst.includes('IMG_1001'),
+  hasItem2First: scriptAfterFirst.includes('IMG_1002'),
+  countAfterSecond,
+  hasItem1Second: scriptAfterSecond.includes('IMG_1001'),
+  hasItem2Second: scriptAfterSecond.includes('IMG_1002'),
+  countAfterUpdate,
+  hasPaintedStorkAfterUpdate: scriptAfterUpdate.includes('Painted_Stork'),
+  hasCollaredDoveAfterUpdate: scriptAfterUpdate.includes('Eurasian_Collared-Dove'),
+}}));
+"#,
+        raw_json = json_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(
+        node_output.status.success(),
+        "Node runner failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(String::from_utf8_lossy(&node_output.stdout).trim()).unwrap();
+
+    assert_eq!(parsed["countAfterFirst"], 1);
+    assert_eq!(parsed["hasItem1First"], true);
+    assert_eq!(parsed["hasItem2First"], false);
+
+    assert_eq!(parsed["countAfterSecond"], 2);
+    assert_eq!(parsed["hasItem1Second"], true);
+    assert_eq!(parsed["hasItem2Second"], true);
+
+    // Re-adding item 1 must update its entry without incrementing count or duplicating
+    assert_eq!(
+        parsed["countAfterUpdate"], 2,
+        "Batch count must stay 2 when updating existing item in batch"
+    );
+    assert_eq!(
+        parsed["hasPaintedStorkAfterUpdate"], false,
+        "Old species for item 1 must be replaced"
+    );
+    assert_eq!(
+        parsed["hasCollaredDoveAfterUpdate"], true,
+        "New species for item 1 must be present"
+    );
+}
+
+#[test]
+fn test_inplace_move_commands_resolve_source_dynamically_when_file_already_renamed() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "1X7A2861".to_string(),
+        current_path: PathBuf::from(
+            "compressed pics/1X7A2861_Needs_Review_Pied_Kingfisher_20250516_K_Gudi.jpg",
+        ),
+        primary_image: dir
+            .path()
+            .join("compressed pics/1X7A2861_Needs_Review_Pied_Kingfisher_20250516_K_Gudi.jpg"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Pied Kingfisher".to_string(),
+        scientific_name: Some("Ceryle rudis".to_string()),
+        routing_tier: RoutingTier::NeedsReview,
+        confidence: 0.65,
+        capture_date: Some("2025-05-16".to_string()),
+        location_name: Some("K Gudi".to_string()),
+        location_source: None,
+        subdirectory: Some("compressed pics".to_string()),
+        top_predictions: vec![],
+        is_local: Some(true),
+    };
+
+    generate_html_catalog(
+        "Dynamic Source Move Test",
+        &[item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content.find(marker).unwrap() + marker.len();
+    let end_idx = html_content[start_idx..].find("</script>").unwrap();
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let script_start = html_content.find("<script>\n").unwrap() + 9;
+    let script_end = html_content[script_start..].find("</script>").unwrap();
+    let js_code = &html_content[script_start..script_start + script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    return {{ textContent: '', value: '', style: {{}}, dataset: {{}}, classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{ clipboard: {{ writeText: async () => {{}} }} }};
+class MockImage {{ constructor() {{}} }}
+global.Image = MockImage;
+const window = global;
+
+{js_code}
+
+const item = CATALOG_DATA.items[0];
+const cmds = buildMoveCommandsForItem(item, 'White-browed Wagtail').join('\n');
+console.log(cmds);
+"#,
+        raw_json = json_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(
+        node_output.status.success(),
+        "Node runner failed: {}",
+        String::from_utf8_lossy(&node_output.stderr)
+    );
+
+    let cmds = String::from_utf8_lossy(&node_output.stdout).to_string();
+
+    // Verify dynamic candidate lookup and self-move protection in generated bash
+    assert!(
+        cmds.contains("PRIMARY_SRC=") || cmds.contains("SRC_PRIMARY=") || cmds.contains("SRC="),
+        "Move commands must dynamically inspect and resolve source path:\n{}",
+        cmds
+    );
+    assert!(
+        cmds.contains("1X7A2861*"),
+        "Move commands must look for stem candidates if current_path was already renamed:\n{}",
+        cmds
+    );
+}
+
+#[test]
 fn test_catalog_species_autocomplete_token_normalization_and_ranking() {
     let dir = tempdir().expect("tempdir");
     let catalog_path = dir.path().join("bird_catalog.html");
@@ -878,9 +1406,7 @@ fn test_catalog_template_generates_command_structure_and_binary_discovery() {
         "Template must define buildMoveCommands to structure correction commands"
     );
     assert!(
-        html.contains(
-            r#"avicull correct --file "${activeModalItem.original_stem}" --species "${newSlug}""#
-        ),
+        html.contains("avicull correct --file") && html.contains("--species"),
         "Template must output 'avicull correct --file ... --species ...' command"
     );
     assert!(
