@@ -161,7 +161,7 @@ fn test_catalog_raw_html_snapshot_parity() {
     let normalized_html = normalize_html_for_snapshot(&raw_html);
 
     let snapshot_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/snapshots/bird_catalog_reference.html");
+        .join("tests/fixtures/snapshots/bird_catalog_reference.snap");
 
     if !snapshot_path.exists() || std::env::var("UPDATE_SNAPSHOTS").is_ok() {
         fs::create_dir_all(snapshot_path.parent().unwrap()).expect("create snapshot dir");

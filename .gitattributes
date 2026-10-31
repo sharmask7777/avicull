@@ -1,5 +1,0 @@
-# GitHub linguist attributes
-# Mark committed test fixtures and reference snapshots as generated / vendored
-# so automated code security scanning tools exclude test baseline artifacts.
-tests/fixtures/** linguist-vendored linguist-generated
-fixtures/** linguist-vendored linguist-generated

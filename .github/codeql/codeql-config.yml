@@ -1,5 +1,0 @@
-name: "CodeQL Custom Config"
-
-paths-ignore:
-  - 'tests/fixtures/**'
-  - 'fixtures/**'
