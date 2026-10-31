@@ -1490,8 +1490,8 @@ fn main() -> Result<()> {
             print!("{}", avicull::help::render_help(topic));
         }
 
-        Commands::Dataset(args) => {
-            execute_dataset(args)?;
+        Commands::CreateMockDataset(args) => {
+            execute_create_mock_dataset(args)?;
         }
     }
 
@@ -1672,7 +1672,7 @@ fn execute_location(args: LocationArgs) -> Result<()> {
     Ok(())
 }
 
-fn execute_dataset(args: avicull::cli::DatasetArgs) -> Result<()> {
+fn execute_create_mock_dataset(args: avicull::cli::CreateMockDatasetArgs) -> Result<()> {
     let target_dir = args.target.unwrap_or_else(|| {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/local_user_samples")
     });

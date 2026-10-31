@@ -48,7 +48,7 @@ Every pull request or enhancement must be verified across five distinct tiers:
    - Verify `_No_Bird_Detected` routing tier.
 4. **Local Developer Mini-Dataset Inner-Loop Tests (`tests/test_local_user_samples_e2e.rs`)**:
    - Every developer maintains their own local, uncommitted mini-dataset in `tests/fixtures/local_user_samples/` (git-ignored) created from their personal photo library.
-   - Run `cargo run -- dataset --source "<PATH_TO_PERSONAL_PHOTOS>"` (or `avicull dataset --source "<PATH>"`) to populate representative trip hierarchies, sidecars, and images (~5-7 MB total).
+   - Run `cargo run -- create-mock-dataset --source "<PATH_TO_PERSONAL_PHOTOS>"` (or `avicull create-mock-dataset --source "<PATH>"`) to populate representative trip hierarchies, sidecars, and images (~5-7 MB total).
    - This inner-loop test runs on every compilation and pre-push hook (`[5/7]` and `[6/7]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
 5. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
    - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams.

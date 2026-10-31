@@ -50,11 +50,12 @@ pub enum Commands {
     Help(HelpArgs),
 
     /// Generate an uncommitted minimal local test dataset from a user photo directory
-    Dataset(DatasetArgs),
+    #[command(name = "create-mock-dataset")]
+    CreateMockDataset(CreateMockDatasetArgs),
 }
 
 #[derive(Args, Debug)]
-pub struct DatasetArgs {
+pub struct CreateMockDatasetArgs {
     /// Source photo directory containing user trip photos
     #[arg(short, long)]
     pub source: PathBuf,
