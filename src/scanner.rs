@@ -488,3 +488,72 @@ pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
 
     largest
 }
+
+/// Recursively discovers manifest database files (`.avicull/manifest.sqlite`) in subdirectories
+/// beneath `input_dir`, excluding the root's own direct `.avicull` or `birds_hierarchy/.avicull`.
+/// Returns a list of `(manifest_path, relative_subdir)`.
+pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
+    let mut results = Vec::new();
+    let can_input = input_dir.canonicalize().with_context(|| {
+        format!(
+            "Failed to canonicalize input directory: {}",
+            input_dir.display()
+        )
+    })?;
+
+    // Walk child directories, looking for .avicull/manifest.sqlite
+    for entry in WalkDir::new(&can_input)
+        .min_depth(1)
+        .max_depth(8)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            if name == "@eaDir" || name.ends_with(".photoslibrary") {
+                return false;
+            }
+            true
+        })
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file() && entry.file_name() == "manifest.sqlite" {
+            let path = entry.path();
+            if let Some(parent) = path.parent() {
+                if parent.file_name().map(|n| n == ".avicull").unwrap_or(false) {
+                    if let Some(grandparent) = parent.parent() {
+                        let can_gp = grandparent
+                            .canonicalize()
+                            .unwrap_or_else(|_| grandparent.to_path_buf());
+                        let can_root_hier = can_input.join("birds_hierarchy");
+                        // Skip root's own direct .avicull or birds_hierarchy/.avicull
+                        if can_gp == can_input || can_gp == can_root_hier {
+                            continue;
+                        }
+
+                        // Determine the relative subdirectory corresponding to this child
+                        let rel_dir = if can_gp
+                            .file_name()
+                            .map(|n| n == "birds_hierarchy")
+                            .unwrap_or(false)
+                        {
+                            can_gp.parent().unwrap_or(&can_gp)
+                        } else {
+                            &can_gp
+                        };
+
+                        if let Ok(rel) = rel_dir.strip_prefix(&can_input) {
+                            if !rel.as_os_str().is_empty() {
+                                let can_path =
+                                    path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+                                results.push((can_path, rel.to_path_buf()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    results.sort_by(|a, b| a.0.cmp(&b.0));
+    results.dedup_by(|a, b| a.0 == b.0);
+    Ok(results)
+}

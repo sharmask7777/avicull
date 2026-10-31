@@ -266,12 +266,19 @@ impl ManifestDb {
                 updated_at INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS bundle_thumbnails (
+                bundle_id TEXT PRIMARY KEY,
+                data_uri TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
             CREATE INDEX IF NOT EXISTS idx_pending_run ON pending_failures(run_id);
             CREATE INDEX IF NOT EXISTS idx_dir_loc_region ON directory_locations(region_code);
             CREATE INDEX IF NOT EXISTS idx_bundle_loc_region ON bundle_locations(region_code);
+            CREATE INDEX IF NOT EXISTS idx_bundle_thumbnails_time ON bundle_thumbnails(updated_at);
             "#,
         )?;
 
@@ -1347,5 +1354,157 @@ impl ManifestDb {
             ],
         )?;
         Ok(())
+    }
+
+    /// Retrieves the cached base64 micro-thumbnail data URI for a bundle if present.
+    pub fn get_thumbnail_data_uri(&self, bundle_id: &str) -> Result<Option<String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT data_uri FROM bundle_thumbnails WHERE bundle_id = ?1")?;
+        let mut rows = stmt.query(params![bundle_id])?;
+        if let Some(row) = rows.next()? {
+            let uri: String = row.get(0)?;
+            Ok(Some(uri))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Retrieves all cached micro-thumbnails as a map of `bundle_id -> data_uri`.
+    pub fn get_all_thumbnails(&self) -> Result<std::collections::HashMap<String, String>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT bundle_id, data_uri FROM bundle_thumbnails")?;
+        let mut rows = stmt.query([])?;
+        let mut map = std::collections::HashMap::new();
+        while let Some(row) = rows.next()? {
+            let bundle_id: String = row.get(0)?;
+            let data_uri: String = row.get(1)?;
+            map.insert(bundle_id, data_uri);
+        }
+        Ok(map)
+    }
+
+    /// Stores or replaces the micro-thumbnail data URI for a specific bundle.
+    pub fn store_thumbnail(&self, bundle_id: &str, data_uri: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let updated_at = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT OR REPLACE INTO bundle_thumbnails (bundle_id, data_uri, updated_at) VALUES (?1, ?2, ?3)",
+            params![bundle_id, data_uri, updated_at],
+        )?;
+        Ok(())
+    }
+
+    /// Bulk stores or replaces micro-thumbnail data URIs in a single transaction.
+    pub fn store_thumbnails_bulk(&self, items: &[(&str, &str)]) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+        let updated_at = Utc::now().timestamp_millis();
+        {
+            let mut stmt = tx.prepare(
+                "INSERT OR REPLACE INTO bundle_thumbnails (bundle_id, data_uri, updated_at) VALUES (?1, ?2, ?3)",
+            )?;
+            for (bundle_id, data_uri) in items {
+                stmt.execute(params![bundle_id, data_uri, updated_at])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Imports bundle decisions, locations, and cached thumbnails from a child manifest database
+    /// into this manifest database, prefixing bundle metadata if relative paths need adjustments.
+    /// Returns the number of imported bundles.
+    pub fn import_child_manifest(&self, child_db_path: &Path, rel_subdir: &Path) -> Result<usize> {
+        let child_db = Self::open(child_db_path)?;
+        let child_bundles = child_db.get_all_bundles(None)?;
+        if child_bundles.is_empty() {
+            return Ok(0);
+        }
+
+        let import_run_id = format!("import_{}", Utc::now().timestamp_millis());
+        self.record_run(
+            &import_run_id,
+            rel_subdir,
+            rel_subdir,
+            false,
+            r#"{"source":"child_manifest_import"}"#,
+        )?;
+
+        let mut decisions = Vec::with_capacity(child_bundles.len());
+        let mut bundles = Vec::with_capacity(child_bundles.len());
+
+        for (dec, mut bundle) in child_bundles {
+            // Adjust relative_path if present to include the child subdir relative to the parent
+            if let Some(ref rel) = bundle.relative_path {
+                if !rel.starts_with(rel_subdir) {
+                    bundle.relative_path = Some(rel_subdir.join(rel));
+                }
+            } else {
+                bundle.relative_path = Some(rel_subdir.join(&bundle.original_stem));
+            }
+
+            decisions.push(dec);
+            bundles.push(bundle);
+        }
+
+        self.record_bundles(&import_run_id, &decisions, &bundles)?;
+        self.complete_run(&import_run_id)?;
+
+        // Import child directory locations
+        {
+            let dir_locs = {
+                let conn = child_db.conn.lock().unwrap();
+                let mut stmt = conn.prepare(
+                    "SELECT path_key, resolved_name, region_code, latitude, longitude, source, updated_at FROM directory_locations",
+                )?;
+                let mut rows = stmt.query([])?;
+                let mut locs = Vec::new();
+                while let Some(row) = rows.next()? {
+                    let key: String = row.get(0)?;
+                    let name: String = row.get(1)?;
+                    let region: String = row.get(2)?;
+                    let lat: f64 = row.get(3)?;
+                    let lon: f64 = row.get(4)?;
+                    let src: String = row.get(5)?;
+                    let full_key = if key == "." || key.is_empty() {
+                        rel_subdir.to_string_lossy().to_string()
+                    } else if !Path::new(&key).starts_with(rel_subdir) {
+                        rel_subdir.join(&key).to_string_lossy().to_string()
+                    } else {
+                        key
+                    };
+                    locs.push((full_key, name, region, lat, lon, src));
+                }
+                locs
+            };
+
+            for (k, name, region, lat, lon, src) in dir_locs {
+                let loc = crate::location::resolver::ResolvedLocation {
+                    name,
+                    region_code: region,
+                    latitude: lat,
+                    longitude: lon,
+                    source: src,
+                };
+                let _ = self.set_directory_location(&k, &loc);
+            }
+        }
+
+        // Import child thumbnails
+        if let Ok(child_thumbs) = child_db.get_all_thumbnails() {
+            if !child_thumbs.is_empty() {
+                let thumb_slice: Vec<(&str, &str)> = child_thumbs
+                    .iter()
+                    .map(|(b, u)| (b.as_str(), u.as_str()))
+                    .collect();
+                let _ = self.store_thumbnails_bulk(&thumb_slice);
+            }
+        }
+
+        Ok(bundles.len())
     }
 }
