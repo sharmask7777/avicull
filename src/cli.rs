@@ -48,6 +48,24 @@ pub enum Commands {
 
     /// Display interactive help topics, workflow manuals, and CLI reference
     Help(HelpArgs),
+
+    /// Generate an uncommitted minimal local test dataset from a user photo directory
+    Dataset(DatasetArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct DatasetArgs {
+    /// Source photo directory containing user trip photos
+    #[arg(short, long)]
+    pub source: PathBuf,
+
+    /// Target destination directory (defaults to tests/fixtures/local_user_samples)
+    #[arg(short, long)]
+    pub target: Option<PathBuf>,
+
+    /// Overwrite existing target directory if present
+    #[arg(short, long, default_value_t = false)]
+    pub force: bool,
 }
 
 #[derive(Args, Debug)]

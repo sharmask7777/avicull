@@ -1489,6 +1489,10 @@ fn main() -> Result<()> {
             };
             print!("{}", avicull::help::render_help(topic));
         }
+
+        Commands::Dataset(args) => {
+            execute_dataset(args)?;
+        }
     }
 
     Ok(())
@@ -1664,6 +1668,36 @@ fn execute_location(args: LocationArgs) -> Result<()> {
             dir_key, resolved.name, resolved.region_code
         );
     }
+
+    Ok(())
+}
+
+fn execute_dataset(args: avicull::cli::DatasetArgs) -> Result<()> {
+    let target_dir = args.target.unwrap_or_else(|| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/local_user_samples")
+    });
+
+    println!(
+        "Creating minimal local test dataset in '{}' from '{}'...",
+        target_dir.display(),
+        args.source.display()
+    );
+
+    let options = avicull::dataset::MiniDatasetOptions {
+        source_dir: args.source,
+        target_dir: target_dir.clone(),
+        force: args.force,
+        curated_samples: avicull::dataset::default_curated_samples(),
+        gazetteers: avicull::dataset::default_gazetteers(),
+    };
+
+    let result = avicull::dataset::create_mini_dataset(&options)?;
+
+    println!(
+        "\nSuccessfully created mini dataset with {} files ({:.2} MB).",
+        result.copied_files_count,
+        result.total_bytes as f64 / 1_048_576.0
+    );
 
     Ok(())
 }
