@@ -794,3 +794,149 @@ fn fallback_curated_species() -> Vec<String> {
     .map(String::from)
     .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{GpsCoordinate, LocationSource, RoutingTier, SpeciesPrediction};
+
+    #[test]
+    fn test_catalog_item_default() {
+        let item = CatalogItem::default();
+        assert_eq!(item.bundle_id, "");
+        assert_eq!(item.assigned_species, "");
+        assert_eq!(item.routing_tier, RoutingTier::ConfirmedSpecies);
+        assert_eq!(item.confidence, 0.0);
+        assert!(item.companion_images.is_empty());
+        assert!(item.sidecar_files.is_empty());
+    }
+
+    #[test]
+    fn test_catalog_item_from_bundle_and_decision_confirmed() {
+        let bundle = AssetBundle {
+            bundle_id: "test-bundle-1".to_string(),
+            source_inode: 12345,
+            trip_folder_name: "Leh".to_string(),
+            original_stem: "IMG_1001".to_string(),
+            primary_image: PathBuf::from("IMG_1001.CR2"),
+            companion_images: vec![PathBuf::from("IMG_1001.JPG")],
+            sidecar_files: vec![PathBuf::from("IMG_1001.CR2.xmp")],
+            capture_timestamp_ms: Some(1730000000000), // ~2024-10-27
+            gps_coords: Some(GpsCoordinate {
+                latitude: 34.1526,
+                longitude: 77.5771,
+                source: LocationSource::ExifGps,
+            }),
+            resolved_location_name: Some("Leh, Ladakh".to_string()),
+            relative_path: Some(PathBuf::from("trips/subfolder/IMG_1001.CR2")),
+        };
+
+        let decision = BundleDecision {
+            bundle_id: "test-bundle-1".to_string(),
+            burst_id: None,
+            detection_confidence: 0.98,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![SpeciesPrediction {
+                taxon_id: "houspa".to_string(),
+                common_name: "House Sparrow".to_string(),
+                folder_slug: "House_Sparrow".to_string(),
+                scientific_name: "Passer domesticus".to_string(),
+                visual_prob: 0.95,
+                geo_prior: 0.90,
+                combined_score: 0.93,
+            }],
+            frame_confidence: 0.93,
+            final_confidence: 0.93,
+            assigned_species_slug: "House_Sparrow".to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
+        };
+
+        let item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+        assert_eq!(item.assigned_species, "House Sparrow");
+        assert_eq!(item.scientific_name.as_deref(), Some("Passer domesticus"));
+        assert_eq!(item.routing_tier, RoutingTier::ConfirmedSpecies);
+        assert_eq!(item.location_name.as_deref(), Some("Leh, Ladakh"));
+        assert_eq!(item.location_source.as_deref(), Some("ExifGps"));
+        assert_eq!(item.subdirectory.as_deref(), Some("trips/subfolder"));
+        assert!(item.capture_date.is_some());
+    }
+
+    #[test]
+    fn test_catalog_item_from_bundle_and_decision_no_bird() {
+        let bundle = AssetBundle {
+            bundle_id: "test-bundle-2".to_string(),
+            source_inode: 12346,
+            trip_folder_name: "Leh".to_string(),
+            original_stem: "IMG_1002".to_string(),
+            primary_image: PathBuf::from("IMG_1002.CR2"),
+            companion_images: vec![],
+            sidecar_files: vec![],
+            capture_timestamp_ms: None,
+            gps_coords: None,
+            resolved_location_name: None,
+            relative_path: None,
+        };
+
+        let decision = BundleDecision {
+            bundle_id: "test-bundle-2".to_string(),
+            burst_id: None,
+            detection_confidence: 0.1,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![],
+            frame_confidence: 0.1,
+            final_confidence: 0.1,
+            assigned_species_slug: "_No_Bird_Detected".to_string(),
+            routing_tier: RoutingTier::NoBirdDetected,
+            is_user_override: false,
+        };
+
+        let item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+        assert_eq!(item.assigned_species, "_No_Bird_Detected");
+        assert_eq!(item.scientific_name, None);
+        assert_eq!(item.routing_tier, RoutingTier::NoBirdDetected);
+        assert_eq!(item.subdirectory, None);
+    }
+
+    #[test]
+    fn test_catalog_item_from_bundle_and_decision_user_override() {
+        let bundle = AssetBundle {
+            bundle_id: "test-bundle-3".to_string(),
+            source_inode: 12347,
+            trip_folder_name: "Leh".to_string(),
+            original_stem: "IMG_1003".to_string(),
+            primary_image: PathBuf::from("IMG_1003.CR2"),
+            companion_images: vec![],
+            sidecar_files: vec![],
+            capture_timestamp_ms: None,
+            gps_coords: None,
+            resolved_location_name: None,
+            relative_path: None,
+        };
+
+        let decision = BundleDecision {
+            bundle_id: "test-bundle-3".to_string(),
+            burst_id: None,
+            detection_confidence: 0.8,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![],
+            frame_confidence: 0.8,
+            final_confidence: 0.8,
+            assigned_species_slug: "Eurasian_Tree_Sparrow".to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: true,
+        };
+
+        let item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+        assert_eq!(item.assigned_species, "Eurasian Tree Sparrow");
+        assert_eq!(item.scientific_name, None);
+    }
+
+    #[test]
+    fn test_fallback_curated_species_contains_common_birds() {
+        let species = fallback_curated_species();
+        assert!(species.contains(&"House Sparrow".to_string()));
+        assert!(species.contains(&"Black Redstart".to_string()));
+        assert!(species.contains(&"Common Kingfisher".to_string()));
+    }
+}

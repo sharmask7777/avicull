@@ -2772,3 +2772,93 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::{CatalogPayload, CatalogStats};
+
+    #[test]
+    fn test_html_escape() {
+        assert_eq!(html_escape("test & verify"), "test &amp; verify");
+        assert_eq!(
+            html_escape("<script>alert(1)</script>"),
+            "&lt;script&gt;alert(1)&lt;/script&gt;"
+        );
+        assert_eq!(
+            html_escape(r#"say "hello" and 'world'"#),
+            "say &quot;hello&quot; and &#39;world&#39;"
+        );
+        assert_eq!(html_escape("No special chars 123"), "No special chars 123");
+    }
+
+    #[test]
+    fn test_render_catalog_html_modes_and_stats() {
+        let stats = CatalogStats {
+            total_photos: 10,
+            species_count: 3,
+            confirmed_count: 5,
+            needs_review_count: 3,
+            no_bird_count: 2,
+        };
+
+        let payload_hierarchy = CatalogPayload {
+            trip_name: "Leh <Ladakh> & Co.".to_string(),
+            mode: "hierarchy".to_string(),
+            catalog_dir: "/Photos/Leh".to_string(),
+            trip_location_name: Some("Leh, India".to_string()),
+            directories: vec!["Birds".to_string()],
+            generated_at: "2026-10-31T12:00:00Z".to_string(),
+            stats: stats.clone(),
+            items: vec![],
+            species_list: vec!["House Sparrow".to_string()],
+        };
+
+        let html_hierarchy = render_catalog_html(&payload_hierarchy);
+        assert!(html_hierarchy.contains("<!DOCTYPE html>"));
+        assert!(html_hierarchy.contains("Leh &lt;Ladakh&gt; &amp; Co. — Avicull Photo Catalog"));
+        assert!(html_hierarchy.contains("Hierarchy (APFS Hard Links)"));
+        assert!(html_hierarchy.contains("Leh, India"));
+        assert!(html_hierarchy.contains(r#"id="catalog-data""#));
+
+        let payload_inplace = CatalogPayload {
+            trip_name: "Bangalore".to_string(),
+            mode: "in-place".to_string(),
+            catalog_dir: "/Photos/Bangalore".to_string(),
+            trip_location_name: None,
+            directories: vec![],
+            generated_at: "2026-10-31T12:00:00Z".to_string(),
+            stats,
+            items: vec![],
+            species_list: vec![],
+        };
+
+        let html_inplace = render_catalog_html(&payload_inplace);
+        assert!(html_inplace.contains("In-Place Renamed"));
+        assert!(html_inplace.contains("Set Location"));
+    }
+
+    #[test]
+    fn test_render_catalog_html_escapes_special_characters_in_location() {
+        let payload = CatalogPayload {
+            trip_name: "Test".to_string(),
+            mode: "in-place".to_string(),
+            catalog_dir: "/Photos/Test".to_string(),
+            trip_location_name: Some("K' Gudi <Chamarajanagar> & Co.".to_string()),
+            directories: vec![],
+            generated_at: "2026-10-31T12:00:00Z".to_string(),
+            stats: CatalogStats {
+                total_photos: 1,
+                species_count: 1,
+                confirmed_count: 1,
+                needs_review_count: 0,
+                no_bird_count: 0,
+            },
+            items: vec![],
+            species_list: vec![],
+        };
+
+        let html = render_catalog_html(&payload);
+        assert!(html.contains("K&#39; Gudi &lt;Chamarajanagar&gt; &amp; Co."));
+    }
+}

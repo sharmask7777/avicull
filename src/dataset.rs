@@ -105,13 +105,20 @@ pub fn create_mini_dataset(options: &MiniDatasetOptions) -> Result<MiniDatasetRe
         );
     }
 
-    if options.target_dir.exists() && options.force {
-        fs::remove_dir_all(&options.target_dir).with_context(|| {
-            format!(
-                "Failed to clean target directory '{}'",
+    if options.target_dir.exists() {
+        if options.force {
+            fs::remove_dir_all(&options.target_dir).with_context(|| {
+                format!(
+                    "Failed to clean target directory '{}'",
+                    options.target_dir.display()
+                )
+            })?;
+        } else if fs::read_dir(&options.target_dir)?.next().is_some() {
+            anyhow::bail!(
+                "Target directory '{}' already exists and is not empty. Use --force to overwrite.",
                 options.target_dir.display()
-            )
-        })?;
+            );
+        }
     }
 
     fs::create_dir_all(&options.target_dir).with_context(|| {
@@ -183,4 +190,108 @@ pub fn create_mini_dataset(options: &MiniDatasetOptions) -> Result<MiniDatasetRe
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_default_curated_samples_and_gazetteers() {
+        let samples = default_curated_samples();
+        assert_eq!(samples.len(), 4);
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("ranthambore")));
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("coorg")));
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("K Gudi")));
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("New zealand")));
+
+        let gazetteers = default_gazetteers();
+        assert_eq!(gazetteers.len(), 4);
+        assert!(gazetteers.iter().any(|g| g.content.contains("Ranthambore")));
+        assert!(gazetteers.iter().any(|g| g.content.contains("Coorg")));
+        assert!(gazetteers.iter().any(|g| g.content.contains("K Gudi")));
+        assert!(gazetteers.iter().any(|g| g.content.contains("Rotorua")));
+    }
+
+    #[test]
+    fn test_create_mini_dataset_missing_source_fails() {
+        let temp = tempdir().unwrap();
+        let non_existent = temp.path().join("does_not_exist");
+        let target = temp.path().join("target");
+
+        let opts = MiniDatasetOptions {
+            source_dir: non_existent,
+            target_dir: target,
+            force: false,
+            curated_samples: vec![],
+            gazetteers: vec![],
+        };
+
+        assert!(create_mini_dataset(&opts).is_err());
+    }
+
+    #[test]
+    fn test_create_mini_dataset_target_exists_without_force_fails() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source");
+        let target = temp.path().join("target");
+        fs::create_dir_all(&source).unwrap();
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("existing_file.txt"), b"already exists").unwrap();
+
+        let opts = MiniDatasetOptions {
+            source_dir: source,
+            target_dir: target,
+            force: false,
+            curated_samples: vec![],
+            gazetteers: vec![],
+        };
+
+        assert!(create_mini_dataset(&opts).is_err());
+    }
+
+    #[test]
+    fn test_create_mini_dataset_copies_samples_and_gazetteers() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source");
+        let target = temp.path().join("target");
+        fs::create_dir_all(&source).unwrap();
+
+        let sample_img = PathBuf::from("trip/img1.jpg");
+        let sample_xmp = PathBuf::from("trip/img1.jpg.xmp");
+        let src_img = source.join(&sample_img);
+        let src_xmp = source.join(&sample_xmp);
+        fs::create_dir_all(src_img.parent().unwrap()).unwrap();
+        fs::write(&src_img, b"fake image bytes").unwrap();
+        fs::write(&src_xmp, b"fake xmp bytes").unwrap();
+
+        let opts = MiniDatasetOptions {
+            source_dir: source,
+            target_dir: target.clone(),
+            force: true,
+            curated_samples: vec![CuratedSample {
+                image_rel_path: sample_img.clone(),
+                sidecar_rel_path: Some(sample_xmp.clone()),
+            }],
+            gazetteers: vec![GazetteerFixture {
+                dir_rel_path: PathBuf::from("trip"),
+                content: "name = \"Test Location\"\n".to_string(),
+            }],
+        };
+
+        let res = create_mini_dataset(&opts).expect("dataset creation");
+        assert_eq!(res.copied_files_count, 3); // image + xmp + gazetteer
+        assert!(target.join(&sample_img).exists());
+        assert!(target.join(&sample_xmp).exists());
+        assert!(target.join("trip/gazetteer.toml").exists());
+    }
 }
