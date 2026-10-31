@@ -249,3 +249,50 @@ pub fn execute_inplace_bundle_rename_with_stem(
 
     Ok(completed_renames)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_inplace_filename_full() {
+        let name = format_inplace_filename(
+            "IMG_1001",
+            "House Sparrow",
+            Some("2026-10-25"),
+            Some("Leh"),
+            "CR2",
+        );
+        assert_eq!(name, "IMG_1001_House_Sparrow_20261025_Leh.CR2");
+    }
+
+    #[test]
+    fn test_format_inplace_filename_no_date_no_location() {
+        let name = format_inplace_filename("IMG_1001", "House Sparrow", None, None, "JPG");
+        assert_eq!(name, "IMG_1001_House_Sparrow.JPG");
+    }
+
+    #[test]
+    fn test_format_inplace_filename_ignores_sentinel_strings() {
+        let name = format_inplace_filename(
+            "IMG_1001",
+            "House Sparrow",
+            Some("unknown"),
+            Some("UnknownLocation"),
+            "CR2",
+        );
+        assert_eq!(name, "IMG_1001_House_Sparrow.CR2");
+    }
+
+    #[test]
+    fn test_format_inplace_filename_no_bird_detected() {
+        let name = format_inplace_filename(
+            "IMG_1002",
+            "_No_Bird_Detected",
+            Some("2026-10-25"),
+            None,
+            "JPG",
+        );
+        assert_eq!(name, "IMG_1002_No_Bird_Detected_20261025.JPG");
+    }
+}

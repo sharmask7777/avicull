@@ -136,3 +136,46 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
     // 4. Default to standard local volume
     Box::new(LocalVolumeBackend::new())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_storage_kind_equality() {
+        assert_eq!(StorageKind::LocalVolume, StorageKind::LocalVolume);
+        assert_ne!(StorageKind::LocalVolume, StorageKind::MacOSCloudStorage);
+        assert_ne!(StorageKind::MacOSCloudStorage, StorageKind::NetworkShare);
+    }
+
+    #[test]
+    fn test_file_locality_struct() {
+        let loc = FileLocality {
+            is_dataless: true,
+            pre_existing_local: false,
+            file_size_bytes: 1024,
+        };
+        assert!(loc.is_dataless);
+        assert!(!loc.pre_existing_local);
+        assert_eq!(loc.file_size_bytes, 1024);
+    }
+
+    #[test]
+    fn test_detect_storage_backend_cloud_path() {
+        let cloud_path = Path::new("/Users/user/Library/CloudStorage/OneDrive-Personal/Photos");
+        let backend = detect_storage_backend(cloud_path);
+        assert_eq!(backend.kind(), StorageKind::MacOSCloudStorage);
+
+        let icloud_path =
+            Path::new("/Users/user/Library/Mobile Documents/com~apple~CloudDocs/Pictures");
+        let backend_icloud = detect_storage_backend(icloud_path);
+        assert_eq!(backend_icloud.kind(), StorageKind::MacOSCloudStorage);
+    }
+
+    #[test]
+    fn test_detect_storage_backend_local_path() {
+        let local_path = Path::new("/Volumes/Photos/Leh");
+        let backend = detect_storage_backend(local_path);
+        assert_eq!(backend.kind(), StorageKind::LocalVolume);
+    }
+}
