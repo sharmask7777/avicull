@@ -64,7 +64,8 @@ fi
 echo -e "${BOLD}[5/7] Running Real Samples E2E Test on Latest Compiled Build Locally...${NC}"
 LOCAL_BIN="$REPO_ROOT/target/debug/avicull"
 if cargo build --bin avicull; then
-    if AVICULL_BIN="$LOCAL_BIN" cargo test --test test_e2e_real_samples -- --nocapture; then
+    if AVICULL_BIN="$LOCAL_BIN" cargo test --test test_e2e_real_samples -- --nocapture && \
+       AVICULL_BIN="$LOCAL_BIN" cargo test --test test_local_user_samples_e2e -- --nocapture; then
         echo -e "${GREEN}✓ Real samples E2E test passed on locally compiled binary ($LOCAL_BIN).${NC}\n"
     else
         echo -e "${RED}✗ Real samples E2E test failed on locally compiled binary.${NC}\n"
@@ -96,7 +97,8 @@ if [ -n "$RELEASE_BIN" ] && [ -x "$RELEASE_BIN" ]; then
         *)  FULL_RELEASE_BIN="$REPO_ROOT/$RELEASE_BIN" ;;
     esac
     echo -e "Found release binary: ${BOLD}$FULL_RELEASE_BIN${NC}. Running E2E verification..."
-    if AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_e2e_real_samples -- --nocapture; then
+    if AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_e2e_real_samples -- --nocapture && \
+       AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_local_user_samples_e2e -- --nocapture; then
         echo -e "${GREEN}✓ Real samples E2E test passed on release binary ($FULL_RELEASE_BIN).${NC}\n"
     else
         echo -e "${RED}✗ Real samples E2E test failed on release binary ($FULL_RELEASE_BIN).${NC}\n"

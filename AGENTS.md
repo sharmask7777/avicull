@@ -37,7 +37,7 @@ Welcome to `avicull`. This document defines the engineering standards, architect
   5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy -- -D warnings`), and document while keeping all tests passing.
 
 ### B. Multi-Pronged Testing Strategy
-Every pull request or enhancement must be verified across four distinct tiers:
+Every pull request or enhancement must be verified across five distinct tiers:
 1. **Unit Tests**:
    - Verify pure algorithmic functions in isolation (Bayesian posterior math, temperature scaling, slug sanitization, DMS conversion).
 2. **Filesystem Integration Tests (`tests/`)**:
@@ -46,7 +46,11 @@ Every pull request or enhancement must be verified across four distinct tiers:
    - Verify nested & parent coexistence via hard links.
    - Verify incremental auto-detection of newer files.
    - Verify `_No_Bird_Detected` routing tier.
-4. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
+4. **Local Developer Mini-Dataset Inner-Loop Tests (`tests/test_local_user_samples_e2e.rs`)**:
+   - Every developer maintains their own local, uncommitted mini-dataset in `tests/fixtures/local_user_samples/` (git-ignored) created from their personal photo library.
+   - Run `python3 scripts/create_local_mini_dataset.py --source "<PATH_TO_PERSONAL_PHOTOS>"` to populate representative trip hierarchies, sidecars, and images (~5-7 MB total).
+   - This inner-loop test runs on every compilation and pre-push hook (`[5/7]` and `[6/7]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
+5. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
    - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams.
 
 ### C. The Verification Agent Crew Loop
