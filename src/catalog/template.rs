@@ -1029,6 +1029,13 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
           <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
         </div>
 
+        <div style="margin-top: 10px; margin-bottom: 6px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; user-select: none;">
+            <input type="checkbox" id="reclassifyOnLocationChange" checked onchange="handleLocationInput()" style="cursor: pointer;"/>
+            Reclassify on location change (--reclassify)
+          </label>
+        </div>
+
         <div>
           <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
             Generated Location Command (`avicull location`):
@@ -1044,6 +1051,12 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </p>
         <div id="bulkLocationRows"></div>
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="addBulkLocationRow()">+ Add Directory Row</button>
+        <div style="margin-top: 10px; margin-bottom: 6px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; user-select: none;">
+            <input type="checkbox" id="bulkReclassifyOnLocationChange" checked onchange="renderBulkLocationPreview()" style="cursor: pointer;"/>
+            Reclassify on location change (--reclassify)
+          </label>
+        </div>
         <div style="margin-top:14px;">
           <label style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:block;">
             Generated Commands:
@@ -1052,14 +1065,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-secondary" onclick="copyBulkLocationCommands()">Copy Commands</button>
-          <button class="btn btn-primary" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
+          <button class="btn btn-primary" onclick="openReclassifyReviewModal()">Review your classifications</button>
           <button class="btn btn-primary" onclick="applyBulkLocationBatch()">Add to Batch Script</button>
         </div>
       </div>
     </div>
     <div class="modal-footer" id="locationModalFooter">
       <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
-      <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Reclassify &amp; Review</button>
+      <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Review your classifications</button>
       <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
     </div>
   </div>
@@ -1069,7 +1082,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 <div class="modal-backdrop" id="reclassifyModal">
   <div class="modal-box" style="max-width: 780px;">
     <div class="modal-header">
-      <h2>Review Reclassified Photos</h2>
+      <h2>Review Your Classifications</h2>
       <button class="modal-close" onclick="closeReclassifyModal()">&times;</button>
     </div>
     <div class="modal-body">
@@ -2281,6 +2294,9 @@ fi
     const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
     if (validRows.length === 0) return [];
 
+    const bulkReclassToggle = document.getElementById('bulkReclassifyOnLocationChange');
+    const reclassFlag = (bulkReclassToggle && !bulkReclassToggle.checked) ? '' : ' --reclassify';
+
     let lines = [];
     if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
     lines.push(findAvicullCmd().trim());
@@ -2288,7 +2304,7 @@ fi
     validRows.forEach(r => {{
       const safeDir = escapeShellArg(r.subdir);
       const safeLoc = escapeShellArg(r.location.trim());
-      lines.push(`  avicull location --dir "${{safeDir}}" --location "${{safeLoc}}" 2>/dev/null || $AVICULL_CMD location --dir "${{safeDir}}" --location "${{safeLoc}}"`);
+      lines.push(`  avicull location --dir "${{safeDir}}" --location "${{safeLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --dir "${{safeDir}}" --location "${{safeLoc}}"${{reclassFlag}}`);
     }});
     lines.push(`fi`);
     return lines;
@@ -2338,24 +2354,27 @@ fi
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
 
+    const reclassToggle = document.getElementById('reclassifyOnLocationChange');
+    const reclassFlag = (reclassToggle && !reclassToggle.checked) ? '' : ' --reclassify';
+
     const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
     if (scope === 'selection' && selectedIds.size > 0) {{
       for (const id of selectedIds) {{
         const item = items.find(i => i.id === id);
         if (item) {{
-          commands.push(`  avicull location --file "${{item.original_stem}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --file "${{item.original_stem}}" --location "${{locStr}}"`);
+          commands.push(`  avicull location --file "${{item.original_stem}}" --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --file "${{item.original_stem}}" --location "${{locStr}}"${{reclassFlag}}`);
         }}
       }}
     }} else if (scope === 'directory') {{
       const subdirSelect = document.getElementById('locationSubdirSelect');
       const chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
       if (chosenDir) {{
-        commands.push(`  avicull location --dir "${{chosenDir}}" --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --dir "${{chosenDir}}" --location "${{locStr}}"`);
+        commands.push(`  avicull location --dir "${{chosenDir}}" --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --dir "${{chosenDir}}" --location "${{locStr}}"${{reclassFlag}}`);
       }} else {{
-        commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+        commands.push(`  avicull location --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"${{reclassFlag}}`);
       }}
     }} else {{
-      commands.push(`  avicull location --location "${{locStr}}" 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"`);
+      commands.push(`  avicull location --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"${{reclassFlag}}`);
     }}
     commands.push(`fi`);
     return commands;
