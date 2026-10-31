@@ -13,7 +13,6 @@ test-results/
 playwright-report/
 fixtures/*.html
 tests/e2e/fixtures/*.html
-tests/fixtures/local_user_samples/
 .local_dataset/
 
 .gstack/

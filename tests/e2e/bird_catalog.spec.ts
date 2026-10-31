@@ -349,13 +349,44 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
 
   test.describe('Trip Location Override Modal', () => {
     test('displays current trip location in header and opens location modal', async ({ page }) => {
+      // Verify explicit location label
+      const prefix = page.locator('.location-prefix');
+      await expect(prefix).toBeVisible();
+      await expect(prefix).toHaveText('Location of the current directory:');
+
       const locBadge = page.locator('#headerLocationBadge');
       await expect(locBadge).toBeVisible();
       await expect(page.locator('#headerLocationText')).toContainText('Leh, Ladakh');
 
+      // Verify dedicated "modify locations of directory and subdirectory" button to the right
+      const modifyBtn = page.locator('#btnModifyLocations');
+      await expect(modifyBtn).toBeVisible();
+      await expect(modifyBtn).toHaveText('modify locations of directory and subdirectory');
+
+      // Verify dedicated "Review your classifications" button in header
+      const mainReviewBtn = page.locator('#btnMainReviewClassifications');
+      await expect(mainReviewBtn).toBeVisible();
+      await expect(mainReviewBtn).toHaveText('Review your classifications');
+
+      // Clicking modify locations button opens location modal
+      await modifyBtn.click();
+      const locModal = page.locator('#locationModal');
+      await expect(locModal).toHaveClass(/open/);
+
+      // Close modal
+      await page.locator('#locationModal .modal-close').click();
+      await expect(locModal).not.toHaveClass(/open/);
+
+      // Clicking main "Review your classifications" button directly opens review modal
+      await mainReviewBtn.click();
+      const reclassModal = page.locator('#reclassifyModal');
+      await expect(reclassModal).toHaveClass(/open/);
+      await expect(reclassModal.locator('h2')).toHaveText('Review Your Classifications');
+      await page.locator('#reclassifyModal .modal-close').click();
+      await expect(reclassModal).not.toHaveClass(/open/);
+
       // Click location badge to open modal
       await locBadge.click();
-      const locModal = page.locator('#locationModal');
       await expect(locModal).toHaveClass(/open/);
 
       // Input shows current location

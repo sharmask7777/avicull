@@ -114,6 +114,28 @@ fn test_reclassify_modal_css_prevents_flex_collapse() {
         html.contains("id=\"bulkReclassifyOnLocationChange\""),
         "Bulk tab bulkReclassifyOnLocationChange toggle missing"
     );
+
+    // Issue #29 UI checks:
+    // A. Dedicated "Review your classifications" button in main page header
+    assert!(
+        html.contains("id=\"btnMainReviewClassifications\""),
+        "Dedicated 'Review your classifications' button missing from header in main page"
+    );
+    // B. Explicit label "Location of the current directory: "
+    assert!(
+        html.contains("Location of the current directory:"),
+        "Expected explicit label 'Location of the current directory:' in header"
+    );
+    // C. Dedicated button "modify locations of directory and subdirectory" to the right of location
+    assert!(
+        html.contains("id=\"btnModifyLocations\""),
+        "Dedicated 'modify locations of directory and subdirectory' button missing"
+    );
+    assert!(
+        html.contains("modify locations of directory and subdirectory")
+            || html.contains("Modify locations of directory and subdirectory"),
+        "Expected button text 'modify locations of directory and subdirectory'"
+    );
 }
 
 #[test]
