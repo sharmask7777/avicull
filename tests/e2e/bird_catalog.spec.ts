@@ -422,15 +422,35 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       const locModal = page.locator('#locationModal');
       await expect(locModal).toHaveClass(/open/);
 
-      // Click "Reclassify & Review" button
+      // Verify "Review your classifications" button exists and click it
       const reclassifyBtn = page.locator('#btnReclassifyModalTrigger');
       await expect(reclassifyBtn).toBeVisible();
+      await expect(reclassifyBtn).toHaveText('Review your classifications');
+
+      // Verify "Reclassify on location change" checkbox is visible and checked by default
+      const toggle = page.locator('#reclassifyOnLocationChange');
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toBeChecked();
+
+      // Enter location and verify command contains --reclassify
+      await page.fill('#locationInput', 'Leh, Ladakh');
+      await expect(page.locator('#locationCommandOutput')).toContainText('--reclassify');
+
+      // Uncheck toggle -> command omits --reclassify
+      await toggle.uncheck();
+      await expect(page.locator('#locationCommandOutput')).not.toContainText('--reclassify');
+
+      // Check it back -> command contains --reclassify
+      await toggle.check();
+      await expect(page.locator('#locationCommandOutput')).toContainText('--reclassify');
+
       await reclassifyBtn.click();
 
       // Location modal closes, reclassification review modal opens
       await expect(locModal).not.toHaveClass(/open/);
       const reclassModal = page.locator('#reclassifyModal');
       await expect(reclassModal).toHaveClass(/open/);
+      await expect(reclassModal.locator('h2')).toHaveText('Review Your Classifications');
 
       // Verify diff table rows exist
       const rows = page.locator('#reclassifyDiffTableBody tr');
