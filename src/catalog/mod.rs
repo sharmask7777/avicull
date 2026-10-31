@@ -206,6 +206,21 @@ pub fn generate_html_catalog(
     let mut no_bird_count = 0;
     let mut unique_species = HashSet::new();
 
+    // Check if a manifest database exists in output_root/.avicull/manifest.sqlite
+    let db_path = output_root.join(".avicull/manifest.sqlite");
+    let manifest_db = if db_path.exists() {
+        crate::db::ManifestDb::open_or_create(&db_path).ok()
+    } else {
+        None
+    };
+
+    let mut cached_thumbnails = manifest_db
+        .as_ref()
+        .and_then(|db| db.get_all_thumbnails().ok())
+        .unwrap_or_default();
+
+    let mut new_thumbnails_to_persist = Vec::new();
+
     for item in items {
         match item.routing_tier {
             RoutingTier::ConfirmedSpecies => {
@@ -229,7 +244,17 @@ pub fn generate_html_catalog(
         let persistent_thumb = ensure_persistent_thumbnail(item, output_root);
         let thumb_src = persistent_thumb
             .unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
-        let embedded_thumb_data_uri = generate_base64_micro_thumbnail(item, output_root);
+
+        let embedded_thumb_data_uri =
+            if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
+                Some(cached_uri.clone())
+            } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
+                new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
+                cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
+                Some(fresh_uri)
+            } else {
+                None
+            };
 
         let current_path_rel = to_relative_string(&item.current_path, output_root);
         let local_src = current_path_rel.clone();
@@ -301,6 +326,16 @@ pub fn generate_html_catalog(
             sidecar_files,
             top_predictions: top_preds,
         });
+    }
+
+    if !new_thumbnails_to_persist.is_empty() {
+        if let Some(ref db) = manifest_db {
+            let slice: Vec<(&str, &str)> = new_thumbnails_to_persist
+                .iter()
+                .map(|(b, u)| (b.as_str(), u.as_str()))
+                .collect();
+            let _ = db.store_thumbnails_bulk(&slice);
+        }
     }
 
     let stats = CatalogStats {

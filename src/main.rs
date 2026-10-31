@@ -473,6 +473,24 @@ fn main() -> Result<()> {
             };
 
             let db = ManifestDb::open_or_create(&db_path)?;
+
+            // Discover and import child manifests from subdirectories if any exist
+            if let Ok(child_manifests) = avicull::scanner::discover_child_manifests(&args.input) {
+                for (child_path, child_rel_dir) in child_manifests {
+                    if let Ok(imported_count) =
+                        db.import_child_manifest(&child_path, &child_rel_dir)
+                    {
+                        if imported_count > 0 {
+                            println!(
+                                "Inheritance: Imported {} bundle(s) from child subdirectory manifest '{}'.",
+                                imported_count,
+                                child_rel_dir.display()
+                            );
+                        }
+                    }
+                }
+            }
+
             let mut existing_bundle_map = if args.force {
                 ExistingBundleMap::new()
             } else {
