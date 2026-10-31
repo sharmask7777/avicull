@@ -89,8 +89,9 @@ fn build_deterministic_catalog_items() -> Vec<CatalogItem> {
     ]
 }
 
-/// Normalizes nondeterministic runtime variables (such as temporary filesystem paths
-/// and ISO execution timestamps) so snapshots can be reproducibly asserted across runs and machines.
+/// Normalizes nondeterministic runtime variables (such as temporary filesystem paths,
+/// ISO execution timestamps, and local taxonomy caches) so snapshots can be reproducibly
+/// asserted across runs and machines regardless of local model cache presence.
 fn normalize_html_for_snapshot(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut remaining = html;
@@ -106,7 +107,7 @@ fn normalize_html_for_snapshot(html: &str) -> String {
     out.push_str(remaining);
 
     let mut out2 = String::with_capacity(out.len());
-    remaining = &out;
+    remaining = &out2_src(&out);
     while let Some(start_idx) = remaining.find("\"generated_at\":") {
         out2.push_str(&remaining[..start_idx]);
         out2.push_str("\"generated_at\":\"<NORMALIZED_GENERATED_AT>\"");
@@ -117,7 +118,29 @@ fn normalize_html_for_snapshot(html: &str) -> String {
     }
     out2.push_str(remaining);
 
-    out2
+    let mut out3 = String::with_capacity(out2.len());
+    remaining = &out2;
+    while let Some(start_idx) = remaining.find("\"species_list\":") {
+        out3.push_str(&remaining[..start_idx]);
+        out3.push_str("\"species_list\":[\"<NORMALIZED_SPECIES_LIST>\"]");
+        let rest = &remaining[start_idx + "\"species_list\":".len()..];
+        if let Some(bracket_start) = rest.find('[') {
+            if let Some(bracket_end) = rest[bracket_start..].find(']') {
+                remaining = &rest[bracket_start + bracket_end + 1..];
+            } else {
+                remaining = "";
+            }
+        } else {
+            remaining = "";
+        }
+    }
+    out3.push_str(remaining);
+
+    out3
+}
+
+fn out2_src(s: &str) -> &str {
+    s
 }
 
 #[test]
