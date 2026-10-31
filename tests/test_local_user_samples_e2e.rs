@@ -22,17 +22,31 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// Locates a file whose name matches the format: `<stem>_<conf>.<ext>` or starts with `<stem>`
+/// searches recursively within `dir`, skipping `.avicull` metadata directories.
 fn find_linked_file(dir: &Path, stem: &str, ext: &str) -> Option<PathBuf> {
     if !dir.exists() {
         return None;
     }
-    let entries = fs::read_dir(dir).ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        let lossy = name.to_string_lossy();
-        if lossy.starts_with(stem) && lossy.ends_with(ext) {
-            return Some(path);
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current_dir) = stack.pop() {
+        let entries = match fs::read_dir(&current_dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file_name = entry.file_name();
+            let lossy = file_name.to_string_lossy();
+
+            if lossy.starts_with('.') {
+                continue;
+            }
+
+            if path.is_dir() {
+                stack.push(path);
+            } else if lossy.starts_with(stem) && lossy.ends_with(ext) {
+                return Some(path);
+            }
         }
     }
     None
@@ -94,13 +108,19 @@ fn test_local_user_samples_e2e_inner_loop() {
     let src_meta = fs::metadata(&source_ranthambore).expect("stat source photo");
     let src_ino = src_meta.ino();
 
-    let linked_bulbul = find_linked_file(
-        &output_dir.join("_Needs_Review/Red_vented_Bulbul"),
-        "1X7A0806",
-        ".jpg",
-    )
-    .or_else(|| find_linked_file(&output_dir.join("Red_vented_Bulbul"), "1X7A0806", ".jpg"))
-    .expect("Expected hard linked photo in hierarchy output");
+    let linked_bulbul = find_linked_file(&output_dir, "1X7A0806", ".jpg")
+        .unwrap_or_else(|| {
+            let mut found_files = Vec::new();
+            if let Ok(entries) = fs::read_dir(&output_dir) {
+                for entry in entries.flatten() {
+                    found_files.push(entry.file_name().to_string_lossy().to_string());
+                }
+            }
+            panic!(
+                "Expected hard linked photo in hierarchy output.\nOutput dir contents: {:?}\nSTDOUT:\n{}\nSTDERR:\n{}",
+                found_files, stdout1, stderr1
+            );
+        });
 
     let dst_meta = fs::metadata(&linked_bulbul).expect("stat dest photo");
     assert_eq!(
