@@ -195,19 +195,27 @@ global.window = {{}};
 
 {js_code}
 
-// Case 1: singleReclassifyChecked is true -> commands must include --reclassify
+// Case 1: singleReclassifyChecked is true -> commands must include --reclassify and organize to regenerate catalog
 singleReclassifyChecked = true;
 const cmdsWithReclass = buildLocationCommands("21.124, 70.824").join("\n");
 if (!cmdsWithReclass.includes('--reclassify')) {{
   console.error("Expected --reclassify flag in single location commands when checked, got:", cmdsWithReclass);
   process.exit(1);
 }}
+if (!cmdsWithReclass.includes('$AVICULL_CMD organize --input "."')) {{
+  console.error("Expected organize command in single location script when --reclassify checked, got:", cmdsWithReclass);
+  process.exit(1);
+}}
 
-// Case 2: singleReclassifyChecked is false -> commands must NOT include --reclassify
+// Case 2: singleReclassifyChecked is false -> commands must NOT include --reclassify or organize
 singleReclassifyChecked = false;
 const cmdsWithoutReclass = buildLocationCommands("21.124, 70.824").join("\n");
 if (cmdsWithoutReclass.includes('--reclassify')) {{
   console.error("Expected NO --reclassify flag when unchecked, got:", cmdsWithoutReclass);
+  process.exit(1);
+}}
+if (cmdsWithoutReclass.includes('$AVICULL_CMD organize')) {{
+  console.error("Expected NO organize command when reclassify unchecked, got:", cmdsWithoutReclass);
   process.exit(1);
 }}
 
@@ -220,11 +228,26 @@ if (!bulkCmdsWith.includes('--reclassify')) {{
   console.error("Expected --reclassify flag in bulk location commands when checked, got:", bulkCmdsWith);
   process.exit(1);
 }}
+if (!bulkCmdsWith.includes('$AVICULL_CMD organize --input "."')) {{
+  console.error("Expected organize command in bulk location script when --reclassify checked, got:", bulkCmdsWith);
+  process.exit(1);
+}}
 
 bulkReclassifyChecked = false;
 const bulkCmdsWithout = buildBulkLocationCommands().join("\n");
 if (bulkCmdsWithout.includes('--reclassify')) {{
   console.error("Expected NO --reclassify flag in bulk commands when unchecked, got:", bulkCmdsWithout);
+  process.exit(1);
+}}
+if (bulkCmdsWithout.includes('$AVICULL_CMD organize')) {{
+  console.error("Expected NO organize command in bulk when unchecked, got:", bulkCmdsWithout);
+  process.exit(1);
+}}
+
+// Case 4: buildReclassifyCommands must also include organize step so review modal commands regenerate catalog
+const reclassifyModalCmds = buildReclassifyCommands().join("\n");
+if (!reclassifyModalCmds.includes('$AVICULL_CMD organize --input "."')) {{
+  console.error("Expected organize command in buildReclassifyCommands, got:", reclassifyModalCmds);
   process.exit(1);
 }}
 

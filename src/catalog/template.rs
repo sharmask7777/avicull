@@ -2295,7 +2295,11 @@ fi
     if (validRows.length === 0) return [];
 
     const bulkReclassToggle = document.getElementById('bulkReclassifyOnLocationChange');
-    const reclassFlag = (bulkReclassToggle && !bulkReclassToggle.checked) ? '' : ' --reclassify';
+    const isReclass = !bulkReclassToggle || bulkReclassToggle.checked;
+    const reclassFlag = isReclass ? ' --reclassify' : '';
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
     let lines = [];
     if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
@@ -2306,6 +2310,9 @@ fi
       const safeLoc = escapeShellArg(r.location.trim());
       lines.push(`  avicull location --dir "${{safeDir}}" --location "${{safeLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --dir "${{safeDir}}" --location "${{safeLoc}}"${{reclassFlag}}`);
     }});
+    if (isReclass) {{
+      lines.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
+    }}
     lines.push(`fi`);
     return lines;
   }}
@@ -2355,7 +2362,11 @@ fi
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
 
     const reclassToggle = document.getElementById('reclassifyOnLocationChange');
-    const reclassFlag = (reclassToggle && !reclassToggle.checked) ? '' : ' --reclassify';
+    const isReclass = !reclassToggle || reclassToggle.checked;
+    const reclassFlag = isReclass ? ' --reclassify' : '';
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
 
     const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
     if (scope === 'selection' && selectedIds.size > 0) {{
@@ -2375,6 +2386,9 @@ fi
       }}
     }} else {{
       commands.push(`  avicull location --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"${{reclassFlag}}`);
+    }}
+    if (isReclass) {{
+      commands.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
     }}
     commands.push(`fi`);
     return commands;
@@ -2660,6 +2674,10 @@ fi
         commands.push(`  avicull correct --file "${{escStem}}" --species "${{escSpec}}" 2>/dev/null || $AVICULL_CMD correct --file "${{escStem}}" --species "${{escSpec}}"`);
       }}
     }}
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    commands.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
     commands.push(`fi`);
     return commands;
   }}
