@@ -244,9 +244,9 @@ pub(crate) fn parse_inplace_slug_and_tier(
     file_stem: &str,
     original_stem: &str,
     known_location: Option<&str>,
-) -> (String, RoutingTier) {
+) -> Option<(String, RoutingTier)> {
     if file_stem == original_stem {
-        return ("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected);
+        return None;
     }
 
     let suffix = if file_stem.len() > original_stem.len() && file_stem.starts_with(original_stem) {
@@ -261,7 +261,7 @@ pub(crate) fn parse_inplace_slug_and_tier(
         || suffix == "No_Bird_Detected"
         || suffix == "NoBirdDetected"
     {
-        return ("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected);
+        return Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected));
     }
 
     let (tier, remainder) = if let Some(stripped) = suffix.strip_prefix("Needs_Review_") {
@@ -311,9 +311,9 @@ pub(crate) fn parse_inplace_slug_and_tier(
     let species_slug = sanitize_species_slug(&species_raw);
 
     if species_slug.is_empty() {
-        ("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected)
+        Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected))
     } else {
-        (species_slug, tier)
+        Some((species_slug, tier))
     }
 }
 
@@ -433,11 +433,14 @@ pub fn reconcile_inplace_manual_renames(
             None => continue,
         };
 
-        let (target_slug, target_tier) = parse_inplace_slug_and_tier(
+        let (target_slug, target_tier) = match parse_inplace_slug_and_tier(
             &file_stem,
             &bundle.original_stem,
             bundle.resolved_location_name.as_deref(),
-        );
+        ) {
+            Some(res) => res,
+            None => continue,
+        };
 
         let is_species_diff = existing_decision.assigned_species_slug != target_slug;
         let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
@@ -534,7 +537,7 @@ mod tests {
     #[test]
     fn test_parse_inplace_slug_and_tier_confirmed() {
         let (slug, tier) =
-            parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail", "DSC_0001", None);
+            parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail", "DSC_0001", None).unwrap();
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
@@ -545,7 +548,8 @@ mod tests {
             "DSC_0001_Northern_Pintail_20261025_Leh",
             "DSC_0001",
             Some("Leh"),
-        );
+        )
+        .unwrap();
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
@@ -553,7 +557,8 @@ mod tests {
     #[test]
     fn test_parse_inplace_slug_and_tier_with_year() {
         let (slug, tier) =
-            parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail_2024", "DSC_0001", None);
+            parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail_2024", "DSC_0001", None)
+                .unwrap();
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
@@ -561,7 +566,8 @@ mod tests {
     #[test]
     fn test_parse_inplace_slug_and_tier_needs_review() {
         let (slug, tier) =
-            parse_inplace_slug_and_tier("DSC_0001_Needs_Review_Northern_Pintail", "DSC_0001", None);
+            parse_inplace_slug_and_tier("DSC_0001_Needs_Review_Northern_Pintail", "DSC_0001", None)
+                .unwrap();
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::NeedsReview);
     }
@@ -569,12 +575,13 @@ mod tests {
     #[test]
     fn test_parse_inplace_slug_and_tier_no_bird_detected() {
         let (slug, tier) =
-            parse_inplace_slug_and_tier("DSC_0001__No_Bird_Detected", "DSC_0001", None);
+            parse_inplace_slug_and_tier("DSC_0001__No_Bird_Detected", "DSC_0001", None).unwrap();
         assert_eq!(slug, "_No_Bird_Detected");
         assert_eq!(tier, RoutingTier::NoBirdDetected);
 
-        let (slug2, tier2) = parse_inplace_slug_and_tier("DSC_0001", "DSC_0001", None);
-        assert_eq!(slug2, "_No_Bird_Detected");
-        assert_eq!(tier2, RoutingTier::NoBirdDetected);
+        assert_eq!(
+            parse_inplace_slug_and_tier("DSC_0001", "DSC_0001", None),
+            None
+        );
     }
 }

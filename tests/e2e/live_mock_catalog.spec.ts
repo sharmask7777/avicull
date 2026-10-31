@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 import path from 'path';
 
-// Validates the live generated HTML catalog from the local mock dataset demo
-const DEMO_CATALOG_PATH = `file://${path.resolve('/tmp/avicull_pr23_demo/birds_hierarchy/bird_catalog.html')}`;
+// Validates the live generated HTML catalog from the local mock dataset demo (in-place or hierarchy)
+const INPLACE_PATH = path.resolve('/tmp/avicull_pr23_demo/bird_catalog.html');
+const HIERARCHY_PATH = path.resolve('/tmp/avicull_pr23_demo/birds_hierarchy/bird_catalog.html');
+const DEMO_CATALOG_PATH = `file://${fs.existsSync(INPLACE_PATH) ? INPLACE_PATH : HIERARCHY_PATH}`;
 
 test.describe('Avicull Live Mock Dataset Catalog E2E Visual & Interaction Tests', () => {
   test.beforeEach(async ({ page }) => {

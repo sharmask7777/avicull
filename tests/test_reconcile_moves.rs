@@ -476,6 +476,86 @@ fn test_reconcile_inplace_manual_filename_rename() {
 }
 
 #[test]
+fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("photos");
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let photo = input_dir.join("1X7A7827_Rose-ringed_Parakeet_20250518_K_Gudi.jpg");
+    {
+        let mut f1 = File::create(&photo).unwrap();
+        f1.write_all(b"fake image bytes").unwrap();
+    }
+
+    let src_ino = fs::metadata(&photo).unwrap().ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "bundle_parakeet".to_string(),
+        primary_image: photo.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: src_ino,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        original_stem: "1X7A7827_Rose-ringed_Parakeet_20250518_K_Gudi".to_string(),
+        trip_folder_name: "photos".to_string(),
+        resolved_location_name: Some("K_Gudi".to_string()),
+        relative_path: Some(PathBuf::from(
+            "1X7A7827_Rose-ringed_Parakeet_20250518_K_Gudi.jpg",
+        )),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_parakeet".to_string(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "Rose-ringed_Parakeet".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    let run_id = "run-001";
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    db.record_run(run_id, &input_dir, &input_dir, false, "{}")
+        .unwrap();
+    db.record_bundles(
+        run_id,
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+    )
+    .unwrap();
+    db.complete_run(run_id).unwrap();
+
+    let mut map = db.get_existing_bundle_map().unwrap();
+    let reconciled_count = reconcile_inplace_manual_renames(&input_dir, &db, &mut map).unwrap();
+
+    assert_eq!(
+        reconciled_count, 0,
+        "An unrenamed photo must not trigger manual rename reconciliation"
+    );
+
+    let (db_dec, _) = map.get("bundle_parakeet").unwrap();
+    assert_eq!(
+        db_dec.assigned_species_slug, "Rose-ringed_Parakeet",
+        "Species should remain Rose-ringed_Parakeet and not be changed to _No_Bird_Detected"
+    );
+    assert_eq!(
+        db_dec.routing_tier,
+        RoutingTier::ConfirmedSpecies,
+        "Tier should remain ConfirmedSpecies and not be changed to NoBirdDetected"
+    );
+    assert!(
+        !db_dec.is_user_override,
+        "is_user_override should remain false"
+    );
+}
+
+#[test]
 fn test_reconciliation_handles_deleted_files() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("Photos");
