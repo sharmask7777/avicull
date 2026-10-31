@@ -101,6 +101,19 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       letter-spacing: 0.05em;
     }}
 
+    .location-display-group {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
+
+    .location-prefix {{
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }}
+
     .badge-location {{
       font-size: 0.8rem;
       padding: 4px 12px;
@@ -119,6 +132,27 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     .badge-location:hover {{
       background: rgba(16, 185, 129, 0.25);
       border-color: #34d399;
+    }}
+
+    .btn-modify-locations {{
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }}
+
+    .btn-modify-locations:hover {{
+      background: rgba(59, 130, 246, 0.25);
+      border-color: #60a5fa;
+      color: #ffffff;
     }}
 
     .header-actions {{
@@ -864,11 +898,21 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     <div class="brand-title">
       <h1>{trip_name}</h1>
       <span class="badge-mode">{mode_display}</span>
-      <button class="badge-location" id="headerLocationBadge" onclick="openLocationModal()" title="View or edit trip location for accurate regional bird classifications">
-        📍 <span id="headerLocationText">{trip_location_display}</span>
-      </button>
+      <div class="location-display-group">
+        <span class="location-prefix">Location of the current directory:</span>
+        <button class="badge-location" id="headerLocationBadge" onclick="openLocationModal()" title="View trip location for accurate regional bird classifications">
+          📍 <span id="headerLocationText">{trip_location_display}</span>
+        </button>
+        <button class="btn-modify-locations" id="btnModifyLocations" onclick="openLocationModal()" title="Modify locations of directory and subdirectory">
+          modify locations of directory and subdirectory
+        </button>
+      </div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-primary" id="btnMainReviewClassifications" onclick="openReclassifyReviewModal()" title="Review species classifications across photos" style="background: var(--accent-blue); color: #fff;">
+        <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 4px;"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        Review your classifications
+      </button>
       <button class="btn btn-secondary" id="btnCopyBatchScript" onclick="copyBatchScript()" title="Copy bash script for all queued mislabel corrections to clipboard">
         Copy Batch Script (<span id="batchCountCopy">0</span>)
       </button>
