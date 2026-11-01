@@ -1,4 +1,15 @@
-// src/location/resolver.rs
+//! # Location Precedence Cascade & Interactive Disambiguation
+//!
+//! Evaluates and enforces the strict four-tier geographic precedence hierarchy:
+//!
+//! 1. **Embedded EXIF GPS (`ExifGps`)**:
+//!    Direct hardware camera coordinates take highest priority and are strictly immutable.
+//! 2. **Explicit Image-Level Override (`ImageLocationOverride`)**:
+//!    Curation overrides assigned via HTML catalog or `avicull set-location --file`.
+//! 3. **Hierarchical Subdirectory Override (`SubdirectoryGazetteer`)**:
+//!    Overrides assigned to specific subdirectories (e.g. `Leh/Shey_Marshes/`).
+//! 4. **Top-Level Trip Folder / Default Gazetteer (`TripFolderGazetteer`)**:
+//!    Hotspot inferred from the trip root folder name or nearest gazetteer match.
 
 use crate::location::gazetteer::GazetteerEngine;
 use crate::manifest::ManifestDb;

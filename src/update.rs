@@ -1,3 +1,10 @@
+//! # Self-Update Engine, GitHub Releases & Checksum Verification
+//!
+//! Provides automated and on-demand binary upgrades:
+//! - Queries GitHub Releases API for the latest prebuilt macOS Apple Silicon release.
+//! - Downloads binaries and verifies cryptographic SHA-256 checksums (`avicull-darwin-arm64.tar.gz.sha256`).
+//! - Atomically swaps running binaries using temporary files and POSIX `rename`.
+
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;

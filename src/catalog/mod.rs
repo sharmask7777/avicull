@@ -1,3 +1,11 @@
+//! # Standalone HTML5 Bird Photo Catalog Generation
+//!
+//! Generates a zero-dependency, self-contained single-file HTML5 review dashboard:
+//! - **Client-Side Virtualized Grid**: Displays thousands of high-resolution avian photos smoothly with responsive cards.
+//! - **Interactive Species Curation**: In-browser search, multi-selection (Cmd/Shift+Click), and bulk reclassification modals.
+//! - **Automated Script Export**: Generates executable shell snippets to apply user corrections in seconds.
+//! - **Embedded JSON Payload**: Stores state inside `<script id="catalog-data">` for Playwright testability and offline archiving.
+
 pub mod template;
 
 use crate::scanner::extract_embedded_jpeg_preview;
@@ -136,7 +144,7 @@ pub struct CatalogStats {
     pub no_bird_count: usize,
 }
 
-/// Full JSON data structure embedded inside <script id="catalog-data">.
+/// Full JSON data structure embedded inside `<script id="catalog-data">`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CatalogPayload {
     pub trip_name: String,

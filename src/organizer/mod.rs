@@ -1,3 +1,11 @@
+//! # Hierarchy Organization, APFS Hard Links & Name Formatting
+//!
+//! Handles destination tree generation via POSIX hard links:
+//! - Materializes zero-byte links pointing to original source inodes (`st_ino`).
+//! - Encodes trip, capture date, location, and confidence into descriptive filenames.
+//! - Converts species common names into cross-platform filesystem slugs.
+//! - Routes assets into `Species_Slug/`, `_Needs_Review/Species_Slug/`, or `_No_Bird_Detected/`.
+
 pub mod chunk;
 pub mod correct;
 pub mod inplace;
@@ -62,8 +70,8 @@ pub fn sanitize_species_slug(name: &str) -> String {
 }
 
 /// Constructs formatted destination filename:
-/// <TripPrefix__><OriginalStem>_<Date>_<Location>_<Confidence:0.2>.<OriginalExt>
-/// Preserves compound sidecar extensions (e.g. DSC_4011.JPG.xmp -> DSC_4011_2025-01-26_Saul_Kere_0.96.JPG.xmp).
+/// `<TripPrefix__><OriginalStem>_<Date>_<Location>_<Confidence:0.2>.<OriginalExt>`
+/// Preserves compound sidecar extensions (e.g. `DSC_4011.JPG.xmp` -> `DSC_4011_2025-01-26_Saul_Kere_0.96.JPG.xmp`).
 pub fn format_destination_filename(
     original_filename: &str,
     confidence: f32,

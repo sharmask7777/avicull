@@ -1,4 +1,11 @@
-// src/location/gazetteer.rs
+//! # Gazetteer Spatial Index & Trigram Fuzzy Name Matching
+//!
+//! Provides an embedded gazetteer of global avian biodiversity hotspots, Important Bird Areas (IBAs),
+//! national parks, wildlife sanctuaries, and wetlands.
+//!
+//! Hotspot names extracted from directory tokens (e.g. `"Ranthambhore"`, `"Keoladeo"`, `"Corbett"`)
+//! are resolved using a character-level trigram similarity index, achieving robust tolerance to
+//! alternate transliterations, casing, and minor typographical discrepancies.
 
 use std::collections::HashMap;
 

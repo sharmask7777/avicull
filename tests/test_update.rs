@@ -245,7 +245,7 @@ fn test_verify_sha256_checksum_missing_file_returns_false() {
         missing,
         "0000000000000000000000000000000000000000000000000000000000000000",
     );
-    assert_eq!(res.unwrap(), false);
+    assert!(!res.unwrap());
 }
 
 #[test]

@@ -1,3 +1,10 @@
+//! # Species Mislabel Curation, Interactive Correction & Batch Execution
+//!
+//! Provides CLI and programmatic interfaces to correct misclassified photo bundles:
+//! - Applies a human curation override to a bundle, relocating hard links or renaming in-place assets, updating SQLite with `is_user_override = 1`.
+//! - Recommends close eBird taxonomy matches using trigram similarity when typos are detected.
+//! - Optionally propagates corrections across all images in the same temporal capture burst.
+
 use crate::catalog::{generate_html_catalog, CatalogItem};
 use crate::db::ManifestDb;
 use crate::location::trigram_similarity;

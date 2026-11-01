@@ -107,7 +107,7 @@ fn normalize_html_for_snapshot(html: &str) -> String {
     out.push_str(remaining);
 
     let mut out2 = String::with_capacity(out.len());
-    remaining = &out2_src(&out);
+    remaining = out2_src(&out);
     while let Some(start_idx) = remaining.find("\"generated_at\":") {
         out2.push_str(&remaining[..start_idx]);
         out2.push_str("\"generated_at\":\"<NORMALIZED_GENERATED_AT>\"");

@@ -1,3 +1,11 @@
+//! # Network Share Storage Backend (SMB / NFS)
+//!
+//! Manages remote network mounts (e.g. Synology/QNAP NAS over SMB/NFS).
+//!
+//! Because random byte seeks across high-latency network shares degrade neural inference and EXIF extraction,
+//! [`NetworkShareBackend`] transparently stages assets on-demand into a fast local SSD scratch directory
+//! (`$TMPDIR/avicull_staging/`), caching staged copies for the duration of the organization pass.
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
@@ -27,12 +35,14 @@ impl Default for NetworkShareBackend {
 }
 
 impl NetworkShareBackend {
+    /// Creates a network share backend staging to `$TMPDIR/avicull_staging`.
     pub fn new() -> Self {
         let tmp = std::env::temp_dir();
         let staging_dir = tmp.join("avicull_staging");
         Self::with_staging_dir(staging_dir)
     }
 
+    /// Creates a network share backend staging to a custom directory.
     pub fn with_staging_dir(staging_dir: PathBuf) -> Self {
         Self {
             staging_dir,
@@ -82,35 +92,28 @@ impl StorageBackend for NetworkShareBackend {
                 sleep(Duration::from_millis(500));
             }
 
-            match (|| -> std::io::Result<()> {
-                let mut src = File::open(path)?;
-                let mut dst = File::create(&staged_path)?;
-                let mut buf = [0u8; 64 * 1024];
-                loop {
-                    let n = src.read(&mut buf)?;
-                    if n == 0 {
-                        break;
+            match File::open(path) {
+                Ok(mut remote_file) => {
+                    let mut dest_file = File::create(&staged_path)?;
+                    let mut buffer = [0u8; 64 * 1024];
+                    loop {
+                        let bytes_read = remote_file.read(&mut buffer)?;
+                        if bytes_read == 0 {
+                            break;
+                        }
+                        std::io::Write::write_all(&mut dest_file, &buffer[..bytes_read])?;
                     }
-                    std::io::Write::write_all(&mut dst, &buf[..n])?;
-                }
-                dst.sync_all()?;
-                Ok(())
-            })() {
-                Ok(_) => {
                     map.insert(path.to_path_buf(), staged_path.clone());
                     return Ok(staged_path);
                 }
-                Err(err) => {
-                    if staged_path.exists() {
-                        let _ = std::fs::remove_file(&staged_path);
-                    }
-                    last_err = Some(err);
+                Err(e) => {
+                    last_err = Some(e);
                 }
             }
         }
 
         Err(last_err.unwrap_or_else(|| {
-            std::io::Error::other(format!("Failed to stream network asset {}", path.display()))
+            std::io::Error::other(format!("Failed to stage remote asset {}", path.display()))
         }))
     }
 
@@ -122,15 +125,9 @@ impl StorageBackend for NetworkShareBackend {
 
         if let Some(staged) = map.remove(path) {
             if staged.exists() {
-                std::fs::remove_file(&staged)?;
-            }
-        } else {
-            let direct = self.staging_path_for(path);
-            if direct.exists() {
-                std::fs::remove_file(&direct)?;
+                let _ = std::fs::remove_file(staged);
             }
         }
-
         Ok(())
     }
 

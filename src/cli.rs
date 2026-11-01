@@ -1,3 +1,12 @@
+//! # Command Line Interface (CLI) Arguments & Commands
+//!
+//! Defines Clap subcommands, options, and flags for `avicull`:
+//! - `scan`: Validates filesystem volumes, lists bundles, and checks gazetteer resolution.
+//! - `organize`: Core end-to-end pipeline (detection, classification, burst consensus, hard links).
+//! - `correct`: Interactive or automated species mislabel override.
+//! - `location`: Explicit geolocation assignment.
+//! - `help`: Comprehensive built-in documentation reader.
+
 use crate::types::OrganizationMode;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -75,11 +84,11 @@ pub struct LocationArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    /// Target root directory (defaults to `<INPUT>/birds_hierarchy`)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 
@@ -287,11 +296,11 @@ pub struct CorrectArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory (defaults to <INPUT>/birds_hierarchy)
+    /// Target root directory (defaults to `<INPUT>/birds_hierarchy`)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to <OUTPUT>/.avicull/manifest.sqlite)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 

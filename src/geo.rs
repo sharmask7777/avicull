@@ -1,3 +1,27 @@
+//! # Geospatial Parsing, EXIF Extraction & Provenance Cascades
+//!
+//! Accurate geographic metadata is vital for Bayesian species prior evaluation.
+//! However, wildlife photographers frequently shoot with professional SLR bodies lacking built-in GPS receivers.
+//!
+//! This module resolves locations across photo collections using a four-tier cascading provenance architecture:
+//!
+//! 1. **Primary & Companion EXIF GPS**:
+//!    Extracts hardware GPS coordinates directly from the primary image or companion JPEGs using fast zero-copy parsers.
+//! 2. **Sibling Burst Median Propagation**:
+//!    When a camera locks onto GPS for only a subset of shots in a trip folder, the median $(\text{lat}, \text{lon})$
+//!    of geotagged siblings is automatically propagated to non-geotagged frames in the same trip cluster.
+//! 3. **Gazetteer & TOML Heuristics**:
+//!    Resolves location names from trip folder directory structures (e.g. `Pictures/2024-05-Bharatpur/`) by fuzzy matching
+//!    against an embedded gazetteer of birding hotspots (IBAs) or custom `locations.toml` mappings.
+//! 4. **CLI Fallback Coordinates**:
+//!    Applies user-specified default coordinates (`--default-location`).
+//!
+//! ## macOS FileProvider / iCloud Drive Dataless File Protection
+//!
+//! To prevent triggering accidental, network-heavy downloads of cloud-evicted files during fast directory scans,
+//! [`is_dataless_file`] inspects BSD file flags for Darwin `SF_DATALESS` (`0x40000000`). If set, files are
+//! never opened for EXIF parsing; instead, filesystem mtime is extracted via `symlink_metadata`.
+
 use crate::types::{AssetBundle, GpsCoordinate, LocationSource};
 use anyhow::Result;
 use chrono::NaiveDateTime;
