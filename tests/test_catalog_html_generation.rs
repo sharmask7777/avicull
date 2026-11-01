@@ -52,7 +52,13 @@ fn item_with_subdir(subdir: &str) -> CatalogItem {
     }
 }
 
-fn make_reclassify_item(id: &str, stem: &str, subdir: &str, species: &str, confidence: f32) -> CatalogItem {
+fn make_reclassify_item(
+    id: &str,
+    stem: &str,
+    subdir: &str,
+    species: &str,
+    confidence: f32,
+) -> CatalogItem {
     CatalogItem {
         bundle_id: id.into(),
         original_stem: stem.into(),
@@ -257,7 +263,9 @@ fn test_catalog_html_node_script_executes_bulk_location_batch() {
     .unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
-    let script_start = html.find("<script>\n  let CATALOG_DATA").expect("script start");
+    let script_start = html
+        .find("<script>\n  let CATALOG_DATA")
+        .expect("script start");
     let script_end = html.rfind("</script>").expect("script end");
     let script_content = &html[script_start + 8..script_end];
 
@@ -420,7 +428,9 @@ fn test_catalog_html_node_script_location_reclassify_toggle_updates_commands() {
     .unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
-    let script_start = html.find("<script>\n  let CATALOG_DATA").expect("script start");
+    let script_start = html
+        .find("<script>\n  let CATALOG_DATA")
+        .expect("script start");
     let script_end = html.rfind("</script>").expect("script end");
     let script_content = &html[script_start + 8..script_end];
 
@@ -636,7 +646,13 @@ console.log("RECLASSIFY MODAL TEST PASSED");
 #[test]
 fn test_catalog_html_node_script_reclassify_modal_renders_empty_state() {
     let dir = tempdir().unwrap();
-    let items = vec![make_reclassify_item("1", "IMG_001", "Gir", "Indian Peafowl", 0.9)];
+    let items = vec![make_reclassify_item(
+        "1",
+        "IMG_001",
+        "Gir",
+        "Indian Peafowl",
+        0.9,
+    )];
 
     let out = dir.path().join("bird_catalog.html");
     generate_html_catalog(

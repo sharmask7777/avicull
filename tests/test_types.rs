@@ -173,7 +173,10 @@ fn test_confidence_mode_parsing_display_and_errors() {
         _ => panic!("Expected InvalidConfidenceMode, got: {:?}", err),
     }
 
-    assert_eq!(format!("{}", ConfidenceMode::BurstConsensus), "burst-consensus");
+    assert_eq!(
+        format!("{}", ConfidenceMode::BurstConsensus),
+        "burst-consensus"
+    );
     assert_eq!(format!("{}", ConfidenceMode::PerFrame), "per-frame");
 }
 
@@ -206,7 +209,9 @@ fn test_avicull_error_display_formatting() {
     let err_cloud = AvicullError::CloudStorageAccessDenied {
         path: PathBuf::from("/cloud/drive"),
     };
-    assert!(err_cloud.to_string().contains("macOS Privacy & Security (TCC) prevented reading"));
+    assert!(err_cloud
+        .to_string()
+        .contains("macOS Privacy & Security (TCC) prevented reading"));
 
     let err_perm = AvicullError::DirectoryPermissionDenied {
         path: PathBuf::from("/read_only"),
@@ -216,10 +221,14 @@ fn test_avicull_error_display_formatting() {
     let err_remote = AvicullError::HierarchyModeUnsupportedOnRemote {
         storage_type: "iCloud Drive",
     };
-    assert!(err_remote.to_string().contains("Hard-linked species hierarchy mode"));
+    assert!(err_remote
+        .to_string()
+        .contains("Hard-linked species hierarchy mode"));
 
     let err_conf = AvicullError::InvalidConfidenceMode("bogus".into());
-    assert!(err_conf.to_string().contains("Unknown confidence mode: 'bogus'"));
+    assert!(err_conf
+        .to_string()
+        .contains("Unknown confidence mode: 'bogus'"));
 }
 
 #[test]

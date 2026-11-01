@@ -73,7 +73,10 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
 
     let bin_path =
         std::env::var("AVICULL_BIN").unwrap_or_else(|_| env!("CARGO_BIN_EXE_avicull").to_string());
-    println!("Executing Mock Directory Structure E2E test with binary: {}", bin_path);
+    println!(
+        "Executing Mock Directory Structure E2E test with binary: {}",
+        bin_path
+    );
 
     // 1. Initial full organization pass
     let output1 = std::process::Command::new(&bin_path)

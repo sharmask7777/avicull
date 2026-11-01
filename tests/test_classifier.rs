@@ -114,19 +114,34 @@ fn test_regional_prior_multiplier_variations() {
     checklists.insert("IN".to_string(), india_species);
 
     // None region defaults to neutral 1.0
-    assert_eq!(get_regional_prior_multiplier(None, "sparrow", &checklists), 1.0);
+    assert_eq!(
+        get_regional_prior_multiplier(None, "sparrow", &checklists),
+        1.0
+    );
 
     // Empty region string defaults to 1.0
-    assert_eq!(get_regional_prior_multiplier(Some(""), "sparrow", &checklists), 1.0);
+    assert_eq!(
+        get_regional_prior_multiplier(Some(""), "sparrow", &checklists),
+        1.0
+    );
 
     // Unknown region defaults to 1.0
-    assert_eq!(get_regional_prior_multiplier(Some("UNKNOWN-REGION-XYZ"), "sparrow", &checklists), 1.0);
+    assert_eq!(
+        get_regional_prior_multiplier(Some("UNKNOWN-REGION-XYZ"), "sparrow", &checklists),
+        1.0
+    );
 
     // Known region with native species returns 1.0
-    assert_eq!(get_regional_prior_multiplier(Some("IN"), "sparrow", &checklists), 1.0);
+    assert_eq!(
+        get_regional_prior_multiplier(Some("IN"), "sparrow", &checklists),
+        1.0
+    );
 
     // Known region with non-occurring species returns 0.001
-    assert_eq!(get_regional_prior_multiplier(Some("IN"), "penguin", &checklists), 0.001);
+    assert_eq!(
+        get_regional_prior_multiplier(Some("IN"), "penguin", &checklists),
+        0.001
+    );
 }
 
 #[test]
@@ -149,7 +164,9 @@ fn test_mock_classifier_constructors_and_regional_classification() {
     assert_eq!(emb[0], 0.1);
     assert_eq!(preds[0].common_name, "House Sparrow");
 
-    let (emb_reg, preds_reg) = mock.classify_with_region(&img, None, Some("IN-DL"), 1.0).unwrap();
+    let (emb_reg, preds_reg) = mock
+        .classify_with_region(&img, None, Some("IN-DL"), 1.0)
+        .unwrap();
     assert_eq!(emb_reg.len(), 512);
     assert_eq!(preds_reg.len(), 1);
 }

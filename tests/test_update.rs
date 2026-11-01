@@ -241,7 +241,10 @@ fn test_atomic_replace_binary() {
 fn test_verify_sha256_checksum_missing_file_returns_false() {
     let missing = std::path::Path::new("/nonexistent/path/for/checksum/test");
     // Missing file causes shasum command to exit with non-zero code, returning Ok(false)
-    let res = verify_sha256_checksum(missing, "0000000000000000000000000000000000000000000000000000000000000000");
+    let res = verify_sha256_checksum(
+        missing,
+        "0000000000000000000000000000000000000000000000000000000000000000",
+    );
     assert_eq!(res.unwrap(), false);
 }
 

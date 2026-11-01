@@ -109,7 +109,7 @@ else
 fi
 
 # 7. Gazetteer & Regional Checklist Integrity Check
-echo -e "${BOLD}[7/7] Running Gazetteer & Regional Checklist integrity check (pytest)...${NC}"
+echo -e "${BOLD}[7/8] Running Gazetteer & Regional Checklist integrity check (pytest)...${NC}"
 if command -v pytest >/dev/null 2>&1; then
     PYTEST_CMD="pytest"
 else
@@ -120,6 +120,21 @@ if $PYTEST_CMD tests/test_build_gazetteer.py; then
     echo -e "${GREEN}✓ Gazetteer & regional checklist integrity test passed.${NC}\n"
 else
     echo -e "${RED}✗ Gazetteer & regional checklist integrity test failed.${NC}\n"
+    exit 1
+fi
+
+# 8. Build-Time Blocking Code Coverage Metric Gate
+echo -e "${BOLD}[8/8] Checking build-time code coverage metrics (cargo-llvm-cov)...${NC}"
+if command -v cargo-llvm-cov >/dev/null 2>&1; then
+    # Blocking coverage gate requiring at least 80% line coverage across the codebase (aspiring to 95-100%)
+    if cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --skip test_e2e_real_samples; then
+        echo -e "${GREEN}✓ Code coverage metrics passed blocking gate (>80%).${NC}\n"
+    else
+        echo -e "${RED}✗ Code coverage metric fell below minimum required threshold (80%).${NC}\n"
+        exit 1
+    fi
+else
+    echo -e "${RED}✗ cargo-llvm-cov is not installed. Install via: brew install cargo-llvm-cov${NC}\n"
     exit 1
 fi
 
