@@ -44,7 +44,7 @@ fi
 
 # 3. Rust Unit, Integration & Spec Conformance Tests
 echo -e "${BOLD}[3/7] Running Rust unit, integration & spec conformance tests...${NC}"
-if cargo test --test 'test_*' -- --skip test_e2e_real_samples; then
+if cargo test --test test_suite --test test_mock_directory_structure_e2e -- --skip test_e2e_real_samples; then
     echo -e "${GREEN}✓ cargo test passed (all unit & integration tests green).${NC}\n"
 else
     echo -e "${RED}✗ cargo test failed.${NC}\n"
@@ -127,7 +127,7 @@ fi
 echo -e "${BOLD}[8/8] Checking build-time code coverage metrics (cargo-llvm-cov)...${NC}"
 if command -v cargo-llvm-cov >/dev/null 2>&1; then
     # Blocking coverage gate requiring at least 80% line coverage across the codebase (aspiring to 95-100%)
-    if cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --skip test_e2e_real_samples; then
+    if cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e -- --skip test_e2e_real_samples; then
         echo -e "${GREEN}✓ Code coverage metrics passed blocking gate (>80%).${NC}\n"
     else
         echo -e "${RED}✗ Code coverage metric fell below minimum required threshold (80%).${NC}\n"

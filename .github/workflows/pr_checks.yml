@@ -52,7 +52,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Run full Rust test suite and verify blocking coverage gate
-        run: cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --nocapture
+        run: cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e -- --nocapture
 
   python-and-gazetteer:
     name: Python & Gazetteer Integrity
