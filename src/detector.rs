@@ -1,3 +1,15 @@
+//! # Bird Subject Detection & Intelligent Square ROI Cropping
+//!
+//! High-resolution avian photographs often contain small bird subjects against expansive backgrounds
+//! (foliage, wetlands, open sky). Feeding the full uncropped image directly to species classification networks
+//! reduces accuracy because the subject occupies only a fraction of the input pixels.
+//!
+//! This module provides:
+//! 1. [`BirdDetector`]: Trait abstraction for YOLO / CoreML object detection backends.
+//! 2. [`select_and_pad_bird_crop`]: Selection of the most prominent avian subject maximizing $\text{confidence} \times \text{area}$,
+//!    expanding the bounding box symmetrically by 15% to capture diagnostic tail feathers and crests,
+//!    and resampling via high-fidelity Lanczos3.
+
 use anyhow::Result;
 use image::imageops::FilterType;
 use image::DynamicImage;

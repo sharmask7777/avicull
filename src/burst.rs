@@ -1,19 +1,61 @@
+//! # Burst Consensus Clustering & Temporal Confidence Pooling
+//!
+//! Avian wildlife photography is characterized by high-speed continuous shooting (bursts of 10–30 frames/sec).
+//! Within a burst, individual frames suffer from motion blur, wing occlusions, or extreme angles where
+//! a neural classifier's single-frame confidence may dip, even though adjacent frames provide crystal-clear views
+//! of the exact same bird.
+//!
+//! This module clusters consecutive captures into cohesive temporal bursts and applies confidence-weighted
+//! Bayesian consensus pooling across all frames in the burst.
+//!
+//! ## Mathematical Algorithm
+//!
+//! 1. **Temporal & Semantic Burst Partitioning**:
+//!    Captures are grouped within each trip folder by timestamp $\Delta t$. Two consecutive frames $I_m$ and $I_{m+1}$
+//!    belong to the same burst if and only if:
+//!    $$\Delta t = |t_{m+1} - t_m| \le \text{burst\_window\_ms} \quad \text{AND} \quad \text{sim}(e_m, e_{m+1}) \ge \text{min\_similarity}$$
+//!    where $\text{sim}(e_m, e_{m+1}) = \frac{e_m \cdot e_{m+1}}{\|e_m\| \|e_{m+1}\|}$ is the cosine similarity
+//!    between normalized deep image embeddings.
+//!
+//! 2. **Confidence-Weighted Posterior Consensus**:
+//!    Rather than taking an unweighted average (which could allow blurry frames to corrupt clear ones),
+//!    each frame's species posterior distribution $P(s | I_m)$ is weighted by its bird detector confidence $w_m$:
+//!    $$w_m = \max(0.01, \text{detection\_confidence}(I_m))$$
+//!    $$\bar{P}(s) = \frac{\sum_{m=1}^M w_m \cdot P(s | I_m)}{\sum_{m=1}^M w_m}$$
+//!
+//! 3. **Consensus Winner Assignment**:
+//!    The consensus winning species is $s^* = \arg\max_s \bar{P}(s)$ with score $C^* = \bar{P}(s^*)$.
+//!    Depending on [`ConfidenceMode`], either the consensus score $C^*$ or the per-frame posterior $P(s^* | I_m)$
+//!    is recorded on each bundle decision.
+
 use crate::types::{BundleDecision, ConfidenceMode, RoutingTier, SpeciesPrediction};
 use std::collections::HashMap;
 
+/// An intermediate representation of an image bundle with neural embeddings and posteriors ready for burst smoothing.
 #[derive(Debug, Clone)]
 pub struct ClassifiedBundleItem {
+    /// Unique BLAKE3 hash identifying the bundle.
     pub bundle_id: String,
+    /// Name of the trip folder or parent directory to prevent cross-trip burst clustering.
     pub trip_folder: String,
+    /// UTC capture epoch in milliseconds from EXIF `DateTimeOriginal`.
     pub capture_timestamp_ms: Option<i64>,
+    /// Avian detection confidence from YOLO detector in `[0.0, 1.0]`.
     pub detection_confidence: f32,
+    /// Normalized bounding box `[ymin, xmin, ymax, xmax]`.
     pub bbox_norm: Option<[f32; 4]>,
+    /// High-dimensional visual feature embedding vector (e.g. 512-dim or 768-dim).
     pub embedding: Vec<f32>,
+    /// Top species predictions sorted descending.
     pub top_predictions: Vec<SpeciesPrediction>,
-    pub posteriors: Vec<(String, f32)>, // (taxon_id, posterior)
+    /// Full posterior probability vector as pairs of `(taxon_id, posterior_probability)`.
+    pub posteriors: Vec<(String, f32)>,
 }
 
-/// Computes cosine similarity between two vectors.
+/// Computes the cosine similarity between two feature vectors in $[-1.0, 1.0]$.
+///
+/// Returns `0.0` if vector dimensions differ or vector magnitudes are near zero ($< 10^{-12}$).
+#[inline]
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -36,8 +78,18 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
-/// Groups classified bundles within trip folders into bursts and applies
-/// confidence-weighted posterior consensus pooling.
+/// Clusters classified bundles into temporal bursts and calculates confidence-weighted consensus pooling.
+///
+/// # Arguments
+/// * `items` - Slices of classified bundles with timestamps and embedding vectors.
+/// * `burst_window_ms` - Maximum time delta between frames in milliseconds (typically 3,000 ms for 3-second bursts).
+/// * `min_similarity` - Minimum cosine similarity required to merge adjacent frames into the same burst (e.g. 0.80).
+/// * `confidence_mode` - Whether to assign the pooled burst consensus score or individual per-frame score to each bundle.
+/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
+///
+/// # Invariants
+/// * Bundles in different `trip_folder` partitions are never clustered together.
+/// * The output vector preserves the exact original item ordering of `items`.
 pub fn smooth_burst_consensus(
     items: &[ClassifiedBundleItem],
     burst_window_ms: i64,

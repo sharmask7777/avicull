@@ -1,3 +1,26 @@
+//! # Photo Archive Scanning, Format Priority & Atomic Bundle Grouping
+//!
+//! Large photography archives contain diverse file formats for each shutter press:
+//! - Uncompressed RAW files (`.CR2`, `.CR3`, `.ARW`, `.NEF`, `.RAF`, `.DNG`).
+//! - Camera-generated fine JPEGs (`.JPG`, `.JPEG`).
+//! - Apple High Efficiency formats (`.HEIC`).
+//! - Non-destructive metadata sidecars (`.xmp`, `.CR2.xmp`, `.dop`, `.pp3`).
+//!
+//! This module recursively traverses photo archives while enforcing strict safety invariants:
+//! 1. **Traverse Exclusion Rules**:
+//!    Explicitly skips previously generated output trees (`birds_hierarchy`), internal database directories (`.avicull`),
+//!    Apple Photos library package bundles (`*.photoslibrary`), Synology indexing caches (`@eaDir`),
+//!    and hidden Unix directories (`.*`).
+//! 2. **Multi-File Bundle Aggregation**:
+//!    Groups companion files sharing the same stem within a directory into an indivisible [`AssetBundle`],
+//!    correctly stripping multi-extension compound sidecars (e.g. `DSC_0001.ARW.xmp`).
+//! 3. **Format Priority Selection**:
+//!    Elects the highest-fidelity image as the bundle's `primary_image` following the strict hierarchy:
+//!    $$\text{RAW} > \text{JPEG} > \text{HEIC} > \text{PNG} > \text{TIFF}$$
+//! 4. **Volume Disjointness & Sameness Validation**:
+//!    Verifies that input and output directories reside on the same filesystem volume (`st_dev`) to permit
+//!    APFS hard links, while asserting that neither path is nested inside the other.
+
 use crate::types::AssetBundle;
 use anyhow::{anyhow, Context, Result};
 use std::collections::HashMap;

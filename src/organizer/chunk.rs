@@ -1,3 +1,13 @@
+//! # Chunked Processing & Cache Memory Budgeting
+//!
+//! When processing tens of thousands of RAW photos or streaming assets from network/cloud storage,
+//! loading everything concurrently can exhaust memory or saturate local scratch disks.
+//!
+//! This module partitions photo archives into discrete sequential processing chunks bounded by a byte budget:
+//! - [`parse_size_budget`]: Parses human-readable size limits (e.g. `"5GB"`, `"500MB"`).
+//! - [`partition_into_chunks`]: Groups bundles into batches staying under `max_bytes`, keeping bursts
+//!   together where possible while isolating oversized items so execution never deadlocks.
+
 use crate::storage::StorageBackend;
 use crate::types::AssetBundle;
 use anyhow::{anyhow, Result};

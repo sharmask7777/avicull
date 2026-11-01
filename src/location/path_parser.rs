@@ -1,4 +1,13 @@
-// src/location/path_parser.rs
+//! # Directory Path Tokenization & Noise Word Filtering
+//!
+//! Photographers organize storage trees using idiosyncratic directory naming:
+//! - Dates: `2024-05-18`, `May_2023`, `20241012`
+//! - Camera hardware folders: `100CANON`, `101MSDCF`, `DCIM`, `EOS_R5`
+//! - Workflow stages: `RAW`, `Selects`, `Edited`, `Exported`, `Backups`
+//! - Structural filesystem prefixes: `Users`, `Pictures`, `Volumes`
+//!
+//! This module analyzes arbitrary filesystem paths, strips irrelevant structural and camera noise,
+//! and extracts high-confidence geographic location name candidates for gazetteer matching.
 
 use std::collections::HashSet;
 use std::path::{Component, Path};

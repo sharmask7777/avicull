@@ -1,3 +1,13 @@
+//! # Manifest Database & Atomic SQLite Operations
+//!
+//! Organizes state persistence across avicull runs:
+//! - **Schema Versioning**: Embedded SQL migrations for bundle classifications, hardlink journals, and directory locations.
+//! - **Two-Phase Journaling**: Hard link creations and in-place file renames are logged with status `"planned"`
+//!   before executing disk writes, guaranteeing atomic crash recovery.
+//! - **Sub-Second Delta Re-runs**: In-memory [`ExistingBundleMap`] caches previously processed bundles by
+//!   APFS inode, relative path, and portable `(trip_folder, original_stem)` keys, bypassing neural inference
+//!   on subsequent runs.
+
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction};
 use anyhow::{Context, Result};
 use chrono::Utc;

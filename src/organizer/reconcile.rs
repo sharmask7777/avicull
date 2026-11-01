@@ -1,3 +1,13 @@
+//! # Reconciling Manual Finder/Disk Moves into Durable Database State
+//!
+//! Photographers frequently drag-and-drop photos in macOS Finder to correct species misclassifications.
+//!
+//! Rather than overwriting manual user moves on subsequent runs, `avicull` treats Finder moves as
+//! authoritative first-class curation events:
+//! - Reconciles hard links to bundles via APFS inode parity (`meta.ino()`).
+//! - Detects when a bundle has been relocated to a different species folder and records an immutable user override (`is_user_override = 1`) in SQLite.
+//! - Subsequent runs preserve the user's manual sorting and propagate it to all companion files and sidecars.
+
 use crate::db::{ExistingBundleMap, ManifestDb};
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;

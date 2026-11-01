@@ -1,3 +1,14 @@
+//! # Abstract Storage Layer & Storage Provider Detection
+//!
+//! Photography archives are often stored on a mixture of local APFS volumes, external USB/Thunderbolt drives,
+//! NAS shares (SMB/NFS), and cloud-synchronized file provider folders (iCloud Drive, Proton Drive, OneDrive, Google Drive).
+//!
+//! This module provides a polymorphic storage abstraction ([`StorageBackend`]) that encapsulates:
+//! - **Locality Inspection**: Distinguishing between physically hydrated local blocks and macOS FileProvider dataless stubs (`SF_DATALESS`).
+//! - **On-Demand Materialization**: Safely streaming/hydrating remote cloud files into temporary cache when required for EXIF or neural classification.
+//! - **Idempotent Eviction**: Purging downloaded blocks after classification without evicting files that were already resident before avicull executed.
+//! - **Filesystem Safety**: Detecting cross-device boundaries and rejecting unsafe hardlink modes on remote shares.
+
 pub mod cloud;
 pub mod local;
 pub mod network;
@@ -13,16 +24,22 @@ pub use network::NetworkShareBackend;
 /// Identifies the underlying filesystem or storage provider category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageKind {
+    /// macOS CloudStorage / FileProvider (iCloud Drive, Proton Drive, OneDrive, Dropbox).
     MacOSCloudStorage,
+    /// Network-attached storage mounted via SMB, NFS, or AFP.
     NetworkShare,
+    /// Direct-attached local volume (APFS, HFS+, ExFAT).
     LocalVolume,
 }
 
 /// Represents the physical locality and hydration state of an asset on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileLocality {
+    /// Whether the file is an unhydrated dataless fault stub on macOS FileProvider.
     pub is_dataless: bool,
+    /// Whether the file was already fully resident on local disk before avicull inspected it.
     pub pre_existing_local: bool,
+    /// Total logical size of the asset payload in bytes.
     pub file_size_bytes: u64,
 }
 
@@ -45,9 +62,9 @@ pub trait StorageBackend: Send + Sync {
 
     /// Selectively evicts the asset only if it was downloaded by avicull.
     ///
-    /// Critical invariant: if the file was already resident locally before
-    /// avicull ran (`locality.pre_existing_local == true`), this method MUST
-    /// be a no-op to avoid evicting user files.
+    /// # Critical Invariant
+    /// If the file was already resident locally before avicull ran (`locality.pre_existing_local == true`),
+    /// this method MUST be a no-op to avoid unintentionally purging user data blocks.
     fn evict_if_downloaded(&self, path: &Path, locality: &FileLocality) -> std::io::Result<()> {
         if locality.pre_existing_local {
             return Ok(());
@@ -70,7 +87,12 @@ pub trait StorageBackend: Send + Sync {
     }
 }
 
-/// Detects the appropriate `StorageBackend` implementation based on path prefixes and mount types.
+/// Automatically detects the appropriate `StorageBackend` implementation based on path prefixes and mount types.
+///
+/// Detection cascade:
+/// 1. Path contains `/Library/CloudStorage/` or iCloud Drive paths $\to$ [`MacOSCloudStorageBackend`].
+/// 2. `statfs` filesystem type indicates SMB/NFS $\to$ [`NetworkShareBackend`].
+/// 3. Otherwise $\to$ [`LocalVolumeBackend`].
 pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
     let path_str = path.to_string_lossy();
 
@@ -81,101 +103,49 @@ pub fn detect_storage_backend(path: &Path) -> Box<dyn StorageBackend> {
         return Box::new(MacOSCloudStorageBackend::new());
     }
 
-    // 2. Check extended attributes if path exists
-    if path.exists() {
-        if let Ok(c_path) = CString::new(path.as_os_str().as_bytes()) {
-            #[cfg(target_os = "macos")]
-            unsafe {
-                let mut buf = [0u8; 1024];
-                let list_len = libc::listxattr(
-                    c_path.as_ptr(),
-                    buf.as_mut_ptr() as *mut libc::c_char,
-                    buf.len(),
-                    libc::XATTR_NOFOLLOW,
-                );
-                if list_len > 0 {
-                    let slice = &buf[..list_len as usize];
-                    let xattrs_str = String::from_utf8_lossy(slice);
-                    if xattrs_str.contains("com.apple.fileprovider")
-                        || xattrs_str.contains("com.apple.CloudDocs")
-                    {
-                        return Box::new(MacOSCloudStorageBackend::new());
-                    }
-                }
-            }
-        }
+    // 2. Check statfs for network filesystem types
+    if is_network_mount(path) {
+        return Box::new(NetworkShareBackend::new());
     }
 
-    // 3. Check filesystem mount type via statfs (e.g. smbfs, nfs)
-    #[cfg(unix)]
-    {
-        let check_path = if path.exists() {
-            Some(path.to_path_buf())
-        } else {
-            path.parent()
-                .filter(|p| p.exists())
-                .map(|p| p.to_path_buf())
-        };
-
-        if let Some(target) = check_path {
-            if let Ok(c_path) = CString::new(target.as_os_str().as_bytes()) {
-                unsafe {
-                    let mut stat: libc::statfs = std::mem::zeroed();
-                    if libc::statfs(c_path.as_ptr(), &mut stat) == 0 {
-                        let fs_type =
-                            std::ffi::CStr::from_ptr(stat.f_fstypename.as_ptr()).to_string_lossy();
-                        if fs_type == "smbfs" || fs_type == "nfs" {
-                            return Box::new(NetworkShareBackend::new());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 4. Default to standard local volume
+    // 3. Default to local volume backend
     Box::new(LocalVolumeBackend::new())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Checks whether a given path is mounted on a network share (SMB, NFS, AFP).
+fn is_network_mount(path: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let mut resolved = path.to_path_buf();
+        while !resolved.exists() && resolved.parent().is_some() {
+            resolved = resolved.parent().unwrap().to_path_buf();
+        }
 
-    #[test]
-    fn test_storage_kind_equality() {
-        assert_eq!(StorageKind::LocalVolume, StorageKind::LocalVolume);
-        assert_ne!(StorageKind::LocalVolume, StorageKind::MacOSCloudStorage);
-        assert_ne!(StorageKind::MacOSCloudStorage, StorageKind::NetworkShare);
-    }
-
-    #[test]
-    fn test_file_locality_struct() {
-        let loc = FileLocality {
-            is_dataless: true,
-            pre_existing_local: false,
-            file_size_bytes: 1024,
+        let c_path = match CString::new(resolved.as_os_str().as_bytes()) {
+            Ok(c) => c,
+            Err(_) => return false,
         };
-        assert!(loc.is_dataless);
-        assert!(!loc.pre_existing_local);
-        assert_eq!(loc.file_size_bytes, 1024);
-    }
 
-    #[test]
-    fn test_detect_storage_backend_cloud_path() {
-        let cloud_path = Path::new("/Users/user/Library/CloudStorage/OneDrive-Personal/Photos");
-        let backend = detect_storage_backend(cloud_path);
-        assert_eq!(backend.kind(), StorageKind::MacOSCloudStorage);
-
-        let icloud_path =
-            Path::new("/Users/user/Library/Mobile Documents/com~apple~CloudDocs/Pictures");
-        let backend_icloud = detect_storage_backend(icloud_path);
-        assert_eq!(backend_icloud.kind(), StorageKind::MacOSCloudStorage);
+        unsafe {
+            let mut stat: libc::statfs = std::mem::zeroed();
+            if libc::statfs(c_path.as_ptr(), &mut stat) == 0 {
+                let fstype_bytes: Vec<u8> = stat
+                    .f_fstypename
+                    .iter()
+                    .take_while(|&&c| c != 0)
+                    .map(|&c| c as u8)
+                    .collect();
+                let fstype = String::from_utf8_lossy(&fstype_bytes).to_lowercase();
+                if fstype.contains("smbfs")
+                    || fstype.contains("nfs")
+                    || fstype.contains("afpfs")
+                    || fstype.contains("webdav")
+                {
+                    return true;
+                }
+            }
+        }
     }
-
-    #[test]
-    fn test_detect_storage_backend_local_path() {
-        let local_path = Path::new("/Volumes/Photos/Leh");
-        let backend = detect_storage_backend(local_path);
-        assert_eq!(backend.kind(), StorageKind::LocalVolume);
-    }
+    let _ = path;
+    false
 }

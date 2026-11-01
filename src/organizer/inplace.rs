@@ -1,3 +1,18 @@
+//! # In-Place File Renaming & Atomic Rollback Safety
+//!
+//! Provides descriptive in-place file renaming without moving assets across directories:
+//!
+//! ```text
+//! <stem>_<Species_Common_Name>[_<YYYYMMDD>][_<Location_Slug>].<ext>
+//! ```
+//!
+//! ## Invariants
+//! 1. **Zero Path Relocation**: Files remain in their exact parent folders; only filenames change.
+//! 2. **Companion Atomicity**: Primary RAW, companion JPEGs, and `.xmp` sidecars are renamed simultaneously.
+//! 3. **Idempotency Guard**: Prevents cyclic double-renaming on repeated executions.
+//! 4. **Pre-Mutation Manifest Journaling**: Every rename operation records previous and new paths in SQLite
+//!    before filesystem modification to allow complete, lossless rollback.
+
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
 use crate::types::AssetBundle;

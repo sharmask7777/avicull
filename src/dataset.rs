@@ -1,3 +1,10 @@
+//! # Mock Dataset Generation & Anonymized Test Fixture Extraction
+//!
+//! Generates compact, anonymized mini-datasets (`tests/fixtures/local_user_samples/`) for local development:
+//! - Strips sensitive personal EXIF metadata (Artist, Copyright, Owner Name, Serial Numbers).
+//! - Downscales or extracts representative JPEG previews to keep the fixture archive small (~260 KB).
+//! - Preserves representative folder nesting, multi-extension sidecars (`.xmp`), and companion images.
+
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;

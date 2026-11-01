@@ -1,3 +1,8 @@
+//! # Local Volume Storage Backend
+//!
+//! Handles direct-attached local volumes (APFS, HFS+, ext4, NTFS) where files are natively resident
+//! and eligible for APFS zero-byte hard links (`dst_meta.ino() == src_ino`).
+
 use std::path::{Path, PathBuf};
 
 use super::{FileLocality, StorageBackend, StorageKind};
@@ -7,6 +12,7 @@ use super::{FileLocality, StorageBackend, StorageKind};
 pub struct LocalVolumeBackend;
 
 impl LocalVolumeBackend {
+    /// Creates a new local volume storage backend.
     pub fn new() -> Self {
         Self
     }
@@ -48,6 +54,7 @@ impl StorageBackend for LocalVolumeBackend {
     }
 
     fn evict(&self, _path: &Path) -> std::io::Result<()> {
+        // Local volumes have no cloud tier to evict to; always a no-op
         Ok(())
     }
 

@@ -1,3 +1,10 @@
+//! # Embedded User Manual & Interactive Help Topics
+//!
+//! Provides rich, colorized terminal documentation for CLI topics:
+//! - `quickstart`: First-time setup, models check, and basic organization run.
+//! - `invariants`: Core architectural guarantees (source immutability, zero-byte APFS links).
+//! - `organize`: Deep dive into taxonomy trees, confidence modes, and batching.
+
 use anyhow::{anyhow, Error, Result};
 use std::fmt;
 use std::str::FromStr;

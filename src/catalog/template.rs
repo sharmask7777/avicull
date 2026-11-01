@@ -1,3 +1,7 @@
+//! # Catalog HTML, CSS & JavaScript Template Engine
+//!
+//! Generates the self-contained HTML5 single-page application for reviewing avian photo archives.
+
 use super::CatalogPayload;
 
 /// Renders the complete, self-contained standalone HTML catalog document.

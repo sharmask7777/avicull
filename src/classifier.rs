@@ -1,3 +1,29 @@
+//! # Species Classification & Bayesian Spatio-Temporal Prior Integration
+//!
+//! This module orchestrates neural species inference and Bayesian posterior calibration:
+//!
+//! ## Mathematical Bayesian Fusion
+//!
+//! Neural vision classifiers output raw uncalibrated probabilities $P_{\text{vis}}(s \mid I)$ for candidate
+//! avian species $s$ given an image crop $I$. However, species occurrence varies dramatically by geographic
+//! location $\ell = (\text{lat}, \text{lon})$ and season/month $t$.
+//!
+//! We combine visual evidence with location priors using a Bayesian formulation with temperature/prior weighting $\alpha$:
+//!
+//! $$P_{\text{unnorm}}(s \mid I, \ell, t) = P_{\text{vis}}(s \mid I) \cdot \left[\max(P_{\text{geo}}(s \mid \ell, t), \epsilon)\right]^\alpha$$
+//!
+//! $$P_{\text{post}}(s \mid I, \ell, t) = \frac{P_{\text{unnorm}}(s \mid I, \ell, t)}{\sum_{s'} P_{\text{unnorm}}(s' \mid I, \ell, t)}$$
+//!
+//! where:
+//! - $\epsilon = 0.01$ provides a nonzero floor so that unprecedented species sightings (e.g. rare vagrants)
+//!   are never zeroed out entirely by imperfect local checklists.
+//! - $\alpha = \text{geo\_weight} \in [0.0, 1.0]$ controls geographic prior influence ($\alpha = 0.0$ disables priors).
+//!
+//! ## Regional Checklist Attenuation
+//!
+//! When a trip or image is mapped to a specific ISO 3166-2 regional checklist code (e.g. `"IN-RJ"` for Rajasthan, India),
+//! non-occurring taxa are penalized by a multiplier of $10^{-3}$ ($0.001$), while native species retain a neutral $1.0\times$ multiplier.
+
 use crate::types::{GpsCoordinate, SpeciesPrediction};
 use anyhow::Result;
 use image::DynamicImage;
@@ -16,9 +42,12 @@ pub fn load_embedded_regional_checklists() -> HashMap<String, HashSet<String>> {
 pub static EMBEDDED_REGIONAL_CHECKLISTS: LazyLock<HashMap<String, HashSet<String>>> =
     LazyLock::new(load_embedded_regional_checklists);
 
-/// Returns the regional prior multiplier for a taxon:
-/// - 1.0 for native species on the regional checklist, or if region_code is None/empty/unknown
-/// - 0.001 for out-of-range non-occurring species
+/// Calculates the regional checklist prior multiplier for a taxon.
+///
+/// Returns:
+/// - `1.0` if `region_code` is `None`, empty, unrecognized, or if the taxon is documented on that region's checklist.
+/// - `0.001` if the taxon is absent from a recognized regional checklist.
+#[inline]
 pub fn get_regional_prior_multiplier(
     region_code: Option<&str>,
     taxon_id: &str,
@@ -40,10 +69,19 @@ pub fn get_regional_prior_multiplier(
     }
 }
 
-/// Trait interface for species classification and embedding extraction.
+/// Common trait abstraction for avian species classifiers.
+///
+/// Implementations must be thread-safe (`Send + Sync`) to allow concurrent multi-core Rayon chunk processing.
 pub trait SpeciesClassifier: Send + Sync {
-    /// Given a cropped bird image and optional GPS coordinates,
-    /// returns the L2-normalized image embedding vector and top predictions sorted descending.
+    /// Classifies a cropped bird image and extracts a normalized visual embedding.
+    ///
+    /// # Arguments
+    /// * `crop` - Cropped avian subject image (square-padded).
+    /// * `coords` - Optional WGS84 GPS coordinate from EXIF or GPX interpolation.
+    /// * `geo_weight` - Exponent $\alpha$ controlling geographic prior strength in `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    /// A tuple of `(embedding_vector, top_predictions_sorted_descending)`.
     fn classify(
         &self,
         crop: &DynamicImage,
@@ -51,8 +89,7 @@ pub trait SpeciesClassifier: Send + Sync {
         geo_weight: f32,
     ) -> Result<(Vec<f32>, Vec<SpeciesPrediction>)>;
 
-    /// Given a cropped bird image, optional GPS coordinates, and an optional region code,
-    /// returns the L2-normalized image embedding vector and top predictions sorted descending.
+    /// Classifies a cropped bird image with an explicit regional prior checklist code.
     fn classify_with_region(
         &self,
         crop: &DynamicImage,
@@ -64,8 +101,12 @@ pub trait SpeciesClassifier: Send + Sync {
     }
 }
 
-/// Computes the posterior probability distribution fusing visual probability and spatio-temporal prior:
-/// P_post(s | I, loc) = P_vis(s | I) * max(P_geo(s | loc), epsilon)^alpha / Sum
+/// Computes the normalized posterior probability distribution fusing visual probability and spatio-temporal priors.
+///
+/// $$P_{\text{post}}(s \mid I, \text{loc}) = \frac{P_{\text{vis}}(s \mid I) \cdot \max(P_{\text{geo}}(s \mid \text{loc}), \epsilon)^\alpha}{\sum_j P_{\text{unnorm}}(j)}$$
+///
+/// # Panics
+/// Panics if `visual_probs.len() != geo_priors.len()`.
 pub fn compute_posterior(
     visual_probs: &[f32],
     geo_priors: &[f32],
@@ -112,7 +153,7 @@ pub fn compute_posterior(
     unnormalized.into_iter().map(|val| val / sum).collect()
 }
 
-/// Mock species classifier for deterministic testing.
+/// Deterministic mock classifier for unit tests and local mock directory structure verification.
 pub struct MockSpeciesClassifier {
     predictions: Vec<SpeciesPrediction>,
     embedding: Vec<f32>,
@@ -120,6 +161,7 @@ pub struct MockSpeciesClassifier {
 }
 
 impl MockSpeciesClassifier {
+    /// Creates a mock classifier returning static predictions with a default unit embedding.
     pub fn new(predictions: Vec<SpeciesPrediction>) -> Self {
         let mut embedding = vec![0.0f32; 512];
         if !embedding.is_empty() {
@@ -132,6 +174,7 @@ impl MockSpeciesClassifier {
         }
     }
 
+    /// Creates a mock classifier with custom embedding vectors for cosine similarity testing.
     pub fn with_embedding(predictions: Vec<SpeciesPrediction>, embedding: Vec<f32>) -> Self {
         Self {
             predictions,
@@ -140,6 +183,7 @@ impl MockSpeciesClassifier {
         }
     }
 
+    /// Creates a mock classifier configured with custom regional checklists.
     pub fn with_checklists(
         predictions: Vec<SpeciesPrediction>,
         embedding: Vec<f32>,
@@ -190,13 +234,16 @@ impl SpeciesClassifier for MockSpeciesClassifier {
     }
 }
 
-/// Production ONNX Runtime species classifier.
+/// Production ONNX Runtime species classifier with model weights and regional checklists.
 pub struct OrtSpeciesClassifier {
+    /// Root path where ONNX model graphs and label manifests reside.
     pub models_dir: PathBuf,
+    /// In-memory regional occurrence checklists.
     pub regional_checklists: HashMap<String, HashSet<String>>,
 }
 
 impl OrtSpeciesClassifier {
+    /// Loads an ONNX classifier from the target models directory.
     pub fn new(models_dir: &Path) -> Result<Self> {
         let checklists_path = models_dir.join("regional_checklists.json");
         let checklists = if checklists_path.exists() {
@@ -230,7 +277,7 @@ impl SpeciesClassifier for OrtSpeciesClassifier {
         region_code: Option<&str>,
         geo_weight: f32,
     ) -> Result<(Vec<f32>, Vec<SpeciesPrediction>)> {
-        // Default built-in taxonomy fallback for graceful execution
+        // Built-in taxonomy fallback for graceful execution
         let mut mock_preds = vec![
             SpeciesPrediction {
                 taxon_id: "paisto1".to_string(),
