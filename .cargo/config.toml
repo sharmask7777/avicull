@@ -1,6 +1,2 @@
 [build]
 rustflags = ["-C", "split-debuginfo=unpacked"]
-# Cap concurrent compiler and link jobs to physical performance cores (6 on Apple Silicon M-series 6P+4E).
-# Leaves the 4 efficiency cores free for macOS window server and responsive interactive workloads.
-jobs = 6
-
