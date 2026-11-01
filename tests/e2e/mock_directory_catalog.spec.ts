@@ -6,7 +6,7 @@ import path from 'path';
 // Falls back to committed reference snapshot when a live run demo directory is not active in /tmp
 const INPLACE_PATH = path.resolve('/tmp/avicull_pr23_demo/bird_catalog.html');
 const HIERARCHY_PATH = path.resolve('/tmp/avicull_pr23_demo/birds_hierarchy/bird_catalog.html');
-const SNAPSHOT_PATH = path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.html');
+const SNAPSHOT_PATH = path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.snap');
 
 const RESOLVED_PATH = fs.existsSync(INPLACE_PATH)
   ? INPLACE_PATH
@@ -16,7 +16,7 @@ const RESOLVED_PATH = fs.existsSync(INPLACE_PATH)
 
 const DEMO_CATALOG_PATH = `file://${RESOLVED_PATH}`;
 
-test.describe('Avicull Live Mock Dataset Catalog E2E Visual & Interaction Tests', () => {
+test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(DEMO_CATALOG_PATH);
     await page.waitForLoadState('domcontentloaded');

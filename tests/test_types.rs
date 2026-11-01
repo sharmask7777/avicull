@@ -145,3 +145,114 @@ fn test_organization_mode_serialization_roundtrip() {
         serde_json::from_str(&serialized_hierarchy).expect("deserialization failed");
     assert_eq!(mode_hierarchy, deserialized_hierarchy);
 }
+
+#[test]
+fn test_confidence_mode_parsing_display_and_errors() {
+    use std::str::FromStr;
+
+    assert_eq!(
+        ConfidenceMode::from_str("burst-consensus").unwrap(),
+        ConfidenceMode::BurstConsensus
+    );
+    assert_eq!(
+        ConfidenceMode::from_str("burstconsensus").unwrap(),
+        ConfidenceMode::BurstConsensus
+    );
+    assert_eq!(
+        ConfidenceMode::from_str("per-frame").unwrap(),
+        ConfidenceMode::PerFrame
+    );
+    assert_eq!(
+        ConfidenceMode::from_str("perframe").unwrap(),
+        ConfidenceMode::PerFrame
+    );
+
+    let err = ConfidenceMode::from_str("unknown-mode").unwrap_err();
+    match err {
+        AvicullError::InvalidConfidenceMode(s) => assert_eq!(s, "unknown-mode"),
+        _ => panic!("Expected InvalidConfidenceMode, got: {:?}", err),
+    }
+
+    assert_eq!(
+        format!("{}", ConfidenceMode::BurstConsensus),
+        "burst-consensus"
+    );
+    assert_eq!(format!("{}", ConfidenceMode::PerFrame), "per-frame");
+}
+
+#[test]
+fn test_organization_mode_display() {
+    assert_eq!(
+        format!("{}", OrganizationMode::InPlaceFileRenameToDescriptiveNames),
+        "in-place"
+    );
+    assert_eq!(
+        format!("{}", OrganizationMode::HierarchicalHardlinkHierarchy),
+        "hierarchy"
+    );
+}
+
+#[test]
+fn test_avicull_error_display_formatting() {
+    let err_vol = AvicullError::VolumeMismatch {
+        input_dev: 100,
+        output_dev: 200,
+    };
+    assert!(err_vol.to_string().contains("Filesystem volume mismatch"));
+
+    let err_disjoint = AvicullError::NestedPathDisjointness {
+        nested: PathBuf::from("/a/b"),
+        parent: PathBuf::from("/a"),
+    };
+    assert!(err_disjoint.to_string().contains("Disjointness violation"));
+
+    let err_cloud = AvicullError::CloudStorageAccessDenied {
+        path: PathBuf::from("/cloud/drive"),
+    };
+    assert!(err_cloud
+        .to_string()
+        .contains("macOS Privacy & Security (TCC) prevented reading"));
+
+    let err_perm = AvicullError::DirectoryPermissionDenied {
+        path: PathBuf::from("/read_only"),
+    };
+    assert!(err_perm.to_string().contains("Cannot read input directory"));
+
+    let err_remote = AvicullError::HierarchyModeUnsupportedOnRemote {
+        storage_type: "iCloud Drive",
+    };
+    assert!(err_remote
+        .to_string()
+        .contains("Hard-linked species hierarchy mode"));
+
+    let err_conf = AvicullError::InvalidConfidenceMode("bogus".into());
+    assert!(err_conf
+        .to_string()
+        .contains("Unknown confidence mode: 'bogus'"));
+}
+
+#[test]
+fn test_enum_variants_and_debug_representation() {
+    let loc_sources = [
+        LocationSource::ExifGps,
+        LocationSource::ImageLocationOverride,
+        LocationSource::SubdirectoryGazetteer,
+        LocationSource::TripFolderGazetteer,
+        LocationSource::SiblingPropagation,
+        LocationSource::UserDefaultRegion,
+    ];
+    for src in &loc_sources {
+        assert!(!format!("{:?}", src).is_empty());
+        assert_eq!(*src, src.clone());
+    }
+
+    let tiers = [
+        RoutingTier::ConfirmedSpecies,
+        RoutingTier::NeedsReview,
+        RoutingTier::NoBirdDetected,
+    ];
+    for tier in &tiers {
+        assert!(!format!("{:?}", tier).is_empty());
+        assert_eq!(*tier, tier.clone());
+    }
+}

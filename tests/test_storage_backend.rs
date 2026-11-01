@@ -179,3 +179,32 @@ fn test_cloud_backend_evict_uses_native_file_manager() {
         assert!(res.is_ok());
     }
 }
+
+#[test]
+fn test_network_backend_cache_hit_and_eviction() {
+    let temp = tempfile::tempdir().unwrap();
+    let backend = NetworkShareBackend::default();
+    assert_eq!(backend.kind(), StorageKind::NetworkShare);
+
+    let remote_file = temp.path().join("remote_sample.jpg");
+    std::fs::write(&remote_file, b"remote image data").unwrap();
+
+    // 1. First materialize copies to staging
+    let staged1 = backend.materialize(&remote_file).unwrap();
+    assert!(staged1.exists());
+
+    // 2. Second materialize returns the existing staged path (cache hit)
+    let staged2 = backend.materialize(&remote_file).unwrap();
+    assert_eq!(staged1, staged2);
+
+    // 3. Evict unlinks staged copy
+    backend.evict(&remote_file).unwrap();
+    assert!(!staged1.exists());
+
+    // 4. Evicting again is idempotent
+    assert!(backend.evict(&remote_file).is_ok());
+
+    // 5. Materialize on nonexistent file fails
+    let nonexistent = temp.path().join("does_not_exist.jpg");
+    assert!(backend.materialize(&nonexistent).is_err());
+}

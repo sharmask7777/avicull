@@ -48,8 +48,11 @@ jobs:
       - name: Build local binary for E2E tests
         run: cargo build --bin avicull
 
-      - name: Run full Rust test suite
-        run: cargo test --locked
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run full Rust test suite and verify blocking coverage gate
+        run: cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --nocapture
 
   python-and-gazetteer:
     name: Python & Gazetteer Integrity

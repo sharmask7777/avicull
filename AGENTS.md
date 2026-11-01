@@ -46,13 +46,13 @@ Every pull request or enhancement must be verified across six distinct tiers:
    - Verify nested & parent coexistence via hard links.
    - Verify incremental auto-detection of newer files.
    - Verify `_No_Bird_Detected` routing tier.
-4. **Committed Mini-Dataset Inner-Loop Tests (`tests/test_local_user_samples_e2e.rs`)**:
+4. **Committed Mini-Dataset Mock Directory Structure Tests (`tests/test_mock_directory_structure_e2e.rs`)**:
    - The repository includes a lightweight, fully anonymized mini-dataset in `tests/fixtures/local_user_samples/` (~260 KB total) containing representative trip hierarchies, sidecars, and images. Sensitive EXIF tags (artist, copyright, owner) have been scrubbed.
    - Developers can also refresh or populate custom local datasets via `cargo run -- create-mock-dataset --source "<PATH_TO_PERSONAL_PHOTOS>"`.
-   - This inner-loop test runs on every test suite invocation and pre-push hook (`[5/7]` and `[6/7]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
+   - This mock directory structure test runs on every test suite invocation and pre-push hook (`[5/7]` and `[6/7]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
 5. **Playwright End-to-End Visual & Interaction Tests (`tests/e2e/`)**:
    - Every catalog UI, card rendering, and interactive modal flow must be covered by automated Playwright specs.
-   - Agents and developers MUST visually and interactively validate catalog changes with bespoke Playwright test scripts (e.g. `tests/e2e/bird_catalog.spec.ts` and `tests/e2e/live_mock_catalog.spec.ts`).
+   - Agents and developers MUST visually and interactively validate catalog changes with bespoke Playwright test scripts (e.g. `tests/e2e/bird_catalog.spec.ts` and `tests/e2e/mock_directory_catalog.spec.ts`).
    - Run `cd tests/e2e && npx playwright test` to exercise all UI flows: multi-select (Cmd/Ctrl+Click, Shift+Click, Cmd+A), search filtering, card display line layout, correction modal autocompletion, and bulk subdirectory location overrides.
    - Commit relevant Playwright specs alongside catalog features to prevent UI and interactive regressions.
 6. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
