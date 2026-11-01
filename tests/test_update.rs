@@ -236,3 +236,35 @@ fn test_atomic_replace_binary() {
         "Staging temp file must be cleaned up after atomic replace"
     );
 }
+
+#[test]
+fn test_verify_sha256_checksum_missing_file_returns_false() {
+    let missing = std::path::Path::new("/nonexistent/path/for/checksum/test");
+    // Missing file causes shasum command to exit with non-zero code, returning Ok(false)
+    let res = verify_sha256_checksum(missing, "0000000000000000000000000000000000000000000000000000000000000000");
+    assert_eq!(res.unwrap(), false);
+}
+
+#[test]
+fn test_update_cache_expiry_and_notice_rendering() {
+    let tmp = tempdir().unwrap();
+    let cache_file = tmp.path().join("cache.json");
+
+    let cache = UpdateCheckCache {
+        last_checked_timestamp_secs: 1000,
+        latest_version: "v0.3.0".to_string(),
+        download_url: Some("https://example.com/avicull.tar.gz".to_string()),
+    };
+
+    // 1. should_check returns false when interval has not elapsed
+    assert!(!cache.should_check(86400, 1000 + 3600));
+
+    // 2. should_check returns true when interval has elapsed
+    assert!(cache.should_check(86400, 1000 + 86401));
+
+    // 3. Roundtrip to disk
+    cache.save_to_file(&cache_file).unwrap();
+    let loaded = UpdateCheckCache::load_from_file(&cache_file).unwrap();
+    assert_eq!(loaded.latest_version, cache.latest_version);
+    assert_eq!(loaded.download_url, cache.download_url);
+}

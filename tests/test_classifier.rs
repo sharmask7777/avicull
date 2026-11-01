@@ -82,3 +82,74 @@ fn test_mock_species_classifier() {
     assert_eq!(preds[0].common_name, "Painted Stork");
     assert_eq!(embedding.len(), 512);
 }
+
+#[test]
+fn test_posterior_edge_cases_empty_and_zero_probabilities() {
+    // 1. Empty inputs
+    assert!(compute_posterior(&[], &[], 1.0, 0.01).is_empty());
+
+    // 2. Fractional geo_weight uses powf branch
+    let visual = vec![0.5, 0.5];
+    let geo = vec![0.9, 0.1];
+    let post_frac = compute_posterior(&visual, &geo, 0.5, 0.01);
+    assert_eq!(post_frac.len(), 2);
+    assert!((post_frac.iter().sum::<f32>() - 1.0).abs() < 1e-4);
+
+    // 3. All probabilities zero -> uniform fallback
+    let zeros = vec![0.0, 0.0, 0.0];
+    let post_zeros = compute_posterior(&zeros, &zeros, 1.0, 0.01);
+    assert_eq!(post_zeros.len(), 3);
+    for val in post_zeros {
+        assert!((val - 1.0 / 3.0).abs() < 1e-4);
+    }
+}
+
+#[test]
+fn test_regional_prior_multiplier_variations() {
+    use std::collections::{HashMap, HashSet};
+
+    let mut checklists = HashMap::new();
+    let mut india_species = HashSet::new();
+    india_species.insert("sparrow".to_string());
+    checklists.insert("IN".to_string(), india_species);
+
+    // None region defaults to neutral 1.0
+    assert_eq!(get_regional_prior_multiplier(None, "sparrow", &checklists), 1.0);
+
+    // Empty region string defaults to 1.0
+    assert_eq!(get_regional_prior_multiplier(Some(""), "sparrow", &checklists), 1.0);
+
+    // Unknown region defaults to 1.0
+    assert_eq!(get_regional_prior_multiplier(Some("UNKNOWN-REGION-XYZ"), "sparrow", &checklists), 1.0);
+
+    // Known region with native species returns 1.0
+    assert_eq!(get_regional_prior_multiplier(Some("IN"), "sparrow", &checklists), 1.0);
+
+    // Known region with non-occurring species returns 0.001
+    assert_eq!(get_regional_prior_multiplier(Some("IN"), "penguin", &checklists), 0.001);
+}
+
+#[test]
+fn test_mock_classifier_constructors_and_regional_classification() {
+    let mock = MockSpeciesClassifier::with_embedding(
+        vec![SpeciesPrediction {
+            taxon_id: "sparrow1".into(),
+            common_name: "House Sparrow".into(),
+            folder_slug: "House_Sparrow".into(),
+            scientific_name: "Passer domesticus".into(),
+            visual_prob: 0.8,
+            geo_prior: 1.0,
+            combined_score: 0.8,
+        }],
+        vec![0.1; 512],
+    );
+
+    let img = DynamicImage::ImageRgb8(RgbImage::new(10, 10));
+    let (emb, preds) = mock.classify(&img, None, 1.0).unwrap();
+    assert_eq!(emb[0], 0.1);
+    assert_eq!(preds[0].common_name, "House Sparrow");
+
+    let (emb_reg, preds_reg) = mock.classify_with_region(&img, None, Some("IN-DL"), 1.0).unwrap();
+    assert_eq!(emb_reg.len(), 512);
+    assert_eq!(preds_reg.len(), 1);
+}
