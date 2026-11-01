@@ -60,15 +60,15 @@ else
     exit 1
 fi
 
-# 5. Real Samples E2E Test on Locally Compiled Build
-echo -e "${BOLD}[5/7] Running Real Samples E2E Test on Latest Compiled Build Locally...${NC}"
+# 5. Real Samples & Mock Directory Structure E2E Tests on Locally Compiled Build
+echo -e "${BOLD}[5/7] Running Real Samples & Mock Directory Structure E2E Tests on Locally Compiled Build...${NC}"
 LOCAL_BIN="$REPO_ROOT/target/debug/avicull"
 if cargo build --bin avicull; then
     if AVICULL_BIN="$LOCAL_BIN" cargo test --test test_e2e_real_samples -- --nocapture && \
-       AVICULL_BIN="$LOCAL_BIN" cargo test --test test_local_user_samples_e2e -- --nocapture; then
-        echo -e "${GREEN}✓ Real samples E2E test passed on locally compiled binary ($LOCAL_BIN).${NC}\n"
+       AVICULL_BIN="$LOCAL_BIN" cargo test --test test_mock_directory_structure_e2e -- --nocapture; then
+        echo -e "${GREEN}✓ Real samples & mock directory structure E2E test passed on locally compiled binary ($LOCAL_BIN).${NC}\n"
     else
-        echo -e "${RED}✗ Real samples E2E test failed on locally compiled binary.${NC}\n"
+        echo -e "${RED}✗ Real samples or mock directory structure E2E test failed on locally compiled binary.${NC}\n"
         exit 1
     fi
 else
@@ -76,7 +76,7 @@ else
     exit 1
 fi
 
-# 6. Real Samples E2E Test on Latest Generated Release Binary (if present)
+# 6. Real Samples & Mock Directory Structure E2E Tests on Latest Generated Release Binary (if present)
 echo -e "${BOLD}[6/7] Checking for generated release binary to test...${NC}"
 RELEASE_BIN=""
 if [ -f "dist/avicull" ]; then
@@ -98,10 +98,10 @@ if [ -n "$RELEASE_BIN" ] && [ -x "$RELEASE_BIN" ]; then
     esac
     echo -e "Found release binary: ${BOLD}$FULL_RELEASE_BIN${NC}. Running E2E verification..."
     if AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_e2e_real_samples -- --nocapture && \
-       AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_local_user_samples_e2e -- --nocapture; then
-        echo -e "${GREEN}✓ Real samples E2E test passed on release binary ($FULL_RELEASE_BIN).${NC}\n"
+       AVICULL_BIN="$FULL_RELEASE_BIN" cargo test --test test_mock_directory_structure_e2e -- --nocapture; then
+        echo -e "${GREEN}✓ Real samples & mock directory structure E2E test passed on release binary ($FULL_RELEASE_BIN).${NC}\n"
     else
-        echo -e "${RED}✗ Real samples E2E test failed on release binary ($FULL_RELEASE_BIN).${NC}\n"
+        echo -e "${RED}✗ Real samples or mock directory structure E2E test failed on release binary ($FULL_RELEASE_BIN).${NC}\n"
         exit 1
     fi
 else

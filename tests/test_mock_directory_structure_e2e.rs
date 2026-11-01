@@ -53,13 +53,13 @@ fn find_linked_file(dir: &Path, stem: &str, ext: &str) -> Option<PathBuf> {
 }
 
 #[test]
-fn test_local_user_samples_e2e_inner_loop() {
+fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
     let local_fixtures_dir =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/local_user_samples");
 
     if !local_fixtures_dir.exists() {
         eprintln!(
-            "Notice: Local user sample fixtures not present at {:?}. Skipping test.",
+            "Notice: Mock directory structure fixtures not present at {:?}. Skipping test.",
             local_fixtures_dir
         );
         return;
@@ -73,7 +73,7 @@ fn test_local_user_samples_e2e_inner_loop() {
 
     let bin_path =
         std::env::var("AVICULL_BIN").unwrap_or_else(|_| env!("CARGO_BIN_EXE_avicull").to_string());
-    println!("Executing Inner-Loop E2E test with binary: {}", bin_path);
+    println!("Executing Mock Directory Structure E2E test with binary: {}", bin_path);
 
     // 1. Initial full organization pass
     let output1 = std::process::Command::new(&bin_path)
