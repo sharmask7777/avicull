@@ -60,7 +60,7 @@ Every pull request or enhancement must be verified across eight distinct tiers:
 6. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
    - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams.
 7. **Gazetteer & Regional Checklist Integrity Check (`pytest`)**:
-   - Validate geographic waypoint schema, regional checklist ISO codes, and coordinate consistency in `tests/fixtures/gazetteer_test.py`.
+   - Validate geographic waypoint schema, regional checklist ISO codes, and coordinate consistency in `tests/test_build_gazetteer.py`.
 8. **Build-Time Blocking Code Coverage Metric Gate (`cargo-llvm-cov`)**:
    - Every pull request and push is gated on a minimum blocking line coverage threshold (`cargo llvm-cov --fail-under-lines 80`).
    - Aspire to >95% coverage, with 100% target on core domain modules (`types.rs`, `storage/local.rs`, `catalog/template.rs`, `help.rs`).

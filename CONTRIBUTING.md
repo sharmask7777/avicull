@@ -43,8 +43,9 @@ Every contributor and AI agent must adhere strictly to these core invariants:
   cd tests/e2e && npm install
   npx playwright install chromium
   ```
-- **Python 3.10+ & Pytest** (for gazetteer checks):
+- **Python 3.10+, Pytest & `uv`** (for gazetteer and inference checks):
   ```bash
+  brew install uv
   pip install pytest
   ```
 
@@ -90,7 +91,7 @@ Before submitting a Pull Request, all eight verification tiers must pass:
 | **4** | Documentation | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` |
 | **5** | Mock Directory Structure E2E | `cargo test --test test_mock_directory_structure_e2e` |
 | **6** | Playwright E2E Tests | `cd tests/e2e && npx playwright test` |
-| **7** | Python Gazetteer Integrity | `pytest tests/fixtures/gazetteer_test.py` |
+| **7** | Python Gazetteer Integrity | `pytest tests/test_build_gazetteer.py` |
 | **8** | Blocking Code Coverage Gate | `cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --skip test_e2e_real_samples` |
 
 You can run the entire verification suite in one command:
