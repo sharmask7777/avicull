@@ -1,6 +1,6 @@
 # AGENTS.md — Developer Guidelines & Preferences for `avicull`
 
-Welcome to `avicull`. This document defines the engineering standards, architectural invariants, and non-negotiable user preferences that **all future AI agent iterations and developers must follow**.
+Welcome to `avicull`. This document defines the engineering standards, architectural invariants, code documentation guidelines, and non-negotiable user preferences that **all future AI agent iterations and developers must follow**.
 
 ---
 
@@ -20,6 +20,8 @@ Welcome to `avicull`. This document defines the engineering standards, architect
    - Any directory starting with `.` (hidden directories like `.DS_Store`) or `@eaDir`.
 5. **Parent & Child Multi-Level Coexistence**:
    A trip subdirectory (e.g. `Pictures/Leh/birds_hierarchy`) and its parent directory (e.g. `Pictures/birds_hierarchy`) can both co-exist simultaneously via hard links. The inode link count (`st_nlink`) increments appropriately without conflict.
+6. **macOS FileProvider / iCloud Dataless Protection**:
+   Files marked with Darwin `SF_DATALESS` (`0x40000000`) must never be opened eagerly during pre-scans to prevent unwanted on-demand cloud hydration.
 
 ---
 
@@ -34,10 +36,10 @@ Welcome to `avicull`. This document defines the engineering standards, architect
   2. **Verify Failure**: Run `cargo test` (or `pytest`) and verify the test fails for the expected reason. Do not proceed until you have observed the failure.
   3. **GREEN**: Write the minimal implementation code necessary to make the test pass.
   4. **Verify Green**: Re-run the test suite and confirm the new test passes and all existing tests stay green.
-  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy -- -D warnings`), and document while keeping all tests passing.
+  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy --all-targets -- -D warnings`), document, and verify docs (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`).
 
 ### B. Multi-Pronged Testing Strategy
-Every pull request or enhancement must be verified across six distinct tiers:
+Every pull request or enhancement must be verified across eight distinct tiers:
 1. **Unit Tests**:
    - Verify pure algorithmic functions in isolation (Bayesian posterior math, temperature scaling, slug sanitization, DMS conversion).
 2. **Filesystem Integration Tests (`tests/`)**:
@@ -49,7 +51,7 @@ Every pull request or enhancement must be verified across six distinct tiers:
 4. **Committed Mini-Dataset Mock Directory Structure Tests (`tests/test_mock_directory_structure_e2e.rs`)**:
    - The repository includes a lightweight, fully anonymized mini-dataset in `tests/fixtures/local_user_samples/` (~260 KB total) containing representative trip hierarchies, sidecars, and images. Sensitive EXIF tags (artist, copyright, owner) have been scrubbed.
    - Developers can also refresh or populate custom local datasets via `cargo run -- create-mock-dataset --source "<PATH_TO_PERSONAL_PHOTOS>"`.
-   - This mock directory structure test runs on every test suite invocation and pre-push hook (`[5/7]` and `[6/7]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
+   - This mock directory structure test runs on every test suite invocation and pre-push hook (`[5/8]` and `[6/8]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
 5. **Playwright End-to-End Visual & Interaction Tests (`tests/e2e/`)**:
    - Every catalog UI, card rendering, and interactive modal flow must be covered by automated Playwright specs.
    - Agents and developers MUST visually and interactively validate catalog changes with bespoke Playwright test scripts (e.g. `tests/e2e/bird_catalog.spec.ts` and `tests/e2e/mock_directory_catalog.spec.ts`).
@@ -57,6 +59,11 @@ Every pull request or enhancement must be verified across six distinct tiers:
    - Commit relevant Playwright specs alongside catalog features to prevent UI and interactive regressions.
 6. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
    - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams.
+7. **Gazetteer & Regional Checklist Integrity Check (`pytest`)**:
+   - Validate geographic waypoint schema, regional checklist ISO codes, and coordinate consistency in `tests/fixtures/gazetteer_test.py`.
+8. **Build-Time Blocking Code Coverage Metric Gate (`cargo-llvm-cov`)**:
+   - Every pull request and push is gated on a minimum blocking line coverage threshold (`cargo llvm-cov --fail-under-lines 80`).
+   - Aspire to >95% coverage, with 100% target on core domain modules (`types.rs`, `storage/local.rs`, `catalog/template.rs`, `help.rs`).
 
 ### C. The Verification Agent Crew Loop
 Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
@@ -68,7 +75,30 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ---
 
-## 3. Performance & Build Guidelines
+## 3. Rustdoc Standards & Best Practices
+
+1. **Zero-Warning Rustdoc Compilation**:
+   - Code must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with zero warnings.
+   - Never leave unclosed HTML tags (e.g., `<script>`, `<OUTPUT>`, `<OriginalStem>`). Always escape them in code spans (`` `<OUTPUT>` ``) or HTML entities.
+2. **Module-Level (`//!`) Headers**:
+   - Every module file in `src/` must begin with a `//!` documentation header explaining:
+     - The module's role in the pipeline.
+     - Key architectural invariants guaranteed by the module.
+     - Algorithms and domain logic implemented.
+     - Concrete examples or usage patterns where appropriate.
+3. **Item-Level (`///`) Documentation**:
+   - All `pub` structs, enums, variants, traits, methods, and functions must have `///` doc comments.
+   - Include sections:
+     - `# Arguments`: Parameter explanations.
+     - `# Returns`: Return value description.
+     - `# Errors`: Conditions under which the function returns `Err`.
+     - `# Invariants` / `# Panics`: Any failure guarantees or preconditions.
+4. **Tricky Algorithms & Math Rendering**:
+   - Complex domain algorithms (e.g., Bayesian posterior fusion, logit temperature scaling, burst consensus pooling) must include mathematical formulations using LaTeX notation (`$...$` and `$$...$$`) and clear prose explanations.
+
+---
+
+## 4. Performance & Build Guidelines
 
 1. **Build Time Optimizations**:
    - Always maintain `split-debuginfo = "unpacked"` in `.cargo/config.toml` and `Cargo.toml` to eliminate `dsymutil` overhead on macOS Apple Silicon.
@@ -81,13 +111,13 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ---
 
-## 4. Updating Models & Classifiers
+## 5. Updating Models & Classifiers
 
-When upgrading neural network backbones, bird detectors, taxonomies, or spatial-temporal priors to current cutting-edge architectures, follow the instructions in [`skills/avian-model-updater/SKILL.md`](file:///Users/shaleensharma/workplace/gemini_ws/avian_rearranger/skills/avian-model-updater/SKILL.md).
+When upgrading neural network backbones, bird detectors, taxonomies, or spatial-temporal priors to current cutting-edge architectures, follow the instructions in [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
 
 ---
 
-## 5. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
+## 6. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
 
 1. **Meaningful In-Code Comments Only**:
    - Comments in code MUST instruct the human reader on what the code does, its architectural invariants, algorithms, and non-obvious domain logic.
@@ -95,5 +125,4 @@ When upgrading neural network backbones, bird detectors, taxonomies, or spatial-
 2. **Generic Architecture & Zero Context Leaks**:
    - Code and algorithms must be completely generic. Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
 3. **End-to-End Mock Testing**:
-   - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs`).
-
+   - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs` and `tests/test_mock_directory_structure_e2e.rs`).
