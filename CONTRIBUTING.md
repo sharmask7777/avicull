@@ -66,7 +66,9 @@ We follow strict **Test-Driven Development (TDD)**:
 
 1. **Write a Failing Test First (RED)**:
    Add unit or integration tests reproducing the bug or defining the new capability.
-   Run `cargo test --test <test_name>` and verify failure.
+   Integration tests should be added to `tests/test_suite/test_<feature>.rs` and registered in `tests/test_suite/main.rs`.
+   Run `cargo test --test test_suite -- <test_name>` and verify failure.
+
 2. **Implement Minimal Code (GREEN)**:
    Write only enough code to pass the test.
 3. **Refactor & Document (REFACTOR)**:
@@ -87,12 +89,13 @@ Before submitting a Pull Request, all eight verification tiers must pass:
 |---|---|---|
 | **1** | Formatting | `cargo fmt --check` |
 | **2** | Clippy Linter | `cargo clippy --all-targets -- -D warnings` |
-| **3** | Unit & Integration Tests | `cargo test --lib --test 'test_*' -- --skip test_e2e_real_samples` |
-| **4** | Documentation | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` |
+| **3** | Unit & Integration Tests (Coverage) | `cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e` |
+| **4** | Python Inference Tests | `uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python` |
 | **5** | Mock Directory Structure E2E | `cargo test --test test_mock_directory_structure_e2e` |
-| **6** | Playwright E2E Tests | `cd tests/e2e && npx playwright test` |
+| **6** | Release Binary E2E (if present) | Tested automatically if binary exists in `dist/` or `target/release/` |
 | **7** | Python Gazetteer Integrity | `pytest tests/test_build_gazetteer.py` |
-| **8** | Blocking Code Coverage Gate | `cargo llvm-cov --fail-under-lines 80 --lib --test 'test_*' -- --skip test_e2e_real_samples` |
+| **8** | Rust Documentation Verification | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` |
+
 
 You can run the entire verification suite in one command:
 ```bash

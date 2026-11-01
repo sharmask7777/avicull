@@ -42,28 +42,29 @@ Welcome to `avicull`. This document defines the engineering standards, architect
 Every pull request or enhancement must be verified across eight distinct tiers:
 1. **Unit Tests**:
    - Verify pure algorithmic functions in isolation (Bayesian posterior math, temperature scaling, slug sanitization, DMS conversion).
-2. **Filesystem Integration Tests (`tests/`)**:
-   - Use `tempfile::tempdir` to verify real filesystem operations on disk: APFS inode parity (`st_nlink == 2`), atomic rollbacks, idempotency, sidecar bundling, and collision resolution.
-3. **Spec Conformance Tests (`tests/test_spec_conformance.rs`)**:
-   - Verify nested & parent coexistence via hard links.
-   - Verify incremental auto-detection of newer files.
-   - Verify `_No_Bird_Detected` routing tier.
-4. **Committed Mini-Dataset Mock Directory Structure Tests (`tests/test_mock_directory_structure_e2e.rs`)**:
+2. **Filesystem & Spec Integration Tests (`tests/test_suite/`)**:
+   - All unit-like and integration test modules are consolidated under `tests/test_suite/` (declared in `tests/test_suite/main.rs`). This eliminates Mach-O linking contention on macOS Apple Silicon, linking a single test binary instead of dozens.
+   - Use `tempfile::tempdir` to verify real filesystem operations on disk: APFS inode parity (`st_nlink >= 2`), atomic rollbacks, idempotency, sidecar bundling, and collision resolution.
+   - Spec conformance checks inside `tests/test_suite/test_spec_conformance.rs` verify nested & parent coexistence via hard links, incremental auto-detection of newer files, and `_No_Bird_Detected` routing tier.
+3. **Committed Mini-Dataset Mock Directory Structure Tests (`tests/test_mock_directory_structure_e2e.rs`)**:
    - The repository includes a lightweight, fully anonymized mini-dataset in `tests/fixtures/local_user_samples/` (~260 KB total) containing representative trip hierarchies, sidecars, and images. Sensitive EXIF tags (artist, copyright, owner) have been scrubbed.
    - Developers can also refresh or populate custom local datasets via `cargo run -- create-mock-dataset --source "<PATH_TO_PERSONAL_PHOTOS>"`.
    - This mock directory structure test runs on every test suite invocation and pre-push hook (`[5/8]` and `[6/8]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
-5. **Playwright End-to-End Visual & Interaction Tests (`tests/e2e/`)**:
+4. **Playwright End-to-End Visual & Interaction Tests (`tests/e2e/`)**:
    - Every catalog UI, card rendering, and interactive modal flow must be covered by automated Playwright specs.
    - Agents and developers MUST visually and interactively validate catalog changes with bespoke Playwright test scripts (e.g. `tests/e2e/bird_catalog.spec.ts` and `tests/e2e/mock_directory_catalog.spec.ts`).
    - Run `cd tests/e2e && npx playwright test` to exercise all UI flows: multi-select (Cmd/Ctrl+Click, Shift+Click, Cmd+A), search filtering, card display line layout, correction modal autocompletion, and bulk subdirectory location overrides.
    - Commit relevant Playwright specs alongside catalog features to prevent UI and interactive regressions.
-6. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
-   - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams.
-7. **Gazetteer & Regional Checklist Integrity Check (`pytest`)**:
+5. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
+   - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams (`tests/test_e2e_real_samples.rs`).
+6. **Gazetteer & Regional Checklist Integrity Check (`pytest`)**:
    - Validate geographic waypoint schema, regional checklist ISO codes, and coordinate consistency in `tests/test_build_gazetteer.py`.
-8. **Build-Time Blocking Code Coverage Metric Gate (`cargo-llvm-cov`)**:
-   - Every pull request and push is gated on a minimum blocking line coverage threshold (`cargo llvm-cov --fail-under-lines 80`).
+7. **Build-Time Blocking Code Coverage Metric Gate (`cargo-llvm-cov`)**:
+   - Every pull request and push is gated on a minimum blocking line coverage threshold (`cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e`).
    - Aspire to >95% coverage, with 100% target on core domain modules (`types.rs`, `storage/local.rs`, `catalog/template.rs`, `help.rs`).
+8. **Rustdoc Documentation Gate**:
+   - Must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with 0 warnings.
+
 
 ### C. The Verification Agent Crew Loop
 Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
@@ -100,14 +101,20 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ## 4. Performance & Build Guidelines
 
-1. **Build Time Optimizations**:
+1. **Unified Test Harness Layout**:
+   - Always place integration and spec conformance tests under `tests/test_suite/` with their submodules exposed in `tests/test_suite/main.rs`.
+   - Never create individual one-off `tests/test_*.rs` root files unless they require isolated external process environments (e.g. `test_mock_directory_structure_e2e.rs` and `test_e2e_real_samples.rs`). This prevents linker (`ld64`) contention, thermal throttling, and multi-gigabyte build directory bloat.
+2. **Apple Silicon CPU & Core Preservation**:
+   - Pre-push scripts and development tasks should dynamically cap `CARGO_BUILD_JOBS` to physical performance cores (`hw.perflevel0.logicalcpu`, e.g. 6 cores on 6P+4E Apple Silicon), leaving efficiency cores free for macOS desktop and window server responsiveness. Avoid committing fixed machine-specific core counts in `.cargo/config.toml` so CI runners and different machines are not constrained.
+3. **Build Time Optimizations**:
    - Always maintain `split-debuginfo = "unpacked"` in `.cargo/config.toml` and `Cargo.toml` to eliminate `dsymutil` overhead on macOS Apple Silicon.
    - Keep crate feature dependencies minimal (e.g., `image` with `default-features = false` and only `["jpeg", "png", "tiff"]`).
    - Use `[profile.dev.package."*"] opt-level = 2` so dependencies run at release speed while development code compiles in milliseconds.
-2. **Incremental Auto-Detection**:
+4. **Incremental Auto-Detection**:
    - When running `organize` on an existing directory, query SQLite for existing bundles.
    - Only execute neural network detection and classification on newly added or modified bundles.
    - Reuse cached predictions and embeddings for previously processed bundles.
+
 
 ---
 

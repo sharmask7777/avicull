@@ -559,9 +559,14 @@ avicull help update
 
 ## Testing & Verification
 
-Run the Rust unit and filesystem integration test suite:
+Run the consolidated Rust unit and filesystem integration test suite:
 ```bash
-cargo test
+cargo test --lib --test test_suite --test test_mock_directory_structure_e2e
+```
+
+Run test coverage with the blocking 80% line coverage gate:
+```bash
+cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e
 ```
 
 Run the Python inference and taxonomy test suite:
@@ -569,11 +574,18 @@ Run the Python inference and taxonomy test suite:
 uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python
 ```
 
-Run linter and formatting checks:
+Run linter, documentation, and formatting checks:
 ```bash
 cargo fmt --check
-cargo clippy -- -D warnings
+cargo clippy --all-targets -- -D warnings
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 ```
+
+Or run the full pre-push verification suite covering all 8 gates:
+```bash
+./.githooks/pre-push
+```
+
 
 ---
 
