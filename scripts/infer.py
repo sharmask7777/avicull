@@ -190,10 +190,10 @@ class AvianInferenceEngine:
         self.vision_model.eval()
         self.preprocess = preprocess
 
-    def load_regional_checklists(self):
+    def load_regional_checklists(self) -> None:
         """Loads eBird regional checklist species sets from data/regional_checklists.json."""
-        self.regional_checklists = {}
-        self.regional_prior_tensors = {}
+        self.regional_checklists: dict[str, set[str]] = {}
+        self.regional_prior_tensors: dict[str, torch.Tensor] = {}
         candidates = [
             os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -213,7 +213,7 @@ class AvianInferenceEngine:
                 except Exception as e:
                     logging.warning(f"Failed to load regional checklists from {path}: {e}")
 
-    def get_regional_prior_tensor(self, region_code: str):
+    def get_regional_prior_tensor(self, region_code: str) -> torch.Tensor | None:
         """Returns or constructs a 11,167-dim prior tensor for the given eBird region code."""
         if not region_code or region_code not in self.regional_checklists:
             return None
@@ -226,7 +226,9 @@ class AvianInferenceEngine:
         self.regional_prior_tensors[region_code] = tensor
         return tensor
 
-    def detect_and_crop(self, img: Image.Image, min_detect: float = 0.25):
+    def detect_and_crop(
+        self, img: Image.Image, min_detect: float = 0.25
+    ) -> tuple[Image.Image, float, list[dict[str, Any]]]:
         w, h = img.size
         results = self.detector(img, verbose=False, imgsz=640)
         best_candidate: tuple[float, DetectionBox] | None = None
@@ -291,10 +293,10 @@ class AvianInferenceEngine:
         min_detect: float = 0.25,
         geo_prior_weight: float = 1.0,
         trip_name: str = "",
-        lat: float = None,
-        lon: float = None,
+        lat: float | None = None,
+        lon: float | None = None,
         region_code: str = "",
-    ):
+    ) -> dict[str, Any]:
         if not os.path.exists(image_path):
             return {
                 "error": f"File not found: {image_path}",
@@ -427,7 +429,7 @@ class AvianInferenceEngine:
         }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Avicull Local Inference Engine")
     parser.add_argument("--models-dir", default="models", help="Directory with models & taxonomy")
     parser.add_argument("--batch-file", help="JSON file containing array of photo bundle tasks")

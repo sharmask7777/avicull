@@ -169,8 +169,10 @@ class TestAvianInferenceEngineMocked(unittest.TestCase):
         with open(os.path.join(self.models_dir, "taxonomy.json"), "w", encoding="utf-8") as f:
             json.dump(self.taxonomy, f)
 
-        emb = torch.randn(len(self.taxonomy), 512, dtype=torch.float32)
-        emb /= emb.norm(dim=-1, keepdim=True)
+        emb = torch.zeros(len(self.taxonomy), 512, dtype=torch.float32)
+        # Give Brahminy Kite (index 0) and Bald Eagle (index 1) distinct orthogonal unit vectors
+        emb[0, 0] = 1.0
+        emb[1, 1] = 1.0
         safetensors_path = os.path.join(self.models_dir, "species_embeddings.safetensors")
         save_file({"embeddings": emb}, safetensors_path)
 
@@ -185,10 +187,17 @@ class TestAvianInferenceEngineMocked(unittest.TestCase):
         class MockModel:
             visual = torch.nn.Identity()
 
+        # Fixed preprocess vector so crop embedding is deterministic
+        # (aligned with index 0: Brahminy Kite)
+        def mock_preprocess(_img):
+            v = torch.zeros(512, dtype=torch.float32)
+            v[0] = 1.0
+            return v
+
         with (
             patch(
                 "open_clip.create_model_and_transforms",
-                return_value=(MockModel(), None, lambda x: torch.randn(512)),
+                return_value=(MockModel(), None, mock_preprocess),
             ),
             patch("scripts.infer.YOLO") as mock_yolo_cls,
         ):

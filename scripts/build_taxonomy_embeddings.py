@@ -254,7 +254,7 @@ def build_taxonomy_pipeline(
     return manifest
 
 
-def main():
+def main() -> None:
     models_dir = sys.argv[1] if len(sys.argv) > 1 else "models"
     build_taxonomy_pipeline(models_dir)
     print("Done!")

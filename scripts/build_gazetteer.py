@@ -49,11 +49,14 @@ def validate_coordinates(lat: float, lon: float) -> bool:
         True if lat in [-90.0, 90.0] and lon in [-180.0, 180.0] and not NaN/infinite,
         otherwise False.
     """
-    if not (isinstance(lat, (int, float)) and isinstance(lon, (int, float))):
+    try:
+        f_lat = float(lat)
+        f_lon = float(lon)
+    except (ValueError, TypeError):
         return False
-    if math.isnan(lat) or math.isnan(lon) or math.isinf(lat) or math.isinf(lon):
+    if math.isnan(f_lat) or math.isnan(f_lon) or math.isinf(f_lat) or math.isinf(f_lon):
         return False
-    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
+    return -90.0 <= f_lat <= 90.0 and -180.0 <= f_lon <= 180.0
 
 
 def normalize_hotspot_name(name: str) -> str:

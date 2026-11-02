@@ -168,7 +168,9 @@ def compute_sha256(filepath: str) -> str:
     return h.hexdigest()
 
 
-def write_safetensors(filepath: str, tensor_name: str, tensor_data: bytes, shape: list):
+def write_safetensors(
+    filepath: str, tensor_name: str, tensor_data: bytes, shape: list[int]
+) -> None:
     """Writes a standard safetensors binary file."""
     header = {
         tensor_name: {
@@ -187,7 +189,7 @@ def write_safetensors(filepath: str, tensor_name: str, tensor_data: bytes, shape
         f.write(tensor_data)
 
 
-def export_mock(output_dir: str):
+def export_mock(output_dir: str) -> None:
     """Generates mock static model graphs and embeddings for testing and CI."""
     os.makedirs(output_dir, exist_ok=True)
     print(f"Generating mock models into {output_dir}...")
@@ -248,7 +250,7 @@ def export_mock(output_dir: str):
     print("Mock models generated successfully.")
 
 
-def export_real(output_dir: str):
+def export_real(output_dir: str) -> None:
     """Exports real PyTorch weights to ONNX graphs and safetensors."""
     os.makedirs(output_dir, exist_ok=True)
     print("Initiating full PyTorch model export (YOLO11, BioCLIP, SINR)...")
@@ -295,7 +297,7 @@ def export_real(output_dir: str):
     print("Real model export complete.")
 
 
-def main(argv: Sequence[str] | None = None):
+def main(argv: Sequence[str] | None = None) -> None:
     config = parse_export_args(argv)
 
     if config.mock:

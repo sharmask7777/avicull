@@ -105,8 +105,9 @@ This executes:
 2. `cargo check --all-targets`
 3. `cargo clippy --all-targets --all-features -- -D warnings`
 4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e`
-5. `cargo deny check`
-6. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+5. Python verification suite (`./scripts/verify_python.sh`: ruff check, ruff format --check, mypy, pytest with $\ge 80\%$ coverage gate)
+6. `cargo deny check`
+7. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
 
 ### Full Pre-Push Verification Suite (`.githooks/pre-push`)
 Before pushing code or submitting a Pull Request, all verification tiers must pass:
@@ -117,7 +118,7 @@ Before pushing code or submitting a Pull Request, all verification tiers must pa
 | **1** | Formatting | `cargo fmt --check` |
 | **2** | Clippy Linter | `cargo clippy --all-targets --all-features -- -D warnings` |
 | **3** | Unit & Integration Tests (Coverage) | `cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e` |
-| **4** | Python Inference Tests | `uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python` |
+| **4** | Python Verification & Coverage Gate | `./scripts/verify_python.sh` (ruff, mypy, pytest $\ge 80\%$ coverage) |
 | **5** | Mock Directory Structure E2E | `cargo test --test test_mock_directory_structure_e2e` |
 | **6** | Release Binary E2E (if present) | Tested automatically if binary exists in `dist/` or `target/release/` |
 | **7** | Python Gazetteer Integrity | `pytest tests/test_build_gazetteer.py` |
@@ -130,7 +131,17 @@ You can run the full suite in one command:
 
 ---
 
-## 5. Documentation Guidelines
+## 5. Python Engineering Standards
+
+All Python scripts and tools (under `scripts/`, `tests/`, and `tests_python/`) follow strict architectural invariants:
+- **Pure Functions & Immutability**: All records and domain models use `@dataclass(frozen=True)` or `NamedTuple`. Functions are pure and free of side-effects.
+- **Code Coverage Gate**: Minimum $\ge 80\%$ line coverage across `scripts/` enforced via `pytest-cov` (`--cov-fail-under=80`).
+- **Static Analysis & Linting**: Zero errors under `ruff check .`, `ruff format --check .`, and `mypy scripts/`.
+- **Reproducible Isolation**: Invoked via `uv run` for consistent local and CI runs.
+
+---
+
+## 6. Documentation Guidelines
 
 - **Module Headers (`//!`)**: Every source file in `src/` must begin with a `//!` header explaining module purpose, invariants, and algorithms.
 - **Public Items (`///`)**: Every `pub` function, struct, enum, and trait must be documented with `# Arguments`, `# Returns`, `# Errors`, and `# Invariants` where applicable.
@@ -140,7 +151,7 @@ You can run the full suite in one command:
 
 ---
 
-## 6. Pull Request Checklist
+## 7. Pull Request Checklist
 
 When submitting a pull request:
 
