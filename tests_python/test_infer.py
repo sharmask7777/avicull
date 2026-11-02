@@ -1,93 +1,323 @@
+import json
 import os
+import sys
+import tempfile
 import unittest
+from dataclasses import FrozenInstanceError
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
 import torch
+from PIL import Image
+from safetensors.torch import save_file
+
+# Ensure repository root is on sys.path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.infer import (
+    AvianInferenceEngine,
+    DetectionBox,
+    InferencePrediction,
+    apply_regional_prior,
+    compute_iou,
+    main,
+    softmax,
+)
 
 
-class TestAvianInferenceUnit(unittest.TestCase):
-    def test_bbox_context_padding_math(self):
-        """Verify 15% context padding and border clamping math without loading heavy weights."""
-        w, h = 1000, 800
-        x1, y1, x2, y2 = 200.0, 200.0, 400.0, 400.0
-        bw = x2 - x1  # 200
-        bh = y2 - y1  # 200
-        pad_x = bw * 0.15  # 30
-        pad_y = bh * 0.15  # 30
+class TestDetectionBox(unittest.TestCase):
+    def test_creation_and_immutability(self):
+        box = DetectionBox(x1=10.0, y1=20.0, x2=50.0, y2=80.0, confidence=0.95, class_id=14)
+        self.assertEqual(box.x1, 10.0)
+        self.assertEqual(box.y1, 20.0)
+        self.assertEqual(box.x2, 50.0)
+        self.assertEqual(box.y2, 80.0)
+        self.assertEqual(box.confidence, 0.95)
+        self.assertEqual(box.class_id, 14)
+        self.assertAlmostEqual(box.area, 2400.0)
+        self.assertEqual(box.to_xyxy(), (10.0, 20.0, 50.0, 80.0))
 
-        cx1 = max(0.0, x1 - pad_x)
-        cy1 = max(0.0, y1 - pad_y)
-        cx2 = min(float(w), x2 + pad_x)
-        cy2 = min(float(h), y2 + pad_y)
+        with pytest.raises(FrozenInstanceError):
+            box.x1 = 0.0  # type: ignore[misc]
 
-        self.assertEqual(cx1, 170.0)
-        self.assertEqual(cy1, 170.0)
-        self.assertEqual(cx2, 430.0)
-        self.assertEqual(cy2, 430.0)
+    def test_zero_or_negative_area(self):
+        box = DetectionBox(x1=50.0, y1=80.0, x2=10.0, y2=20.0, confidence=0.5)
+        self.assertEqual(box.area, 0.0)
 
-    def test_bbox_context_padding_clamps_at_borders(self):
-        """Padding must never exceed image boundaries [0, w] and [0, h]."""
-        w, h = 1000, 800
-        x1, y1, x2, y2 = 10.0, 10.0, 995.0, 795.0
-        bw = x2 - x1
-        bh = y2 - y1
-        pad_x = bw * 0.15
-        pad_y = bh * 0.15
+    def test_clip(self):
+        box = DetectionBox(x1=-10.0, y1=-5.0, x2=150.0, y2=120.0, confidence=0.8)
+        clipped = box.clip(width=100.0, height=80.0)
+        self.assertEqual(clipped.x1, 0.0)
+        self.assertEqual(clipped.y1, 0.0)
+        self.assertEqual(clipped.x2, 100.0)
+        self.assertEqual(clipped.y2, 80.0)
+        self.assertEqual(clipped.confidence, 0.8)
 
-        cx1 = max(0.0, x1 - pad_x)
-        cy1 = max(0.0, y1 - pad_y)
-        cx2 = min(float(w), x2 + pad_x)
-        cy2 = min(float(h), y2 + pad_y)
+    def test_to_dict(self):
+        box = DetectionBox(x1=1.0, y1=2.0, x2=3.0, y2=4.0, confidence=0.9, class_id=14)
+        d = box.to_dict()
+        self.assertEqual(d["class_id"], 14)
+        self.assertEqual(d["confidence"], 0.9)
+        self.assertEqual(d["bbox_xyxy"], [1.0, 2.0, 3.0, 4.0])
 
-        self.assertEqual(cx1, 0.0)
-        self.assertEqual(cy1, 0.0)
-        self.assertEqual(cx2, 1000.0)
-        self.assertEqual(cy2, 800.0)
 
-    def test_bayesian_prior_vector_multiplication_promotes_regional_birds(self):
-        """
-        Verify that multiplying visual probabilities by prior weights across the whole vector
-        properly re-ranks a regional bird over a visually dominant lowland lookalike.
-        """
-        # Let species 0 be Painted Stork (lowland bird, prior 0.001 in Ladakh)
-        # Let species 1 be Black Redstart (Ladakh bird, prior 2.0 in Ladakh)
-        # Let species 2..4 be neutral birds (prior 1.0)
-        visual_probs = torch.tensor([0.70, 0.20, 0.05, 0.03, 0.02], dtype=torch.float32)
-        ladakh_priors = torch.tensor([0.001, 2.0, 1.0, 1.0, 1.0], dtype=torch.float32)
+class TestComputeIoU(unittest.TestCase):
+    def test_identical_boxes(self):
+        box_a = DetectionBox(0.0, 0.0, 10.0, 10.0, 0.9)
+        box_b = DetectionBox(0.0, 0.0, 10.0, 10.0, 0.9)
+        self.assertAlmostEqual(compute_iou(box_a, box_b), 1.0)
 
-        # 1. Without prior (or weight = 0), Painted Stork dominates
-        top_scores_no_prior, top_idx_no_prior = torch.topk(visual_probs, k=2)
-        self.assertEqual(top_idx_no_prior[0].item(), 0)
-        self.assertAlmostEqual(top_scores_no_prior[0].item(), 0.70, places=2)
+    def test_disjoint_boxes(self):
+        box_a = DetectionBox(0.0, 0.0, 10.0, 10.0, 0.9)
+        box_b = DetectionBox(20.0, 20.0, 30.0, 30.0, 0.9)
+        self.assertEqual(compute_iou(box_a, box_b), 0.0)
 
-        # 2. With Ladakh prior applied across the vector BEFORE topk:
-        posterior_scores = visual_probs * ladakh_priors
-        top_posteriors, top_indices = torch.topk(posterior_scores, k=2)
+    def test_overlapping_boxes(self):
+        box_a = DetectionBox(0.0, 0.0, 10.0, 10.0, 0.9)
+        box_b = DetectionBox(5.0, 0.0, 15.0, 10.0, 0.9)
+        self.assertAlmostEqual(compute_iou(box_a, box_b), 50.0 / 150.0)
 
-        # Black Redstart (index 1) becomes top-1 because 0.20 * 2.0 = 0.40 > 0.70 * 0.001 = 0.0007
-        self.assertEqual(top_indices[0].item(), 1)
-        self.assertAlmostEqual(top_posteriors[0].item(), 0.40, places=3)
-        self.assertEqual(top_indices[1].item(), 2)  # neutral bird 0.05 * 1.0 = 0.05
-        # Painted Stork is pushed out
-        self.assertNotIn(0, top_indices[:2].tolist())
+    def test_zero_area_box(self):
+        box_a = DetectionBox(0.0, 0.0, 0.0, 0.0, 0.9)
+        box_b = DetectionBox(0.0, 0.0, 10.0, 10.0, 0.9)
+        self.assertEqual(compute_iou(box_a, box_b), 0.0)
 
-    def test_posterior_distribution_normalization(self):
-        """Verify that top-5 raw scores are properly normalized to sum to 1.0."""
-        raw_scores = [0.40, 0.05, 0.03, 0.02, 0.0007]
-        score_sum = sum(raw_scores)
-        normalized = [round(s / score_sum, 4) for s in raw_scores]
-        self.assertAlmostEqual(sum(normalized), 1.0, places=2)
-        self.assertGreater(normalized[0], 0.75)
 
-    def test_missing_image_handled_gracefully(self):
-        """process_image must handle nonexistent files gracefully without crashing."""
-        import sys
+class TestPureMathHelpers(unittest.TestCase):
+    def test_softmax_distribution_and_temperature(self):
+        logits = [2.0, 1.0, 0.1]
+        probs = softmax(logits, temperature=1.0)
+        self.assertIsInstance(probs, np.ndarray)
+        self.assertAlmostEqual(float(np.sum(probs)), 1.0)
+        self.assertGreater(probs[0], probs[1])
+        self.assertGreater(probs[1], probs[2])
 
-        sys.path.insert(0, os.path.abspath("scripts"))
+        probs_high_t = softmax(logits, temperature=100.0)
+        self.assertTrue(np.allclose(probs_high_t, 1.0 / 3.0, atol=0.05))
 
-        # Instantiate mock engine or check process_image nonexistent file behavior
-        # Test nonexistent file handling directly
-        nonexistent = "/path/to/nonexistent/bird_image_xyz123.jpg"
-        self.assertFalse(os.path.exists(nonexistent))
+        with pytest.raises(ValueError, match="temperature must be strictly positive"):
+            softmax(logits, temperature=0.0)
+
+    def test_apply_regional_prior(self):
+        species = ["brakit1", "baleag", "blared1"]
+        logits = [10.0, 10.0, 10.0]
+        candidates = {"brakit1"}
+        adjusted = apply_regional_prior(
+            logits,
+            species_codes=species,
+            regional_candidates=candidates,
+            boost_factor=2.0,
+            penalty_factor=0.1,
+        )
+        self.assertAlmostEqual(adjusted[0], 20.0)
+        self.assertAlmostEqual(adjusted[1], 1.0)
+        self.assertAlmostEqual(adjusted[2], 1.0)
+
+
+class TestInferencePrediction(unittest.TestCase):
+    def test_immutability_and_to_dict(self):
+        pred = InferencePrediction(
+            species_code="brakit1",
+            common_name="Brahminy Kite",
+            scientific_name="Haliastur indus",
+            confidence=0.85,
+            raw_logit=12.4,
+            regional_prior_applied=True,
+            folder_slug="Brahminy_Kite",
+            visual_prob=0.8,
+            geo_prior=1.0,
+        )
+        self.assertEqual(pred.species_code, "brakit1")
+        self.assertEqual(pred.common_name, "Brahminy Kite")
+        self.assertEqual(pred.scientific_name, "Haliastur indus")
+        self.assertEqual(pred.confidence, 0.85)
+        self.assertEqual(pred.raw_logit, 12.4)
+        self.assertTrue(pred.regional_prior_applied)
+        self.assertIsNone(pred.bbox)
+
+        d = pred.to_dict()
+        self.assertEqual(d["taxon_id"], "brakit1")
+        self.assertEqual(d["common_name"], "Brahminy Kite")
+        self.assertEqual(d["folder_slug"], "Brahminy_Kite")
+        self.assertEqual(d["scientific_name"], "Haliastur indus")
+        self.assertEqual(d["combined_score"], 0.85)
+
+        with pytest.raises(FrozenInstanceError):
+            pred.confidence = 0.99  # type: ignore[misc]
+
+
+class TestAvianInferenceEngineMocked(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.models_dir = self.tmp_dir.name
+
+        self.taxonomy = [
+            {
+                "taxon_id": "brakit1",
+                "common_name": "Brahminy Kite",
+                "folder_slug": "Brahminy_Kite",
+                "scientific_name": "Haliastur indus",
+            },
+            {
+                "taxon_id": "baleag",
+                "common_name": "Bald Eagle",
+                "folder_slug": "Bald_Eagle",
+                "scientific_name": "Haliaeetus leucocephalus",
+            },
+        ]
+        with open(os.path.join(self.models_dir, "taxonomy.json"), "w", encoding="utf-8") as f:
+            json.dump(self.taxonomy, f)
+
+        emb = torch.randn(len(self.taxonomy), 512, dtype=torch.float32)
+        emb /= emb.norm(dim=-1, keepdim=True)
+        safetensors_path = os.path.join(self.models_dir, "species_embeddings.safetensors")
+        save_file({"embeddings": emb}, safetensors_path)
+
+        checklists_path = os.path.join(self.models_dir, "regional_checklists.json")
+        with open(checklists_path, "w", encoding="utf-8") as f:
+            json.dump({"IN-KA": ["brakit1"]}, f)
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    def _create_mock_engine(self):
+        class MockModel:
+            visual = torch.nn.Identity()
+
+        with (
+            patch(
+                "open_clip.create_model_and_transforms",
+                return_value=(MockModel(), None, lambda x: torch.randn(512)),
+            ),
+            patch("scripts.infer.YOLO") as mock_yolo_cls,
+        ):
+            mock_yolo = MagicMock()
+            mock_yolo_cls.return_value = mock_yolo
+            engine = AvianInferenceEngine(self.models_dir)
+            engine.detector = mock_yolo
+            return engine
+
+    def test_detect_and_crop_with_bird_box(self):
+        engine = self._create_mock_engine()
+
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(14)]
+        mock_box.conf = [torch.tensor(0.9)]
+        mock_box.xyxy = [torch.tensor([50.0, 50.0, 200.0, 200.0])]
+
+        mock_result = MagicMock()
+        mock_result.boxes = [mock_box]
+        engine.detector.return_value = [mock_result]
+
+        img = Image.new("RGB", (640, 480), color="blue")
+        crop, conf, all_detections = engine.detect_and_crop(img, min_detect=0.25)
+
+        self.assertIsNotNone(crop)
+        self.assertAlmostEqual(conf, 0.9, places=5)
+        self.assertEqual(len(all_detections), 1)
+        self.assertEqual(all_detections[0]["class_id"], 14)
+
+    def test_detect_and_crop_no_bird(self):
+        engine = self._create_mock_engine()
+        engine.detector.return_value = []
+
+        img = Image.new("RGB", (640, 480), color="blue")
+        crop, conf, all_detections = engine.detect_and_crop(img, min_detect=0.25)
+
+        self.assertIsNone(crop)
+        self.assertEqual(conf, 0.0)
+        self.assertEqual(len(all_detections), 0)
+
+    def test_process_image_nonexistent(self):
+        engine = self._create_mock_engine()
+        res = engine.process_image("/nonexistent/file.jpg")
+        self.assertIn("error", res)
+        self.assertFalse(res["detected"])
+
+    def test_process_image_mock_full_flow(self):
+        engine = self._create_mock_engine()
+
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(14)]
+        mock_box.conf = [torch.tensor(0.95)]
+        mock_box.xyxy = [torch.tensor([20.0, 20.0, 100.0, 100.0])]
+
+        mock_res = MagicMock()
+        mock_res.boxes = [mock_box]
+        engine.detector.return_value = [mock_res]
+
+        img_path = os.path.join(self.models_dir, "test_bird.jpg")
+        Image.new("RGB", (200, 200), color="green").save(img_path)
+
+        res = engine.process_image(
+            img_path,
+            min_detect=0.25,
+            geo_prior_weight=1.0,
+            region_code="IN-KA",
+        )
+        self.assertTrue(res["detected"])
+        self.assertGreater(res["detection_confidence"], 0.9)
+        self.assertIn("top_predictions", res)
+        self.assertEqual(len(res["top_predictions"]), 2)
+        self.assertEqual(res["assigned_species_slug"], "Brahminy_Kite")
+
+    def test_main_cli_single_image_and_batch(self):
+        engine = self._create_mock_engine()
+
+        img_path = os.path.join(self.models_dir, "bird.jpg")
+        Image.new("RGB", (100, 100), color="red").save(img_path)
+
+        out_json = os.path.join(self.models_dir, "out.json")
+
+        cmd_single = [
+            "infer.py",
+            "--models-dir",
+            self.models_dir,
+            "--image",
+            img_path,
+            "--output-file",
+            out_json,
+        ]
+        with (
+            patch("scripts.infer.AvianInferenceEngine", return_value=engine),
+            patch.object(sys, "argv", cmd_single),
+        ):
+            main()
+            self.assertTrue(os.path.exists(out_json))
+
+        batch_tasks = [
+            {
+                "bundle_id": "b1",
+                "primary_image": img_path,
+                "trip_folder_name": "Trip1",
+                "region_code": "IN-KA",
+            }
+        ]
+        batch_json = os.path.join(self.models_dir, "batch.json")
+        with open(batch_json, "w", encoding="utf-8") as f:
+            json.dump(batch_tasks, f)
+
+        batch_out = os.path.join(self.models_dir, "batch_out.json")
+        cmd_batch = [
+            "infer.py",
+            "--models-dir",
+            self.models_dir,
+            "--batch-file",
+            batch_json,
+            "--output-file",
+            batch_out,
+        ]
+        with (
+            patch("scripts.infer.AvianInferenceEngine", return_value=engine),
+            patch.object(sys, "argv", cmd_batch),
+        ):
+            main()
+            self.assertTrue(os.path.exists(batch_out))
+            with open(batch_out) as f:
+                data = json.load(f)
+            self.assertEqual(len(data), 1)
+            self.assertEqual(data[0]["bundle_id"], "b1")
 
 
 if __name__ == "__main__":
