@@ -6,7 +6,11 @@ to confirmed species taxon IDs from models/taxonomy.json into data/regional_chec
 """
 
 import json
+import math
 import os
+import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 # Root directory of avian_rearranger
@@ -15,6 +19,143 @@ TAXONOMY_PATH = os.path.join(REPO_ROOT, "models", "taxonomy.json")
 DATA_DIR = os.path.join(REPO_ROOT, "data")
 GAZETTEER_PATH = os.path.join(DATA_DIR, "gazetteer.json")
 CHECKLISTS_PATH = os.path.join(DATA_DIR, "regional_checklists.json")
+
+
+@dataclass(frozen=True)
+class GazetteerHotspot:
+    """Immutable representation of a gazetteer geographic waypoint or hotspot.
+
+    Attributes:
+        name: Primary display name of the hotspot or locality.
+        lat: Latitude in decimal degrees ([-90.0, 90.0]).
+        lon: Longitude in decimal degrees ([-180.0, 180.0]).
+        region: ISO 3166-1/2 or eBird regional code (e.g., 'IN-KA', 'US-FL').
+        aliases: Alternative names or transliterations for fuzzy resolution.
+        category: Place category ('hotspot', 'city', 'reserve').
+    """
+
+    name: str
+    lat: float
+    lon: float
+    region: str
+    aliases: tuple[str, ...] = ()
+    category: str = "hotspot"
+
+
+def validate_coordinates(lat: float, lon: float) -> bool:
+    """Validate whether latitude and longitude coordinates fall within terrestrial bounds.
+
+    Returns:
+        True if lat in [-90.0, 90.0] and lon in [-180.0, 180.0] and not NaN/infinite,
+        otherwise False.
+    """
+    if not (isinstance(lat, (int, float)) and isinstance(lon, (int, float))):
+        return False
+    if math.isnan(lat) or math.isnan(lon) or math.isinf(lat) or math.isinf(lon):
+        return False
+    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
+
+
+def normalize_hotspot_name(name: str) -> str:
+    """Normalize a hotspot name by stripping whitespace, collapsing spaces, and lowercasing."""
+    cleaned = re.sub(r"\s+", " ", name.strip())
+    return cleaned.lower()
+
+
+def deduplicate_hotspots(hotspots: Sequence[GazetteerHotspot]) -> tuple[GazetteerHotspot, ...]:
+    """Deduplicate a sequence of hotspots by normalized name and coordinates.
+
+    When duplicate entries are encountered, aliases are merged into the original entry.
+    """
+    deduped: list[GazetteerHotspot] = []
+    index_by_key: dict[tuple[str, float, float], int] = {}
+
+    for spot in hotspots:
+        norm_name = normalize_hotspot_name(spot.name)
+        key = (norm_name, round(spot.lat, 4), round(spot.lon, 4))
+        if key in index_by_key:
+            idx = index_by_key[key]
+            existing = deduped[idx]
+            combined_aliases = list(existing.aliases)
+            for alias in spot.aliases:
+                if alias not in combined_aliases and normalize_hotspot_name(alias) != norm_name:
+                    combined_aliases.append(alias)
+            deduped[idx] = GazetteerHotspot(
+                name=existing.name,
+                lat=existing.lat,
+                lon=existing.lon,
+                region=existing.region,
+                aliases=tuple(combined_aliases),
+                category=existing.category,
+            )
+        else:
+            index_by_key[key] = len(deduped)
+            deduped.append(spot)
+
+    return tuple(deduped)
+
+
+def build_gazetteer_data(raw_entries: Sequence[dict[str, Any]]) -> tuple[GazetteerHotspot, ...]:
+    """Parse raw dictionary entries into validated, immutable GazetteerHotspot instances.
+
+    Raises:
+        ValueError: If coordinates are out of bounds or required fields are missing.
+    """
+    hotspots: list[GazetteerHotspot] = []
+    for entry in raw_entries:
+        name = entry.get("name")
+        if not name or not isinstance(name, str):
+            raise ValueError(f"Missing or invalid name in entry: {entry}")
+
+        lat_val = entry.get("latitude") if "latitude" in entry else entry.get("lat")
+        lon_val = entry.get("longitude") if "longitude" in entry else entry.get("lon")
+        if lat_val is None or lon_val is None:
+            raise ValueError(f"Missing latitude/longitude in entry for {name}")
+
+        lat = float(lat_val)
+        lon = float(lon_val)
+        if not validate_coordinates(lat, lon):
+            raise ValueError(f"Invalid coordinates ({lat}, {lon}) for {name}")
+
+        region = entry.get("region_code") or entry.get("region", "")
+        category = entry.get("category", "hotspot")
+        aliases_raw = entry.get("aliases", ())
+        aliases = tuple(aliases_raw) if isinstance(aliases_raw, (list, tuple)) else ()
+
+        hotspots.append(
+            GazetteerHotspot(
+                name=name,
+                lat=lat,
+                lon=lon,
+                region=region,
+                aliases=aliases,
+                category=category,
+            )
+        )
+
+    return tuple(hotspots)
+
+
+def serialize_gazetteer(hotspots: Sequence[GazetteerHotspot]) -> list[dict[str, Any]]:
+    """Serialize a sequence of GazetteerHotspot instances to schema-compliant dictionary format.
+
+    Emits both `lat`/`lon` and `latitude`/`longitude` for downstream cross-system compatibility.
+    """
+    serialized: list[dict[str, Any]] = []
+    for spot in hotspots:
+        item: dict[str, Any] = {
+            "name": spot.name,
+            "region_code": spot.region,
+            "lat": spot.lat,
+            "lon": spot.lon,
+            "latitude": spot.lat,
+            "longitude": spot.lon,
+            "category": spot.category,
+        }
+        if spot.aliases:
+            item["aliases"] = list(spot.aliases)
+        serialized.append(item)
+    return serialized
 
 
 # -------------------------------------------------------------------------
@@ -1281,32 +1422,10 @@ def build_gazetteer(taxonomy_path: str = TAXONOMY_PATH) -> None:
     valid_taxon_ids: set[str] = {s["taxon_id"] for s in taxonomy}
     print(f"Loaded {len(valid_taxon_ids)} valid taxon IDs from {taxonomy_path}")
 
-    # 1. Prepare Gazetteer
-    gazetteer: list[dict[str, Any]] = []
-    seen_names = set()
-    for entry in RAW_GAZETTEER:
-        name = entry["name"]
-        region = entry["region_code"]
-        lat = float(entry["lat"])
-        lon = float(entry["lon"])
-        cat = entry["category"]
-
-        assert -90.0 <= lat <= 90.0, f"Invalid latitude {lat} for {name}"
-        assert -180.0 <= lon <= 180.0, f"Invalid longitude {lon} for {name}"
-        assert cat in {"hotspot", "city", "reserve"}, f"Invalid category {cat} for {name}"
-
-        # Populate both 'lat'/'lon' and 'latitude'/'longitude' for full cross-system compatibility
-        item = {
-            "name": name,
-            "region_code": region,
-            "lat": lat,
-            "lon": lon,
-            "latitude": lat,
-            "longitude": lon,
-            "category": cat,
-        }
-        gazetteer.append(item)
-        seen_names.add(name.lower())
+    # Build and serialize gazetteer
+    hotspots = build_gazetteer_data(RAW_GAZETTEER)
+    gazetteer = serialize_gazetteer(hotspots)
+    seen_names = {normalize_hotspot_name(spot.name) for spot in hotspots}
 
     # Verify key hotspots are present
     assert "saul kere" in seen_names or "saul kere lake" in seen_names
