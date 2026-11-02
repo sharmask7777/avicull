@@ -31,7 +31,7 @@ command -v cargo >/dev/null 2>&1 || {
 }
 
 # 1. Rust Code Formatting
-echo -e "${BOLD}[1/6] Checking Rust code formatting (cargo fmt --check)...${NC}"
+echo -e "${BOLD}[1/7] Checking Rust code formatting (cargo fmt --check)...${NC}"
 if cargo fmt --check; then
     echo -e "${GREEN}✓ cargo fmt passed.${NC}\n"
 else
@@ -40,7 +40,7 @@ else
 fi
 
 # 2. Rust Compiler Check
-echo -e "${BOLD}[2/6] Running compiler check on all targets (cargo check --all-targets)...${NC}"
+echo -e "${BOLD}[2/7] Running compiler check on all targets (cargo check --all-targets)...${NC}"
 if cargo check --all-targets; then
     echo -e "${GREEN}✓ cargo check passed.${NC}\n"
 else
@@ -49,7 +49,7 @@ else
 fi
 
 # 3. Rust Linter (Clippy)
-echo -e "${BOLD}[3/6] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
+echo -e "${BOLD}[3/7] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
 if cargo clippy --all-targets --all-features -- -D warnings; then
     echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
 else

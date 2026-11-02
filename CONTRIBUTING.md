@@ -96,7 +96,7 @@ We follow strict **Test-Driven Development (TDD)**:
 ## 4. Verification & Testing Tiers
 
 ### Fast Verification Pipeline (`scripts/verify.sh`)
-For rapid local checks during development, run the canonical 6-stage verification script:
+For rapid local checks during development, run the canonical 7-stage verification script:
 ```bash
 ./scripts/verify.sh
 ```
