@@ -32,7 +32,7 @@ Every contributor and AI agent must adhere strictly to these core invariants:
 ### Prerequisites
 
 - **macOS** on Apple Silicon (M1/M2/M3/M4 recommended) with APFS filesystem.
-- **Rust Toolchain**: Rust 1.80+ (`rustup default stable`).
+- **Rust Toolchain**: Rust 1.80+ (verified up to latest stable `1.99.1` via `rustup update`).
 - **LLVM Tools & Coverage**:
   ```bash
   rustup component add llvm-tools
