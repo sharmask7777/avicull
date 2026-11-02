@@ -184,9 +184,9 @@ fn parse_kamadak_dms(val: &exif::Value, ref_str: &str) -> Option<f64> {
             if rationals[0].denom == 0 || rationals[1].denom == 0 || rationals[2].denom == 0 {
                 return None;
             }
-            let deg = rationals[0].num as f64 / rationals[0].denom as f64;
-            let min = rationals[1].num as f64 / rationals[1].denom as f64;
-            let sec = rationals[2].num as f64 / rationals[2].denom as f64;
+            let deg = f64::from(rationals[0].num) / f64::from(rationals[0].denom);
+            let min = f64::from(rationals[1].num) / f64::from(rationals[1].denom);
+            let sec = f64::from(rationals[2].num) / f64::from(rationals[2].denom);
             let mut dec = deg + min / 60.0 + sec / 3600.0;
             if ref_str.starts_with('S') || ref_str.starts_with('W') {
                 dec = -dec;
@@ -203,7 +203,7 @@ fn parse_kamadak_dms(val: &exif::Value, ref_str: &str) -> Option<f64> {
 fn tokenize_folder_name(name: &str) -> Vec<String> {
     name.split(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_lowercase())
+        .map(str::to_lowercase)
         .collect()
 }
 
@@ -278,8 +278,8 @@ pub fn resolve_locations(
 
     for (trip, mut lats) in trip_lats {
         if let Some(mut lons) = trip_lons.remove(&trip) {
-            lats.sort_by(|a, b| a.total_cmp(b));
-            lons.sort_by(|a, b| a.total_cmp(b));
+            lats.sort_by(f64::total_cmp);
+            lons.sort_by(f64::total_cmp);
             let mid = lats.len() / 2;
             let med_lat = lats[mid];
             let med_lon = lons[mid];

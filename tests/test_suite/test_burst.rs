@@ -193,3 +193,53 @@ fn test_burst_consensus_fallback_when_winner_not_in_frame_posteriors() {
     assert_eq!(decisions[1].assigned_species_slug, "Chukar");
     assert_eq!(decisions[1].final_confidence, 0.0);
 }
+
+#[test]
+fn test_burst_consensus_empty_and_missing_timestamps() {
+    // Empty input must safely return empty vec without panicking
+    let empty_decisions =
+        smooth_burst_consensus(&[], 3000, 0.80, ConfidenceMode::BurstConsensus, 0.65);
+    assert!(empty_decisions.is_empty());
+
+    // Single item with None timestamp
+    let single_item = ClassifiedBundleItem {
+        bundle_id: "single".to_string(),
+        trip_folder: "Trip".to_string(),
+        capture_timestamp_ms: None,
+        detection_confidence: 0.90,
+        bbox_norm: None,
+        embedding: vec![1.0; 512],
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "sp1".to_string(),
+            common_name: "Species".to_string(),
+            folder_slug: "Species".to_string(),
+            scientific_name: "Species sp".to_string(),
+            visual_prob: 0.90,
+            geo_prior: 1.0,
+            combined_score: 0.90,
+        }],
+        posteriors: vec![("sp1".to_string(), 0.90)],
+    };
+
+    let single_decision = smooth_burst_consensus(
+        std::slice::from_ref(&single_item),
+        3000,
+        0.80,
+        ConfidenceMode::BurstConsensus,
+        0.65,
+    );
+    assert_eq!(single_decision.len(), 1);
+    assert_eq!(single_decision[0].assigned_species_slug, "Species");
+
+    // Multiple items with None timestamps should safely form separate bursts
+    let mut item2 = single_item.clone();
+    item2.bundle_id = "single2".to_string();
+    let items = vec![single_item, item2];
+    let multiple_decisions =
+        smooth_burst_consensus(&items, 3000, 0.80, ConfidenceMode::BurstConsensus, 0.65);
+    assert_eq!(multiple_decisions.len(), 2);
+    assert_ne!(
+        multiple_decisions[0].burst_id, multiple_decisions[1].burst_id,
+        "Items with None timestamps should belong to separate bursts"
+    );
+}

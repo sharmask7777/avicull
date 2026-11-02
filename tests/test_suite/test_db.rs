@@ -209,3 +209,42 @@ fn test_manifest_db_portable_bundle_lookup_and_override() {
     assert!(found.unwrap().0.is_user_override);
     assert!(map.get_by_portable_key("TripA", "DSC_0001").is_some());
 }
+
+#[test]
+fn test_poisoned_mutex_graceful_error() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open_or_create failed");
+
+    // Deliberately poison the inner connection mutex on a background thread.
+    let raw = std::sync::Arc::clone(db.raw_conn());
+    let _ = std::thread::spawn(move || {
+        let _guard = raw.lock().unwrap();
+        panic!("deliberate panic while holding mutex to test poison handling");
+    })
+    .join();
+
+    // Calling any ManifestDb method must return an error rather than panicking.
+    let result = db.get_latest_run_id();
+    assert!(
+        result.is_err(),
+        "Expected Err on poisoned mutex, but got Ok"
+    );
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("Database connection mutex poisoned"),
+        "Error message '{err_msg}' does not mention mutex poisoning"
+    );
+
+    // Verify error matches AvicullError::DatabaseError variant
+    let avicull_err = err
+        .downcast_ref::<AvicullError>()
+        .expect("Expected error to downcast to AvicullError");
+    match avicull_err {
+        AvicullError::DatabaseError(msg) => {
+            assert!(msg.contains("Database connection mutex poisoned"));
+        }
+        other => panic!("Expected AvicullError::DatabaseError, got {other:?}"),
+    }
+}

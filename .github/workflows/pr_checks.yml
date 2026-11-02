@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   lint-and-format:
-    name: Code Formatting & Clippy Linter
+    name: Code Formatting, Lints & Cargo Deny
     runs-on: macos-15
     steps:
       - name: Checkout repository
@@ -29,8 +29,20 @@ jobs:
       - name: Check code formatting (cargo fmt)
         run: cargo fmt --check
 
+      - name: Run compiler check on all targets (cargo check)
+        run: cargo check --all-targets
+
       - name: Run Clippy linter (cargo clippy)
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Check supply-chain advisories, bans, and licenses (cargo deny check)
+        run: cargo deny check
+
+      - name: Check Rust documentation (cargo doc)
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
   test-rust:
     name: Rust Test Suite & Invariants

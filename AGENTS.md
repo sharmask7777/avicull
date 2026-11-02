@@ -36,7 +36,7 @@ Welcome to `avicull`. This document defines the engineering standards, architect
   2. **Verify Failure**: Run `cargo test` (or `pytest`) and verify the test fails for the expected reason. Do not proceed until you have observed the failure.
   3. **GREEN**: Write the minimal implementation code necessary to make the test pass.
   4. **Verify Green**: Re-run the test suite and confirm the new test passes and all existing tests stay green.
-  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy --all-targets -- -D warnings`), document, and verify docs (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`).
+  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy --all-targets --all-features -- -D warnings`), audit dependencies (`cargo deny check`), document, and verify docs (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`).
 
 ### B. Multi-Pronged Testing Strategy
 Every pull request or enhancement must be verified across eight distinct tiers:
@@ -65,8 +65,35 @@ Every pull request or enhancement must be verified across eight distinct tiers:
 8. **Rustdoc Documentation Gate**:
    - Must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with 0 warnings.
 
+### C. Strict Compiler & Clippy Lints
+All production and test code must satisfy strict compiler and Clippy linter rules configured in `Cargo.toml`:
+- `unsafe_code = "deny"`: No `unsafe` code blocks permitted anywhere in the codebase.
+- `pedantic = { level = "deny", priority = -1 }`: Strict idiomatic Rust practices enforced across all crates.
+- `unwrap_used = "deny"`: Explicit unwrap calls are denied in production code; use idiomatic error propagation (`?`), `unwrap_or_else`, or structured error matching.
+- `panic = "deny"`, `todo = "deny"`: No unhandled panics or temporary stubs.
+- `redundant_clone = "deny"`: Disallows unnecessary heap allocations and clones.
+- Allowed overrides are limited to sensible noise suppressions (e.g., `doc_markdown` for LaTeX notation, `similar_names` for coordinate pairs, and numeric casts in image coordinate transformations).
 
-### C. The Verification Agent Crew Loop
+### D. Supply-Chain Security & License Auditing (`cargo-deny`)
+The repository enforces strict supply-chain and dependency auditing via `deny.toml` and `cargo deny check`:
+- **Advisories**: Warns on yanked crates and denies security vulnerabilities or unmaintained dependencies.
+- **Licenses**: Allows only permissive open-source licenses compatible with GPL-3.0-or-later (e.g., MIT, Apache-2.0, BSD-3-Clause, ISC, 0BSD).
+- **Bans**: Warns on duplicate dependency versions and bans unapproved tree branches.
+
+### E. Unified Verification Pipeline (`scripts/verify.sh`)
+Contributors and agents can verify the complete codebase in one command using `scripts/verify.sh`:
+```bash
+./scripts/verify.sh
+```
+This runs the canonical 6-stage verification pipeline:
+1. `cargo fmt --check`
+2. `cargo check --all-targets`
+3. `cargo clippy --all-targets --all-features -- -D warnings`
+4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e`
+5. `cargo deny check`
+6. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+
+### F. The Verification Agent Crew Loop
 Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
 - **Agent 1 (`correctness-safety-reviewer`)**: Audits source immutability, APFS hard link invariants, thread safety in Rayon iterations, error handling, and bounds checking.
 - **Agent 2 (`rust-readability-reviewer`)**: Audits idiomatic Rust design, function modularity, self-documenting naming, type system ergonomics, and documentation.

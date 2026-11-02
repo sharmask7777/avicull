@@ -151,7 +151,7 @@ pub struct ReleaseInfo {
 
 /// Fetches the latest published release information from the GitHub Releases API.
 pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo> {
-    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let api_url = format!("https://api.github.com/repos/{repo}/releases/latest");
     let output = std::process::Command::new("curl")
         .args([
             "-sL",
@@ -175,7 +175,7 @@ pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout)
-        .with_context(|| format!("Failed to parse GitHub releases response: {}", stdout))?;
+        .with_context(|| format!("Failed to parse GitHub releases response: {stdout}"))?;
 
     let tag_name = json
         .get("tag_name")
@@ -184,12 +184,10 @@ pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo
         .to_string();
 
     let tarball_url = format!(
-        "https://github.com/{}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz",
-        repo
+        "https://github.com/{repo}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz"
     );
     let sha256_url = format!(
-        "https://github.com/{}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz.sha256",
-        repo
+        "https://github.com/{repo}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz.sha256"
     );
 
     Ok(ReleaseInfo {
@@ -245,6 +243,50 @@ pub fn check_for_update_notice(current_version: &str) -> Option<String> {
     }
 }
 
+/// Unpacks a downloaded release tarball into a destination directory and locates the extracted `avicull` binary.
+///
+/// # Arguments
+/// * `tarball_path` - Filesystem path to the `.tar.gz` archive.
+/// * `target_dir` - Directory path where the archive contents should be extracted.
+///
+/// # Returns
+/// A [`Result`] containing the [`PathBuf`] pointing to the extracted `avicull` binary executable.
+///
+/// # Errors
+/// Returns an [`Err`] if:
+/// - Either `tarball_path` or `target_dir` cannot be converted to valid UTF-8 strings.
+/// - The `tar` subprocess fails to execute or exits with a non-zero status code.
+/// - The extracted archive does not contain an `avicull` binary executable.
+pub fn unpack_release_archive(tarball_path: &Path, target_dir: &Path) -> Result<PathBuf> {
+    let tarball_str = tarball_path
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid UTF-8 in path"))?;
+    let target_dir_str = target_dir
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid UTF-8 in path"))?;
+
+    let unpack_status = std::process::Command::new("tar")
+        .args(["-xzf", tarball_str, "-C", target_dir_str])
+        .status()
+        .context("Failed to execute tar command to unpack archive")?;
+
+    if !unpack_status.success() {
+        return Err(anyhow!("Failed to extract release archive"));
+    }
+
+    // Locate the newly unpacked binary in the target directory
+    let mut candidate_bin = None;
+    for entry in walkdir::WalkDir::new(target_dir).into_iter().flatten() {
+        if entry.file_type().is_file() && entry.file_name() == "avicull" {
+            candidate_bin = Some(entry.into_path());
+            break;
+        }
+    }
+
+    candidate_bin
+        .ok_or_else(|| anyhow!("Could not find avicull executable inside extracted archive"))
+}
+
 /// Executes a self-update by downloading, checksum-verifying, and atomically installing the latest release.
 pub fn perform_self_update(check_only: bool) -> Result<()> {
     let current_version = env!("CARGO_PKG_VERSION");
@@ -284,13 +326,20 @@ pub fn perform_self_update(check_only: bool) -> Result<()> {
     let tarball_path = tmp.path().join("avicull-latest.tar.gz");
     let sha256_path = tmp.path().join("avicull-latest.tar.gz.sha256");
 
+    let tarball_path_str = tarball_path
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid UTF-8 in path"))?;
+    let sha256_path_str = sha256_path
+        .to_str()
+        .ok_or_else(|| anyhow!("Invalid UTF-8 in path"))?;
+
     let curl_tar = std::process::Command::new("curl")
         .args([
             "-sL",
             "--max-time",
             "60",
             "-o",
-            tarball_path.to_str().unwrap(),
+            tarball_path_str,
             &release.tarball_url,
         ])
         .output()
@@ -306,7 +355,7 @@ pub fn perform_self_update(check_only: bool) -> Result<()> {
             "--max-time",
             "30",
             "-o",
-            sha256_path.to_str().unwrap(),
+            sha256_path_str,
             &release.sha256_url,
         ])
         .output()
@@ -332,31 +381,7 @@ pub fn perform_self_update(check_only: bool) -> Result<()> {
     println!("[avicull] ✓ Checksum verified successfully.");
 
     println!("[avicull] Unpacking archive...");
-    let unpack_status = std::process::Command::new("tar")
-        .args([
-            "-xzf",
-            tarball_path.to_str().unwrap(),
-            "-C",
-            tmp.path().to_str().unwrap(),
-        ])
-        .status()
-        .context("Failed to execute tar command to unpack archive")?;
-
-    if !unpack_status.success() {
-        return Err(anyhow!("Failed to extract release archive"));
-    }
-
-    // Locate the newly unpacked binary in the temp directory
-    let mut candidate_bin = None;
-    for entry in walkdir::WalkDir::new(tmp.path()).into_iter().flatten() {
-        if entry.file_type().is_file() && entry.file_name() == "avicull" {
-            candidate_bin = Some(entry.into_path());
-            break;
-        }
-    }
-
-    let new_binary = candidate_bin
-        .ok_or_else(|| anyhow!("Could not find avicull executable inside extracted archive"))?;
+    let new_binary = unpack_release_archive(&tarball_path, tmp.path())?;
 
     println!(
         "[avicull] Installing new binary to {}...",

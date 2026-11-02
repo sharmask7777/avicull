@@ -1,6 +1,6 @@
 use avicull::update::{
     atomic_replace_binary, default_cache_path, is_newer_version, parse_semver,
-    verify_sha256_checksum, UpdateCheckCache,
+    unpack_release_archive, verify_sha256_checksum, UpdateCheckCache,
 };
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -270,4 +270,72 @@ fn test_update_cache_expiry_and_notice_rendering() {
     let loaded = UpdateCheckCache::load_from_file(&cache_file).unwrap();
     assert_eq!(loaded.latest_version, cache.latest_version);
     assert_eq!(loaded.download_url, cache.download_url);
+}
+
+#[test]
+fn test_unpack_release_archive_success() {
+    let tmp = tempdir().unwrap();
+    let src_dir = tmp.path().join("archive_content");
+    fs::create_dir_all(&src_dir).unwrap();
+    let bin_path = src_dir.join("avicull");
+    fs::write(&bin_path, b"mock_executable_bytes").unwrap();
+
+    let tarball_path = tmp.path().join("test_archive.tar.gz");
+    let status = std::process::Command::new("tar")
+        .args([
+            "-czf",
+            tarball_path.to_str().unwrap(),
+            "-C",
+            src_dir.to_str().unwrap(),
+            "avicull",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let extract_dir = tmp.path().join("extracted");
+    fs::create_dir_all(&extract_dir).unwrap();
+
+    let extracted_bin = unpack_release_archive(&tarball_path, &extract_dir).unwrap();
+    assert!(extracted_bin.exists());
+    assert_eq!(fs::read(&extracted_bin).unwrap(), b"mock_executable_bytes");
+}
+
+#[test]
+fn test_unpack_release_archive_corrupted_and_missing() {
+    let tmp = tempdir().unwrap();
+    let extract_dir = tmp.path().join("extracted");
+    fs::create_dir_all(&extract_dir).unwrap();
+
+    // 1. Non-existent archive must return Err, no panic
+    let missing_path = tmp.path().join("missing.tar.gz");
+    assert!(unpack_release_archive(&missing_path, &extract_dir).is_err());
+
+    // 2. Corrupted (non-tar) archive must return Err, no panic
+    let corrupt_path = tmp.path().join("corrupt.tar.gz");
+    fs::write(&corrupt_path, b"not a valid gzip or tar archive").unwrap();
+    assert!(unpack_release_archive(&corrupt_path, &extract_dir).is_err());
+
+    // 3. Archive without avicull binary must return Err, no panic
+    let other_file = tmp.path().join("other.txt");
+    fs::write(&other_file, b"something else").unwrap();
+    let tarball_without_avicull = tmp.path().join("no_bin.tar.gz");
+    let status = std::process::Command::new("tar")
+        .args([
+            "-czf",
+            tarball_without_avicull.to_str().unwrap(),
+            "-C",
+            tmp.path().to_str().unwrap(),
+            "other.txt",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let err_res = unpack_release_archive(&tarball_without_avicull, &extract_dir);
+    assert!(err_res.is_err());
+    assert!(err_res
+        .unwrap_err()
+        .to_string()
+        .contains("Could not find avicull executable"));
 }

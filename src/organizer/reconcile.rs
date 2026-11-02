@@ -58,9 +58,8 @@ pub fn reconcile_manual_disk_moves(
         });
 
     for entry_res in walker {
-        let entry = match entry_res {
-            Ok(e) => e,
-            Err(_) => continue,
+        let Ok(entry) = entry_res else {
+            continue;
         };
 
         if !entry.file_type().is_file() {
@@ -83,9 +82,8 @@ pub fn reconcile_manual_disk_moves(
             continue;
         }
 
-        let rel_path = match file_path.strip_prefix(&can_output) {
-            Ok(p) => p,
-            Err(_) => continue,
+        let Ok(rel_path) = file_path.strip_prefix(&can_output) else {
+            continue;
         };
 
         // Determine target species slug and routing tier from directory path components
@@ -110,13 +108,14 @@ pub fn reconcile_manual_disk_moves(
             }
         } else if dir_components[0] == "_No_Bird_Detected" {
             (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
-        } else {
+        } else if let Some(species_dir) = dir_components.last() {
             // Direct species directory under output root (or nested hierarchy)
-            let species_dir = dir_components.last().unwrap();
             (
                 RoutingTier::ConfirmedSpecies,
                 sanitize_species_slug(species_dir),
             )
+        } else {
+            continue;
         };
 
         // Match the file to a known bundle
@@ -158,8 +157,7 @@ pub fn reconcile_manual_disk_moves(
                 if is_match
                     && best_stem_match
                         .as_ref()
-                        .map(|(len, _)| *len < stem.len())
-                        .unwrap_or(true)
+                        .is_none_or(|(len, _)| *len < stem.len())
                 {
                     best_stem_match = Some((stem.len(), b_id.clone()));
                 }
@@ -169,9 +167,8 @@ pub fn reconcile_manual_disk_moves(
             }
         }
 
-        let bundle_id = match matched_bundle_id {
-            Some(id) => id,
-            None => continue,
+        let Some(bundle_id) = matched_bundle_id else {
+            continue;
         };
 
         if let Some((existing_decision, _)) = existing_bundle_map.get(&bundle_id).cloned() {
@@ -187,7 +184,7 @@ pub fn reconcile_manual_disk_moves(
                 db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
                 let mut updated_dec = existing_decision.clone();
-                updated_dec.assigned_species_slug = target_slug.clone();
+                updated_dec.assigned_species_slug.clone_from(&target_slug);
                 updated_dec.routing_tier = target_tier;
                 updated_dec.final_confidence = 1.0;
                 updated_dec.is_user_override = true;
@@ -368,9 +365,8 @@ pub fn reconcile_inplace_manual_renames(
         });
 
     for entry_res in walker {
-        let entry = match entry_res {
-            Ok(e) => e,
-            Err(_) => continue,
+        let Ok(entry) = entry_res else {
+            continue;
         };
 
         if !entry.file_type().is_file() {
@@ -388,9 +384,8 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         }
 
-        let (file_stem, _is_sidecar) = match decompose_filename(&file_name) {
-            Some(res) => res,
-            None => continue,
+        let Some((file_stem, _is_sidecar)) = decompose_filename(&file_name) else {
+            continue;
         };
 
         // Match the file to a known bundle via inode or stem matching
@@ -418,8 +413,7 @@ pub fn reconcile_inplace_manual_renames(
                 if is_match
                     && best_stem_match
                         .as_ref()
-                        .map(|(len, _)| *len < stem.len())
-                        .unwrap_or(true)
+                        .is_none_or(|(len, _)| *len < stem.len())
                 {
                     best_stem_match = Some((stem.len(), b_id.clone()));
                 }
@@ -429,27 +423,24 @@ pub fn reconcile_inplace_manual_renames(
             }
         }
 
-        let bundle_id = match matched_bundle_id {
-            Some(id) => id,
-            None => continue,
+        let Some(bundle_id) = matched_bundle_id else {
+            continue;
         };
 
         if reconciled_bundle_ids.contains(&bundle_id) {
             continue;
         }
 
-        let (existing_decision, bundle) = match existing_bundle_map.get(&bundle_id).cloned() {
-            Some(pair) => pair,
-            None => continue,
+        let Some((existing_decision, bundle)) = existing_bundle_map.get(&bundle_id).cloned() else {
+            continue;
         };
 
-        let (target_slug, target_tier) = match parse_inplace_slug_and_tier(
+        let Some((target_slug, target_tier)) = parse_inplace_slug_and_tier(
             &file_stem,
             &bundle.original_stem,
             bundle.resolved_location_name.as_deref(),
-        ) {
-            Some(res) => res,
-            None => continue,
+        ) else {
+            continue;
         };
 
         let is_species_diff = existing_decision.assigned_species_slug != target_slug;
@@ -461,7 +452,7 @@ pub fn reconcile_inplace_manual_renames(
             db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
             let mut updated_dec = existing_decision.clone();
-            updated_dec.assigned_species_slug = target_slug.clone();
+            updated_dec.assigned_species_slug.clone_from(&target_slug);
             updated_dec.routing_tier = target_tier;
             updated_dec.final_confidence = 1.0;
             updated_dec.is_user_override = true;

@@ -150,16 +150,6 @@ fn is_known_noise_word(s: &str) -> bool {
 }
 
 fn is_camera_folder(s: &str) -> bool {
-    let s = s.trim();
-    if s.len() >= 4 {
-        let digits = s.chars().take_while(|c| c.is_ascii_digit()).count();
-        if digits == 3 {
-            let rest = s[digits..].trim_start_matches(['_', '-']);
-            if !rest.is_empty() {
-                return true;
-            }
-        }
-    }
     const CAMERA_BRANDS: &[&str] = &[
         "canon",
         "nikon",
@@ -173,6 +163,17 @@ fn is_camera_folder(s: &str) -> bool {
         "hasselblad",
         "pentax",
     ];
+
+    let s = s.trim();
+    if s.len() >= 4 {
+        let digits = s.chars().take_while(char::is_ascii_digit).count();
+        if digits == 3 {
+            let rest = s[digits..].trim_start_matches(['_', '-']);
+            if !rest.is_empty() {
+                return true;
+            }
+        }
+    }
     CAMERA_BRANDS.contains(&s)
 }
 
@@ -252,7 +253,7 @@ fn is_date_token(s: &str) -> bool {
 
     let parts: Vec<&str> = s
         .split([' ', '-', '_', '/', '.', ','])
-        .map(|p| p.trim())
+        .map(str::trim)
         .filter(|p| !p.is_empty())
         .collect();
 
@@ -439,7 +440,7 @@ fn clean_phrase(phrase: &str) -> Option<String> {
 
     let words: Vec<&str> = space_separated
         .split_whitespace()
-        .map(|w| w.trim())
+        .map(str::trim)
         .filter(|w| !w.is_empty())
         .collect();
 

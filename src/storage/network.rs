@@ -8,7 +8,6 @@
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::thread::sleep;
@@ -55,10 +54,9 @@ impl NetworkShareBackend {
         let hash_hex = &hash.to_hex()[..16];
         let file_name = remote_path
             .file_name()
-            .map(|s| s.to_string_lossy())
-            .unwrap_or_else(|| "asset".into());
+            .map_or_else(|| "asset".into(), |s| s.to_string_lossy());
 
-        self.staging_dir.join(format!("{}_{}", hash_hex, file_name))
+        self.staging_dir.join(format!("{hash_hex}_{file_name}"))
     }
 }
 
@@ -95,14 +93,7 @@ impl StorageBackend for NetworkShareBackend {
             match File::open(path) {
                 Ok(mut remote_file) => {
                     let mut dest_file = File::create(&staged_path)?;
-                    let mut buffer = [0u8; 64 * 1024];
-                    loop {
-                        let bytes_read = remote_file.read(&mut buffer)?;
-                        if bytes_read == 0 {
-                            break;
-                        }
-                        std::io::Write::write_all(&mut dest_file, &buffer[..bytes_read])?;
-                    }
+                    std::io::copy(&mut remote_file, &mut dest_file)?;
                     map.insert(path.to_path_buf(), staged_path.clone());
                     return Ok(staged_path);
                 }

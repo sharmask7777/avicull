@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -38,7 +40,7 @@ impl StorageBackend for MacOSCloudStorageBackend {
                 let _ = f.read(&mut buf)?;
                 Ok(())
             }) {
-                Ok(_) => return Ok(path.to_path_buf()),
+                Ok(()) => return Ok(path.to_path_buf()),
                 Err(err) => {
                     last_err = Some(err);
                 }
@@ -71,8 +73,7 @@ impl StorageBackend for MacOSCloudStorageBackend {
                     Ok(s) if s.success() => return Ok(()),
                     Ok(s) => {
                         return Err(std::io::Error::other(format!(
-                            "brctl evict failed with exit status: {}",
-                            s
+                            "brctl evict failed with exit status: {s}"
                         )))
                     }
                     Err(e) => return Err(e),
@@ -118,8 +119,9 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
         *mut libc::c_void,
         *mut *mut libc::c_void,
     ) -> bool;
+    type Utf8Fn = unsafe extern "C" fn(*mut libc::c_void, *mut libc::c_void) -> *const libc::c_char;
 
-    let objc_msgsend_sym = libc::dlsym(libc::RTLD_DEFAULT, c"objc_msgSend".as_ptr() as *const _);
+    let objc_msgsend_sym = libc::dlsym(libc::RTLD_DEFAULT, c"objc_msgSend".as_ptr().cast());
     if objc_msgsend_sym.is_null() {
         return Err(std::io::Error::other("objc_msgSend not found"));
     }
@@ -128,56 +130,52 @@ unsafe fn macos_evict_ubiquitous_item(path: &Path) -> std::io::Result<()> {
     let objc_msg_send1: MsgSend1Fn = std::mem::transmute(objc_msgsend_sym);
     let objc_msg_send2_bool: MsgSend2BoolFn = std::mem::transmute(objc_msgsend_sym);
 
-    let ns_file_manager_class = objc_getClass(c"NSFileManager".as_ptr() as *const _);
+    let ns_file_manager_class = objc_getClass(c"NSFileManager".as_ptr().cast());
     if ns_file_manager_class.is_null() {
         return Err(std::io::Error::other("NSFileManager class not found"));
     }
-    let default_manager_sel = sel_registerName(c"defaultManager".as_ptr() as *const _);
+    let default_manager_sel = sel_registerName(c"defaultManager".as_ptr().cast());
     let file_manager = objc_msg_send(ns_file_manager_class, default_manager_sel);
     if file_manager.is_null() {
         return Err(std::io::Error::other("defaultManager returned null"));
     }
 
-    let ns_string_class = objc_getClass(c"NSString".as_ptr() as *const _);
-    let string_sel = sel_registerName(c"stringWithUTF8String:".as_ptr() as *const _);
+    let ns_string_class = objc_getClass(c"NSString".as_ptr().cast());
+    let string_sel = sel_registerName(c"stringWithUTF8String:".as_ptr().cast());
     let c_path = CString::new(path.to_string_lossy().as_bytes())
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, e))?;
     let ns_path = objc_msg_send1(ns_string_class, string_sel, c_path.as_ptr() as *mut _);
 
-    let ns_url_class = objc_getClass(c"NSURL".as_ptr() as *const _);
-    let url_sel = sel_registerName(c"fileURLWithPath:".as_ptr() as *const _);
+    let ns_url_class = objc_getClass(c"NSURL".as_ptr().cast());
+    let url_sel = sel_registerName(c"fileURLWithPath:".as_ptr().cast());
     let ns_url = objc_msg_send1(ns_url_class, url_sel, ns_path);
 
-    let evict_sel = sel_registerName(c"evictUbiquitousItemAtURL:error:".as_ptr() as *const _);
+    let evict_sel = sel_registerName(c"evictUbiquitousItemAtURL:error:".as_ptr().cast());
     let mut error: *mut libc::c_void = std::ptr::null_mut();
-    let success = objc_msg_send2_bool(file_manager, evict_sel, ns_url, &mut error);
+    let success = objc_msg_send2_bool(file_manager, evict_sel, ns_url, &raw mut error);
 
     if success {
         Ok(())
     } else {
-        let err_desc = if !error.is_null() {
-            let desc_sel = sel_registerName(c"localizedDescription".as_ptr() as *const _);
+        let err_desc = if error.is_null() {
+            "unknown error".to_string()
+        } else {
+            let desc_sel = sel_registerName(c"localizedDescription".as_ptr().cast());
             let desc_obj = objc_msg_send(error, desc_sel);
-            if !desc_obj.is_null() {
-                let utf8_sel = sel_registerName(c"UTF8String".as_ptr() as *const _);
-                type Utf8Fn = unsafe extern "C" fn(
-                    *mut libc::c_void,
-                    *mut libc::c_void,
-                ) -> *const libc::c_char;
+            if desc_obj.is_null() {
+                "unknown error".to_string()
+            } else {
+                let utf8_sel = sel_registerName(c"UTF8String".as_ptr().cast());
                 let get_utf8: Utf8Fn = std::mem::transmute(objc_msgsend_sym);
                 let c_str = get_utf8(desc_obj, utf8_sel);
-                if !c_str.is_null() {
+                if c_str.is_null() {
+                    "unknown error".to_string()
+                } else {
                     std::ffi::CStr::from_ptr(c_str)
                         .to_string_lossy()
                         .into_owned()
-                } else {
-                    "unknown error".to_string()
                 }
-            } else {
-                "unknown error".to_string()
             }
-        } else {
-            "unknown error".to_string()
         };
 
         Err(std::io::Error::other(format!(

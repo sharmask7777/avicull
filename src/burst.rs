@@ -123,24 +123,22 @@ pub fn smooth_burst_consensus(
         let mut current_burst: Vec<&ClassifiedBundleItem> = Vec::new();
 
         for &item in &trip_items {
-            if current_burst.is_empty() {
-                current_burst.push(item);
-                continue;
-            }
+            if let Some(&prev) = current_burst.last() {
+                let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
+                    (Some(t1), Some(t0)) => (t1 - t0).abs(),
+                    _ => i64::MAX,
+                };
 
-            let prev = *current_burst.last().unwrap();
-            let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
-                (Some(t1), Some(t0)) => (t1 - t0).abs(),
-                _ => i64::MAX,
-            };
+                let sim = cosine_similarity(&item.embedding, &prev.embedding);
 
-            let sim = cosine_similarity(&item.embedding, &prev.embedding);
-
-            if dt <= burst_window_ms && sim >= min_similarity {
-                current_burst.push(item);
+                if dt <= burst_window_ms && sim >= min_similarity {
+                    current_burst.push(item);
+                } else {
+                    bursts.push(current_burst);
+                    current_burst = vec![item];
+                }
             } else {
-                bursts.push(current_burst);
-                current_burst = vec![item];
+                current_burst.push(item);
             }
         }
 
@@ -151,7 +149,7 @@ pub fn smooth_burst_consensus(
         // Process each burst
         for burst in bursts {
             burst_counter += 1;
-            let burst_id = format!("burst-{:04}", burst_counter);
+            let burst_id = format!("burst-{burst_counter:04}");
 
             // Confidence-weighted pooling across burst frames
             // P_bar(s) = sum(w_m * P_post(s | I_m)) / sum(w_m)
@@ -182,7 +180,7 @@ pub fn smooth_burst_consensus(
                     let score = sum_val / weight_total;
                     if score > best_consensus_score {
                         best_consensus_score = score;
-                        best_species = taxon_id.clone();
+                        best_species.clone_from(taxon_id);
                     }
                 }
             }
@@ -194,8 +192,7 @@ pub fn smooth_burst_consensus(
                     burst[0]
                         .top_predictions
                         .first()
-                        .map(|p| p.folder_slug.clone())
-                        .unwrap_or_else(|| "Unknown_Bird".to_string())
+                        .map_or_else(|| "Unknown_Bird".to_string(), |p| p.folder_slug.clone())
                 });
 
             // Build decisions for each frame in the burst
@@ -203,15 +200,13 @@ pub fn smooth_burst_consensus(
                 let frame_conf = item
                     .top_predictions
                     .first()
-                    .map(|p| p.combined_score)
-                    .unwrap_or(0.0);
+                    .map_or(0.0, |p| p.combined_score);
 
                 let per_frame_for_winner = item
                     .posteriors
                     .iter()
                     .find(|(id, _)| id == &best_species)
-                    .map(|(_, p)| *p)
-                    .unwrap_or(0.0);
+                    .map_or(0.0, |(_, p)| *p);
 
                 let final_conf = match confidence_mode {
                     ConfidenceMode::BurstConsensus => best_consensus_score.max(0.0),

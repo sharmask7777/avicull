@@ -204,8 +204,12 @@ pub fn generate_html_catalog(
 ) -> Result<()> {
     let output_root = output_path.parent().unwrap_or(Path::new("."));
     if !output_root.as_os_str().is_empty() && !output_root.exists() {
-        fs::create_dir_all(output_root)
-            .with_context(|| format!("Failed to create catalog directory: {:?}", output_root))?;
+        fs::create_dir_all(output_root).with_context(|| {
+            format!(
+                "Failed to create catalog directory: {}",
+                output_root.display()
+            )
+        })?;
     }
 
     let mut payload_items = Vec::with_capacity(items.len());
@@ -270,8 +274,7 @@ pub fn generate_html_catalog(
             if item.current_path.exists() {
                 crate::storage::LocalVolumeBackend
                     .inspect_locality(&item.current_path)
-                    .map(|loc| loc.pre_existing_local)
-                    .unwrap_or(true)
+                    .map_or(true, |loc| loc.pre_existing_local)
             } else {
                 false
             }
@@ -429,7 +432,7 @@ pub fn generate_html_catalog(
         let _ = fs::remove_file(output_path);
     }
     fs::copy(temp_file.path(), output_path)
-        .with_context(|| format!("Failed to copy catalog HTML to {:?}", output_path))?;
+        .with_context(|| format!("Failed to copy catalog HTML to {}", output_path.display()))?;
 
     Ok(())
 }
@@ -443,21 +446,22 @@ pub fn encode_base64(bytes: &[u8]) -> String {
     for chunk in bytes.chunks(3) {
         match chunk.len() {
             3 => {
-                let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
+                let n =
+                    (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]);
                 encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[((n >> 6) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[(n & 63) as usize] as char);
             }
             2 => {
-                let n = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8);
+                let n = (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8);
                 encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[((n >> 6) & 63) as usize] as char);
                 encoded.push('=');
             }
             1 => {
-                let n = (chunk[0] as u32) << 16;
+                let n = u32::from(chunk[0]) << 16;
                 encoded.push(STANDARD_CHARS[((n >> 18) & 63) as usize] as char);
                 encoded.push(STANDARD_CHARS[((n >> 12) & 63) as usize] as char);
                 encoded.push('=');
@@ -485,52 +489,47 @@ pub fn generate_base64_micro_thumbnail(item: &CatalogItem, output_root: &Path) -
     };
 
     // 2. If no persistent preview, try extracting embedded JPEG from RAW, or opening image
-    let (raw_image_bytes, candidate_path) = match preview_bytes_opt {
-        Some(bytes) => (Some(bytes), None),
-        None => {
-            let active_primary = if item.current_path.exists() {
-                &item.current_path
-            } else {
-                &item.primary_image
-            };
+    let (raw_image_bytes, candidate_path) = if let Some(bytes) = preview_bytes_opt {
+        (Some(bytes), None)
+    } else {
+        let active_primary = if item.current_path.exists() {
+            &item.current_path
+        } else {
+            &item.primary_image
+        };
 
-            if active_primary.exists() {
-                if let Ok(file_bytes) = fs::read(active_primary) {
-                    if let Some(preview_bytes) = extract_embedded_jpeg_preview(&file_bytes) {
-                        (Some(preview_bytes), None)
-                    } else {
-                        // Check companion or readable image path
-                        let candidate = if let Some(comp) = item.companion_images.first() {
-                            if comp.exists() {
-                                Some(comp.as_path())
-                            } else {
-                                None
-                            }
-                        } else {
-                            let is_web = active_primary
-                                .extension()
-                                .and_then(|e| e.to_str())
-                                .map(|e| {
-                                    matches!(
-                                        e.to_lowercase().as_str(),
-                                        "jpg" | "jpeg" | "png" | "webp"
-                                    )
-                                })
-                                .unwrap_or(false);
-                            if is_web {
-                                Some(active_primary.as_path())
-                            } else {
-                                None
-                            }
-                        };
-                        (None, candidate)
-                    }
+        if active_primary.exists() {
+            if let Ok(file_bytes) = fs::read(active_primary) {
+                if let Some(preview_bytes) = extract_embedded_jpeg_preview(&file_bytes) {
+                    (Some(preview_bytes), None)
                 } else {
-                    (None, None)
+                    // Check companion or readable image path
+                    let candidate = if let Some(comp) = item.companion_images.first() {
+                        if comp.exists() {
+                            Some(comp.as_path())
+                        } else {
+                            None
+                        }
+                    } else {
+                        let is_web = active_primary
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .is_some_and(|e| {
+                                matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
+                            });
+                        if is_web {
+                            Some(active_primary.as_path())
+                        } else {
+                            None
+                        }
+                    };
+                    (None, candidate)
                 }
             } else {
                 (None, None)
             }
+        } else {
+            (None, None)
         }
     };
 
@@ -562,7 +561,7 @@ pub fn generate_base64_micro_thumbnail(item: &CatalogItem, output_root: &Path) -
     };
 
     let b64 = encode_base64(&micro_jpeg_bytes);
-    Some(format!("data:image/jpeg;base64,{}", b64))
+    Some(format!("data:image/jpeg;base64,{b64}"))
 }
 
 fn downsample_to_micro_jpeg(img: &image::DynamicImage) -> Option<Vec<u8>> {
@@ -581,7 +580,7 @@ pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Op
     let target_file = previews_dir.join(&preview_name);
 
     if target_file.exists() {
-        return Some(format!(".avicull/previews/{}", preview_name));
+        return Some(format!(".avicull/previews/{preview_name}"));
     }
 
     let active_primary = if item.current_path.exists() {
@@ -617,8 +616,9 @@ pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Op
             let is_web = active_primary
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|e| matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp"))
-                .unwrap_or(false);
+                .is_some_and(|e| {
+                    matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
+                });
             if is_web {
                 Some(active_primary.as_path())
             } else {
@@ -647,7 +647,7 @@ pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Op
     }
 
     if generated || target_file.exists() {
-        Some(format!(".avicull/previews/{}", preview_name))
+        Some(format!(".avicull/previews/{preview_name}"))
     } else {
         None
     }
@@ -679,11 +679,10 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
     let is_web_img = active_primary
         .extension()
         .and_then(|e| e.to_str())
-        .map(|e| {
+        .is_some_and(|e| {
             let lower = e.to_lowercase();
             matches!(lower.as_str(), "jpg" | "jpeg" | "png" | "webp")
-        })
-        .unwrap_or(false);
+        });
 
     if is_web_img && active_primary.exists() {
         return to_relative_string(active_primary, output_root);
@@ -698,7 +697,7 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
                     let preview_name = format!("{}.jpg", item.original_stem);
                     let target_file = previews_dir.join(&preview_name);
                     if fs::write(&target_file, &preview_bytes).is_ok() {
-                        return format!(".avicull/previews/{}", preview_name);
+                        return format!(".avicull/previews/{preview_name}");
                     }
                 }
             }
@@ -815,8 +814,8 @@ mod tests {
         assert_eq!(item.assigned_species, "");
         assert_eq!(item.routing_tier, RoutingTier::ConfirmedSpecies);
         assert_eq!(item.confidence, 0.0);
-        assert!(item.companion_images.is_empty());
-        assert!(item.sidecar_files.is_empty());
+        assert_eq!(item.companion_images, &[] as &[PathBuf]);
+        assert_eq!(item.sidecar_files, &[] as &[PathBuf]);
     }
 
     #[test]
@@ -829,7 +828,7 @@ mod tests {
             primary_image: PathBuf::from("IMG_1001.CR2"),
             companion_images: vec![PathBuf::from("IMG_1001.JPG")],
             sidecar_files: vec![PathBuf::from("IMG_1001.CR2.xmp")],
-            capture_timestamp_ms: Some(1730000000000), // ~2024-10-27
+            capture_timestamp_ms: Some(1_730_000_000_000), // ~2024-10-27
             gps_coords: Some(GpsCoordinate {
                 latitude: 34.1526,
                 longitude: 77.5771,

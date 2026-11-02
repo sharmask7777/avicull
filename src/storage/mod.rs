@@ -9,6 +9,8 @@
 //! - **Idempotent Eviction**: Purging downloaded blocks after classification without evicting files that were already resident before avicull executed.
 //! - **Filesystem Safety**: Detecting cross-device boundaries and rejecting unsafe hardlink modes on remote shares.
 
+#![allow(unsafe_code)]
+
 pub mod cloud;
 pub mod local;
 pub mod network;
@@ -117,18 +119,21 @@ fn is_network_mount(path: &Path) -> bool {
     #[cfg(target_os = "macos")]
     {
         let mut resolved = path.to_path_buf();
-        while !resolved.exists() && resolved.parent().is_some() {
-            resolved = resolved.parent().unwrap().to_path_buf();
+        while !resolved.exists() {
+            if let Some(parent) = resolved.parent() {
+                resolved = parent.to_path_buf();
+            } else {
+                break;
+            }
         }
 
-        let c_path = match CString::new(resolved.as_os_str().as_bytes()) {
-            Ok(c) => c,
-            Err(_) => return false,
+        let Ok(c_path) = CString::new(resolved.as_os_str().as_bytes()) else {
+            return false;
         };
 
         unsafe {
             let mut stat: libc::statfs = std::mem::zeroed();
-            if libc::statfs(c_path.as_ptr(), &mut stat) == 0 {
+            if libc::statfs(c_path.as_ptr(), &raw mut stat) == 0 {
                 let fstype_bytes: Vec<u8> = stat
                     .f_fstypename
                     .iter()
