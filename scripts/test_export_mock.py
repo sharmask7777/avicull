@@ -4,15 +4,10 @@ import subprocess
 import sys
 import tempfile
 
+
 def test_mock_export():
     with tempfile.TemporaryDirectory() as tmpdir:
-        cmd = [
-            sys.executable,
-            "scripts/export_models.py",
-            "--output-dir",
-            tmpdir,
-            "--mock"
-        ]
+        cmd = [sys.executable, "scripts/export_models.py", "--output-dir", tmpdir, "--mock"]
         res = subprocess.run(cmd, capture_output=True, text=True)
         assert res.returncode == 0, f"export failed: stdout={res.stdout}\nstderr={res.stderr}"
 
@@ -23,7 +18,7 @@ def test_mock_export():
             "sinr_geoprior.onnx",
             "species_embeddings.safetensors",
             "taxonomy.json",
-            "manifest.json"
+            "manifest.json",
         ]
         for f in expected_files:
             path = os.path.join(tmpdir, f)
@@ -50,6 +45,7 @@ def test_mock_export():
         assert "folder_slug" in tax[0]
 
     print("test_mock_export: PASS")
+
 
 if __name__ == "__main__":
     test_mock_export()

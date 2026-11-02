@@ -5,7 +5,8 @@ One-Time ONNX & SafeTensors Model Exporter for avicull.
 Managed via `uv`. Exports:
 1. Ultralytics YOLO11 bird detector -> models/yolo11m.onnx
 2. BioCLIP visual tower -> models/bioclip_vision.onnx
-3. Precomputed eBird/AviList taxonomy embeddings -> models/species_embeddings.safetensors + models/taxonomy.json
+3. Precomputed eBird/AviList taxonomy embeddings ->
+   models/species_embeddings.safetensors + models/taxonomy.json
 4. SINR spatio-temporal range prior -> models/sinr_geoprior.onnx
 5. models/manifest.json containing SHA-256 hashes for all exported artifacts.
 """
@@ -169,8 +170,11 @@ def export_real(output_dir: str):
     print("Initiating full PyTorch model export (YOLO11, BioCLIP, SINR)...")
 
     try:
-        import torch
-        import onnx
+        import importlib.util
+
+        for mod in ("onnx", "torch", "ultralytics"):
+            if importlib.util.find_spec(mod) is None:
+                raise ImportError(f"No module named '{mod}'")
         from ultralytics import YOLO
     except ImportError as e:
         print(f"Missing dependency for real export: {e}")

@@ -1,18 +1,18 @@
 import os
 import unittest
-import numpy as np
-from PIL import Image
+
 import torch
+
 
 class TestAvianInferenceUnit(unittest.TestCase):
     def test_bbox_context_padding_math(self):
         """Verify 15% context padding and border clamping math without loading heavy weights."""
         w, h = 1000, 800
         x1, y1, x2, y2 = 200.0, 200.0, 400.0, 400.0
-        bw = x2 - x1 # 200
-        bh = y2 - y1 # 200
-        pad_x = bw * 0.15 # 30
-        pad_y = bh * 0.15 # 30
+        bw = x2 - x1  # 200
+        bh = y2 - y1  # 200
+        pad_x = bw * 0.15  # 30
+        pad_y = bh * 0.15  # 30
 
         cx1 = max(0.0, x1 - pad_x)
         cy1 = max(0.0, y1 - pad_y)
@@ -66,7 +66,7 @@ class TestAvianInferenceUnit(unittest.TestCase):
         # Black Redstart (index 1) becomes top-1 because 0.20 * 2.0 = 0.40 > 0.70 * 0.001 = 0.0007
         self.assertEqual(top_indices[0].item(), 1)
         self.assertAlmostEqual(top_posteriors[0].item(), 0.40, places=3)
-        self.assertEqual(top_indices[1].item(), 2) # neutral bird 0.05 * 1.0 = 0.05
+        self.assertEqual(top_indices[1].item(), 2)  # neutral bird 0.05 * 1.0 = 0.05
         # Painted Stork is pushed out
         self.assertNotIn(0, top_indices[:2].tolist())
 
@@ -81,8 +81,8 @@ class TestAvianInferenceUnit(unittest.TestCase):
     def test_missing_image_handled_gracefully(self):
         """process_image must handle nonexistent files gracefully without crashing."""
         import sys
+
         sys.path.insert(0, os.path.abspath("scripts"))
-        from infer import AvianInferenceEngine
 
         # Instantiate mock engine or check process_image nonexistent file behavior
         # Test nonexistent file handling directly

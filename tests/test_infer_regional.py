@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -10,11 +9,15 @@ import torch
 
 from scripts.infer import AvianInferenceEngine
 
+
 def test_regional_checklist_loading_and_tensor(monkeypatch):
     # Mock open_clip and YOLO to avoid heavy weights download in unit test
     class MockModel:
         visual = torch.nn.Identity()
-    monkeypatch.setattr("open_clip.create_model_and_transforms", lambda *a, **kw: (MockModel(), None, lambda x: x))
+
+    monkeypatch.setattr(
+        "open_clip.create_model_and_transforms", lambda *a, **kw: (MockModel(), None, lambda x: x)
+    )
     monkeypatch.setattr("scripts.infer.YOLO", lambda *a, **kw: None)
 
     engine = AvianInferenceEngine(models_dir="models")

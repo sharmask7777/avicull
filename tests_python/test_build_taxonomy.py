@@ -4,16 +4,17 @@ import os
 import sys
 import tempfile
 import unittest
+
 import torch
 from safetensors.torch import load_file
 
 sys.path.insert(0, os.path.abspath("scripts"))
-from build_taxonomy_embeddings import sanitize_slug, compute_sha256
+from build_taxonomy_embeddings import compute_sha256, sanitize_slug
 
 
 class TestBuildTaxonomyEmbeddings(unittest.TestCase):
     def test_sanitize_slug(self):
-        """Verify slug sanitization removes punctuation and converts spaces/hyphens to underscores."""
+        """Verify slug sanitization removes punctuation and converts spaces/hyphens."""
         self.assertEqual(sanitize_slug("Black-necked Crane"), "Black_necked_Crane")
         self.assertEqual(sanitize_slug("Blyth's Tragopan"), "Blyths_Tragopan")
         self.assertEqual(sanitize_slug("Bar-headed Goose"), "Bar_headed_Goose")
@@ -38,7 +39,7 @@ class TestBuildTaxonomyEmbeddings(unittest.TestCase):
         if not os.path.exists(tax_path):
             self.skipTest("models/taxonomy.json not present in workspace")
 
-        with open(tax_path, "r", encoding="utf-8") as f:
+        with open(tax_path, encoding="utf-8") as f:
             taxonomy = json.load(f)
 
         self.assertGreater(len(taxonomy), 10000, "Should have 10k+ species")
@@ -49,7 +50,7 @@ class TestBuildTaxonomyEmbeddings(unittest.TestCase):
         self.assertIn("scientific_name", sample)
 
     def test_safetensors_shape_and_unit_norm(self):
-        """Verify species_embeddings.safetensors matches taxonomy length and each vector has L2 norm == 1.0."""
+        """Verify safetensors matches taxonomy length and each vector has L2 norm == 1.0."""
         emb_path = os.path.join("models", "species_embeddings.safetensors")
         if not os.path.exists(emb_path):
             self.skipTest("models/species_embeddings.safetensors not present in workspace")

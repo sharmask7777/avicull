@@ -13,7 +13,6 @@ import json
 import logging
 import os
 import sys
-import time
 import warnings
 
 # Suppress noisy logs & warnings
@@ -23,10 +22,11 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
-from PIL import Image, ImageOps
+# ruff: noqa: E402
 import open_clip
-from safetensors.torch import load_file
 import torch
+from PIL import Image, ImageOps
+from safetensors.torch import load_file
 from ultralytics import YOLO
 
 COCO_BIRD_CLASS_ID = 14
@@ -39,7 +39,7 @@ class AvianInferenceEngine:
 
         # 1. Load Taxonomy
         tax_path = os.path.join(models_dir, "taxonomy.json")
-        with open(tax_path, "r", encoding="utf-8") as f:
+        with open(tax_path, encoding="utf-8") as f:
             self.taxonomy = json.load(f)
 
         # 2. Load Precomputed Embeddings [N, 512]
@@ -67,14 +67,18 @@ class AvianInferenceEngine:
         self.regional_checklists = {}
         self.regional_prior_tensors = {}
         candidates = [
-            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "regional_checklists.json"),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "data",
+                "regional_checklists.json",
+            ),
             os.path.join("data", "regional_checklists.json"),
             os.path.join(self.models_dir, "regional_checklists.json"),
         ]
         for path in candidates:
             if os.path.exists(path):
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         data = json.load(f)
                         self.regional_checklists = {k: set(v) for k, v in data.items()}
                         break
@@ -89,14 +93,10 @@ class AvianInferenceEngine:
             return self.regional_prior_tensors[region_code]
 
         checklist = self.regional_checklists[region_code]
-        weights = [
-            1.0 if sp.get("taxon_id") in checklist else 0.001
-            for sp in self.taxonomy
-        ]
+        weights = [1.0 if sp.get("taxon_id") in checklist else 0.001 for sp in self.taxonomy]
         tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
         self.regional_prior_tensors[region_code] = tensor
         return tensor
-
 
     def detect_and_crop(self, img: Image.Image, min_detect: float = 0.25):
         w, h = img.size
@@ -112,11 +112,13 @@ class AvianInferenceEngine:
                 xyxy = [float(v) for v in box.xyxy[0].tolist()]
 
                 if cls_id == COCO_BIRD_CLASS_ID:
-                    all_detections.append({
-                        "class_id": cls_id,
-                        "confidence": conf,
-                        "bbox_xyxy": xyxy,
-                    })
+                    all_detections.append(
+                        {
+                            "class_id": cls_id,
+                            "confidence": conf,
+                            "bbox_xyxy": xyxy,
+                        }
+                    )
                     if conf >= min_detect:
                         bx1, by1, bx2, by2 = xyxy
                         area = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
@@ -140,7 +142,6 @@ class AvianInferenceEngine:
         cy2 = min(float(h), y2 + pad_y)
 
         crop = img.crop((int(cx1), int(cy1), int(cx2), int(cy2)))
-        norm_bbox = [cx1 / w, cy1 / h, cx2 / w, cy2 / h]
         return crop, conf, all_detections
 
     def process_image(
@@ -207,7 +208,7 @@ class AvianInferenceEngine:
                 if regional_prior is not None:
                     priors = priors * regional_prior
 
-                effective_priors = priors ** geo_prior_weight
+                effective_priors = priors**geo_prior_weight
                 posterior_scores = visual_probs * effective_priors
             else:
                 effective_priors = torch.ones_like(visual_probs)
@@ -219,7 +220,7 @@ class AvianInferenceEngine:
         top_predictions = []
         raw_scores = []
 
-        for post_val, idx_val in zip(top_posteriors, top_indices):
+        for post_val, idx_val in zip(top_posteriors, top_indices, strict=False):
             idx = int(idx_val.item())
             post_score = float(post_val.item())
             vis_prob = float(visual_probs[idx].item())
@@ -227,15 +228,17 @@ class AvianInferenceEngine:
             sp = self.taxonomy[idx]
 
             raw_scores.append(post_score)
-            top_predictions.append({
-                "taxon_id": sp["taxon_id"],
-                "common_name": sp["common_name"],
-                "folder_slug": sp["folder_slug"],
-                "scientific_name": sp["scientific_name"],
-                "visual_prob": round(vis_prob, 4),
-                "geo_prior": round(geo_pr, 4),
-                "combined_score": round(post_score, 4),
-            })
+            top_predictions.append(
+                {
+                    "taxon_id": sp["taxon_id"],
+                    "common_name": sp["common_name"],
+                    "folder_slug": sp["folder_slug"],
+                    "scientific_name": sp["scientific_name"],
+                    "visual_prob": round(vis_prob, 4),
+                    "geo_prior": round(geo_pr, 4),
+                    "combined_score": round(post_score, 4),
+                }
+            )
 
         # Normalize top-5 posterior distribution
         score_sum = sum(raw_scores)
@@ -265,7 +268,9 @@ def main():
     parser.add_argument("--output-file", help="File to write JSON results to (avoids stdout noise)")
     parser.add_argument("--image", help="Single image path for testing")
     parser.add_argument("--trip-name", default="", help="Trip folder name for gazetteer prior")
-    parser.add_argument("--region-code", default="", help="eBird region code (e.g. IN-KA) for regional prior")
+    parser.add_argument(
+        "--region-code", default="", help="eBird region code (e.g. IN-KA) for regional prior"
+    )
     parser.add_argument("--min-detect", type=float, default=0.25)
     parser.add_argument("--geo-prior-weight", type=float, default=1.0)
     args = parser.parse_args()
@@ -288,7 +293,7 @@ def main():
         return
 
     if args.batch_file:
-        with open(args.batch_file, "r") as f:
+        with open(args.batch_file) as f:
             tasks = json.load(f)
 
         results = []

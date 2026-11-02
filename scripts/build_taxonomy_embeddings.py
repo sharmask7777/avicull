@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import re
-import struct
 import sys
 import time
 import urllib.request
@@ -52,12 +51,14 @@ def fetch_ebird_taxonomy() -> list:
             sci_name = item.get("sciName")
             if sp_code and com_name and sp_code not in seen:
                 seen.add(sp_code)
-                species_list.append({
-                    "taxon_id": sp_code,
-                    "common_name": com_name,
-                    "folder_slug": sanitize_slug(com_name),
-                    "scientific_name": sci_name,
-                })
+                species_list.append(
+                    {
+                        "taxon_id": sp_code,
+                        "common_name": com_name,
+                        "folder_slug": sanitize_slug(com_name),
+                        "scientific_name": sci_name,
+                    }
+                )
     print(f"Loaded {len(species_list)} valid avian species.")
     return species_list
 
@@ -93,7 +94,7 @@ def main():
     t0 = time.time()
     with torch.no_grad():
         for i in range(0, len(prompts), batch_size):
-            batch = prompts[i:i + batch_size]
+            batch = prompts[i : i + batch_size]
             tokens = tokenizer(batch).to(device)
             emb = model.encode_text(tokens)
             emb /= emb.norm(dim=-1, keepdim=True)
@@ -102,19 +103,23 @@ def main():
                 print(f"  Processed {min(i + batch_size, len(prompts))}/{len(prompts)} species...")
 
     embeddings_tensor = torch.cat(all_embeddings, dim=0).float()
-    print(f"Finished embedding calculation in {time.time() - t0:.2f}s. Shape: {embeddings_tensor.shape}")
+    elapsed = time.time() - t0
+    print(f"Finished embedding calculation in {elapsed:.2f}s. Shape: {embeddings_tensor.shape}")
 
     safetensors_path = os.path.join(models_dir, "species_embeddings.safetensors")
     save_file({"embeddings": embeddings_tensor}, safetensors_path)
-    print(f"Saved embeddings to {safetensors_path} ({os.path.getsize(safetensors_path) / (1024*1024):.2f} MB)")
+    size_mb = os.path.getsize(safetensors_path) / (1024 * 1024)
+    print(f"Saved embeddings to {safetensors_path} ({size_mb:.2f} MB)")
 
     # Download yolo11n.pt if not present
     from ultralytics import YOLO
+
     yolo_target = os.path.join(models_dir, "yolo11n.pt")
     if not os.path.exists(yolo_target):
         print("Downloading YOLO11n weights...")
-        y = YOLO("yolo11n.pt")
+        YOLO("yolo11n.pt")
         import shutil
+
         if os.path.exists("yolo11n.pt"):
             shutil.copy("yolo11n.pt", yolo_target)
 
