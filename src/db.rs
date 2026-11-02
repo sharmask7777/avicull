@@ -8,14 +8,16 @@
 //!   APFS inode, relative path, and portable `(trip_folder, original_stem)` keys, bypassing neural inference
 //!   on subsequent runs.
 
-use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction};
+use crate::types::{
+    AssetBundle, AvicullError, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
+};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use rusqlite::{params, Connection};
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HardlinkOperation {
@@ -360,6 +362,22 @@ impl ManifestDb {
         Self::open_or_create(db_path)
     }
 
+    /// Returns a reference to the underlying connection mutex for testing or diagnostics.
+    #[doc(hidden)]
+    pub fn raw_conn(&self) -> &Arc<Mutex<Connection>> {
+        &self.conn
+    }
+
+    /// Acquires a lock on the database connection, mapping mutex poison errors to [`AvicullError::DatabaseError`].
+    ///
+    /// # Errors
+    /// Returns [`AvicullError::DatabaseError`] if the connection mutex was poisoned by a previous thread panic.
+    fn lock_conn(&self) -> Result<MutexGuard<'_, Connection>, AvicullError> {
+        self.conn.lock().map_err(|e| {
+            AvicullError::DatabaseError(format!("Database connection mutex poisoned: {e}"))
+        })
+    }
+
     /// Records a new run session.
     pub fn record_run(
         &self,
@@ -369,7 +387,7 @@ impl ManifestDb {
         dry_run: bool,
         config_json: &str,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let started_at = Utc::now().to_rfc3339();
 
         conn.execute(
@@ -404,7 +422,7 @@ impl ManifestDb {
 
     /// Marks a run session as completed.
     pub fn complete_run(&self, run_id: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let completed_at = Utc::now().to_rfc3339();
         conn.execute(
             "UPDATE runs SET completed_at = ?1 WHERE run_id = ?2",
@@ -432,7 +450,7 @@ impl ManifestDb {
         source_bundles: &[AssetBundle],
         was_dataless_flags: &[bool],
     ) -> Result<()> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
 
         let bundle_meta_map: std::collections::HashMap<_, _> =
@@ -506,7 +524,7 @@ impl ManifestDb {
 
     /// Updates the routing tier of a specific bundle in the database.
     pub fn update_bundle_routing_tier(&self, bundle_id: &str, tier: RoutingTier) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let tier_str = match tier {
             RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
             RoutingTier::NeedsReview => "NeedsReview",
@@ -527,7 +545,7 @@ impl ManifestDb {
         routing_tier: RoutingTier,
         final_conf: f32,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let tier_str = match routing_tier {
             RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
             RoutingTier::NeedsReview => "NeedsReview",
@@ -547,7 +565,7 @@ impl ManifestDb {
 
     /// Prunes/deletes a bundle and its related operations from SQLite manifest.
     pub fn delete_bundle(&self, bundle_id: &str) -> Result<bool> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
         tx.execute(
             "DELETE FROM hardlink_operations WHERE bundle_id = ?1",
@@ -563,7 +581,7 @@ impl ManifestDb {
 
     /// Returns whether the bundle was recorded as dataless during its processing run.
     pub fn get_bundle_was_dataless(&self, bundle_id: &str) -> Result<Option<bool>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt =
             conn.prepare("SELECT was_dataless FROM bundles WHERE bundle_id = ?1 LIMIT 1")?;
         let mut rows = stmt.query(params![bundle_id])?;
@@ -582,7 +600,7 @@ impl ManifestDb {
         bundle: &AssetBundle,
         error_message: &str,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let now = Utc::now().to_rfc3339();
         conn.execute(
             "INSERT OR REPLACE INTO pending_failures (
@@ -601,7 +619,7 @@ impl ManifestDb {
 
     /// Queries all pending failures, optionally scoped to a run_id.
     pub fn get_pending_failures(&self, run_id: Option<&str>) -> Result<Vec<PendingFailure>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let query = if run_id.is_some() {
             "SELECT bundle_id, run_id, primary_path, error_message, status, failed_at
              FROM pending_failures WHERE run_id = ?1 ORDER BY failed_at ASC"
@@ -645,7 +663,7 @@ impl ManifestDb {
 
     /// Looks up the bundle ID for a given file inode from recorded hardlink operations.
     pub fn get_bundle_id_by_inode(&self, inode: u64) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn
             .prepare("SELECT bundle_id FROM hardlink_operations WHERE source_inode = ?1 LIMIT 1")?;
         let mut rows = stmt.query(params![inode as i64])?;
@@ -664,7 +682,7 @@ impl ManifestDb {
         source_inode: u64,
         new_dest_path: &Path,
     ) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let rows = conn.execute(
             "UPDATE hardlink_operations
              SET dest_path = ?1, status = 'linked'
@@ -685,7 +703,7 @@ impl ManifestDb {
         filename: &str,
         new_dest_path: &Path,
     ) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let pattern = format!("%{}", filename);
         let rows = conn.execute(
             "UPDATE hardlink_operations
@@ -726,7 +744,7 @@ impl ManifestDb {
         source_inode: u64,
         new_dest_path: &Path,
     ) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let rows = conn.execute(
             "UPDATE hardlink_operations
              SET dest_path = ?1, status = 'renamed'
@@ -747,7 +765,7 @@ impl ManifestDb {
         filename: &str,
         new_dest_path: &Path,
     ) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let pattern = format!("%{}", filename);
         let rows = conn.execute(
             "UPDATE hardlink_operations
@@ -783,7 +801,7 @@ impl ManifestDb {
 
     /// Records hardlink operations in the database.
     pub fn record_hardlink_operations(&self, ops: &[HardlinkOperation]) -> Result<()> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
 
         for op in ops {
@@ -814,7 +832,7 @@ impl ManifestDb {
 
     /// Queries all operations recorded for a given run ID.
     pub fn get_run_operations(&self, run_id: &str) -> Result<Vec<HardlinkOperation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT op_id, run_id, bundle_id, source_path, dest_path, source_inode, status, executed_at, operation_type
              FROM hardlink_operations WHERE run_id = ?1 ORDER BY op_id ASC",
@@ -853,7 +871,7 @@ impl ManifestDb {
 
     /// Queries all operations recorded for a given bundle ID.
     pub fn get_bundle_operations(&self, bundle_id: &str) -> Result<Vec<HardlinkOperation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT op_id, run_id, bundle_id, source_path, dest_path, source_inode, status, executed_at, operation_type
              FROM hardlink_operations WHERE bundle_id = ?1 ORDER BY op_id ASC",
@@ -892,7 +910,7 @@ impl ManifestDb {
 
     /// Updates the destination path and status for a hardlink operation by op_id.
     pub fn update_operation_dest(&self, op_id: i64, new_dest: &Path) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         conn.execute(
             "UPDATE hardlink_operations SET dest_path = ?1, status = 'linked' WHERE op_id = ?2",
             params![new_dest.to_string_lossy().to_string(), op_id],
@@ -902,7 +920,7 @@ impl ManifestDb {
 
     /// Returns the organization mode configured for the latest run, if any.
     pub fn get_latest_run_mode(&self) -> Result<Option<OrganizationMode>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt =
             conn.prepare("SELECT config_json FROM runs ORDER BY started_at DESC LIMIT 1")?;
         let mut rows = stmt.query([])?;
@@ -928,7 +946,7 @@ impl ManifestDb {
         original_path: &Path,
         renamed_path: &Path,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let now = Utc::now().to_rfc3339();
         let source_inode = fs::metadata(renamed_path)
             .or_else(|_| fs::metadata(original_path))
@@ -1008,7 +1026,7 @@ impl ManifestDb {
     /// Renames files back from their current renamed path to their original path,
     /// ensuring zero data deletion and updating their operation status to 'reverted'.
     pub fn rollback_inplace_renames(&self, run_id: &str) -> Result<usize> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT op_id, source_path, dest_path
              FROM hardlink_operations
@@ -1061,7 +1079,7 @@ impl ManifestDb {
 
     /// Updates status of hardlink operations (e.g. marking as "unlinked").
     pub fn update_operation_status(&self, op_id: i64, new_status: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         conn.execute(
             "UPDATE hardlink_operations SET status = ?1 WHERE op_id = ?2",
             params![new_status, op_id],
@@ -1071,7 +1089,7 @@ impl ManifestDb {
 
     /// Returns the most recent run ID recorded in the database.
     pub fn get_latest_run_id(&self) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT run_id FROM runs ORDER BY started_at DESC LIMIT 1")?;
         let mut rows = stmt.query([])?;
         if let Some(row) = rows.next()? {
@@ -1087,7 +1105,7 @@ impl ManifestDb {
         &self,
         run_id: Option<&str>,
     ) -> Result<Vec<(BundleDecision, AssetBundle)>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let query = if run_id.is_some() {
             "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug, frame_conf, final_conf, routing_tier, top5_predictions_json, bundle_json, is_user_override, relative_path
              FROM bundles WHERE run_id = ?1"
@@ -1218,7 +1236,7 @@ impl ManifestDb {
         &self,
         path_key: &str,
     ) -> Result<Option<crate::location::resolver::ResolvedLocation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT resolved_name, region_code, latitude, longitude, source
              FROM directory_locations WHERE path_key = ?1",
@@ -1268,7 +1286,7 @@ impl ManifestDb {
         path_key: &str,
         loc: &crate::location::resolver::ResolvedLocation,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let updated_at = Utc::now().timestamp_millis();
         conn.execute(
             "INSERT OR REPLACE INTO directory_locations (
@@ -1292,7 +1310,7 @@ impl ManifestDb {
         &self,
         bundle_id: &str,
     ) -> Result<Option<crate::location::resolver::ResolvedLocation>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare(
             "SELECT resolved_name, region_code, latitude, longitude, source
              FROM bundle_locations WHERE bundle_id = ?1",
@@ -1347,7 +1365,7 @@ impl ManifestDb {
         bundle_id: &str,
         loc: &crate::location::resolver::ResolvedLocation,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let updated_at = Utc::now().timestamp_millis();
         conn.execute(
             "INSERT OR REPLACE INTO bundle_locations (
@@ -1368,7 +1386,7 @@ impl ManifestDb {
 
     /// Retrieves the cached base64 micro-thumbnail data URI for a bundle if present.
     pub fn get_thumbnail_data_uri(&self, bundle_id: &str) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt =
             conn.prepare("SELECT data_uri FROM bundle_thumbnails WHERE bundle_id = ?1")?;
         let mut rows = stmt.query(params![bundle_id])?;
@@ -1382,7 +1400,7 @@ impl ManifestDb {
 
     /// Retrieves all cached micro-thumbnails as a map of `bundle_id -> data_uri`.
     pub fn get_all_thumbnails(&self) -> Result<std::collections::HashMap<String, String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let mut stmt = conn.prepare("SELECT bundle_id, data_uri FROM bundle_thumbnails")?;
         let mut rows = stmt.query([])?;
         let mut map = std::collections::HashMap::new();
@@ -1396,7 +1414,7 @@ impl ManifestDb {
 
     /// Stores or replaces the micro-thumbnail data URI for a specific bundle.
     pub fn store_thumbnail(&self, bundle_id: &str, data_uri: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.lock_conn()?;
         let updated_at = Utc::now().timestamp_millis();
         conn.execute(
             "INSERT OR REPLACE INTO bundle_thumbnails (bundle_id, data_uri, updated_at) VALUES (?1, ?2, ?3)",
@@ -1410,7 +1428,7 @@ impl ManifestDb {
         if items.is_empty() {
             return Ok(());
         }
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.lock_conn()?;
         let tx = conn.transaction()?;
         let updated_at = Utc::now().timestamp_millis();
         {
@@ -1467,7 +1485,7 @@ impl ManifestDb {
         // Import child directory locations
         {
             let dir_locs = {
-                let conn = child_db.conn.lock().unwrap();
+                let conn = child_db.lock_conn()?;
                 let mut stmt = conn.prepare(
                     "SELECT path_key, resolved_name, region_code, latitude, longitude, source, updated_at FROM directory_locations",
                 )?;

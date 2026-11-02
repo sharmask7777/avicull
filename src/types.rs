@@ -205,6 +205,10 @@ pub enum AvicullError {
     /// Unrecognized confidence mode string passed on CLI.
     #[error("Unknown confidence mode: '{0}'. Expected 'burst-consensus' or 'per-frame'")]
     InvalidConfidenceMode(String),
+
+    /// Database access or internal lock failure.
+    #[error("Database error: {0}")]
+    DatabaseError(String),
 }
 
 impl std::str::FromStr for ConfidenceMode {
