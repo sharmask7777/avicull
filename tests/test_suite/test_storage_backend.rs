@@ -208,3 +208,20 @@ fn test_network_backend_cache_hit_and_eviction() {
     let nonexistent = temp.path().join("does_not_exist.jpg");
     assert!(backend.materialize(&nonexistent).is_err());
 }
+
+#[test]
+fn test_detect_storage_backend_nonexistent_and_relative_paths() {
+    // Non-existent deeply nested path must not panic during parent walking
+    let backend = detect_storage_backend(Path::new(
+        "some/deeply/nested/nonexistent/directory/test.jpg",
+    ));
+    assert_eq!(backend.kind(), StorageKind::LocalVolume);
+
+    // Empty path must not panic
+    let backend_empty = detect_storage_backend(Path::new(""));
+    assert_eq!(backend_empty.kind(), StorageKind::LocalVolume);
+
+    // Root path must not panic
+    let backend_root = detect_storage_backend(Path::new("/"));
+    assert_eq!(backend_root.kind(), StorageKind::LocalVolume);
+}

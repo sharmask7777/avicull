@@ -1660,7 +1660,7 @@ fn execute_location(args: LocationArgs) -> Result<()> {
         );
     } else {
         // Apply to directory or subdirectory
-        let dir_key = args.dir.clone().unwrap_or_else(|| ".".to_string());
+        let dir_key = args.dir.unwrap_or_else(|| ".".to_string());
         db.set_directory_location(&dir_key, &resolved)?;
 
         println!(
@@ -1685,7 +1685,7 @@ fn execute_create_mock_dataset(args: avicull::cli::CreateMockDatasetArgs) -> Res
 
     let options = avicull::dataset::MiniDatasetOptions {
         source_dir: args.source,
-        target_dir: target_dir.clone(),
+        target_dir,
         force: args.force,
         curated_samples: avicull::dataset::default_curated_samples(),
         gazetteers: avicull::dataset::default_gazetteers(),

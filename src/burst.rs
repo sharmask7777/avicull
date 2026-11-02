@@ -123,24 +123,22 @@ pub fn smooth_burst_consensus(
         let mut current_burst: Vec<&ClassifiedBundleItem> = Vec::new();
 
         for &item in &trip_items {
-            if current_burst.is_empty() {
-                current_burst.push(item);
-                continue;
-            }
+            if let Some(&prev) = current_burst.last() {
+                let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
+                    (Some(t1), Some(t0)) => (t1 - t0).abs(),
+                    _ => i64::MAX,
+                };
 
-            let prev = *current_burst.last().unwrap();
-            let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
-                (Some(t1), Some(t0)) => (t1 - t0).abs(),
-                _ => i64::MAX,
-            };
+                let sim = cosine_similarity(&item.embedding, &prev.embedding);
 
-            let sim = cosine_similarity(&item.embedding, &prev.embedding);
-
-            if dt <= burst_window_ms && sim >= min_similarity {
-                current_burst.push(item);
+                if dt <= burst_window_ms && sim >= min_similarity {
+                    current_burst.push(item);
+                } else {
+                    bursts.push(current_burst);
+                    current_burst = vec![item];
+                }
             } else {
-                bursts.push(current_burst);
-                current_burst = vec![item];
+                current_burst.push(item);
             }
         }
 

@@ -110,13 +110,14 @@ pub fn reconcile_manual_disk_moves(
             }
         } else if dir_components[0] == "_No_Bird_Detected" {
             (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
-        } else {
+        } else if let Some(species_dir) = dir_components.last() {
             // Direct species directory under output root (or nested hierarchy)
-            let species_dir = dir_components.last().unwrap();
             (
                 RoutingTier::ConfirmedSpecies,
                 sanitize_species_slug(species_dir),
             )
+        } else {
+            continue;
         };
 
         // Match the file to a known bundle

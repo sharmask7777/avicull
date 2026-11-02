@@ -117,8 +117,12 @@ fn is_network_mount(path: &Path) -> bool {
     #[cfg(target_os = "macos")]
     {
         let mut resolved = path.to_path_buf();
-        while !resolved.exists() && resolved.parent().is_some() {
-            resolved = resolved.parent().unwrap().to_path_buf();
+        while !resolved.exists() {
+            if let Some(parent) = resolved.parent() {
+                resolved = parent.to_path_buf();
+            } else {
+                break;
+            }
         }
 
         let c_path = match CString::new(resolved.as_os_str().as_bytes()) {
