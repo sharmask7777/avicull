@@ -84,12 +84,17 @@ else
     fi
 fi
 
-# 4. Python Unit & Inference Tests
-echo -e "${BOLD}[4/8] Running Python unit & inference tests (tests_python)...${NC}"
-if uv run --with "torch,open-clip-torch,safetensors,ultralytics,pillow" python3 -m unittest discover -s tests_python; then
-    echo -e "${GREEN}✓ Python test suite passed.${NC}\n"
+# 4. Python Verification Suite (ruff, mypy, pytest with >= 80% coverage)
+echo -e "${BOLD}[4/8] Running Python verification suite (scripts/verify_python.sh)...${NC}"
+if [ -x "./scripts/verify_python.sh" ]; then
+    if ./scripts/verify_python.sh; then
+        echo -e "${GREEN}✓ Python verification suite passed.${NC}\n"
+    else
+        echo -e "${RED}✗ Python verification suite failed.${NC}\n"
+        exit 1
+    fi
 else
-    echo -e "${RED}✗ Python tests failed.${NC}\n"
+    echo -e "${RED}✗ scripts/verify_python.sh not found or not executable.${NC}\n"
     exit 1
 fi
 

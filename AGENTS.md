@@ -80,18 +80,19 @@ The repository enforces strict supply-chain and dependency auditing via `deny.to
 - **Licenses**: Allows only permissive open-source licenses compatible with GPL-3.0-or-later (e.g., MIT, Apache-2.0, BSD-3-Clause, ISC, 0BSD).
 - **Bans**: Warns on duplicate dependency versions and bans unapproved tree branches.
 
-### E. Unified Verification Pipeline (`scripts/verify.sh`)
+### E. Unified Verification Pipeline (`scripts/verify.sh` & `scripts/verify_python.sh`)
 Contributors and agents can verify the complete codebase in one command using `scripts/verify.sh`:
 ```bash
 ./scripts/verify.sh
 ```
-This runs the canonical 6-stage verification pipeline:
+This runs the canonical 7-stage verification pipeline:
 1. `cargo fmt --check`
 2. `cargo check --all-targets`
 3. `cargo clippy --all-targets --all-features -- -D warnings`
 4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e`
-5. `cargo deny check`
-6. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+5. Python verification suite (`scripts/verify_python.sh`: ruff lint/format, mypy type checks, pytest with $\ge 80\%$ coverage gate)
+6. `cargo deny check`
+7. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
 
 ### F. The Verification Agent Crew Loop
 Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
@@ -103,7 +104,28 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ---
 
-## 3. Rustdoc Standards & Best Practices
+## 3. Mandatory Python Engineering Standards
+
+All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject to the same engineering rigor as the Rust core:
+
+1. **Pure Functions & Immutable Data Structures**:
+   - Replace mutable ad-hoc dictionaries with `@dataclass(frozen=True)` or `NamedTuple` data structures.
+   - Functions performing mathematical transformations, coordinate normalizations, bounding box operations, slug sanitation, and posterior scaling must be pure and free of side effects.
+2. **Blocking Build-Time Code Coverage Gate ($\ge 80\%$)**:
+   - Automated test coverage across all Python modules under `scripts/` is enforced by `pytest-cov` with `--cov-fail-under=80`.
+   - Any pull request or commit dropping Python coverage below 80% is blocked by pre-push hooks and CI.
+3. **Static Analysis & Type Rigor**:
+   - Code must pass `ruff check .` with zero errors.
+   - Code must be formatted via `ruff format --check .`.
+   - Strict static type checking must pass with `mypy scripts/` with zero type errors.
+4. **Environment Isolation via `uv`**:
+   - Python tools, linter execution, and test runners must use `uv run` for deterministic, ephemeral dependency resolution without system environment pollution.
+5. **Clean Codebase (Zero Agent Meta-Artifacts)**:
+   - Python files must contain clear, descriptive comments instructing human developers on domain logic and invariants. Procedural agent meta-comments are strictly prohibited.
+
+---
+
+## 4. Rustdoc Standards & Best Practices
 
 1. **Zero-Warning Rustdoc Compilation**:
    - Code must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with zero warnings.
@@ -126,7 +148,7 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ---
 
-## 4. Performance & Build Guidelines
+## 5. Performance & Build Guidelines
 
 1. **Unified Test Harness Layout**:
    - Always place integration and spec conformance tests under `tests/test_suite/` with their submodules exposed in `tests/test_suite/main.rs`.
@@ -145,13 +167,13 @@ Synthesize all crew findings and remediate any flagged issues before reporting c
 
 ---
 
-## 5. Updating Models & Classifiers
+## 6. Updating Models & Classifiers
 
 When upgrading neural network backbones, bird detectors, taxonomies, or spatial-temporal priors to current cutting-edge architectures, follow the instructions in [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
 
 ---
 
-## 6. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
+## 7. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
 
 1. **Meaningful In-Code Comments Only**:
    - Comments in code MUST instruct the human reader on what the code does, its architectural invariants, algorithms, and non-obvious domain logic.

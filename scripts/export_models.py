@@ -5,7 +5,8 @@ One-Time ONNX & SafeTensors Model Exporter for avicull.
 Managed via `uv`. Exports:
 1. Ultralytics YOLO11 bird detector -> models/yolo11m.onnx
 2. BioCLIP visual tower -> models/bioclip_vision.onnx
-3. Precomputed eBird/AviList taxonomy embeddings -> models/species_embeddings.safetensors + models/taxonomy.json
+3. Precomputed eBird/AviList taxonomy embeddings ->
+   models/species_embeddings.safetensors + models/taxonomy.json
 4. SINR spatio-temporal range prior -> models/sinr_geoprior.onnx
 5. models/manifest.json containing SHA-256 hashes for all exported artifacts.
 """
@@ -16,6 +17,90 @@ import json
 import os
 import struct
 import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ExportConfig:
+    """Immutable configuration record for neural model artifact exports."""
+
+    output_dir: str
+    detector_model: str = "yolo11m"
+    clip_model: str = "hf-hub:imageomics/bioclip"
+    format: str = "safetensors"
+    opset: int = 17
+    mock: bool = False
+
+
+def validate_export_config(config: ExportConfig) -> None:
+    """Validates structural constraints and parameter ranges for an ExportConfig.
+
+    Raises:
+        ValueError: If output_dir is empty or opset is outside supported ONNX ranges.
+    """
+    if not config.output_dir or not config.output_dir.strip():
+        raise ValueError("ExportConfig output_dir must be a non-empty path.")
+    if config.opset < 11 or config.opset > 21:
+        raise ValueError(f"ONNX opset must be in range [11, 21], got {config.opset}.")
+    if config.format not in ("safetensors", "onnx", "both"):
+        raise ValueError(
+            f"Unsupported export format '{config.format}'. Expected safetensors, onnx, or both."
+        )
+
+
+def parse_export_args(args: Sequence[str] | None = None) -> ExportConfig:
+    """Parses command-line arguments into a validated immutable ExportConfig."""
+    parser = argparse.ArgumentParser(description="Export ONNX & SafeTensors models for avicull")
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="models",
+        help="Directory to save exported .onnx and .safetensors files",
+    )
+    parser.add_argument(
+        "--detector-model",
+        type=str,
+        default="yolo11m",
+        help="YOLO detector model variant or weights path",
+    )
+    parser.add_argument(
+        "--clip-model",
+        type=str,
+        default="hf-hub:imageomics/bioclip",
+        help="Vision backbone model hub identifier",
+    )
+    parser.add_argument(
+        "--format",
+        type=str,
+        default="safetensors",
+        choices=["safetensors", "onnx", "both"],
+        help="Model serialization export format",
+    )
+    parser.add_argument(
+        "--opset",
+        type=int,
+        default=17,
+        help="Target ONNX opset version (default: 17)",
+    )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Generate mock models for CI and local offline testing without large weight downloads",
+    )
+
+    parsed = parser.parse_args(args)
+    config = ExportConfig(
+        output_dir=parsed.output_dir,
+        detector_model=parsed.detector_model,
+        clip_model=parsed.clip_model,
+        format=parsed.format,
+        opset=parsed.opset,
+        mock=parsed.mock,
+    )
+    validate_export_config(config)
+    return config
+
 
 DEFAULT_TAXONOMY = [
     {
@@ -83,7 +168,9 @@ def compute_sha256(filepath: str) -> str:
     return h.hexdigest()
 
 
-def write_safetensors(filepath: str, tensor_name: str, tensor_data: bytes, shape: list):
+def write_safetensors(
+    filepath: str, tensor_name: str, tensor_data: bytes, shape: list[int]
+) -> None:
     """Writes a standard safetensors binary file."""
     header = {
         tensor_name: {
@@ -102,7 +189,7 @@ def write_safetensors(filepath: str, tensor_name: str, tensor_data: bytes, shape
         f.write(tensor_data)
 
 
-def export_mock(output_dir: str):
+def export_mock(output_dir: str) -> None:
     """Generates mock static model graphs and embeddings for testing and CI."""
     os.makedirs(output_dir, exist_ok=True)
     print(f"Generating mock models into {output_dir}...")
@@ -163,14 +250,17 @@ def export_mock(output_dir: str):
     print("Mock models generated successfully.")
 
 
-def export_real(output_dir: str):
+def export_real(output_dir: str) -> None:
     """Exports real PyTorch weights to ONNX graphs and safetensors."""
     os.makedirs(output_dir, exist_ok=True)
     print("Initiating full PyTorch model export (YOLO11, BioCLIP, SINR)...")
 
     try:
-        import torch
-        import onnx
+        import importlib.util
+
+        for mod in ("onnx", "torch", "ultralytics"):
+            if importlib.util.find_spec(mod) is None:
+                raise ImportError(f"No module named '{mod}'")
         from ultralytics import YOLO
     except ImportError as e:
         print(f"Missing dependency for real export: {e}")
@@ -207,25 +297,13 @@ def export_real(output_dir: str):
     print("Real model export complete.")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Export ONNX models for avicull")
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default="models",
-        help="Directory to save exported .onnx and .safetensors files",
-    )
-    parser.add_argument(
-        "--mock",
-        action="store_true",
-        help="Generate mock models for CI and local offline testing without large weight downloads",
-    )
-    args = parser.parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    config = parse_export_args(argv)
 
-    if args.mock:
-        export_mock(args.output_dir)
+    if config.mock:
+        export_mock(config.output_dir)
     else:
-        export_real(args.output_dir)
+        export_real(config.output_dir)
 
 
 if __name__ == "__main__":

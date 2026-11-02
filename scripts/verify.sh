@@ -31,7 +31,7 @@ command -v cargo >/dev/null 2>&1 || {
 }
 
 # 1. Rust Code Formatting
-echo -e "${BOLD}[1/6] Checking Rust code formatting (cargo fmt --check)...${NC}"
+echo -e "${BOLD}[1/7] Checking Rust code formatting (cargo fmt --check)...${NC}"
 if cargo fmt --check; then
     echo -e "${GREEN}✓ cargo fmt passed.${NC}\n"
 else
@@ -40,7 +40,7 @@ else
 fi
 
 # 2. Rust Compiler Check
-echo -e "${BOLD}[2/6] Running compiler check on all targets (cargo check --all-targets)...${NC}"
+echo -e "${BOLD}[2/7] Running compiler check on all targets (cargo check --all-targets)...${NC}"
 if cargo check --all-targets; then
     echo -e "${GREEN}✓ cargo check passed.${NC}\n"
 else
@@ -49,7 +49,7 @@ else
 fi
 
 # 3. Rust Linter (Clippy)
-echo -e "${BOLD}[3/6] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
+echo -e "${BOLD}[3/7] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
 if cargo clippy --all-targets --all-features -- -D warnings; then
     echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
 else
@@ -58,7 +58,7 @@ else
 fi
 
 # 4. Unit & Integration Tests
-echo -e "${BOLD}[4/6] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e)...${NC}"
+echo -e "${BOLD}[4/7] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e)...${NC}"
 if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e; then
     echo -e "${GREEN}✓ cargo test passed.${NC}\n"
 else
@@ -66,8 +66,22 @@ else
     exit 1
 fi
 
-# 5. Cargo Deny Check (Supply-Chain Security, Bans & Licenses)
-echo -e "${BOLD}[5/6] Checking dependency supply-chain security and licenses (cargo deny check)...${NC}"
+# 5. Python Verification Suite (ruff, mypy, pytest with >= 80% coverage)
+echo -e "${BOLD}[5/7] Running Python verification suite (scripts/verify_python.sh)...${NC}"
+if [ -x "./scripts/verify_python.sh" ]; then
+    if ./scripts/verify_python.sh; then
+        echo -e "${GREEN}✓ Python verification suite passed.${NC}\n"
+    else
+        echo -e "${RED}✗ Python verification suite failed.${NC}\n"
+        exit 1
+    fi
+else
+    echo -e "${RED}✗ scripts/verify_python.sh not found or not executable.${NC}\n"
+    exit 1
+fi
+
+# 6. Cargo Deny Check (Supply-Chain Security, Bans & Licenses)
+echo -e "${BOLD}[6/7] Checking dependency supply-chain security and licenses (cargo deny check)...${NC}"
 if command -v cargo-deny >/dev/null 2>&1 || cargo deny --version >/dev/null 2>&1; then
     if cargo deny check; then
         echo -e "${GREEN}✓ cargo deny check passed.${NC}\n"
@@ -80,8 +94,8 @@ else
     echo -e "${YELLOW}  Install via: brew install cargo-deny (or: cargo install --locked cargo-deny)${NC}\n"
 fi
 
-# 6. Rust Documentation Verification
-echo -e "${BOLD}[6/6] Checking Rust documentation (RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps)...${NC}"
+# 7. Rust Documentation Verification
+echo -e "${BOLD}[7/7] Checking Rust documentation (RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps)...${NC}"
 if RUSTDOCFLAGS="-D warnings" cargo doc --no-deps; then
     echo -e "${GREEN}✓ Rust documentation check passed (zero warnings).${NC}\n"
 else
