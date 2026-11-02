@@ -1,0 +1,68 @@
+# Configuration for cargo-deny (dependency security, license, and ban auditing)
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+[advisories]
+yanked = "warn"
+unmaintained = "all"
+ignore = []
+
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "GPL-3.0-or-later",
+    "ISC",
+    "MIT",
+    "OpenSSL",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.8
+unused-allowed-license = "allow"
+exceptions = []
+
+[[licenses.clarify]]
+crate = "nom-exif"
+expression = "MIT"
+license-files = [
+    { path = "LICENSE", hash = 0xc4978e87 },
+]
+
+[licenses.private]
+ignore = false
+registries = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+allow = []
+deny = []
+skip = [
+    { crate = "hashbrown", reason = "transitive dependency of rusqlite (0.14) and indexmap (0.17)" },
+    { crate = "miniz_oxide", reason = "transitive dependency of image/png (0.8) and flate2 (0.9)" },
+    { crate = "syn", reason = "transitive dependency of older macros (2.0) and 2024/2025 macro ecosystem (3.0)" },
+]
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
