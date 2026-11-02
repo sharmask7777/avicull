@@ -35,6 +35,33 @@ path = "src/main.rs"
 name = "avicull"
 path = "src/lib.rs"
 
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+panic = "deny"
+todo = "deny"
+redundant_clone = "deny"
+
+# Sensible pedantic overrides to avoid counter-productive noise:
+doc_markdown = "allow"             # LaTeX math symbols $I_m$ & complex eBird slugs trigger false positives
+similar_names = "allow"            # e.g. is_y_m vs is_d_m or lat/lon coordinates
+too_many_lines = "allow"           # Complex parsing loops & CLI match statements
+cast_possible_truncation = "allow" # Image coordinates & thumbnail resizing downcasts
+cast_possible_wrap = "allow"       # Inode u64 to SQLite i64 conversions
+cast_sign_loss = "allow"           # Image bounding box f32 to u32 coordinates
+cast_precision_loss = "allow"      # Float conversions in math/confidence scaling
+module_name_repetitions = "allow"  # e.g. CatalogItem in catalog module
+must_use_candidate = "allow"       # Pure helpers where discarding return value is fine
+missing_errors_doc = "allow"       # Many private or internal helpers
+missing_panics_doc = "allow"       # Internal helpers
+struct_excessive_bools = "allow"   # Option flags in CLI structures
+needless_raw_string_hashes = "allow" # SQLite schema strings
+implicit_hasher = "allow"          # Standard collections without generic hashers
+
 # Optimized build profiles
 [profile.dev]
 opt-level = 0

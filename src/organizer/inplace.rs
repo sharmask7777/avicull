@@ -113,7 +113,7 @@ pub fn execute_inplace_bundle_rename(
         return Ok(Vec::new());
     }
 
-    let derived_date = date.map(|d| d.to_string()).or_else(|| {
+    let derived_date = date.map(std::string::ToString::to_string).or_else(|| {
         bundle.capture_timestamp_ms.and_then(|ms| {
             chrono::DateTime::from_timestamp_millis(ms).map(|dt| dt.format("%Y%m%d").to_string())
         })

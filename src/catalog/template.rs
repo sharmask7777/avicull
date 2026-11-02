@@ -16,8 +16,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     let trip_location_display = payload
         .trip_location_name
         .as_deref()
-        .map(html_escape)
-        .unwrap_or_else(|| "Set Location".to_string());
+        .map_or_else(|| "Set Location".to_string(), html_escape);
 
     format!(
         r##"<!DOCTYPE html>

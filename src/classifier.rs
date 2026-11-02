@@ -128,9 +128,9 @@ pub fn compute_posterior(
 
     for (i, &p_vis) in visual_probs.iter().enumerate() {
         let p_geo = geo_priors[i].max(epsilon);
-        let factor = if geo_weight == 0.0 {
+        let factor = if geo_weight.abs() < f32::EPSILON {
             1.0
-        } else if geo_weight == 1.0 {
+        } else if (geo_weight - 1.0).abs() < f32::EPSILON {
             p_geo
         } else {
             p_geo.powf(geo_weight)

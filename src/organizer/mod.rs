@@ -57,7 +57,8 @@ pub fn sanitize_species_slug(name: &str) -> String {
         if c == '\'' {
             // Strip apostrophes
             continue;
-        } else if c == ' ' {
+        }
+        if c == ' ' {
             out.push('_');
         } else if c.is_alphanumeric() || c == '-' || c == '_' {
             out.push(c);
@@ -79,7 +80,7 @@ pub fn format_destination_filename(
     capture_date: Option<&str>,
     inferred_location: Option<&str>,
 ) -> String {
-    let conf_str = format!("{:.2}", confidence);
+    let conf_str = format!("{confidence:.2}");
 
     let (stem, remainder) = if let Some((base_stem, _)) = decompose_filename(original_filename) {
         // Find remainder after base_stem
@@ -178,11 +179,10 @@ pub fn materialize_bundle_hardlinks(
         .map(sanitize_species_slug);
 
     // First check if primary file has a collision requiring trip prefix
-    let primary_filename = bundle
-        .primary_image
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_else(|| "image.jpg".to_string());
+    let primary_filename = bundle.primary_image.file_name().map_or_else(
+        || "image.jpg".to_string(),
+        |f| f.to_string_lossy().to_string(),
+    );
 
     let normal_dst_filename = format_destination_filename(
         &primary_filename,
@@ -215,8 +215,7 @@ pub fn materialize_bundle_hardlinks(
     for src_path in files_to_link {
         let src_filename = src_path
             .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_else(|| "file".to_string());
+            .map_or_else(|| "file".to_string(), |f| f.to_string_lossy().to_string());
 
         let dst_filename = format_destination_filename(
             &src_filename,
@@ -242,22 +241,21 @@ pub fn materialize_bundle_hardlinks(
         let base_ext = dst_path
             .extension()
             .and_then(|e| e.to_str())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
         while dst_path.exists() {
             if let Ok(dst_meta) = fs::metadata(&dst_path) {
                 if dst_meta.ino() == src_ino {
                     status = "already_linked".to_string();
                     break;
-                } else {
-                    // Different file with same name: append clean numbered counter from base
-                    let new_name = match &base_ext {
-                        Some(e) => format!("{}_{}.{}", base_stem, counter, e),
-                        None => format!("{}_{}", base_stem, counter),
-                    };
-                    dst_path = target_dir.join(new_name);
-                    counter += 1;
                 }
+                // Different file with same name: append clean numbered counter from base
+                let new_name = match &base_ext {
+                    Some(e) => format!("{base_stem}_{counter}.{e}"),
+                    None => format!("{base_stem}_{counter}"),
+                };
+                dst_path = target_dir.join(new_name);
+                counter += 1;
             } else {
                 break;
             }
@@ -420,7 +418,7 @@ pub fn materialize_chunk_with_retry(
                 was_dataless_flags.push(loc.is_dataless);
             }
             Err(e) => {
-                let err_msg = format!("{}", e);
+                let err_msg = format!("{e}");
                 eprintln!(
                     "Warning: Failed to materialize asset '{}': {}. Marking as pending retry.",
                     bundle.primary_image.display(),

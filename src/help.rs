@@ -34,8 +34,7 @@ impl FromStr for HelpTopic {
             "update" | "upgrade" => Ok(HelpTopic::Update),
             "all" | "full" | "manual" => Ok(HelpTopic::All),
             other => Err(anyhow!(
-                "Unknown help topic '{}'. Available topics: quickstart, organize, scan, invariants, models, update, all",
-                other
+                "Unknown help topic '{other}'. Available topics: quickstart, organize, scan, invariants, models, update, all"
             )),
         }
     }
@@ -269,10 +268,11 @@ pub fn list_topics() -> Vec<(&'static str, &'static str)> {
 
 /// Renders help content for a specific topic, or the overview if None is provided.
 pub fn render_help(topic: Option<HelpTopic>) -> String {
+    use std::fmt::Write;
     let chosen = topic.unwrap_or(HelpTopic::All);
     let mut out = String::new();
     out.push_str("\n=======================================================================\n");
-    out.push_str(&format!("  avicull Help — {}\n", chosen.title()));
+    let _ = writeln!(out, "  avicull Help — {}", chosen.title());
     out.push_str("=======================================================================\n\n");
     out.push_str(chosen.content());
     out.push('\n');

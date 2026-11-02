@@ -63,13 +63,12 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
                 path: input.to_path_buf(),
             }
             .into());
-        } else {
-            return Err(anyhow!(
-                "Cannot read input directory {}: {}",
-                input.display(),
-                e
-            ));
         }
+        return Err(anyhow!(
+            "Cannot read input directory {}: {}",
+            input.display(),
+            e
+        ));
     }
 
     if !output.exists() {
@@ -121,11 +120,11 @@ pub fn validate_volume_and_disjointness(input: &Path, output: &Path) -> Result<(
         .any(|c| c.as_os_str() == "CloudStorage")
     {
         eprintln!(
-            "⚠️  [CloudStorage Warning]: Output directory {:?} is inside a cloud-synchronized folder ('~/Library/CloudStorage/').\n\
+            "⚠️  [CloudStorage Warning]: Output directory {} is inside a cloud-synchronized folder ('~/Library/CloudStorage/').\n\
                Placing 'birds_hierarchy' here will cause your cloud client (Proton Drive, OneDrive, Dropbox, etc.)\n\
                to detect and upload thousands of duplicate photos over the network to cloud storage!\n\
                Recommendation: Specify '--output' in a local non-synced directory on the same APFS volume (e.g. '--output ~/Pictures/birds_hierarchy').\n",
-            output
+            output.display()
         );
     }
 
@@ -181,6 +180,14 @@ pub fn decompose_filename(filename: &str) -> Option<(String, bool)> {
     None
 }
 
+// Group files by (canonical_dir, stem_lowercase)
+struct GroupAcc {
+    trip_name: String,
+    original_stem: String,
+    images: Vec<(PathBuf, u8)>, // (path, priority)
+    sidecars: Vec<PathBuf>,
+}
+
 /// Scans the input tree recursively and groups related photo and sidecar files into `AssetBundle`s.
 pub fn scan_input_tree(input_dir: &Path) -> Result<Vec<AssetBundle>> {
     scan_input_tree_with_skip(input_dir, None)
@@ -200,14 +207,6 @@ pub fn scan_input_tree_with_skip(
     })?;
 
     let can_skip = skip_dir.and_then(|p| p.canonicalize().ok());
-
-    // Group files by (canonical_dir, stem_lowercase)
-    struct GroupAcc {
-        trip_name: String,
-        original_stem: String,
-        images: Vec<(PathBuf, u8)>, // (path, priority)
-        sidecars: Vec<PathBuf>,
-    }
 
     let mut groups: HashMap<(PathBuf, String), GroupAcc> = HashMap::new();
 
@@ -240,7 +239,7 @@ pub fn scan_input_tree_with_skip(
                 let p = e
                     .path()
                     .map_or_else(|| "<unknown>".to_string(), |p| p.display().to_string());
-                eprintln!("Warning: skipping unreadable filesystem entry {}: {}", p, e);
+                eprintln!("Warning: skipping unreadable filesystem entry {p}: {e}");
                 continue;
             }
         };
@@ -262,16 +261,14 @@ pub fn scan_input_tree_with_skip(
             let trip_name = if parent_dir == can_input {
                 can_input
                     .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "Root".to_string())
+                    .map_or_else(|| "Root".to_string(), |n| n.to_string_lossy().to_string())
             } else {
                 // Find top-level folder relative to can_input
                 let rel = parent_dir.strip_prefix(&can_input).unwrap_or(&parent_dir);
-                let first_component = rel
-                    .components()
-                    .next()
-                    .map(|c| c.as_os_str().to_string_lossy().to_string())
-                    .unwrap_or_else(|| "Unknown".to_string());
+                let first_component = rel.components().next().map_or_else(
+                    || "Unknown".to_string(),
+                    |c| c.as_os_str().to_string_lossy().to_string(),
+                );
                 first_component
             };
 
@@ -323,7 +320,7 @@ pub fn scan_input_tree_with_skip(
             .strip_prefix(&can_input)
             .or_else(|_| can_primary.strip_prefix(&can_input))
             .ok()
-            .map(|p| p.to_path_buf());
+            .map(std::path::Path::to_path_buf);
 
         bundles.push(AssetBundle {
             bundle_id,
@@ -536,12 +533,12 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
             }
             true
         })
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
     {
         if entry.file_type().is_file() && entry.file_name() == "manifest.sqlite" {
             let path = entry.path();
             if let Some(parent) = path.parent() {
-                if parent.file_name().map(|n| n == ".avicull").unwrap_or(false) {
+                if parent.file_name().is_some_and(|n| n == ".avicull") {
                     if let Some(grandparent) = parent.parent() {
                         let can_gp = grandparent
                             .canonicalize()
@@ -553,10 +550,7 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
                         }
 
                         // Determine the relative subdirectory corresponding to this child
-                        let rel_dir = if can_gp
-                            .file_name()
-                            .map(|n| n == "birds_hierarchy")
-                            .unwrap_or(false)
+                        let rel_dir = if can_gp.file_name().is_some_and(|n| n == "birds_hierarchy")
                         {
                             can_gp.parent().unwrap_or(&can_gp)
                         } else {

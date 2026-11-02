@@ -398,7 +398,7 @@ impl ManifestDb {
                 started_at,
                 input_root.as_ref().to_string_lossy().to_string(),
                 output_root.as_ref().to_string_lossy().to_string(),
-                if dry_run { 1 } else { 0 },
+                i32::from(dry_run),
                 config_json,
             ],
         )?;
@@ -477,11 +477,8 @@ impl ManifestDb {
                     RoutingTier::NoBirdDetected => "NoBirdDetected",
                 };
 
-                let was_dataless_val = if was_dataless_flags.get(idx).copied().unwrap_or(false) {
-                    1
-                } else {
-                    0
-                };
+                let was_dataless_val =
+                    i32::from(was_dataless_flags.get(idx).copied().unwrap_or(false));
 
                 tx.execute(
                     "INSERT OR REPLACE INTO bundles (
@@ -510,7 +507,7 @@ impl ManifestDb {
                         routing_tier_str,
                         top5_json,
                         bundle_json,
-                        if dec.is_user_override { 1 } else { 0 },
+                        i32::from(dec.is_user_override),
                         bundle.relative_path.as_ref().map(|p| p.to_string_lossy().to_string()),
                         was_dataless_val,
                     ],
@@ -704,7 +701,7 @@ impl ManifestDb {
         new_dest_path: &Path,
     ) -> Result<bool> {
         let conn = self.lock_conn()?;
-        let pattern = format!("%{}", filename);
+        let pattern = format!("%{filename}");
         let rows = conn.execute(
             "UPDATE hardlink_operations
              SET dest_path = ?1, status = 'linked'
@@ -720,7 +717,7 @@ impl ManifestDb {
         }
 
         if let Some(ext) = Path::new(filename).extension().and_then(|e| e.to_str()) {
-            let ext_pattern = format!("%.{}", ext);
+            let ext_pattern = format!("%.{ext}");
             let rows = conn.execute(
                 "UPDATE hardlink_operations
                  SET dest_path = ?1, status = 'linked'
@@ -766,7 +763,7 @@ impl ManifestDb {
         new_dest_path: &Path,
     ) -> Result<bool> {
         let conn = self.lock_conn()?;
-        let pattern = format!("%{}", filename);
+        let pattern = format!("%{filename}");
         let rows = conn.execute(
             "UPDATE hardlink_operations
              SET dest_path = ?1, status = 'renamed'
@@ -782,7 +779,7 @@ impl ManifestDb {
         }
 
         if let Some(ext) = Path::new(filename).extension().and_then(|e| e.to_str()) {
-            let ext_pattern = format!("%.{}", ext);
+            let ext_pattern = format!("%.{ext}");
             let rows = conn.execute(
                 "UPDATE hardlink_operations
                  SET dest_path = ?1, status = 'renamed'
@@ -950,8 +947,7 @@ impl ManifestDb {
         let now = Utc::now().to_rfc3339();
         let source_inode = fs::metadata(renamed_path)
             .or_else(|_| fs::metadata(original_path))
-            .map(|m| m.ino())
-            .unwrap_or(0);
+            .map_or(0, |m| m.ino());
 
         let original_stem = original_path
             .file_stem()
@@ -972,35 +968,31 @@ impl ManifestDb {
 
         // If bundle_id column is NOT NULL in this DB table and bundle_id is None,
         // create a minimal bundle record to satisfy foreign key constraint.
-        let bundle_id = match bundle_id {
-            Some(b) => Some(b),
-            None => {
-                let is_not_null = conn
-                    .prepare("PRAGMA table_info(hardlink_operations)")?
-                    .query_map([], |row| {
-                        let col_name: String = row.get(1)?;
-                        let not_null: i32 = row.get(3)?;
-                        Ok((col_name, not_null))
-                    })?
-                    .any(|res| {
-                        res.map(|(col, nn)| col == "bundle_id" && nn == 1)
-                            .unwrap_or(false)
-                    });
+        let bundle_id = if let Some(b) = bundle_id {
+            Some(b)
+        } else {
+            let is_not_null = conn
+                .prepare("PRAGMA table_info(hardlink_operations)")?
+                .query_map([], |row| {
+                    let col_name: String = row.get(1)?;
+                    let not_null: i32 = row.get(3)?;
+                    Ok((col_name, not_null))
+                })?
+                .any(|res| res.is_ok_and(|(col, nn)| col == "bundle_id" && nn == 1));
 
-                if is_not_null {
-                    let dummy_id = format!("{}_inplace", original_stem);
-                    let _ = conn.execute(
-                        "INSERT OR IGNORE INTO bundles (
-                            bundle_id, run_id, source_inode, trip_folder, original_stem,
-                            assigned_species_slug, frame_conf, final_conf, routing_tier,
-                            top5_predictions_json, bundle_json
-                        ) VALUES (?1, ?2, 0, '', ?3, '', 0.0, 0.0, 'NoBirdDetected', '[]', '{}')",
-                        params![dummy_id, run_id, original_stem],
-                    );
-                    Some(dummy_id)
-                } else {
-                    None
-                }
+            if is_not_null {
+                let dummy_id = format!("{original_stem}_inplace");
+                let _ = conn.execute(
+                    "INSERT OR IGNORE INTO bundles (
+                        bundle_id, run_id, source_inode, trip_folder, original_stem,
+                        assigned_species_slug, frame_conf, final_conf, routing_tier,
+                        top5_predictions_json, bundle_json
+                    ) VALUES (?1, ?2, 0, '', ?3, '', 0.0, 0.0, 'NoBirdDetected', '[]', '{}')",
+                    params![dummy_id, run_id, original_stem],
+                );
+                Some(dummy_id)
+            } else {
+                None
             }
         };
 
@@ -1350,8 +1342,7 @@ impl ManifestDb {
                 || bundle
                     .primary_image
                     .file_name()
-                    .map(|f| f.to_string_lossy() == clean_query)
-                    .unwrap_or(false)
+                    .is_some_and(|f| f.to_string_lossy() == clean_query)
             {
                 return Ok(Some(bundle));
             }

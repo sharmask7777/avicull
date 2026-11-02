@@ -66,7 +66,7 @@ impl GazetteerEngine {
     /// Loads the embedded `data/gazetteer.json` catalog.
     pub fn load_embedded() -> anyhow::Result<Self> {
         let entries: Vec<GazetteerEntry> = serde_json::from_str(EMBEDDED_GAZETTEER_JSON)
-            .map_err(|e| anyhow::anyhow!("Failed to parse embedded gazetteer.json: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to parse embedded gazetteer.json: {e}"))?;
         Ok(Self::from_entries(entries))
     }
 

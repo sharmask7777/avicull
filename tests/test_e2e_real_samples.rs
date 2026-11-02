@@ -1,4 +1,10 @@
 #![cfg(unix)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::pedantic,
+    clippy::redundant_clone
+)]
 
 use rusqlite::Connection;
 use std::collections::HashMap;

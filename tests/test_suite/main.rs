@@ -13,6 +13,13 @@
 //! - **Preserves Standalone E2E Targets**: Standalone test targets (`test_mock_directory_structure_e2e.rs`
 //!   and `test_e2e_real_samples.rs`) remain decoupled to allow standalone environment and binary path overrides.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::pedantic,
+    clippy::redundant_clone
+)]
+
 mod test_burst;
 mod test_catalog;
 mod test_catalog_html_generation;

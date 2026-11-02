@@ -37,8 +37,7 @@ pub struct SpeciesTypoSuggestion {
 fn is_interactive_session() -> bool {
     (std::io::stdin().is_terminal() && std::io::stdout().is_terminal())
         || std::env::var("AVICULL_FORCE_INTERACTIVE")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false)
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// Loads eBird taxonomy records from cached or local models, falling back to a curated global list.
@@ -82,15 +81,15 @@ pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
                 if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
                     for obj in parsed {
                         if let Some(common_name) = obj.get("common_name").and_then(|v| v.as_str()) {
-                            let folder_slug = obj
-                                .get("folder_slug")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| sanitize_species_slug(common_name));
+                            let folder_slug =
+                                obj.get("folder_slug").and_then(|v| v.as_str()).map_or_else(
+                                    || sanitize_species_slug(common_name),
+                                    std::string::ToString::to_string,
+                                );
                             let scientific_name = obj
                                 .get("scientific_name")
                                 .and_then(|v| v.as_str())
-                                .map(|s| s.to_string());
+                                .map(std::string::ToString::to_string);
                             if seen.insert(common_name.to_lowercase()) {
                                 entries.push(TaxonomyEntry {
                                     common_name: common_name.to_string(),
@@ -193,8 +192,7 @@ pub fn find_species_typo_suggestion(
             || entry
                 .scientific_name
                 .as_deref()
-                .map(|s| s.eq_ignore_ascii_case(trimmed))
-                .unwrap_or(false)
+                .is_some_and(|s| s.eq_ignore_ascii_case(trimmed))
         {
             return None;
         }
@@ -208,8 +206,7 @@ pub fn find_species_typo_suggestion(
         let sim_sci = entry
             .scientific_name
             .as_deref()
-            .map(|s| trigram_similarity(trimmed, s))
-            .unwrap_or(0.0);
+            .map_or(0.0, |s| trigram_similarity(trimmed, s));
 
         let sim = sim_common.max(sim_slug).max(sim_sci);
 
@@ -361,21 +358,19 @@ pub fn apply_bundle_correction(
     let (target_dec, target_bundle) = match matched_bundles.len() {
         0 => {
             return Err(anyhow!(
-                "No photo bundle matching '{}' was found in manifest.",
-                file_query
+                "No photo bundle matching '{file_query}' was found in manifest."
             ));
         }
         1 => matched_bundles.remove(0),
         _ => {
             let is_interactive = is_interactive_session();
             if is_interactive {
-                println!("\nMultiple photo bundles matched query '{}':", file_query);
+                println!("\nMultiple photo bundles matched query '{file_query}':");
                 for (i, (dec, b)) in matched_bundles.iter().enumerate() {
-                    let rel = b
-                        .relative_path
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_else(|| b.primary_image.to_string_lossy().to_string());
+                    let rel = b.relative_path.as_ref().map_or_else(
+                        || b.primary_image.to_string_lossy().to_string(),
+                        |p| p.to_string_lossy().to_string(),
+                    );
                     let date = b
                         .capture_timestamp_ms
                         .and_then(|ms| {
@@ -412,14 +407,14 @@ pub fn apply_bundle_correction(
                 }
                 matched_bundles.remove(choice - 1)
             } else {
-                let mut msg = format!("Multiple photo bundles matched query '{}':\n", file_query);
+                use std::fmt::Write;
+                let mut msg = format!("Multiple photo bundles matched query '{file_query}':\n");
                 for (_dec, b) in &matched_bundles {
-                    let rel = b
-                        .relative_path
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .unwrap_or_else(|| b.primary_image.to_string_lossy().to_string());
-                    msg.push_str(&format!("  - {}\n", rel));
+                    let rel = b.relative_path.as_ref().map_or_else(
+                        || b.primary_image.to_string_lossy().to_string(),
+                        |p| p.to_string_lossy().to_string(),
+                    );
+                    let _ = writeln!(msg, "  - {rel}");
                 }
                 msg.push_str("Specify an unambiguous relative path using --file (e.g. --file \"<trip>/<file>\").");
                 return Err(anyhow!(msg));
@@ -553,8 +548,7 @@ pub fn apply_bundle_correction(
         let primary_locality = storage_backend.inspect_locality(&bundle.primary_image).ok();
         let was_dataless = primary_locality
             .as_ref()
-            .map(|loc| loc.is_dataless || !loc.pre_existing_local)
-            .unwrap_or(false);
+            .is_some_and(|loc| loc.is_dataless || !loc.pre_existing_local);
 
         db.update_bundle_override(&bundle.bundle_id, &target_slug, routing_tier, 1.0)?;
 
@@ -609,7 +603,7 @@ pub fn apply_bundle_correction(
 
                     if !moved_any {
                         let mut new_dec = decision.clone();
-                        new_dec.assigned_species_slug = target_slug.clone();
+                        new_dec.assigned_species_slug.clone_from(&target_slug);
                         new_dec.routing_tier = routing_tier;
                         new_dec.final_confidence = 1.0;
                         new_dec.is_user_override = true;
@@ -639,7 +633,7 @@ pub fn apply_bundle_correction(
                     {
                         if let Some(src_fname) = op.source_path.file_name() {
                             if bundle.primary_image.file_name() == Some(src_fname) {
-                                current_primary = op.dest_path.clone();
+                                current_primary.clone_from(&op.dest_path);
                             }
                         }
                     }
@@ -653,7 +647,7 @@ pub fn apply_bundle_correction(
                     let mut resolved = comp.clone();
                     for op in &ops {
                         if op.source_path == *comp && op.dest_path.exists() {
-                            resolved = op.dest_path.clone();
+                            resolved.clone_from(&op.dest_path);
                         }
                     }
                     new_comps.push(resolved);
@@ -665,7 +659,7 @@ pub fn apply_bundle_correction(
                     let mut resolved = sc.clone();
                     for op in &ops {
                         if op.source_path == *sc && op.dest_path.exists() {
-                            resolved = op.dest_path.clone();
+                            resolved.clone_from(&op.dest_path);
                         }
                     }
                     new_scs.push(resolved);
@@ -700,7 +694,7 @@ pub fn apply_bundle_correction(
         }
 
         let mut updated_dec = decision;
-        updated_dec.assigned_species_slug = target_slug.clone();
+        updated_dec.assigned_species_slug.clone_from(&target_slug);
         updated_dec.routing_tier = routing_tier;
         updated_dec.final_confidence = 1.0;
         updated_dec.is_user_override = true;
@@ -710,9 +704,7 @@ pub fn apply_bundle_correction(
     if mode == OrganizationMode::HierarchicalHardlinkHierarchy && operating_root.exists() {
         for old_dir in old_dirs_to_prune {
             if old_dir != operating_root && old_dir.exists() {
-                let is_empty = fs::read_dir(&old_dir)
-                    .map(|mut i| i.next().is_none())
-                    .unwrap_or(false);
+                let is_empty = fs::read_dir(&old_dir).is_ok_and(|mut i| i.next().is_none());
                 if is_empty {
                     let _ = fs::remove_dir(&old_dir);
                 }

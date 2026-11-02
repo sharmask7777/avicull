@@ -1,8 +1,11 @@
+#![forbid(unsafe_code)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic))]
+
 use anyhow::{anyhow, Context, Result};
 use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
 use avicull::catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 use avicull::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
-use avicull::cli::*;
+use avicull::cli::{Cli, Commands, CorrectArgs, LocationArgs};
 use avicull::db::{ExistingBundleMap, ManifestDb};
 use avicull::detector::{
     select_and_pad_bird_crop, BirdDetector, MockBirdDetector, OrtBirdDetector,
@@ -26,6 +29,7 @@ use image::DynamicImage;
 use std::fs::File;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 fn load_image_for_inference(primary: &Path, companions: &[PathBuf]) -> Result<DynamicImage> {
     // Priority 1: Check companion images for JPEG for ultra-fast decoding
     for comp in companions {
@@ -77,7 +81,7 @@ fn prepare_image_for_inference(
     bundle: &avicull::types::AssetBundle,
     temp_dir: &Path,
     idx: usize,
-) -> Option<PathBuf> {
+) -> PathBuf {
     for comp in &bundle.companion_images {
         let ext = comp
             .extension()
@@ -85,7 +89,7 @@ fn prepare_image_for_inference(
             .unwrap_or_default()
             .to_lowercase();
         if ext == "jpg" || ext == "jpeg" {
-            return Some(comp.clone());
+            return comp.clone();
         }
     }
 
@@ -96,7 +100,7 @@ fn prepare_image_for_inference(
         .unwrap_or_default()
         .to_lowercase();
     if prim_ext == "jpg" || prim_ext == "jpeg" || prim_ext == "png" {
-        return Some(bundle.primary_image.clone());
+        return bundle.primary_image.clone();
     }
 
     // Try extracting embedded preview for RAW
@@ -104,15 +108,33 @@ fn prepare_image_for_inference(
         let mut buffer = Vec::new();
         if f.read_to_end(&mut buffer).is_ok() {
             if let Some(preview_bytes) = extract_embedded_jpeg_preview(&buffer) {
-                let out_path = temp_dir.join(format!("preview_{}.jpg", idx));
+                let out_path = temp_dir.join(format!("preview_{idx}.jpg"));
                 if std::fs::write(&out_path, preview_bytes).is_ok() {
-                    return Some(out_path);
+                    return out_path;
                 }
             }
         }
     }
 
-    Some(bundle.primary_image.clone())
+    bundle.primary_image.clone()
+}
+
+#[derive(serde::Serialize)]
+struct BatchTask {
+    bundle_id: String,
+    primary_image: PathBuf,
+    trip_folder_name: String,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    region_code: String,
+}
+
+#[derive(serde::Deserialize)]
+struct InferResultItem {
+    bundle_id: String,
+    detection_confidence: f32,
+    top_predictions: Vec<avicull::types::SpeciesPrediction>,
+    embedding: Vec<f32>,
 }
 
 fn run_batch_inference(
@@ -133,21 +155,10 @@ fn run_batch_inference(
     let batch_file = temp_dir.path().join("batch_tasks.json");
     let output_file = temp_dir.path().join("batch_results.json");
 
-    #[derive(serde::Serialize)]
-    struct BatchTask {
-        bundle_id: String,
-        primary_image: PathBuf,
-        trip_folder_name: String,
-        latitude: Option<f64>,
-        longitude: Option<f64>,
-        region_code: String,
-    }
-
     let mut tasks = Vec::with_capacity(bundles.len());
 
     for (idx, bundle) in bundles.iter().enumerate() {
-        let img_path = prepare_image_for_inference(bundle, temp_dir.path(), idx)
-            .unwrap_or_else(|| bundle.primary_image.clone());
+        let img_path = prepare_image_for_inference(bundle, temp_dir.path(), idx);
         let (lat, lon) = match bundle.gps_coords {
             Some(coords) => (Some(coords.latitude), Some(coords.longitude)),
             None => (None, None),
@@ -169,6 +180,9 @@ fn run_batch_inference(
 
     std::fs::write(&batch_file, serde_json::to_string(&tasks)?)?;
 
+    let batch_file_str = batch_file.to_string_lossy();
+    let output_file_str = output_file.to_string_lossy();
+
     let output = std::process::Command::new("uv")
         .args([
             "run",
@@ -179,9 +193,9 @@ fn run_batch_inference(
             "--models-dir",
             models_dir.to_str().unwrap_or("models"),
             "--batch-file",
-            batch_file.to_str().unwrap(),
+            batch_file_str.as_ref(),
             "--output-file",
-            output_file.to_str().unwrap(),
+            output_file_str.as_ref(),
             "--min-detect",
             &min_detect.to_string(),
             "--geo-prior-weight",
@@ -191,15 +205,7 @@ fn run_batch_inference(
 
     if !output.status.success() {
         let err_msg = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Python inference runner failed: {}", err_msg));
-    }
-
-    #[derive(serde::Deserialize)]
-    struct InferResultItem {
-        bundle_id: String,
-        detection_confidence: f32,
-        top_predictions: Vec<avicull::types::SpeciesPrediction>,
-        embedding: Vec<f32>,
+        return Err(anyhow!("Python inference runner failed: {err_msg}"));
     }
 
     let results_data = std::fs::read(&output_file)?;
@@ -261,7 +267,9 @@ fn run_fallback_parallel_classification(
             };
 
             let item = if let Some(cropped) = crop_res {
-                let region = bundle_regions.get(&bundle.bundle_id).map(|s| s.as_str());
+                let region = bundle_regions
+                    .get(&bundle.bundle_id)
+                    .map(std::string::String::as_str);
                 let (emb, preds) = classifier
                     .classify_with_region(&cropped, bundle.gps_coords, region, geo_prior_weight)
                     .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
@@ -334,7 +342,6 @@ fn resolve_or_prompt_models_dir(
     }
 
     // Avoid prompting in non-interactive environments, headless test runners, or when --no-prompt is specified
-    use std::io::IsTerminal;
     if no_prompt || !std::io::stdin().is_terminal() {
         return Ok(None);
     }
@@ -356,6 +363,7 @@ fn resolve_or_prompt_models_dir(
                     "[avicull] Initializing eBird taxonomy & BioCLIP embeddings on Apple Silicon GPU..."
                 );
                 std::fs::create_dir_all(c_dir)?;
+                let c_dir_str = c_dir.to_string_lossy();
                 let status_res = std::process::Command::new("uv")
                     .args([
                         "run",
@@ -363,7 +371,7 @@ fn resolve_or_prompt_models_dir(
                         "torch,open-clip-torch,safetensors,ultralytics",
                         "python3",
                         "scripts/build_taxonomy_embeddings.py",
-                        c_dir.to_str().unwrap(),
+                        c_dir_str.as_ref(),
                     ])
                     .status();
 
@@ -396,7 +404,7 @@ fn main() -> Result<()> {
     // Perform periodic background update check on normal CLI invocations
     if !matches!(cli.command, Commands::Update(_)) {
         if let Some(notice) = avicull::update::check_for_update_notice(env!("CARGO_PKG_VERSION")) {
-            eprintln!("{}\n", notice);
+            eprintln!("{notice}\n");
         }
     }
 
@@ -428,8 +436,7 @@ fn main() -> Result<()> {
             let total_sidecars: usize = bundles.iter().map(|b| b.sidecar_files.len()).sum();
             let total_companions: usize = bundles.iter().map(|b| b.companion_images.len()).sum();
             println!(
-                "✓ Associated {} companion images and {} sidecar files.",
-                total_companions, total_sidecars
+                "✓ Associated {total_companions} companion images and {total_sidecars} sidecar files."
             );
             println!("Target output: {}", output_dir.display());
             println!("Ready for organize.");
@@ -508,16 +515,12 @@ fn main() -> Result<()> {
                         _reconciled_moves_count = count;
                         if count > 0 {
                             println!(
-                                "Reconciliation: Reconciled {} manual in-place rename(s) into durable SQLite overrides.",
-                                count
+                                "Reconciliation: Reconciled {count} manual in-place rename(s) into durable SQLite overrides."
                             );
                         }
                     }
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to reconcile manual in-place renames: {}",
-                            e
-                        );
+                        eprintln!("Warning: Failed to reconcile manual in-place renames: {e}");
                     }
                 }
             }
@@ -542,15 +545,11 @@ fn main() -> Result<()> {
                 ) {
                     Ok(pruned) if pruned > 0 => {
                         println!(
-                            "Reconciliation: Pruned {} deleted bundle(s) from SQLite manifest.",
-                            pruned
+                            "Reconciliation: Pruned {pruned} deleted bundle(s) from SQLite manifest."
                         );
                     }
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to prune missing bundles from manifest: {}",
-                            e
-                        );
+                        eprintln!("Warning: Failed to prune missing bundles from manifest: {e}");
                     }
                     _ => {}
                 }
@@ -578,8 +577,7 @@ fn main() -> Result<()> {
             for bundle in &all_discovered {
                 let lacks_exif = bundle
                     .gps_coords
-                    .map(|c| c.source != LocationSource::ExifGps)
-                    .unwrap_or(true);
+                    .is_none_or(|c| c.source != LocationSource::ExifGps);
                 if lacks_exif || args.location.is_some() {
                     trip_map
                         .entry(bundle.trip_folder_name.clone())
@@ -706,16 +704,12 @@ fn main() -> Result<()> {
                         _reconciled_moves_count += count;
                         if count > 0 {
                             println!(
-                                "Reconciliation: Reconciled {} manual filesystem move(s) into durable SQLite overrides.",
-                                count
+                                "Reconciliation: Reconciled {count} manual filesystem move(s) into durable SQLite overrides."
                             );
                         }
                     }
                     Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to reconcile manual filesystem moves: {}",
-                            e
-                        );
+                        eprintln!("Warning: Failed to reconcile manual filesystem moves: {e}");
                     }
                 }
             }
@@ -794,7 +788,7 @@ fn main() -> Result<()> {
             }
 
             let conf_mode: ConfidenceMode =
-                args.confidence_mode.parse().map_err(|e| anyhow!("{}", e))?;
+                args.confidence_mode.parse().map_err(|e| anyhow!("{e}"))?;
 
             let models_dir = resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?;
 
@@ -816,7 +810,6 @@ fn main() -> Result<()> {
                 Box::new(MockSpeciesClassifier::new(vec![]))
             };
 
-            use std::sync::Arc;
             let detector = Arc::new(detector);
             let classifier = Arc::new(classifier);
 
@@ -918,8 +911,7 @@ fn main() -> Result<()> {
                             Ok(res) => res,
                             Err(e) => {
                                 eprintln!(
-                                    "Warning: Real inference error ({}), using fallback: {}",
-                                    e, e
+                                    "Warning: Real inference error ({e}), using fallback: {e}"
                                 );
                                 run_fallback_parallel_classification(
                                     &chunk_refs,
@@ -959,10 +951,9 @@ fn main() -> Result<()> {
                         .primary_image
                         .extension()
                         .and_then(|e| e.to_str())
-                        .map(|e| {
+                        .is_some_and(|e| {
                             matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
-                        })
-                        .unwrap_or(false);
+                        });
                     if !is_web && bundle.companion_images.is_empty() {
                         let _ = std::fs::create_dir_all(&previews_dir);
                         let preview_path =
@@ -1016,7 +1007,9 @@ fn main() -> Result<()> {
             for (bundle, decision) in processable_discovered.iter().zip(decisions.iter_mut()) {
                 if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
                     if existing_dec.is_user_override {
-                        decision.assigned_species_slug = existing_dec.assigned_species_slug.clone();
+                        decision
+                            .assigned_species_slug
+                            .clone_from(&existing_dec.assigned_species_slug);
                         decision.routing_tier = existing_dec.routing_tier;
                         decision.final_confidence = existing_dec.final_confidence;
                         decision.is_user_override = true;
@@ -1184,8 +1177,7 @@ fn main() -> Result<()> {
                 .count();
 
             println!(
-                "✓ Done! Confirmed: {}, Needs Review: {}, No Bird: {}. Operations: {}",
-                confirmed, review, no_bird, total_ops_count
+                "✓ Done! Confirmed: {confirmed}, Needs Review: {review}, No Bird: {no_bird}. Operations: {total_ops_count}"
             );
 
             // Summary reporting for processed photos and selective eviction savings
@@ -1195,13 +1187,9 @@ fn main() -> Result<()> {
 
             if pending_count > 0 || total_space_saved_bytes > 0 {
                 println!(
-                    "Organization complete: {} photos processed, {} pending retry.",
-                    processed_count, pending_count
+                    "Organization complete: {processed_count} photos processed, {pending_count} pending retry."
                 );
-                println!(
-                    "Disk space saved via selective eviction: {:.1} GB.",
-                    space_saved_gb
-                );
+                println!("Disk space saved via selective eviction: {space_saved_gb:.1} GB.");
                 if pending_count > 0 {
                     println!(
                         "Note: {} photos encountered download timeouts. Re-run 'avicull organize --input \"{}\"' to process pending photos.",
@@ -1257,7 +1245,7 @@ fn main() -> Result<()> {
 
             // Clean previous links
             let unlinked = clean_run_hardlinks(&db, &run_id)?;
-            println!("Unlinked {} previous hard links.", unlinked);
+            println!("Unlinked {unlinked} previous hard links.");
 
             let mut new_ops = Vec::new();
             for (mut dec, bundle) in cached_bundles {
@@ -1309,9 +1297,9 @@ fn main() -> Result<()> {
                 })?,
             };
 
-            println!("Cleaning operations for run '{}'...", run_id);
+            println!("Cleaning operations for run '{run_id}'...");
             let count = clean_run_operations(&db, &run_id)?;
-            println!("✓ Cleaned {} operations for run '{}'.", count, run_id);
+            println!("✓ Cleaned {count} operations for run '{run_id}'.");
         }
 
         Commands::Report(args) => {
@@ -1376,7 +1364,7 @@ fn main() -> Result<()> {
                     } else {
                         0.0
                     };
-                    println!("{:<35} | {:<8} | {:<10.2}", species, count, mean_conf);
+                    println!("{species:<35} | {count:<8} | {mean_conf:<10.2}");
                 }
                 println!("\nTotal Bundles: {}", cached.len());
             } else {
@@ -1417,6 +1405,7 @@ fn main() -> Result<()> {
                     "Fetching latest Cornell eBird global taxonomy and recomputing embeddings..."
                 );
                 std::fs::create_dir_all(&cache_dir)?;
+                let cache_dir_str = cache_dir.to_string_lossy();
                 let status = std::process::Command::new("uv")
                     .args([
                         "run",
@@ -1424,7 +1413,7 @@ fn main() -> Result<()> {
                         "torch,open-clip-torch,safetensors,ultralytics",
                         "python3",
                         "scripts/build_taxonomy_embeddings.py",
-                        cache_dir.to_str().unwrap(),
+                        cache_dir_str.as_ref(),
                     ])
                     .status()?;
                 if status.success() {
@@ -1437,33 +1426,27 @@ fn main() -> Result<()> {
                 }
             } else {
                 let tax_status = if tax_path.exists() {
-                    let sz = std::fs::metadata(&tax_path).map(|m| m.len()).unwrap_or(0);
+                    let sz = std::fs::metadata(&tax_path).map_or(0, |m| m.len());
                     format!("Present ({:.2} MB)", sz as f64 / 1_048_576.0)
                 } else {
                     "Missing (run 'avicull models update' to install)".to_string()
                 };
 
                 let emb_status = if emb_path.exists() {
-                    let sz = std::fs::metadata(&emb_path).map(|m| m.len()).unwrap_or(0);
+                    let sz = std::fs::metadata(&emb_path).map_or(0, |m| m.len());
                     format!("Present ({:.2} MB)", sz as f64 / 1_048_576.0)
                 } else {
                     "Missing (run 'avicull models update' to install)".to_string()
                 };
 
-                println!("  - Taxonomy (taxonomy.json):             {}", tax_status);
-                println!(
-                    "  - Embeddings (species_embeddings.safetensors): {}",
-                    emb_status
-                );
+                println!("  - Taxonomy (taxonomy.json):             {tax_status}");
+                println!("  - Embeddings (species_embeddings.safetensors): {emb_status}");
 
                 if let Ok(meta) = std::fs::metadata(&manifest_path) {
                     if let Ok(mod_time) = meta.modified() {
                         if let Ok(dur) = mod_time.elapsed() {
                             let days = dur.as_secs() / 86400;
-                            println!(
-                                "  - Last Updated:                         {} day(s) ago",
-                                days
-                            );
+                            println!("  - Last Updated:                         {days} day(s) ago");
                         }
                     }
                 }
@@ -1475,7 +1458,7 @@ fn main() -> Result<()> {
         }
 
         Commands::Correct(args) => {
-            execute_correct(args)?;
+            execute_correct(&args)?;
         }
 
         Commands::Location(args) => {
@@ -1498,7 +1481,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn execute_correct(args: CorrectArgs) -> Result<()> {
+fn execute_correct(args: &CorrectArgs) -> Result<()> {
     println!("== avicull correct ==");
 
     let db_path = if let Some(ref db_p) = args.db {
@@ -1556,7 +1539,7 @@ fn execute_correct(args: CorrectArgs) -> Result<()> {
                     .parent()
                     .and_then(|p| p.parent())
                     .filter(|p| !p.as_os_str().is_empty())
-                    .map(|p| p.to_path_buf())
+                    .map(std::path::Path::to_path_buf)
             })
             .unwrap_or_else(|| {
                 if Path::new("birds_hierarchy").exists() {
@@ -1572,7 +1555,7 @@ fn execute_correct(args: CorrectArgs) -> Result<()> {
                 db_path
                     .parent()
                     .filter(|p| !p.as_os_str().is_empty())
-                    .map(|p| p.to_path_buf())
+                    .map(std::path::Path::to_path_buf)
             })
             .unwrap_or_else(|| PathBuf::from(".")),
     };
@@ -1648,7 +1631,7 @@ fn execute_location(args: LocationArgs) -> Result<()> {
         // Resolve target bundle by stem, filename, or bundle_id
         let target_bundle = db
             .find_bundle_by_query(file_target)?
-            .ok_or_else(|| anyhow!("Photo bundle '{}' not found in database", file_target))?;
+            .ok_or_else(|| anyhow!("Photo bundle '{file_target}' not found in database"))?;
 
         db.set_bundle_location(&target_bundle.bundle_id, &resolved)?;
         println!(

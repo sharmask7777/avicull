@@ -54,10 +54,10 @@ pub fn parse_size_budget(size_str: &str) -> Result<u64> {
     let val: u64 = num_str
         .trim()
         .parse()
-        .map_err(|e| anyhow!("Invalid size format '{}': {}", size_str, e))?;
+        .map_err(|e| anyhow!("Invalid size format '{size_str}': {e}"))?;
 
     val.checked_mul(multiplier)
-        .ok_or_else(|| anyhow!("Size overflow in parsing: {}", size_str))
+        .ok_or_else(|| anyhow!("Size overflow in parsing: {size_str}"))
 }
 
 /// Partitions asset bundles into batches whose cumulative file sizes stay within `max_bytes`.

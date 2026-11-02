@@ -5,8 +5,7 @@ use std::path::Path;
 
 fn make_svg_data_uri(species: &str, color: &str) -> String {
     format!(
-        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='100%' height='100%' fill='{}'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff' font-size='18' font-family='sans-serif'>{}</text></svg>",
-        color, species
+        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='100%' height='100%' fill='{color}'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff' font-size='18' font-family='sans-serif'>{species}</text></svg>"
     )
 }
 
@@ -265,7 +264,10 @@ pub fn generate_fixture(target_path: &Path) -> Result<(), Box<dyn std::error::Er
         fs::create_dir_all(parent)?;
     }
     fs::write(target_path, html)?;
-    println!("Successfully generated fixture at: {:?}", target_path);
+    println!(
+        "Successfully generated fixture at: {}",
+        target_path.display()
+    );
     Ok(())
 }
 

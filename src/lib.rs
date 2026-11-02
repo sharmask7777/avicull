@@ -41,6 +41,9 @@
 //! - [`catalog`]: Produces a standalone, interactive, zero-dependency HTML5 review and curation dashboard.
 //! - [`db`]: Embeds SQLite manifest storage for sub-second incremental delta re-runs.
 
+#![deny(unsafe_code)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic))]
+
 pub mod burst;
 pub mod catalog;
 pub mod classifier;

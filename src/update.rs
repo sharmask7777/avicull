@@ -151,7 +151,7 @@ pub struct ReleaseInfo {
 
 /// Fetches the latest published release information from the GitHub Releases API.
 pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo> {
-    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let api_url = format!("https://api.github.com/repos/{repo}/releases/latest");
     let output = std::process::Command::new("curl")
         .args([
             "-sL",
@@ -175,7 +175,7 @@ pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout)
-        .with_context(|| format!("Failed to parse GitHub releases response: {}", stdout))?;
+        .with_context(|| format!("Failed to parse GitHub releases response: {stdout}"))?;
 
     let tag_name = json
         .get("tag_name")
@@ -184,12 +184,10 @@ pub fn fetch_latest_release(repo: &str, timeout_secs: u32) -> Result<ReleaseInfo
         .to_string();
 
     let tarball_url = format!(
-        "https://github.com/{}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz",
-        repo
+        "https://github.com/{repo}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz"
     );
     let sha256_url = format!(
-        "https://github.com/{}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz.sha256",
-        repo
+        "https://github.com/{repo}/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz.sha256"
     );
 
     Ok(ReleaseInfo {

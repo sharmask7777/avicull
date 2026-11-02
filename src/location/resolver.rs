@@ -44,9 +44,12 @@ pub fn apply_location_precedence(bundle: &mut AssetBundle, manifest: &ManifestDb
 
     // Tier 3: Hierarchical directory/subdirectory override
     let dir_to_check = if let Some(ref rel) = bundle.relative_path {
-        rel.parent().map(|p| p.to_path_buf())
+        rel.parent().map(std::path::Path::to_path_buf)
     } else {
-        bundle.primary_image.parent().map(|p| p.to_path_buf())
+        bundle
+            .primary_image
+            .parent()
+            .map(std::path::Path::to_path_buf)
     };
 
     if let Some(ref dir_path) = dir_to_check {
@@ -100,7 +103,7 @@ pub fn resolve_from_override(
     override_str: &str,
     engine: &GazetteerEngine,
 ) -> Option<ResolvedLocation> {
-    let parts: Vec<&str> = override_str.split(',').map(|s| s.trim()).collect();
+    let parts: Vec<&str> = override_str.split(',').map(str::trim).collect();
     if parts.len() == 2 {
         if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
             return Some(ResolvedLocation {
@@ -193,8 +196,32 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
         ranked.truncate(4);
 
         if is_interactive {
-            if !ranked.is_empty() {
-                writeln!(writer, "\nResolve location for directory: \"{}\"", trip_key)?;
+            if ranked.is_empty() {
+                writeln!(
+                    writer,
+                    "\nNo automatic location matches for directory: \"{trip_key}\""
+                )?;
+                write!(
+                    writer,
+                    "Enter location name, coordinates (lat,lon), or press Enter to skip: "
+                )?;
+                writer.flush()?;
+
+                let mut line = String::new();
+                reader.read_line(&mut line)?;
+                let trimmed = line.trim();
+
+                if !trimmed.is_empty()
+                    && !trimmed.eq_ignore_ascii_case("s")
+                    && !trimmed.eq_ignore_ascii_case("skip")
+                {
+                    if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
+                        manifest.set_directory_location(trip_key, &custom_loc)?;
+                        resolved_map.insert(trip_key.clone(), custom_loc);
+                    }
+                }
+            } else {
+                writeln!(writer, "\nResolve location for directory: \"{trip_key}\"")?;
                 writeln!(writer, "Candidate locations:")?;
                 for (i, (entry, _score)) in ranked.iter().enumerate() {
                     let coord_str = format_coord(entry.latitude, entry.longitude);
@@ -252,31 +279,6 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                 if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
                     manifest.set_directory_location(trip_key, &custom_loc)?;
                     resolved_map.insert(trip_key.clone(), custom_loc);
-                }
-            } else {
-                writeln!(
-                    writer,
-                    "\nNo automatic location matches for directory: \"{}\"",
-                    trip_key
-                )?;
-                write!(
-                    writer,
-                    "Enter location name, coordinates (lat,lon), or press Enter to skip: "
-                )?;
-                writer.flush()?;
-
-                let mut line = String::new();
-                reader.read_line(&mut line)?;
-                let trimmed = line.trim();
-
-                if !trimmed.is_empty()
-                    && !trimmed.eq_ignore_ascii_case("s")
-                    && !trimmed.eq_ignore_ascii_case("skip")
-                {
-                    if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
-                        manifest.set_directory_location(trip_key, &custom_loc)?;
-                        resolved_map.insert(trip_key.clone(), custom_loc);
-                    }
                 }
             }
         } else {
