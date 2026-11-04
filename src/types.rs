@@ -46,6 +46,31 @@ impl AssetCategory {
             Self::Other(s) => s.as_str(),
         }
     }
+
+    /// Resolves an asset category from an assigned species or entity slug.
+    ///
+    /// # Arguments
+    /// * `slug` - Assigned taxon or motif directory slug.
+    ///
+    /// # Returns
+    /// The resolved [`AssetCategory`], defaulting to [`AssetCategory::Bird`].
+    #[must_use]
+    pub fn from_slug(slug: &str) -> Self {
+        let lower = slug.to_lowercase();
+        if lower.starts_with("mammalia") || lower.starts_with("mammal") {
+            Self::Mammalia
+        } else if lower.starts_with("insecta") || lower.starts_with("insect") {
+            Self::Insecta
+        } else if lower.starts_with("scenery") || lower.starts_with("landscape") {
+            Self::Scenery
+        } else if lower.starts_with("portrait") {
+            Self::Other("Portrait".to_string())
+        } else if lower.starts_with("abstract") {
+            Self::Other("Abstract".to_string())
+        } else {
+            Self::Bird
+        }
+    }
 }
 
 impl std::fmt::Display for AssetCategory {

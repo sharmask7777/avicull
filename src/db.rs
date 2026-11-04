@@ -9,7 +9,8 @@
 //!   on subsequent runs.
 
 use crate::types::{
-    AssetBundle, AvicullError, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
+    AssetBundle, AssetCategory, AvicullError, BundleDecision, OrganizationMode, RoutingTier,
+    SpeciesPrediction,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -232,6 +233,8 @@ impl ManifestDb {
                 is_user_override INTEGER NOT NULL DEFAULT 0,
                 relative_path TEXT,
                 was_dataless INTEGER DEFAULT 0,
+                category TEXT NOT NULL DEFAULT 'Bird',
+                visual_embedding BLOB,
                 FOREIGN KEY(run_id) REFERENCES runs(run_id)
             );
 
@@ -351,6 +354,8 @@ impl ManifestDb {
                 [],
             );
         }
+
+        migrate_bundle_decisions(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -1526,4 +1531,335 @@ impl ManifestDb {
 
         Ok(bundles.len())
     }
+
+    /// Inserts or replaces a bundle decision along with its taxonomic category and visual embedding.
+    ///
+    /// # Arguments
+    /// * `decision` - Bundle classification decision.
+    /// * `category` - Singular taxonomic or genre category ([`AssetCategory`]).
+    /// * `embedding` - Optional 512-dimensional visual embedding vector.
+    ///
+    /// # Errors
+    /// Returns an error if SQLite execution fails or embedding serialization fails.
+    pub fn insert_bundle_decision(
+        &self,
+        decision: &BundleDecision,
+        category: &AssetCategory,
+        embedding: Option<&[f32]>,
+    ) -> Result<()> {
+        let conn = self.lock_conn()?;
+        insert_bundle_decision(&conn, decision, category, embedding)
+    }
+
+    /// Queries all bundle decisions along with their taxonomic category and visual embedding.
+    ///
+    /// # Returns
+    /// A vector of [`QueriedDecision`] tuples.
+    ///
+    /// # Errors
+    /// Returns an error if SQLite query fails or deserialization of embeddings fails.
+    pub fn query_decisions(&self) -> Result<Vec<QueriedDecision>> {
+        let conn = self.lock_conn()?;
+        query_decisions(&conn)
+    }
+}
+
+/// A tuple containing a bundle decision, its taxonomic category, and optional 512-dim visual embedding.
+pub type QueriedDecision = (BundleDecision, AssetCategory, Option<Vec<f32>>);
+
+/// Serializes a 512-dimensional `f32` embedding vector into 2,048 little-endian bytes.
+///
+/// # Arguments
+/// * `embedding` - A slice of exactly 512 IEEE-754 single-precision floats.
+///
+/// # Returns
+/// A byte vector containing exactly 2,048 bytes (`512 * 4`).
+///
+/// # Errors
+/// Returns [`AvicullError::DatabaseError`] if the embedding slice does not contain exactly 512 dimensions.
+pub fn serialize_embedding_512(embedding: &[f32]) -> std::result::Result<Vec<u8>, AvicullError> {
+    if embedding.len() != 512 {
+        return Err(AvicullError::DatabaseError(format!(
+            "Expected 512-dimensional embedding, found {} dimensions",
+            embedding.len()
+        )));
+    }
+    let mut bytes = Vec::with_capacity(512 * 4);
+    for &val in embedding {
+        bytes.extend_from_slice(&val.to_le_bytes());
+    }
+    Ok(bytes)
+}
+
+/// Deserializes 2,048 little-endian bytes into a 512-dimensional `f32` embedding vector.
+///
+/// # Arguments
+/// * `bytes` - A byte slice of exactly 2,048 little-endian IEEE-754 single-precision float bytes.
+///
+/// # Returns
+/// A vector of 512 `f32` floats.
+///
+/// # Errors
+/// Returns [`AvicullError::DatabaseError`] if the byte slice length is not exactly 2,048 bytes.
+pub fn deserialize_embedding_512(bytes: &[u8]) -> std::result::Result<Vec<f32>, AvicullError> {
+    if bytes.len() != 2048 {
+        return Err(AvicullError::DatabaseError(format!(
+            "Expected 2048 bytes for 512-dim embedding, found {} bytes",
+            bytes.len()
+        )));
+    }
+    let mut embedding = Vec::with_capacity(512);
+    let (chunks, _) = bytes.as_chunks::<4>();
+    for &chunk in chunks {
+        embedding.push(f32::from_le_bytes(chunk));
+    }
+    Ok(embedding)
+}
+
+fn has_column(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+    let pragma_sql = match table {
+        "bundle_decisions" => "PRAGMA table_info(bundle_decisions)",
+        "bundles" => "PRAGMA table_info(bundles)",
+        _ => return Ok(false),
+    };
+    let mut stmt = conn.prepare(pragma_sql)?;
+    let mut rows = stmt.query([])?;
+    while let Some(row) = rows.next()? {
+        let col_name: String = row.get(1)?;
+        if col_name.eq_ignore_ascii_case(column) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn table_exists(conn: &Connection, table: &str) -> Result<bool> {
+    let mut stmt = conn.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1")?;
+    let mut rows = stmt.query(params![table])?;
+    Ok(rows.next()?.is_some())
+}
+
+/// Migrates database tables to ensure `category` and `visual_embedding` columns exist.
+///
+/// Idempotently executes:
+/// ```sql
+/// ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird';
+/// ALTER TABLE bundle_decisions ADD COLUMN visual_embedding BLOB;
+/// ```
+/// and ensures both `bundle_decisions` and `bundles` tables are up-to-date without data loss.
+///
+/// # Arguments
+/// * `conn` - Active SQLite connection.
+///
+/// # Errors
+/// Returns an error if any schema query or `ALTER TABLE` statement fails.
+pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
+    if table_exists(conn, "bundle_decisions")? {
+        if !has_column(conn, "bundle_decisions", "category")? {
+            conn.execute(
+                "ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird'",
+                [],
+            )?;
+        }
+        if !has_column(conn, "bundle_decisions", "visual_embedding")? {
+            conn.execute(
+                "ALTER TABLE bundle_decisions ADD COLUMN visual_embedding BLOB",
+                [],
+            )?;
+        }
+    } else {
+        conn.execute(
+            r#"
+            CREATE TABLE IF NOT EXISTS bundle_decisions (
+                bundle_id TEXT PRIMARY KEY,
+                burst_id TEXT,
+                detection_conf REAL NOT NULL,
+                bbox_json TEXT,
+                assigned_species_slug TEXT NOT NULL,
+                frame_conf REAL NOT NULL,
+                final_conf REAL NOT NULL,
+                routing_tier TEXT NOT NULL,
+                top5_predictions_json TEXT NOT NULL,
+                is_user_override INTEGER NOT NULL DEFAULT 0,
+                category TEXT NOT NULL DEFAULT 'Bird',
+                visual_embedding BLOB
+            );
+            CREATE INDEX IF NOT EXISTS idx_bundle_decisions_cat ON bundle_decisions(category);
+            "#,
+            [],
+        )?;
+    }
+
+    if table_exists(conn, "bundles")? {
+        if !has_column(conn, "bundles", "category")? {
+            conn.execute(
+                "ALTER TABLE bundles ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird'",
+                [],
+            )?;
+        }
+        if !has_column(conn, "bundles", "visual_embedding")? {
+            conn.execute("ALTER TABLE bundles ADD COLUMN visual_embedding BLOB", [])?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Backward-compatible alias for [`migrate_bundle_decisions`].
+///
+/// # Arguments
+/// * `conn` - Active SQLite connection.
+///
+/// # Errors
+/// Returns an error if schema migration fails.
+pub fn migrate_db(conn: &Connection) -> Result<()> {
+    migrate_bundle_decisions(conn)
+}
+
+/// Inserts or replaces a bundle decision record along with its taxonomic category and visual embedding.
+///
+/// # Arguments
+/// * `conn` - Active SQLite connection.
+/// * `decision` - Bundle classification decision.
+/// * `category` - Singular taxonomic or genre category ([`AssetCategory`]).
+/// * `embedding` - Optional 512-dimensional visual embedding vector.
+///
+/// # Errors
+/// Returns an error if SQLite execution fails or embedding serialization fails.
+pub fn insert_bundle_decision(
+    conn: &Connection,
+    decision: &BundleDecision,
+    category: &AssetCategory,
+    embedding: Option<&[f32]>,
+) -> Result<()> {
+    migrate_bundle_decisions(conn)?;
+
+    let bbox_json = serde_json::to_string(&decision.bbox_xyxy_norm).unwrap_or_default();
+    let top5_json = serde_json::to_string(&decision.top_predictions).unwrap_or_default();
+    let routing_tier_str = match decision.routing_tier {
+        RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
+        RoutingTier::NeedsReview => "NeedsReview",
+        RoutingTier::NoBirdDetected => "NoBirdDetected",
+    };
+
+    let blob_bytes = match embedding {
+        Some(emb) => Some(serialize_embedding_512(emb)?),
+        None => None,
+    };
+
+    conn.execute(
+        "INSERT OR REPLACE INTO bundle_decisions (
+            bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug,
+            frame_conf, final_conf, routing_tier, top5_predictions_json,
+            is_user_override, category, visual_embedding
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        params![
+            decision.bundle_id,
+            decision.burst_id,
+            decision.detection_confidence,
+            bbox_json,
+            decision.assigned_species_slug,
+            decision.frame_confidence,
+            decision.final_confidence,
+            routing_tier_str,
+            top5_json,
+            i32::from(decision.is_user_override),
+            category.as_str(),
+            blob_bytes,
+        ],
+    )?;
+
+    if table_exists(conn, "bundles")? {
+        let _ = conn.execute(
+            "UPDATE bundles SET category = ?1, visual_embedding = ?2 WHERE bundle_id = ?3",
+            params![category.as_str(), blob_bytes, decision.bundle_id],
+        );
+    }
+
+    Ok(())
+}
+
+/// Queries all bundle decisions along with their taxonomic category and visual embedding.
+///
+/// # Arguments
+/// * `conn` - Active SQLite connection.
+///
+/// # Returns
+/// A vector of [`QueriedDecision`] tuples.
+///
+/// # Errors
+/// Returns an error if SQLite query fails or deserialization of 2,048-byte embeddings fails.
+pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
+    migrate_bundle_decisions(conn)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug,
+                frame_conf, final_conf, routing_tier, top5_predictions_json,
+                is_user_override, category, visual_embedding
+         FROM bundle_decisions
+         ORDER BY bundle_id ASC",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        let bundle_id: String = row.get(0)?;
+        let burst_id: Option<String> = row.get(1)?;
+        let detection_confidence: f32 = row.get(2)?;
+        let bbox_json: Option<String> = row.get(3)?;
+        let assigned_species_slug: String = row.get(4)?;
+        let frame_confidence: f32 = row.get(5)?;
+        let final_confidence: f32 = row.get(6)?;
+        let routing_tier_str: String = row.get(7)?;
+        let top5_json: String = row.get(8)?;
+        let is_user_override: i64 = row.get(9).unwrap_or(0);
+        let category_str: String = row.get(10).unwrap_or_else(|_| "Bird".to_string());
+        let blob_opt: Option<Vec<u8>> = row.get(11)?;
+
+        let bbox_xyxy_norm: Option<[f32; 4]> =
+            bbox_json.and_then(|s| serde_json::from_str(&s).ok());
+        let top_predictions: Vec<SpeciesPrediction> =
+            serde_json::from_str(&top5_json).unwrap_or_default();
+
+        let routing_tier = match routing_tier_str.as_str() {
+            "ConfirmedSpecies" => RoutingTier::ConfirmedSpecies,
+            "NeedsReview" => RoutingTier::NeedsReview,
+            _ => RoutingTier::NoBirdDetected,
+        };
+
+        let category: AssetCategory = category_str.parse().unwrap_or(AssetCategory::Bird);
+
+        let embedding = match blob_opt {
+            Some(bytes) => match deserialize_embedding_512(&bytes) {
+                Ok(emb) => Some(emb),
+                Err(e) => {
+                    return Err(rusqlite::Error::FromSqlConversionFailure(
+                        11,
+                        rusqlite::types::Type::Blob,
+                        Box::new(e),
+                    ));
+                }
+            },
+            None => None,
+        };
+
+        let decision = BundleDecision {
+            bundle_id,
+            burst_id,
+            detection_confidence,
+            bbox_xyxy_norm,
+            top_predictions,
+            frame_confidence,
+            final_confidence,
+            assigned_species_slug,
+            routing_tier,
+            is_user_override: is_user_override != 0,
+        };
+
+        Ok((decision, category, embedding))
+    })?;
+
+    let mut results = Vec::new();
+    for r in rows {
+        results.push(r?);
+    }
+    Ok(results)
 }

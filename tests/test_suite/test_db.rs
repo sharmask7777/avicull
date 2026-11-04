@@ -248,3 +248,167 @@ fn test_poisoned_mutex_graceful_error() {
         other => panic!("Expected AvicullError::DatabaseError, got {other:?}"),
     }
 }
+
+#[test]
+fn test_schema_migration_idempotent() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open_or_create failed");
+
+    let raw = std::sync::Arc::clone(db.raw_conn());
+    let conn = raw.lock().expect("lock conn");
+
+    // Running migration multiple times must be idempotent
+    migrate_bundle_decisions(&conn).expect("first migration failed");
+    migrate_bundle_decisions(&conn).expect("second migration failed");
+
+    // Verify columns exist on bundle_decisions
+    let mut stmt = conn
+        .prepare("PRAGMA table_info(bundle_decisions)")
+        .expect("prepare pragma");
+    let mut rows = stmt.query([]).expect("query pragma");
+    let mut has_category = false;
+    let mut has_embedding = false;
+    while let Some(row) = rows.next().expect("next row") {
+        let name: String = row.get(1).expect("col name");
+        if name == "category" {
+            has_category = true;
+        } else if name == "visual_embedding" {
+            has_embedding = true;
+        }
+    }
+    assert!(has_category, "bundle_decisions missing category column");
+    assert!(
+        has_embedding,
+        "bundle_decisions missing visual_embedding column"
+    );
+}
+
+#[test]
+fn test_insert_and_query_with_512_dim_embedding() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open_or_create failed");
+
+    let raw = std::sync::Arc::clone(db.raw_conn());
+    let conn = raw.lock().expect("lock conn");
+
+    let mut decision = dummy_decision();
+    decision.bundle_id = "mammal_001".to_string();
+    decision.assigned_species_slug = "Malabar_Giant_Squirrel".to_string();
+
+    let embedding: Vec<f32> = (0..512).map(|i| (i as f32) / 512.0).collect();
+
+    insert_bundle_decision(&conn, &decision, &AssetCategory::Mammalia, Some(&embedding))
+        .expect("insert_bundle_decision failed");
+
+    let results = query_decisions(&conn).expect("query_decisions failed");
+    assert_eq!(results.len(), 1);
+
+    let (dec, cat, emb) = &results[0];
+    assert_eq!(dec.bundle_id, "mammal_001");
+    assert_eq!(dec.assigned_species_slug, "Malabar_Giant_Squirrel");
+    assert_eq!(*cat, AssetCategory::Mammalia);
+
+    let queried_emb = emb.as_ref().expect("expected embedding");
+    assert_eq!(queried_emb.len(), 512);
+    for (i, val) in queried_emb.iter().enumerate() {
+        assert!(
+            (val - (i as f32 / 512.0)).abs() < 1e-6,
+            "embedding mismatch at index {i}"
+        );
+    }
+}
+
+#[test]
+fn test_legacy_schema_migration_without_data_loss() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("legacy.sqlite");
+
+    // Manually create legacy table without category and visual_embedding columns
+    let conn = rusqlite::Connection::open(&db_path).expect("open legacy db");
+    conn.execute(
+        "CREATE TABLE bundle_decisions (
+            bundle_id TEXT PRIMARY KEY,
+            burst_id TEXT,
+            detection_conf REAL NOT NULL,
+            bbox_json TEXT,
+            assigned_species_slug TEXT NOT NULL,
+            frame_conf REAL NOT NULL,
+            final_conf REAL NOT NULL,
+            routing_tier TEXT NOT NULL,
+            top5_predictions_json TEXT NOT NULL,
+            is_user_override INTEGER NOT NULL DEFAULT 0
+        )",
+        [],
+    )
+    .expect("create legacy table");
+
+    // Insert legacy row
+    conn.execute(
+        "INSERT INTO bundle_decisions (
+            bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug,
+            frame_conf, final_conf, routing_tier, top5_predictions_json, is_user_override
+        ) VALUES (
+            'legacy_001', 'burst_1', 0.95, '[0.1, 0.1, 0.9, 0.9]', 'Painted_Stork',
+            0.95, 0.95, 'ConfirmedSpecies', '[]', 0
+        )",
+        [],
+    )
+    .expect("insert legacy row");
+
+    // Run migration
+    migrate_bundle_decisions(&conn).expect("migration failed");
+
+    // Query decisions to verify data preserved with defaults
+    let results = query_decisions(&conn).expect("query_decisions failed");
+    assert_eq!(results.len(), 1);
+    let (dec, cat, emb) = &results[0];
+    assert_eq!(dec.bundle_id, "legacy_001");
+    assert_eq!(dec.assigned_species_slug, "Painted_Stork");
+    assert_eq!(
+        *cat,
+        AssetCategory::Bird,
+        "expected default category 'Bird'"
+    );
+    assert!(emb.is_none(), "legacy row should have no embedding");
+}
+
+#[test]
+fn test_embedding_serialization_roundtrip_and_errors() {
+    let valid_vec: Vec<f32> = (0..512).map(|i| i as f32 * 0.1).collect();
+    let bytes = serialize_embedding_512(&valid_vec).expect("serialize failed");
+    assert_eq!(bytes.len(), 2048, "serialized bytes must be exactly 2048");
+
+    let deserialized = deserialize_embedding_512(&bytes).expect("deserialize failed");
+    assert_eq!(deserialized.len(), 512);
+    for (a, b) in valid_vec.iter().zip(deserialized.iter()) {
+        assert!((a - b).abs() < 1e-6);
+    }
+
+    // Invalid dimension
+    let short_vec = vec![1.0f32; 511];
+    assert!(
+        serialize_embedding_512(&short_vec).is_err(),
+        "511-dim must fail serialization"
+    );
+
+    let long_vec = vec![1.0f32; 513];
+    assert!(
+        serialize_embedding_512(&long_vec).is_err(),
+        "513-dim must fail serialization"
+    );
+
+    // Invalid byte lengths
+    let short_bytes = vec![0u8; 2047];
+    assert!(
+        deserialize_embedding_512(&short_bytes).is_err(),
+        "2047 bytes must fail deserialization"
+    );
+
+    let long_bytes = vec![0u8; 2049];
+    assert!(
+        deserialize_embedding_512(&long_bytes).is_err(),
+        "2049 bytes must fail deserialization"
+    );
+}

@@ -22,7 +22,8 @@ use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
 use avicull::types::{
-    AssetBundle, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
+    AssetBundle, AssetCategory, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode,
+    RoutingTier,
 };
 use clap::Parser;
 use image::DynamicImage;
@@ -1032,6 +1033,19 @@ fn main() -> Result<()> {
                 &processable_discovered,
                 &was_dataless_flags,
             )?;
+
+            // Persist bundle decisions with 512-dim visual embeddings and resolved taxonomic categories
+            let embeddings_by_id: std::collections::HashMap<&str, &[f32]> = all_classified_items
+                .iter()
+                .filter(|item| item.embedding.len() == 512)
+                .map(|item| (item.bundle_id.as_str(), item.embedding.as_slice()))
+                .collect();
+
+            for decision in &decisions {
+                let emb = embeddings_by_id.get(decision.bundle_id.as_str()).copied();
+                let category = AssetCategory::from_slug(&decision.assigned_species_slug);
+                db.insert_bundle_decision(decision, &category, emb)?;
+            }
 
             let mut catalog_items = Vec::with_capacity(processable_discovered.len());
             let mut total_ops_count = 0usize;
