@@ -291,14 +291,14 @@
 - Modify: `tests/test_mock_directory_structure_e2e.rs`
 - Run: `scripts/verify.sh`
 
-- [ ] **Step 1: Update mock directory end-to-end test in `tests/test_mock_directory_structure_e2e.rs`**
+- [x] **Step 1: Update mock directory end-to-end test in `tests/test_mock_directory_structure_e2e.rs`**
   - Include sample mock non-avian assets (butterfly, squirrel, scenery) alongside bird assets.
   - Verify APFS hardlink integrity under `Bird/`, `Mammalia/`, `Insecta/`, and `Scenery/`.
   - Verify `manifest.sqlite` contains non-empty 512-dim visual embeddings.
-- [ ] **Step 2: Run mock directory test**
+- [x] **Step 2: Run mock directory test**
   - Run: `cargo test --test test_mock_directory_structure_e2e`
   - Expected: PASS
-- [ ] **Step 3: Run complete 7-stage verification script**
+- [x] **Step 3: Run complete 7-stage verification script**
   - Run: `./scripts/verify.sh`
   - Expected: PASS on all 7 stages:
     1. `cargo fmt --check`
@@ -308,6 +308,6 @@
     5. Python verification suite (`verify_python.sh`: ruff, mypy, pytest $\ge 80\%$)
     6. `cargo deny check`
     7. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   - `git add tests/test_mock_directory_structure_e2e.rs`
   - `git commit -m "test: verify multi-taxa classification and semantic embeddings end-to-end"`
