@@ -2,6 +2,7 @@
 //!
 //! This module defines the foundational data contracts used throughout `avicull`:
 //! - [`AssetBundle`]: The atomic representation of an image asset along with companion files (e.g. RAW + JPEG) and sidecars (`.xmp`).
+//! - [`AssetCategory`]: High-level taxonomic domain or photographic category (e.g. Bird, Mammalia, Insecta, Scenery).
 //! - [`SpeciesPrediction`]: Multi-class avian predictions with visual probabilities and Bayesian geographic priors.
 //! - [`BundleDecision`]: The finalized classification, routing tier, and consensus confidence for an asset.
 //! - [`RoutingTier`]: The tri-state sorting tier determining directory routing (`ConfirmedSpecies`, `NeedsReview`, `NoBirdDetected`).
@@ -9,6 +10,74 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+/// High-level taxonomic domain or photographic genre category.
+///
+/// Categories are strictly singular:
+/// - Avian fauna: [`AssetCategory::Bird`]
+/// - Mammals: [`AssetCategory::Mammalia`]
+/// - Insects: [`AssetCategory::Insecta`]
+/// - Scenery and landscapes: [`AssetCategory::Scenery`]
+/// - Extensible genres (e.g. Portrait, Abstract, Architecture): [`AssetCategory::Other`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum AssetCategory {
+    /// Avian species (default taxonomic domain).
+    #[default]
+    Bird,
+    /// Class Mammalia (mammals).
+    Mammalia,
+    /// Class Insecta (insects, butterflies, dragonflies).
+    Insecta,
+    /// Scenery, landscape, and environmental motifs.
+    Scenery,
+    /// Extensible photographic genres (e.g., `"Portrait"`, `"Abstract"`).
+    Other(String),
+}
+
+impl AssetCategory {
+    /// Returns the canonical singular string representation of this category.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Bird => "Bird",
+            Self::Mammalia => "Mammalia",
+            Self::Insecta => "Insecta",
+            Self::Scenery => "Scenery",
+            Self::Other(s) => s.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for AssetCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for AssetCategory {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let trimmed = s.trim();
+        if trimmed.eq_ignore_ascii_case("bird") || trimmed.eq_ignore_ascii_case("birds") {
+            Ok(Self::Bird)
+        } else if trimmed.eq_ignore_ascii_case("mammalia")
+            || trimmed.eq_ignore_ascii_case("mammal")
+            || trimmed.eq_ignore_ascii_case("mammals")
+        {
+            Ok(Self::Mammalia)
+        } else if trimmed.eq_ignore_ascii_case("insecta")
+            || trimmed.eq_ignore_ascii_case("insect")
+            || trimmed.eq_ignore_ascii_case("insects")
+        {
+            Ok(Self::Insecta)
+        } else if trimmed.eq_ignore_ascii_case("scenery") {
+            Ok(Self::Scenery)
+        } else {
+            Ok(Self::Other(trimmed.to_string()))
+        }
+    }
+}
 
 /// An atomic multi-file photo bundle representing a single shutter capture.
 ///

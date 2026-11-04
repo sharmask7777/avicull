@@ -674,6 +674,7 @@ pub fn apply_bundle_correction(
 
                 let new_stem = format_inplace_filename(
                     &bundle.original_stem,
+                    "Bird",
                     &target_slug,
                     date.as_deref(),
                     loc,
