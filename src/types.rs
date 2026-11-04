@@ -187,6 +187,9 @@ pub struct SpeciesPrediction {
     pub combined_score: f32,
 }
 
+/// Domain-extensible alias for [`SpeciesPrediction`].
+pub type TaxonPrediction = SpeciesPrediction;
+
 /// Final classification, routing tier, and confidence decision for an [`AssetBundle`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BundleDecision {
@@ -222,6 +225,12 @@ pub enum RoutingTier {
     NeedsReview,
     /// Bird detector confidence is below `--min-detection-confidence` (default 0.25). Routed to `_No_Bird_Detected/`.
     NoBirdDetected,
+}
+
+impl RoutingTier {
+    /// Domain-extensible alias for [`RoutingTier::NoBirdDetected`].
+    #[allow(non_upper_case_globals)]
+    pub const NoSubjectDetected: Self = Self::NoBirdDetected;
 }
 
 /// Mode governing how confidence scores are calculated across photo bursts.

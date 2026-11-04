@@ -24,7 +24,8 @@
 //! When a trip or image is mapped to a specific ISO 3166-2 regional checklist code (e.g. `"IN-RJ"` for Rajasthan, India),
 //! non-occurring taxa are penalized by a multiplier of $10^{-3}$ ($0.001$), while native species retain a neutral $1.0\times$ multiplier.
 
-use crate::types::{GpsCoordinate, SpeciesPrediction};
+pub use crate::types::TaxonPrediction;
+use crate::types::{AssetCategory, GpsCoordinate, SpeciesPrediction};
 use anyhow::Result;
 use image::DynamicImage;
 use std::collections::{HashMap, HashSet};
@@ -45,14 +46,23 @@ pub static EMBEDDED_REGIONAL_CHECKLISTS: LazyLock<HashMap<String, HashSet<String
 /// Calculates the regional checklist prior multiplier for a taxon.
 ///
 /// Returns:
-/// - `1.0` if `region_code` is `None`, empty, unrecognized, or if the taxon is documented on that region's checklist.
-/// - `0.001` if the taxon is absent from a recognized regional checklist.
+/// - `1.0` if `region_code` is `None`, empty, unrecognized, if the taxon is documented on that region's checklist,
+///   or if the taxon belongs to a non-avian domain (Mammalia, Insecta, Scenery, Other).
+/// - `0.001` if an avian taxon is absent from a recognized regional checklist.
 #[inline]
 pub fn get_regional_prior_multiplier(
     region_code: Option<&str>,
     taxon_id: &str,
     checklists: &HashMap<String, HashSet<String>>,
 ) -> f64 {
+    let lower = taxon_id.to_lowercase();
+    if lower.starts_with("mammal")
+        || lower.starts_with("insect")
+        || lower.starts_with("scen")
+        || lower.starts_with("port")
+    {
+        return 1.0;
+    }
     match region_code {
         Some(code) if !code.is_empty() => {
             if let Some(species_set) = checklists.get(code) {
@@ -69,19 +79,22 @@ pub fn get_regional_prior_multiplier(
     }
 }
 
-/// Common trait abstraction for avian species classifiers.
+/// Common trait abstraction for taxonomic and genre classifiers across biological domains.
 ///
 /// Implementations must be thread-safe (`Send + Sync`) to allow concurrent multi-core Rayon chunk processing.
-pub trait SpeciesClassifier: Send + Sync {
-    /// Classifies a cropped bird image and extracts a normalized visual embedding.
+pub trait TaxonClassifier: Send + Sync {
+    /// Classifies a cropped subject image and extracts a normalized visual embedding.
     ///
     /// # Arguments
-    /// * `crop` - Cropped avian subject image (square-padded).
+    /// * `crop` - Cropped subject image (square-padded).
     /// * `coords` - Optional WGS84 GPS coordinate from EXIF or GPX interpolation.
     /// * `geo_weight` - Exponent $\alpha$ controlling geographic prior strength in `[0.0, 1.0]`.
     ///
     /// # Returns
     /// A tuple of `(embedding_vector, top_predictions_sorted_descending)`.
+    ///
+    /// # Errors
+    /// Returns an error if neural inference fails or model tensors cannot be prepared.
     fn classify(
         &self,
         crop: &DynamicImage,
@@ -89,7 +102,19 @@ pub trait SpeciesClassifier: Send + Sync {
         geo_weight: f32,
     ) -> Result<(Vec<f32>, Vec<SpeciesPrediction>)>;
 
-    /// Classifies a cropped bird image with an explicit regional prior checklist code.
+    /// Classifies a cropped subject image with an explicit regional prior checklist code.
+    ///
+    /// # Arguments
+    /// * `crop` - Cropped subject image (square-padded).
+    /// * `coords` - Optional WGS84 GPS coordinate from EXIF or GPX interpolation.
+    /// * `region_code` - Optional ISO 3166-2 regional checklist code.
+    /// * `geo_weight` - Exponent $\alpha$ controlling geographic prior strength in `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    /// A tuple of `(embedding_vector, top_predictions_sorted_descending)`.
+    ///
+    /// # Errors
+    /// Returns an error if neural inference fails or model tensors cannot be prepared.
     fn classify_with_region(
         &self,
         crop: &DynamicImage,
@@ -100,6 +125,15 @@ pub trait SpeciesClassifier: Send + Sync {
         self.classify(crop, coords, geo_weight)
     }
 }
+
+/// Backward-compatible alias for [`TaxonClassifier`].
+pub use TaxonClassifier as SpeciesClassifier;
+
+/// Backward and forward compatible alias for [`MockSpeciesClassifier`].
+pub type MockTaxonClassifier = MockSpeciesClassifier;
+
+/// Backward and forward compatible alias for [`OrtSpeciesClassifier`].
+pub type OrtTaxonClassifier = OrtSpeciesClassifier;
 
 /// Computes the normalized posterior probability distribution fusing visual probability and spatio-temporal priors.
 ///
@@ -197,7 +231,7 @@ impl MockSpeciesClassifier {
     }
 }
 
-impl SpeciesClassifier for MockSpeciesClassifier {
+impl TaxonClassifier for MockSpeciesClassifier {
     fn classify(
         &self,
         _crop: &DynamicImage,
@@ -217,9 +251,13 @@ impl SpeciesClassifier for MockSpeciesClassifier {
         if let Some(region) = region_code {
             let mut adjusted = self.predictions.clone();
             for pred in &mut adjusted {
-                let mult =
+                let category = AssetCategory::from_slug(&pred.folder_slug);
+                let mult = if category == AssetCategory::Bird {
                     get_regional_prior_multiplier(Some(region), &pred.taxon_id, &self.checklists)
-                        as f32;
+                        as f32
+                } else {
+                    1.0
+                };
                 pred.combined_score *= mult;
             }
             adjusted.sort_by(|a, b| {
@@ -260,7 +298,7 @@ impl OrtSpeciesClassifier {
     }
 }
 
-impl SpeciesClassifier for OrtSpeciesClassifier {
+impl TaxonClassifier for OrtSpeciesClassifier {
     fn classify(
         &self,
         crop: &DynamicImage,
