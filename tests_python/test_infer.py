@@ -16,10 +16,15 @@ from safetensors.torch import save_file
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.infer import (
+    COCO_ANIMAL_CLASS_IDS,
+    COCO_BIRD_CLASS_ID,
     AvianInferenceEngine,
+    CategoryAnchorResult,
     DetectionBox,
     InferencePrediction,
     apply_regional_prior,
+    classify_category_anchors,
+    compute_category_centroids,
     compute_iou,
     main,
     softmax,
@@ -145,6 +150,46 @@ class TestInferencePrediction(unittest.TestCase):
 
         with pytest.raises(FrozenInstanceError):
             pred.confidence = 0.99  # type: ignore[misc]
+
+    def test_positional_args_with_category_first(self):
+        """Verify InferencePrediction accepts (category, species_code, ...) positionally."""
+        emb = [0.1] * 512
+        pred = InferencePrediction(
+            "Mammalia",
+            "mamm_sq1",
+            "Malabar Giant Squirrel",
+            "Ratufa indica",
+            0.92,
+            emb,
+        )
+        self.assertEqual(pred.category, "Mammalia")
+        self.assertEqual(pred.species_code, "mamm_sq1")
+        self.assertEqual(pred.common_name, "Malabar Giant Squirrel")
+        self.assertEqual(pred.scientific_name, "Ratufa indica")
+        self.assertEqual(pred.confidence, 0.92)
+        self.assertEqual(pred.embedding, emb)
+
+        d = pred.to_dict()
+        self.assertEqual(d["category"], "Mammalia")
+        self.assertEqual(d["embedding"], emb)
+
+    def test_positional_args_with_species_code_first(self):
+        """Verify InferencePrediction accepts (species_code, common_name, ...) positionally."""
+        emb = [0.2] * 512
+        pred = InferencePrediction(
+            "ins_peacock1",
+            "Malabar Banded Peacock",
+            "Papilio buddha",
+            0.95,
+            "Insecta",
+            emb,
+        )
+        self.assertEqual(pred.category, "Insecta")
+        self.assertEqual(pred.species_code, "ins_peacock1")
+        self.assertEqual(pred.common_name, "Malabar Banded Peacock")
+        self.assertEqual(pred.scientific_name, "Papilio buddha")
+        self.assertEqual(pred.confidence, 0.95)
+        self.assertEqual(pred.embedding, emb)
 
 
 class TestAvianInferenceEngineMocked(unittest.TestCase):
@@ -327,6 +372,292 @@ class TestAvianInferenceEngineMocked(unittest.TestCase):
                 data = json.load(f)
             self.assertEqual(len(data), 1)
             self.assertEqual(data[0]["bundle_id"], "b1")
+
+
+class TestCategoryAnchorsAndGating(unittest.TestCase):
+    def setUp(self):
+        # 4 orthogonal unit vectors for 4 categories in 512 dimensions
+        self.bird_vec = torch.zeros(512, dtype=torch.float32)
+        self.bird_vec[0] = 1.0
+
+        self.mammal_vec = torch.zeros(512, dtype=torch.float32)
+        self.mammal_vec[1] = 1.0
+
+        self.insect_vec = torch.zeros(512, dtype=torch.float32)
+        self.insect_vec[2] = 1.0
+
+        self.scenery_vec = torch.zeros(512, dtype=torch.float32)
+        self.scenery_vec[3] = 1.0
+
+        self.centroids = {
+            "Bird": self.bird_vec,
+            "Mammalia": self.mammal_vec,
+            "Insecta": self.insect_vec,
+            "Scenery": self.scenery_vec,
+        }
+
+    def test_classify_category_anchors_identifies_all_centroids(self):
+        """Verify classify_category_anchors identifies mammal, insect, bird, and scenery."""
+        for cat_name, vec in self.centroids.items():
+            result = classify_category_anchors(vec, self.centroids, margin=0.02)
+            self.assertIsInstance(result, CategoryAnchorResult)
+            self.assertEqual(result.category, cat_name)
+            self.assertAlmostEqual(result.confidence, 1.0, places=4)
+            self.assertFalse(result.is_ambiguous)
+            self.assertAlmostEqual(result.scores[cat_name], 1.0, places=4)
+
+    def test_classify_category_anchors_ambiguous_margin(self):
+        """Verify ambiguous difference between top categories is flagged with is_ambiguous=True."""
+        # Vector equidistant between Bird (dim 0) and Mammalia (dim 1)
+        ambiguous_vec = torch.zeros(512, dtype=torch.float32)
+        ambiguous_vec[0] = 0.7071
+        ambiguous_vec[1] = 0.7071
+
+        result = classify_category_anchors(ambiguous_vec, self.centroids, margin=0.02)
+        self.assertTrue(result.is_ambiguous)
+        self.assertIn(result.category, ("Bird", "Mammalia"))
+
+    def test_compute_category_centroids(self):
+        """Verify compute_category_centroids computes normalized centroids across taxa records."""
+        taxonomy = [
+            {"taxon_id": "sp1", "category": "Bird"},
+            {"taxon_id": "sp2", "category": "Bird"},
+            {"taxon_id": "sp3", "category": "Mammalia"},
+            {"taxon_id": "sp4", "category": "Insecta"},
+            {"taxon_id": "sp5", "category": "Scenery"},
+        ]
+        emb = torch.zeros((5, 512), dtype=torch.float32)
+        emb[0, 0] = 1.0
+        emb[1, 0] = 1.0  # Both birds on dim 0
+        emb[2, 1] = 1.0  # Mammal on dim 1
+        emb[3, 2] = 1.0  # Insect on dim 2
+        emb[4, 3] = 1.0  # Scenery on dim 3
+
+        centroids = compute_category_centroids(emb, taxonomy)
+        self.assertIn("Bird", centroids)
+        self.assertIn("Mammalia", centroids)
+        self.assertIn("Insecta", centroids)
+        self.assertIn("Scenery", centroids)
+
+        # Bird centroid should have unit norm
+        self.assertAlmostEqual(float(torch.norm(centroids["Bird"])), 1.0, places=4)
+        self.assertAlmostEqual(float(centroids["Bird"][0]), 1.0, places=4)
+
+    def test_classify_category_anchors_empty_centroids(self):
+        """Verify empty centroids fallback cleanly without errors."""
+        res = classify_category_anchors(torch.zeros(512), {})
+        self.assertEqual(res.category, "Bird")
+        self.assertEqual(res.confidence, 1.0)
+        self.assertFalse(res.is_ambiguous)
+
+    def test_classify_category_anchors_numpy_inputs(self):
+        """Verify numpy array inputs are handled transparently."""
+        z = np.zeros(512, dtype=np.float32)
+        z[1] = 1.0
+        mamm_c = np.zeros(512, dtype=np.float32)
+        mamm_c[1] = 1.0
+        bird_c = np.zeros(512, dtype=np.float32)
+        bird_c[0] = 1.0
+
+        res = classify_category_anchors(z, {"Bird": bird_c, "Mammalia": mamm_c})
+        self.assertEqual(res.category, "Mammalia")
+        self.assertAlmostEqual(res.confidence, 1.0, places=4)
+
+    def test_compute_category_centroids_with_objects(self):
+        """Verify compute_category_centroids works with objects having category attribute."""
+
+        class MockTaxon:
+            def __init__(self, category: str):
+                self.category = category
+
+        emb = np.zeros((2, 512), dtype=np.float32)
+        emb[0, 0] = 1.0
+        emb[1, 1] = 1.0
+        taxa = [MockTaxon("Bird"), MockTaxon("Mammalia")]
+        centroids = compute_category_centroids(emb, taxa)
+        self.assertIn("Bird", centroids)
+        self.assertIn("Mammalia", centroids)
+
+
+class TestCOCOAnimalCandidateDetections(unittest.TestCase):
+    def test_coco_animal_class_ids_presence(self):
+        """Verify COCO animal class IDs contains birds and all standard animals."""
+        self.assertIn(COCO_BIRD_CLASS_ID, COCO_ANIMAL_CLASS_IDS)
+        expected_ids = {14, 15, 16, 17, 18, 19, 20, 21, 22, 23}
+        self.assertTrue(expected_ids.issubset(COCO_ANIMAL_CLASS_IDS))
+
+    def test_detect_and_crop_captures_coco_animals(self):
+        """Verify detect_and_crop captures non-avian COCO animals (e.g. dog=16, elephant=20)."""
+        engine = MagicMock(spec=AvianInferenceEngine)
+        engine.detector = MagicMock()
+
+        mock_box_dog = MagicMock()
+        mock_box_dog.cls = [torch.tensor(16)]  # dog
+        mock_box_dog.conf = [torch.tensor(0.88)]
+        mock_box_dog.xyxy = [torch.tensor([10.0, 10.0, 100.0, 100.0])]
+
+        mock_box_elephant = MagicMock()
+        mock_box_elephant.cls = [torch.tensor(20)]  # elephant
+        mock_box_elephant.conf = [torch.tensor(0.92)]
+        mock_box_elephant.xyxy = [torch.tensor([150.0, 150.0, 400.0, 400.0])]
+
+        mock_result = MagicMock()
+        mock_result.boxes = [mock_box_dog, mock_box_elephant]
+        engine.detector.return_value = [mock_result]
+
+        # Use the actual detect_and_crop method
+        img = Image.new("RGB", (640, 480), color="green")
+        crop, conf, all_detections = AvianInferenceEngine.detect_and_crop(
+            engine, img, min_detect=0.25
+        )
+
+        self.assertIsNotNone(crop)
+        self.assertAlmostEqual(conf, 0.92, places=4)
+        self.assertEqual(len(all_detections), 2)
+        det_classes = {d["class_id"] for d in all_detections}
+        self.assertEqual(det_classes, {16, 20})
+
+
+class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.models_dir = self.tmp_dir.name
+
+        self.taxonomy = [
+            {
+                "taxon_id": "brakit1",
+                "common_name": "Brahminy Kite",
+                "folder_slug": "Brahminy_Kite",
+                "scientific_name": "Haliastur indus",
+                "category": "Bird",
+            },
+            {
+                "taxon_id": "mamm_sq1",
+                "common_name": "Malabar Giant Squirrel",
+                "folder_slug": "Malabar_Giant_Squirrel",
+                "scientific_name": "Ratufa indica",
+                "category": "Mammalia",
+            },
+            {
+                "taxon_id": "ins_peacock1",
+                "common_name": "Malabar Banded Peacock",
+                "folder_slug": "Malabar_Banded_Peacock",
+                "scientific_name": "Papilio buddha",
+                "category": "Insecta",
+            },
+            {
+                "taxon_id": "scen_mountain1",
+                "common_name": "Mountain Landscape",
+                "folder_slug": "Mountain_Landscape",
+                "scientific_name": "",
+                "category": "Scenery",
+            },
+        ]
+        with open(os.path.join(self.models_dir, "taxonomy.json"), "w", encoding="utf-8") as f:
+            json.dump(self.taxonomy, f)
+
+        # 4 distinct orthogonal vectors for each species
+        emb = torch.zeros(len(self.taxonomy), 512, dtype=torch.float32)
+        emb[0, 0] = 1.0  # Bird on dim 0
+        emb[1, 1] = 1.0  # Mammalia on dim 1
+        emb[2, 2] = 1.0  # Insecta on dim 2
+        emb[3, 3] = 1.0  # Scenery on dim 3
+        safetensors_path = os.path.join(self.models_dir, "species_embeddings.safetensors")
+        save_file({"embeddings": emb}, safetensors_path)
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    def _create_mock_engine(self, embedding_vector: torch.Tensor):
+        class MockModel:
+            visual = torch.nn.Identity()
+
+        def mock_preprocess(_img):
+            return embedding_vector.clone()
+
+        with (
+            patch(
+                "open_clip.create_model_and_transforms",
+                return_value=(MockModel(), None, mock_preprocess),
+            ),
+            patch("scripts.infer.YOLO") as mock_yolo_cls,
+        ):
+            mock_yolo = MagicMock()
+            mock_yolo_cls.return_value = mock_yolo
+            engine = AvianInferenceEngine(self.models_dir)
+            engine.detector = mock_yolo
+            return engine
+
+    def test_open_set_rejection_butterfly_assigned_insecta(self):
+        """Verify open-set rejection: a butterfly is rejected from birds and assigned to Insecta."""
+        # Vector corresponding to insect (dim 2)
+        butterfly_vec = torch.zeros(512, dtype=torch.float32)
+        butterfly_vec[2] = 1.0
+
+        engine = self._create_mock_engine(butterfly_vec)
+
+        # YOLO detects an object (e.g. animal/insect crop)
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(14)]
+        mock_box.conf = [torch.tensor(0.9)]
+        mock_box.xyxy = [torch.tensor([10.0, 10.0, 100.0, 100.0])]
+        mock_res = MagicMock()
+        mock_res.boxes = [mock_box]
+        engine.detector.return_value = [mock_res]
+
+        img_path = os.path.join(self.models_dir, "butterfly.jpg")
+        Image.new("RGB", (100, 100), color="yellow").save(img_path)
+
+        res = engine.process_image(img_path)
+
+        # Must NOT be classified as bird! Must be assigned to Insecta
+        self.assertEqual(res["category"], "Insecta")
+        self.assertEqual(res["assigned_species_slug"], "Malabar_Banded_Peacock")
+        self.assertGreater(res["final_confidence"], 0.8)
+        self.assertTrue(res["detected"])
+
+    def test_detector_fallback_scenery_returns_scenery_category(self):
+        """Verify detector fallback: crop is None on scenery returns Scenery instead of bird."""
+        # Vector corresponding to scenery (dim 3)
+        scenery_vec = torch.zeros(512, dtype=torch.float32)
+        scenery_vec[3] = 1.0
+
+        engine = self._create_mock_engine(scenery_vec)
+        # YOLO returns NO detections (crop is None)
+        engine.detector.return_value = []
+
+        img_path = os.path.join(self.models_dir, "landscape.jpg")
+        Image.new("RGB", (200, 200), color="blue").save(img_path)
+
+        res = engine.process_image(img_path)
+
+        # Must return Scenery category instead of guessing a random bird
+        self.assertEqual(res["category"], "Scenery")
+        self.assertEqual(res["assigned_species_slug"], "Mountain_Landscape")
+        self.assertNotEqual(res["category"], "Bird")
+
+    def test_detector_fallback_ambiguous_blur_returns_no_subject_detected(self):
+        """Verify detector fallback: crop is None on blur returns _No_Subject_Detected."""
+        # Ambiguous blur vector with negligible or ambiguous values
+        ambiguous_vec = torch.zeros(512, dtype=torch.float32)
+        # Low values or zero vector
+        ambiguous_vec[0] = 0.05
+        ambiguous_vec[1] = 0.05
+
+        engine = self._create_mock_engine(ambiguous_vec)
+        # YOLO returns NO detections (crop is None)
+        engine.detector.return_value = []
+
+        img_path = os.path.join(self.models_dir, "blur.jpg")
+        Image.new("RGB", (100, 100), color="black").save(img_path)
+
+        res = engine.process_image(img_path)
+
+        self.assertEqual(res["assigned_species_slug"], "_No_Subject_Detected")
+        self.assertAlmostEqual(res["final_confidence"], 0.0, places=4)
+        self.assertFalse(res["detected"])
+        self.assertEqual(res["detection_confidence"], 0.0)
+        self.assertEqual(len(res["top_predictions"]), 0)
 
 
 if __name__ == "__main__":

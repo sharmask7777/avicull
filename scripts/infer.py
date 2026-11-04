@@ -16,7 +16,7 @@ import sys
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 # Suppress noisy logs & warnings
 warnings.filterwarnings("ignore")
@@ -34,6 +34,31 @@ from safetensors.torch import load_file
 from ultralytics import YOLO
 
 COCO_BIRD_CLASS_ID = 14
+COCO_ANIMAL_CLASS_IDS: frozenset[int] = frozenset(
+    {
+        14,  # bird
+        15,  # cat
+        16,  # dog
+        17,  # horse
+        18,  # sheep
+        19,  # cow
+        20,  # elephant
+        21,  # bear
+        22,  # zebra
+        23,  # giraffe
+    }
+)
+
+CANONICAL_CATEGORIES: tuple[str, ...] = ("Bird", "Mammalia", "Insecta", "Scenery")
+
+
+class CategoryAnchorResult(NamedTuple):
+    """Immutable result from Stage 1 category anchor gating."""
+
+    category: str
+    confidence: float
+    scores: dict[str, float]
+    is_ambiguous: bool = False
 
 
 @dataclass(frozen=True)
@@ -82,12 +107,14 @@ class DetectionBox:
 
 @dataclass(frozen=True)
 class InferencePrediction:
-    """Immutable avian classification prediction record."""
+    """Immutable taxon classification prediction record."""
 
     species_code: str
     common_name: str
     scientific_name: str
     confidence: float
+    category: str = "Bird"
+    embedding: list[float] | None = None
     raw_logit: float = 0.0
     regional_prior_applied: bool = False
     bbox: DetectionBox | None = None
@@ -95,11 +122,64 @@ class InferencePrediction:
     visual_prob: float = 0.0
     geo_prior: float = 1.0
 
+    def __init__(
+        self,
+        *args: Any,
+        species_code: str = "",
+        common_name: str = "",
+        scientific_name: str = "",
+        confidence: float = 0.0,
+        category: str = "Bird",
+        embedding: list[float] | None = None,
+        raw_logit: float = 0.0,
+        regional_prior_applied: bool = False,
+        bbox: DetectionBox | None = None,
+        folder_slug: str = "",
+        visual_prob: float = 0.0,
+        geo_prior: float = 1.0,
+    ) -> None:
+        if args:
+            if len(args) >= 1 and args[0] in CANONICAL_CATEGORIES:
+                cat = str(args[0])
+                sp_code = str(args[1]) if len(args) > 1 else species_code
+                c_name = str(args[2]) if len(args) > 2 else common_name
+                sc_name = str(args[3]) if len(args) > 3 else scientific_name
+                conf = float(args[4]) if len(args) > 4 else confidence
+                emb = args[5] if len(args) > 5 else embedding
+            else:
+                sp_code = str(args[0])
+                c_name = str(args[1]) if len(args) > 1 else common_name
+                sc_name = str(args[2]) if len(args) > 2 else scientific_name
+                conf = float(args[3]) if len(args) > 3 else confidence
+                cat = str(args[4]) if len(args) > 4 else category
+                emb = args[5] if len(args) > 5 else embedding
+        else:
+            sp_code = species_code
+            c_name = common_name
+            sc_name = scientific_name
+            conf = confidence
+            cat = category
+            emb = embedding
+
+        object.__setattr__(self, "species_code", sp_code)
+        object.__setattr__(self, "common_name", c_name)
+        object.__setattr__(self, "scientific_name", sc_name)
+        object.__setattr__(self, "confidence", conf)
+        object.__setattr__(self, "category", cat)
+        object.__setattr__(self, "embedding", emb)
+        object.__setattr__(self, "raw_logit", raw_logit)
+        object.__setattr__(self, "regional_prior_applied", regional_prior_applied)
+        object.__setattr__(self, "bbox", bbox)
+        object.__setattr__(self, "folder_slug", folder_slug)
+        object.__setattr__(self, "visual_prob", visual_prob)
+        object.__setattr__(self, "geo_prior", geo_prior)
+
     def to_dict(self) -> dict[str, Any]:
         """Exports prediction record to serialized dictionary structure expected by avicull."""
         slug = self.folder_slug or self.common_name.replace(" ", "_")
-        return {
+        d: dict[str, Any] = {
             "taxon_id": self.species_code,
+            "category": self.category,
             "common_name": self.common_name,
             "folder_slug": slug,
             "scientific_name": self.scientific_name,
@@ -107,6 +187,9 @@ class InferencePrediction:
             "geo_prior": round(self.geo_prior, 4),
             "combined_score": round(self.confidence, 4),
         }
+        if self.embedding is not None:
+            d["embedding"] = self.embedding
+        return d
 
 
 def compute_iou(box_a: DetectionBox, box_b: DetectionBox) -> float:
@@ -160,6 +243,111 @@ def apply_regional_prior(
     return scores
 
 
+def compute_category_centroids(
+    embeddings: torch.Tensor | np.ndarray,
+    taxonomy: Sequence[dict[str, Any] | Any],
+) -> dict[str, torch.Tensor]:
+    """Computes normalized category centroid vectors for multi-taxa hierarchical gating.
+
+    Args:
+        embeddings: Precomputed normalized species embeddings matrix [N, 512].
+        taxonomy: Sequence of taxonomy records containing category field.
+
+    Returns:
+        Dictionary mapping category names ('Bird', 'Mammalia', 'Insecta', 'Scenery')
+        to their 512-dimensional unit-norm centroid vector.
+    """
+    if not isinstance(embeddings, torch.Tensor):
+        emb_tensor = torch.tensor(embeddings, dtype=torch.float32)
+    else:
+        emb_tensor = embeddings.float()
+
+    centroids: dict[str, torch.Tensor] = {}
+    cat_indices: dict[str, list[int]] = {}
+
+    for idx, item in enumerate(taxonomy):
+        if isinstance(item, dict):
+            cat = item.get("category", "Bird")
+        else:
+            cat = getattr(item, "category", "Bird")
+        cat_indices.setdefault(cat, []).append(idx)
+
+    for cat, indices in cat_indices.items():
+        if indices:
+            sub_emb = emb_tensor[indices]
+            mean_vec = sub_emb.mean(dim=0)
+            norm = mean_vec.norm(dim=-1, keepdim=True)
+            if float(norm.item()) > 1e-6:
+                centroids[cat] = mean_vec / norm
+            else:
+                centroids[cat] = mean_vec
+
+    return centroids
+
+
+def classify_category_anchors(
+    embedding: torch.Tensor | np.ndarray,
+    category_centroids: dict[str, torch.Tensor | np.ndarray],
+    margin: float = 0.02,
+) -> CategoryAnchorResult:
+    """Stage 1 category gating: classifies visual embedding against category centroids.
+
+    Evaluates cosine similarity against category centroids (Bird, Mammalia, Insecta, Scenery).
+    Applies margin delta: if |s_top - s_second| < margin, flags result as ambiguous.
+
+    Args:
+        embedding: 512-dimensional visual embedding vector.
+        category_centroids: Dictionary of category centroid vectors.
+        margin: Decision margin delta (default: 0.02).
+
+    Returns:
+        CategoryAnchorResult containing winning category, confidence, all scores,
+        and is_ambiguous flag.
+    """
+    if not category_centroids:
+        return CategoryAnchorResult(category="Bird", confidence=1.0, scores={}, is_ambiguous=False)
+
+    if not isinstance(embedding, torch.Tensor):
+        z = torch.tensor(embedding, dtype=torch.float32)
+    else:
+        z = embedding.detach().float()
+
+    z = z.flatten()
+    z_norm = z.norm()
+    if float(z_norm.item()) > 1e-6:
+        z = z / z_norm
+
+    scores: dict[str, float] = {}
+    for cat, centroid in category_centroids.items():
+        if not isinstance(centroid, torch.Tensor):
+            c = torch.tensor(centroid, dtype=torch.float32, device=z.device)
+        else:
+            c = centroid.detach().float().to(z.device).flatten()
+
+        c_norm = c.norm()
+        if float(c_norm.item()) > 1e-6:
+            c = c / c_norm
+        score = float(torch.dot(z, c).item())
+        scores[cat] = score
+
+    sorted_cats = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    top_cat, top_score = sorted_cats[0]
+
+    is_ambiguous = False
+    if len(sorted_cats) > 1:
+        _second_cat, second_score = sorted_cats[1]
+        diff = top_score - second_score
+        if diff < margin:
+            is_ambiguous = True
+
+    return CategoryAnchorResult(
+        category=top_cat,
+        confidence=top_score,
+        scores=scores,
+        is_ambiguous=is_ambiguous,
+    )
+
+
 class AvianInferenceEngine:
     def __init__(self, models_dir: str):
         self.models_dir = models_dir
@@ -174,6 +362,9 @@ class AvianInferenceEngine:
         emb_path = os.path.join(models_dir, "species_embeddings.safetensors")
         emb_data = load_file(emb_path)
         self.species_embeddings = emb_data["embeddings"].to(self.device)  # [11167, 512]
+
+        # 2b. Compute Category Centroid Vectors E_cat
+        self.category_centroids = compute_category_centroids(self.species_embeddings, self.taxonomy)
 
         # 3. Load Regional Checklists & Spatio-Temporal Prior Tensors
         self.load_regional_checklists()
@@ -228,7 +419,7 @@ class AvianInferenceEngine:
 
     def detect_and_crop(
         self, img: Image.Image, min_detect: float = 0.25
-    ) -> tuple[Image.Image, float, list[dict[str, Any]]]:
+    ) -> tuple[Image.Image | None, float, list[dict[str, Any]]]:
         w, h = img.size
         results = self.detector(img, verbose=False, imgsz=640)
         best_candidate: tuple[float, DetectionBox] | None = None
@@ -241,7 +432,7 @@ class AvianInferenceEngine:
                 conf = float(box.conf[0].item())
                 xyxy = [float(v) for v in box.xyxy[0].tolist()]
 
-                if cls_id == COCO_BIRD_CLASS_ID:
+                if cls_id in COCO_ANIMAL_CLASS_IDS:
                     det_box = DetectionBox(
                         x1=xyxy[0],
                         y1=xyxy[1],
@@ -300,6 +491,7 @@ class AvianInferenceEngine:
         if not os.path.exists(image_path):
             return {
                 "error": f"File not found: {image_path}",
+                "category": "Unknown",
                 "detected": False,
                 "detection_confidence": 0.0,
                 "assigned_species_slug": "Unknown",
@@ -319,6 +511,7 @@ class AvianInferenceEngine:
         except Exception as e:
             return {
                 "error": f"Failed to open image: {e}",
+                "category": "Unknown",
                 "detected": False,
                 "detection_confidence": 0.0,
                 "assigned_species_slug": "Unknown",
@@ -331,48 +524,103 @@ class AvianInferenceEngine:
 
         is_fallback_crop = False
         if crop is None:
-            crop = img
-            det_conf = 0.10
-            is_fallback_crop = True
+            # Detector fallback: 0 animal/bird objects detected by YOLO
+            # Embed full frame to distinguish scenery from empty/blurry frames
+            full_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                full_emb = self.vision_model(full_tensor)
+                full_emb = full_emb / full_emb.norm(dim=-1, keepdim=True)
 
-        crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
+            anchor_res = classify_category_anchors(
+                full_emb[0], self.category_centroids, margin=0.02
+            )
+
+            # If full-frame is confident scenery (Scenery is top category,
+            # not ambiguous, and score >= 0.15)
+            is_scenery = (
+                anchor_res.category == "Scenery"
+                and not anchor_res.is_ambiguous
+                and anchor_res.confidence >= 0.15
+            )
+
+            if not is_scenery:
+                # Ambiguous blur or no detected subject -> route cleanly to _No_Subject_Detected
+                return {
+                    "image_path": image_path,
+                    "category": "Unknown",
+                    "detected": False,
+                    "detection_confidence": 0.0,
+                    "assigned_species_slug": "_No_Subject_Detected",
+                    "frame_confidence": 0.0,
+                    "final_confidence": 0.0,
+                    "top_predictions": [],
+                    "embedding": [round(float(v), 5) for v in full_emb[0].tolist()[:512]],
+                }
+
+            # It is confident scenery!
+            crop = img
+            det_conf = anchor_res.confidence
+            img_emb = full_emb
+            is_fallback_crop = False
+            target_category = "Scenery"
+        else:
+            crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                img_emb = self.vision_model(crop_tensor)
+                img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+
+            anchor_res = classify_category_anchors(img_emb[0], self.category_centroids, margin=0.02)
+            target_category = anchor_res.category
+            is_fallback_crop = False
+
+        # Stage 2: Fine-grained ranking within target_category
+        cat_indices = [
+            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == target_category
+        ]
+
+        if not cat_indices:
+            cat_indices = list(range(len(self.taxonomy)))
+
         with torch.no_grad():
-            img_emb = self.vision_model(crop_tensor)
-            img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+            category_embeddings = self.species_embeddings[cat_indices]
             # Cosine similarity logits with temperature scaling 100.0
-            logits = 100.0 * (img_emb @ self.species_embeddings.T)
+            logits = 100.0 * (img_emb @ category_embeddings.T)
             visual_probs = torch.softmax(logits, dim=-1)[0]
 
-            # Apply Bayesian Spatio-Temporal Prior across FULL 11,167 species BEFORE top-k!
-            regional_prior = self.get_regional_prior_tensor(region_code) if region_code else None
+            # Apply Bayesian Spatio-Temporal Prior (for Bird category only)
+            regional_prior = (
+                self.get_regional_prior_tensor(region_code)
+                if (region_code and target_category == "Bird")
+                else None
+            )
 
-            if geo_prior_weight > 0.0:
-                priors = torch.ones_like(visual_probs)
-                if regional_prior is not None:
-                    priors = priors * regional_prior
-
+            if geo_prior_weight > 0.0 and regional_prior is not None:
+                priors = regional_prior[cat_indices]
                 effective_priors = priors**geo_prior_weight
                 posterior_scores = visual_probs * effective_priors
             else:
                 effective_priors = torch.ones_like(visual_probs)
                 posterior_scores = visual_probs
 
-            # Select Top species based on fused posterior scores (capped at taxonomy size)
-            k = min(5, len(self.taxonomy))
-            top_posteriors, top_indices = torch.topk(posterior_scores, k=k)
+            # Select Top species based on fused posterior scores (capped at category species count)
+            k = min(5, len(cat_indices))
+            top_posteriors, top_sub_indices = torch.topk(posterior_scores, k=k)
 
         predictions: list[InferencePrediction] = []
         raw_scores = []
 
-        for post_val, idx_val in zip(top_posteriors, top_indices, strict=False):
-            idx = int(idx_val.item())
+        for post_val, sub_idx_val in zip(top_posteriors, top_sub_indices, strict=False):
+            sub_idx = int(sub_idx_val.item())
+            global_idx = cat_indices[sub_idx]
             post_score = float(post_val.item())
-            vis_prob = float(visual_probs[idx].item())
-            geo_pr = float(effective_priors[idx].item())
-            sp = self.taxonomy[idx]
+            vis_prob = float(visual_probs[sub_idx].item())
+            geo_pr = float(effective_priors[sub_idx].item())
+            sp = self.taxonomy[global_idx]
 
             raw_val = (
-                float(logits[idx].item()) if logits.ndim == 1 else float(logits[0, idx].item())
+                float(logits[sub_idx].item())
+                if logits.ndim == 1
+                else float(logits[0, sub_idx].item())
             )
             raw_scores.append(post_score)
             predictions.append(
@@ -381,6 +629,7 @@ class AvianInferenceEngine:
                     common_name=sp.get("common_name", ""),
                     scientific_name=sp.get("scientific_name", ""),
                     confidence=post_score,
+                    category=sp.get("category", target_category),
                     raw_logit=raw_val,
                     regional_prior_applied=regional_prior is not None,
                     folder_slug=sp.get("folder_slug", ""),
@@ -401,6 +650,7 @@ class AvianInferenceEngine:
                         common_name=p.common_name,
                         scientific_name=p.scientific_name,
                         confidence=norm_score,
+                        category=p.category,
                         raw_logit=p.raw_logit,
                         regional_prior_applied=p.regional_prior_applied,
                         bbox=p.bbox,
@@ -419,6 +669,7 @@ class AvianInferenceEngine:
 
         return {
             "image_path": image_path,
+            "category": target_category,
             "detected": not is_fallback_crop and det_conf >= min_detect,
             "detection_confidence": round(det_conf, 4),
             "assigned_species_slug": top1_slug,
