@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Downloads Cornell eBird global bird taxonomy (11,167 species) and computes
-precomputed normalized text embeddings using BioCLIP (imageomics/bioclip) on Apple Silicon MPS/GPU.
+"""Downloads Cornell eBird global bird taxonomy (11,167 species) and multi-taxa categories
+(Mammalia, Insecta, Scenery), and computes precomputed normalized text embeddings
+using BioCLIP (imageomics/bioclip) on Apple Silicon MPS/GPU.
 
 Saves:
 - models/taxonomy.json
 - models/species_embeddings.safetensors
 - models/manifest.json
 """
+
+from __future__ import annotations
 
 import hashlib
 import json
@@ -15,31 +18,63 @@ import os
 import re
 import sys
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
-import open_clip
-import torch
-from safetensors.torch import save_file
+if TYPE_CHECKING:
+    import torch
 
 T = TypeVar("T")
+
+CANONICAL_CATEGORIES: tuple[str, ...] = ("Bird", "Mammalia", "Insecta", "Scenery")
+
+CATEGORY_MAPPING: dict[str, str] = {
+    "bird": "Bird",
+    "birds": "Bird",
+    "mammal": "Mammalia",
+    "mammalia": "Mammalia",
+    "mammals": "Mammalia",
+    "insect": "Insecta",
+    "insecta": "Insecta",
+    "insects": "Insecta",
+    "scenery": "Scenery",
+    "landscape": "Scenery",
+}
+
+CATEGORY_PROMPT_NOUNS: dict[str, str] = {
+    "Bird": "bird",
+    "Mammalia": "mammal",
+    "Insecta": "insect",
+    "Scenery": "scenery",
+}
+
+
+def normalize_category(category: str) -> str:
+    """Normalize a category string to canonical singular form."""
+    cleaned = category.strip()
+    if cleaned in CANONICAL_CATEGORIES:
+        return cleaned
+    lower = cleaned.lower()
+    return CATEGORY_MAPPING.get(lower, cleaned)
 
 
 @dataclass(frozen=True)
 class TaxonomyEntry:
-    """Immutable representation of an eBird species taxonomy record.
+    """Immutable representation of a taxonomy record across biological and photographic domains.
 
     Attributes:
-        species_code: eBird unique alphanumeric species identifier (e.g. 'brakit1').
-        scientific_name: Binomial scientific nomenclature (e.g. 'Haliastur indus').
-        common_name: English common vernacular name (e.g. 'Brahminy Kite').
+        species_code: Unique alphanumeric taxon identifier (e.g. 'brakit1', 'mamm_mal_sq1').
+        scientific_name: Binomial scientific nomenclature (e.g. 'Ratufa indica').
+        common_name: English common vernacular name (e.g. 'Malabar Giant Squirrel').
+        category: Singular taxonomic/genre category ('Bird', 'Mammalia', 'Insecta', 'Scenery').
         aliases: Alternative common vernacular or subspecies names.
     """
 
     species_code: str
     scientific_name: str
     common_name: str
+    category: str = "Bird"
     aliases: tuple[str, ...] = ()
 
     @property
@@ -51,6 +86,7 @@ class TaxonomyEntry:
         """Convert entry into serializable dictionary format for taxonomy.json."""
         record: dict[str, Any] = {
             "taxon_id": self.species_code,
+            "category": self.category,
             "common_name": self.common_name,
             "folder_slug": self.folder_slug,
             "scientific_name": self.scientific_name,
@@ -58,6 +94,35 @@ class TaxonomyEntry:
         if self.aliases:
             record["aliases"] = list(self.aliases)
         return record
+
+
+def generate_taxonomy_prompt(entry: TaxonomyEntry) -> str:
+    """Generate category-specific BioCLIP visual text prompt for a taxonomy record.
+
+    Examples:
+        - Bird: 'a photo of a Brahminy Kite (Haliastur indus), a type of bird.'
+        - Mammalia: 'a photo of a Malabar Giant Squirrel (Ratufa indica), a type of mammal.'
+        - Insecta: 'a photo of a Malabar Banded Peacock (Papilio buddha), a type of insect.'
+        - Scenery: 'a photo of a Aurora Borealis (Aurora Borealis), a type of scenery.'
+          or without scientific name: 'a photo of a Mountain Landscape, a type of scenery.'
+    """
+    category_noun = CATEGORY_PROMPT_NOUNS.get(entry.category, entry.category.lower())
+    if entry.scientific_name:
+        return (
+            f"a photo of a {entry.common_name} ({entry.scientific_name}), "
+            f"a type of {category_noun}."
+        )
+    return f"a photo of a {entry.common_name}, a type of {category_noun}."
+
+
+def generate_prompt(entry: TaxonomyEntry) -> str:
+    """Backward-compatible alias for generate_taxonomy_prompt."""
+    return generate_taxonomy_prompt(entry)
+
+
+def format_prompt(entry: TaxonomyEntry) -> str:
+    """Backward-compatible alias for generate_taxonomy_prompt."""
+    return generate_taxonomy_prompt(entry)
 
 
 def sanitize_species_slug(name: str) -> str:
@@ -75,21 +140,27 @@ def sanitize_slug(name: str) -> str:
     return sanitize_species_slug(name)
 
 
-def parse_taxonomy_records(raw_records: Sequence[dict[str, Any]]) -> tuple[TaxonomyEntry, ...]:
-    """Parse and validate raw eBird taxonomy API dictionaries into immutable TaxonomyEntry records.
+def parse_taxonomy_records(
+    raw_records: Sequence[dict[str, Any]],
+    default_category: str = "Bird",
+) -> tuple[TaxonomyEntry, ...]:
+    """Parse and validate raw taxonomy API dictionaries into immutable TaxonomyEntry records.
 
-    Filters to confirmed bird species, validates required fields, and deduplicates by species code.
+    Supports Cornell eBird API responses, IUCN/iNaturalist multi-taxa entries, and curated
+    photographic categories (Bird, Mammalia, Insecta, Scenery).
     """
     entries: list[TaxonomyEntry] = []
     seen_codes: set[str] = set()
+    skip_ebird_categories = {"slash", "spuh", "hybrid", "issf", "domestic", "form"}
 
     for item in raw_records:
-        if item.get("category") != "species":
+        raw_cat = item.get("category")
+        if isinstance(raw_cat, str) and raw_cat in skip_ebird_categories:
             continue
 
-        sp_code = item.get("speciesCode")
-        com_name = item.get("comName")
-        sci_name = item.get("sciName", "")
+        sp_code = item.get("speciesCode") or item.get("taxon_id") or item.get("species_code")
+        com_name = item.get("comName") or item.get("common_name")
+        sci_name = item.get("sciName") or item.get("scientific_name") or ""
 
         if not sp_code or not isinstance(sp_code, str):
             continue
@@ -101,17 +172,231 @@ def parse_taxonomy_records(raw_records: Sequence[dict[str, Any]]) -> tuple[Taxon
             continue
 
         seen_codes.add(clean_code)
+
+        if raw_cat == "species" or raw_cat is None:
+            resolved_category = default_category
+        elif isinstance(raw_cat, str):
+            resolved_category = normalize_category(raw_cat)
+        else:
+            resolved_category = default_category
+
         aliases = tuple(item.get("aliases", ()))
         entries.append(
             TaxonomyEntry(
                 species_code=clean_code,
                 scientific_name=sci_name.strip() if isinstance(sci_name, str) else "",
                 common_name=com_name.strip(),
+                category=resolved_category,
                 aliases=aliases,
             )
         )
 
     return tuple(entries)
+
+
+# Curated representative multi-taxa records for open-set classification
+CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
+    # --- Mammalia (IUCN / iNaturalist prominent wild mammals) ---
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_mal_sq1",
+        "common_name": "Malabar Giant Squirrel",
+        "scientific_name": "Ratufa indica",
+        "aliases": ["Indian Giant Squirrel"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_tiger1",
+        "common_name": "Bengal Tiger",
+        "scientific_name": "Panthera tigris tigris",
+        "aliases": ["Tiger", "Royal Bengal Tiger"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_lion1",
+        "common_name": "Asiatic Lion",
+        "scientific_name": "Panthera leo leo",
+        "aliases": ["Lion", "Persian Lion"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_ind_leop1",
+        "common_name": "Indian Leopard",
+        "scientific_name": "Panthera pardus fusca",
+        "aliases": ["Leopard"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_snow_leop1",
+        "common_name": "Snow Leopard",
+        "scientific_name": "Panthera uncia",
+        "aliases": ["Ounce"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_eleph1",
+        "common_name": "Asian Elephant",
+        "scientific_name": "Elephas maximus",
+        "aliases": ["Indian Elephant"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_chital1",
+        "common_name": "Chital",
+        "scientific_name": "Axis axis",
+        "aliases": ["Spotted Deer", "Axis Deer"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_sambar1",
+        "common_name": "Sambar",
+        "scientific_name": "Rusa unicolor",
+        "aliases": ["Sambar Deer"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_red_panda1",
+        "common_name": "Red Panda",
+        "scientific_name": "Ailurus fulgens",
+        "aliases": ["Lesser Panda"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_rhesus1",
+        "common_name": "Rhesus Macaque",
+        "scientific_name": "Macaca mulatta",
+        "aliases": ["Rhesus Monkey"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_langur1",
+        "common_name": "Gray Langur",
+        "scientific_name": "Semnopithecus entellus",
+        "aliases": ["Hanuman Langur"],
+    },
+    # --- Insecta (Prominent global Lepidoptera, Odonata, etc.) ---
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_peacock1",
+        "common_name": "Malabar Banded Peacock",
+        "scientific_name": "Papilio buddha",
+        "aliases": ["Banded Peacock"],
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_monarch1",
+        "common_name": "Monarch Butterfly",
+        "scientific_name": "Danaus plexippus",
+        "aliases": ["Monarch"],
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_mormon1",
+        "common_name": "Common Mormon",
+        "scientific_name": "Papilio polytes",
+        "aliases": ["Mormon Butterfly"],
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_blue_mormon1",
+        "common_name": "Blue Mormon",
+        "scientific_name": "Papilio polymnestor",
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_jezebel1",
+        "common_name": "Common Jezebel",
+        "scientific_name": "Delias eucharis",
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_blue_tiger1",
+        "common_name": "Blue Tiger",
+        "scientific_name": "Tirumala limniace",
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_crimson_rose1",
+        "common_name": "Crimson Rose",
+        "scientific_name": "Pachliopta hector",
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_globe_skimmer1",
+        "common_name": "Globe Skimmer",
+        "scientific_name": "Pantala flavescens",
+        "aliases": ["Wandering Glider"],
+    },
+    {
+        "category": "Insecta",
+        "taxon_id": "ins_green_darner1",
+        "common_name": "Common Green Darner",
+        "scientific_name": "Anax junius",
+        "aliases": ["Green Darner"],
+    },
+    # --- Scenery (Standard photographic landscape motifs) ---
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_aurora",
+        "common_name": "Aurora Borealis",
+        "scientific_name": "Aurora Borealis",
+        "aliases": ["Northern Lights"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_mountain",
+        "common_name": "Mountain Landscape",
+        "scientific_name": "Mountain Landscape",
+        "aliases": ["Mountains", "Alpine Peak"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_waterfall",
+        "common_name": "Waterfall",
+        "scientific_name": "Waterfall",
+        "aliases": ["Cascades"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_forest",
+        "common_name": "Forest Canopy",
+        "scientific_name": "Forest Canopy",
+        "aliases": ["Woodland", "Forest"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_sunset",
+        "common_name": "Sunset Sky",
+        "scientific_name": "Sunset Sky",
+        "aliases": ["Sunrise", "Golden Hour"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_desert",
+        "common_name": "Desert Dunes",
+        "scientific_name": "Desert Dunes",
+        "aliases": ["Sand Dunes"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_coastline",
+        "common_name": "Ocean Coastline",
+        "scientific_name": "Ocean Coastline",
+        "aliases": ["Seashore", "Coast"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_night_sky",
+        "common_name": "Starry Night Sky",
+        "scientific_name": "Starry Night Sky",
+        "aliases": ["Milky Way", "Astrophotography"],
+    },
+)
+
+
+def load_curated_non_avian_taxa() -> tuple[TaxonomyEntry, ...]:
+    """Return curated representative non-avian records (Mammalia, Insecta, Scenery)."""
+    return parse_taxonomy_records(CURATED_MULTI_TAXA_RECORDS)
 
 
 def chunk_sequence(seq: Sequence[T], chunk_size: int) -> tuple[tuple[T, ...], ...]:
@@ -127,7 +412,9 @@ def compute_taxonomy_checksum(entries: Sequence[TaxonomyEntry]) -> str:
     """Compute a deterministic SHA256 checksum across sorted taxonomy entries."""
     h = hashlib.sha256()
     for entry in entries:
-        token = f"{entry.species_code}|{entry.scientific_name}|{entry.common_name}\n"
+        token = (
+            f"{entry.species_code}|{entry.category}|{entry.scientific_name}|{entry.common_name}\n"
+        )
         h.update(token.encode("utf-8"))
     return h.hexdigest()
 
@@ -154,6 +441,25 @@ def fetch_ebird_taxonomy() -> tuple[TaxonomyEntry, ...]:
     return entries
 
 
+def fetch_multi_taxa_taxonomy(
+    fetch_ebird_fn: Callable[[], Sequence[TaxonomyEntry]] = fetch_ebird_taxonomy,
+    include_curated: bool = True,
+) -> tuple[TaxonomyEntry, ...]:
+    """Fetch global eBird taxonomy and merge with non-avian taxa (Mammalia, Insecta, Scenery)."""
+    avian_entries = fetch_ebird_fn()
+    if not include_curated:
+        return tuple(avian_entries)
+
+    non_avian_entries = load_curated_non_avian_taxa()
+    seen_codes = {e.species_code for e in avian_entries}
+    merged: list[TaxonomyEntry] = list(avian_entries)
+    for entry in non_avian_entries:
+        if entry.species_code not in seen_codes:
+            seen_codes.add(entry.species_code)
+            merged.append(entry)
+    return tuple(merged)
+
+
 def compute_species_embeddings(
     entries: Sequence[TaxonomyEntry],
     model: Any,
@@ -162,10 +468,9 @@ def compute_species_embeddings(
     batch_size: int = 256,
 ) -> torch.Tensor:
     """Compute normalized visual text embeddings using BioCLIP for taxonomy entries."""
-    prompts = [
-        f"a photo of a {entry.common_name} ({entry.scientific_name}), a type of bird."
-        for entry in entries
-    ]
+    import torch
+
+    prompts = [generate_taxonomy_prompt(entry) for entry in entries]
 
     all_embeddings: list[torch.Tensor] = []
     chunks = chunk_sequence(prompts, batch_size)
@@ -201,11 +506,13 @@ def build_manifest(models_dir: str) -> dict[str, dict[str, Any]]:
 
 def build_taxonomy_pipeline(
     models_dir: str,
-    fetch_taxonomy_fn: Any = fetch_ebird_taxonomy,
+    fetch_taxonomy_fn: Any = fetch_multi_taxa_taxonomy,
     compute_embeddings_fn: Any = None,
     copy_yolo_fn: Any = None,
 ) -> dict[str, Any]:
     """Execute complete taxonomy and embedding pipeline, writing artifacts into models_dir."""
+    from safetensors.torch import save_file
+
     os.makedirs(models_dir, exist_ok=True)
     entries = fetch_taxonomy_fn()
 
@@ -218,7 +525,9 @@ def build_taxonomy_pipeline(
     if compute_embeddings_fn is not None:
         embeddings_tensor = compute_embeddings_fn(entries)
     else:
-        # Default BioCLIP loading
+        import open_clip
+        import torch
+
         device = "mps" if torch.backends.mps.is_available() else "cpu"
         model, _, _ = open_clip.create_model_and_transforms("hf-hub:imageomics/bioclip")
         tokenizer = open_clip.get_tokenizer("hf-hub:imageomics/bioclip")
