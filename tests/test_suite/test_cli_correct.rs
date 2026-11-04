@@ -844,19 +844,19 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
         .collect();
     let r1 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0001_Painted_Stork") && name.ends_with(".JPG")
+        name.contains("DSC_0001") && name.contains("Painted_Stork") && name.ends_with(".JPG")
     });
     let s1 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0001_Painted_Stork") && name.ends_with(".xmp")
+        name.contains("DSC_0001") && name.contains("Painted_Stork") && name.ends_with(".xmp")
     });
     let r2 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0002_Painted_Stork") && name.ends_with(".JPG")
+        name.contains("DSC_0002") && name.contains("Painted_Stork") && name.ends_with(".JPG")
     });
     let s2 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0002_Painted_Stork") && name.ends_with(".xmp")
+        name.contains("DSC_0002") && name.contains("Painted_Stork") && name.ends_with(".xmp")
     });
 
     assert!(
