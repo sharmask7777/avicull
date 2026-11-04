@@ -37,19 +37,19 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
 
     // Card 1: Rose-ringed Parakeet (K Gudi)
     const card1 = cards.nth(0);
-    await expect(card1.locator('.card-species-title')).toHaveText('Rose-ringed Parakeet');
+    await expect(card1.locator('.card-species-title')).toContainText('Rose-ringed Parakeet');
     await expect(card1.locator('.card-date')).not.toBeEmpty();
     await expect(card1.locator('.card-location')).toContainText('K Gudi');
 
     // Card 2: Great Black-backed Gull (New Zealand)
     const card2 = cards.nth(1);
-    await expect(card2.locator('.card-species-title')).toHaveText('Great Black-backed Gull');
+    await expect(card2.locator('.card-species-title')).toContainText('Great Black-backed Gull');
     await expect(card2.locator('.card-date')).not.toBeEmpty();
     await expect(card2.locator('.card-location')).toContainText('New Zealand');
 
     // Card 4: Needs Review Red-vented Bulbul (Ranthambore)
     const card4 = cards.nth(3);
-    await expect(card4.locator('.card-species-title')).toHaveText('Red-vented Bulbul');
+    await expect(card4.locator('.card-species-title')).toContainText('Red-vented Bulbul');
     await expect(card4.locator('.badge-tier')).toHaveClass(/badge-review/);
     await expect(card4.locator('.card-date')).not.toBeEmpty();
     await expect(card4.locator('.card-location')).toContainText('Ranthambore');
@@ -62,13 +62,13 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await searchInput.fill('Ranthambore');
     let visibleCards = page.locator('#galleryGrid .card');
     await expect(visibleCards).toHaveCount(1);
-    await expect(visibleCards.nth(0).locator('.card-species-title')).toHaveText('Red-vented Bulbul');
+    await expect(visibleCards.nth(0).locator('.card-species-title')).toContainText('Red-vented Bulbul');
 
     // Clear and search by "Parakeet"
     await searchInput.fill('Parakeet');
     visibleCards = page.locator('#galleryGrid .card');
     await expect(visibleCards).toHaveCount(1);
-    await expect(visibleCards.nth(0).locator('.card-species-title')).toHaveText('Rose-ringed Parakeet');
+    await expect(visibleCards.nth(0).locator('.card-species-title')).toContainText('Rose-ringed Parakeet');
   });
 
   test('opens bulk location modal with hierarchical subdirectories and generates commands', async ({ page }) => {

@@ -1,6 +1,6 @@
 use avicull::catalog::{generate_html_catalog, CatalogItem, ClassifiedBundleItem};
 use avicull::db::ManifestDb;
-use avicull::types::{OrganizationMode, RoutingTier, SpeciesPrediction};
+use avicull::types::{AssetCategory, OrganizationMode, RoutingTier, SpeciesPrediction};
 use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -41,6 +41,7 @@ fn test_generate_html_catalog_basic() {
             combined_score: 0.94,
         }],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     let item2 = ClassifiedBundleItem {
@@ -71,6 +72,7 @@ fn test_generate_html_catalog_basic() {
             combined_score: 0.52,
         }],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     let item3 = CatalogItem {
@@ -93,6 +95,7 @@ fn test_generate_html_catalog_basic() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     let items = vec![item1, item2, item3];
@@ -187,6 +190,7 @@ fn test_generate_html_catalog_raw_preview_extraction() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -240,6 +244,7 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     // Should succeed gracefully despite unreadable cloud-evicted image bytes
@@ -282,6 +287,7 @@ fn test_generate_html_catalog_hierarchy_mode() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -333,6 +339,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     // Case 2: In-place renamed web image (JPEG)
@@ -358,6 +365,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -412,6 +420,7 @@ fn test_mislabel_correction_script_generation_sidecars_and_extensions() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -478,6 +487,7 @@ fn test_single_command_copy_is_executable_in_interactive_zsh_without_comment_err
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -607,6 +617,7 @@ fn test_catalog_local_files_do_not_emit_fileproviderctl_evict() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     let item_cloud = CatalogItem {
@@ -627,6 +638,7 @@ fn test_catalog_local_files_do_not_emit_fileproviderctl_evict() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(false),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -733,6 +745,7 @@ fn test_batch_script_updates_consecutive_corrections_and_deduplicates_by_stem() 
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     let item2 = CatalogItem {
@@ -753,6 +766,7 @@ fn test_batch_script_updates_consecutive_corrections_and_deduplicates_by_stem() 
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -910,6 +924,7 @@ fn test_inplace_move_commands_resolve_source_dynamically_when_file_already_renam
         subdirectory: Some("compressed pics".to_string()),
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -1006,6 +1021,7 @@ fn test_catalog_species_autocomplete_token_normalization_and_ranking() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -1165,6 +1181,7 @@ fn test_catalog_no_bird_detected_support_and_command_generation() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -1242,7 +1259,7 @@ const cmdsHier = buildMoveCommands("No Bird Detected");
 const cmdsHierStr = cmdsHier.join("\n");
 console.log("Hierarchy commands:\n", cmdsHierStr);
 
-if (!cmdsHierStr.includes('avicull correct --file "IMG_2001" --species "_No_Bird_Detected"')) {{
+if (!cmdsHierStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2001"')) {{
   console.error("Failed: avicull correct command did not use _No_Bird_Detected. Got:", cmdsHierStr);
   process.exit(1);
 }}
@@ -1272,7 +1289,7 @@ const cmdsInplace = buildMoveCommands("No Bird Detected");
 const cmdsInplaceStr = cmdsInplace.join("\n");
 console.log("In-place commands:\n", cmdsInplaceStr);
 
-if (!cmdsInplaceStr.includes('avicull correct --file "IMG_2002" --species "_No_Bird_Detected"')) {{
+if (!cmdsInplaceStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2002"')) {{
   console.error("Failed: avicull correct command in in-place mode did not use _No_Bird_Detected. Got:", cmdsInplaceStr);
   process.exit(1);
 }}
@@ -1388,6 +1405,7 @@ fn test_catalog_template_generates_command_structure_and_binary_discovery() {
             combined_score: 0.95,
         }],
         is_local: None,
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -1406,8 +1424,11 @@ fn test_catalog_template_generates_command_structure_and_binary_discovery() {
         "Template must define buildMoveCommands to structure correction commands"
     );
     assert!(
-        html.contains("avicull correct --file") && html.contains("--species"),
-        "Template must output 'avicull correct --file ... --species ...' command"
+        html.contains("avicull correct")
+            && html.contains("--category")
+            && html.contains("--species")
+            && html.contains("--file"),
+        "Template must output 'avicull correct --category ... --species ... --file ...' command"
     );
     assert!(
         html.contains("command -v avicull"),
@@ -1683,9 +1704,9 @@ console.log(cmds.join('\n'));
 
     let generated_bash = String::from_utf8_lossy(&node_output.stdout).to_string();
     assert!(
-        generated_bash.contains("avicull correct --file \"IMG_1234\" --species \"Brahminy_Kite\"")
+        generated_bash.contains("avicull correct --category \"Bird\" --species \"Brahminy_Kite\" --file \"IMG_1234\"")
             || generated_bash
-                .contains("$AVICULL_CMD correct --file \"IMG_1234\" --species \"Brahminy_Kite\""),
+                .contains("$AVICULL_CMD correct --category \"Bird\" --species \"Brahminy_Kite\" --file \"IMG_1234\""),
         "Generated bash must contain avicull correct command"
     );
 
@@ -1960,6 +1981,7 @@ fn test_catalog_embedded_base64_thumbnails() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -2038,6 +2060,7 @@ fn test_catalog_standalone_dynamic_high_res_replacement() {
         subdirectory: None,
         top_predictions: vec![],
         is_local: Some(true),
+        category: AssetCategory::Bird,
     };
 
     generate_html_catalog(
@@ -2536,6 +2559,7 @@ fn test_catalog_finder_multiselect_and_bulk_correction_js() {
                 subdirectory: None,
                 top_predictions: vec![],
                 is_local: Some(true),
+                category: AssetCategory::Bird,
             }
         })
         .collect();
@@ -2697,4 +2721,146 @@ console.log("SUCCESS: Finder multi-select and bulk modal operations verified");
         stdout,
         stderr
     );
+}
+
+#[test]
+fn test_catalog_item_serialization_includes_category_mammalia() {
+    let item = CatalogItem {
+        bundle_id: "bundle-mammal-1".to_string(),
+        original_stem: "IMG_8888".to_string(),
+        assigned_species: "Malabar Giant Squirrel".to_string(),
+        category: AssetCategory::Mammalia,
+        ..CatalogItem::default()
+    };
+
+    let json = serde_json::to_string(&item).expect("serialize CatalogItem");
+    assert!(
+        json.contains(r#""category":"Mammalia""#),
+        "Serialized CatalogItem must contain 'category: \"Mammalia\"'. Got: {}",
+        json
+    );
+}
+
+#[test]
+fn test_catalog_html_template_contains_category_filter_pills() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-mammal-1".to_string(),
+        original_stem: "IMG_8888".to_string(),
+        assigned_species: "Malabar Giant Squirrel".to_string(),
+        category: AssetCategory::Mammalia,
+        ..CatalogItem::default()
+    };
+
+    generate_html_catalog(
+        "Western Ghats Expedition",
+        &[item],
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        html.contains("data-category=\"all\""),
+        "HTML must contain 'All' category filter pill"
+    );
+    assert!(
+        html.contains("data-category=\"Bird\""),
+        "HTML must contain 'Bird' category filter pill"
+    );
+    assert!(
+        html.contains("data-category=\"Mammalia\""),
+        "HTML must contain 'Mammalia' category filter pill"
+    );
+    assert!(
+        html.contains("data-category=\"Insecta\""),
+        "HTML must contain 'Insecta' category filter pill"
+    );
+    assert!(
+        html.contains("data-category=\"Scenery\""),
+        "HTML must contain 'Scenery' category filter pill"
+    );
+    assert!(
+        html.contains("badge-category") || html.contains("Mammalia • Malabar Giant Squirrel"),
+        "HTML must render category badge or card title with category"
+    );
+
+    // Also assert symlink/alias catalog.html was created
+    let alias_path = dir.path().join("catalog.html");
+    assert!(
+        alias_path.exists(),
+        "Alias 'catalog.html' must be created alongside 'bird_catalog.html'"
+    );
+}
+
+#[test]
+fn test_generate_taxa_catalog_fixture_for_playwright() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixture_path = manifest_dir.join("fixtures/test_taxa_catalog.html");
+
+    let item1 = CatalogItem {
+        bundle_id: "b-bird-1".to_string(),
+        original_stem: "IMG_BIRD_01".to_string(),
+        current_path: PathBuf::from("IMG_BIRD_01_House_Sparrow.JPG"),
+        primary_image: PathBuf::from("IMG_BIRD_01_House_Sparrow.JPG"),
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        category: AssetCategory::Bird,
+        ..CatalogItem::default()
+    };
+
+    let item2 = CatalogItem {
+        bundle_id: "b-mammal-1".to_string(),
+        original_stem: "IMG_MAMMAL_01".to_string(),
+        current_path: PathBuf::from("IMG_MAMMAL_01_Malabar_Giant_Squirrel.JPG"),
+        primary_image: PathBuf::from("IMG_MAMMAL_01_Malabar_Giant_Squirrel.JPG"),
+        assigned_species: "Malabar Giant Squirrel".to_string(),
+        scientific_name: Some("Ratufa indica".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.92,
+        category: AssetCategory::Mammalia,
+        ..CatalogItem::default()
+    };
+
+    let item3 = CatalogItem {
+        bundle_id: "b-insect-1".to_string(),
+        original_stem: "IMG_INSECT_01".to_string(),
+        current_path: PathBuf::from("IMG_INSECT_01_Atlas_Moth.JPG"),
+        primary_image: PathBuf::from("IMG_INSECT_01_Atlas_Moth.JPG"),
+        assigned_species: "Atlas Moth".to_string(),
+        scientific_name: Some("Attacus atlas".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.89,
+        category: AssetCategory::Insecta,
+        ..CatalogItem::default()
+    };
+
+    let item4 = CatalogItem {
+        bundle_id: "b-scenery-1".to_string(),
+        original_stem: "IMG_SCENERY_01".to_string(),
+        current_path: PathBuf::from("IMG_SCENERY_01_Pangong_Lake.JPG"),
+        primary_image: PathBuf::from("IMG_SCENERY_01_Pangong_Lake.JPG"),
+        assigned_species: "Pangong Lake".to_string(),
+        scientific_name: None,
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.99,
+        category: AssetCategory::Scenery,
+        ..CatalogItem::default()
+    };
+
+    let items = vec![item1, item2, item3, item4];
+    generate_html_catalog(
+        "Extensible Taxa Multi-Domain Catalog",
+        &items,
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        &fixture_path,
+    )
+    .expect("generate_html_catalog for taxa fixture");
+
+    assert!(fixture_path.exists());
 }

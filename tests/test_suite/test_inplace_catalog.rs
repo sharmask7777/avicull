@@ -48,8 +48,8 @@ fn test_catalog_filename_is_bird_catalog() {
         "bird_catalog.html must exist at input root"
     );
     assert!(
-        !input_dir.join("catalog.html").exists(),
-        "catalog.html must NOT exist"
+        input_dir.join("catalog.html").exists(),
+        "catalog.html symlink/alias must exist at input root"
     );
 }
 

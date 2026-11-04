@@ -3,7 +3,7 @@
 // 2. Directory Overrides Tab & Bulk Location Management
 // 3. Reclassification Review Modal DOM & Script Execution
 use avicull::catalog::{generate_html_catalog, CatalogItem};
-use avicull::types::{OrganizationMode, RoutingTier, SpeciesPrediction};
+use avicull::types::{AssetCategory, OrganizationMode, RoutingTier, SpeciesPrediction};
 use std::path::PathBuf;
 use std::process::Command;
 use tempfile::tempdir;
@@ -27,6 +27,7 @@ fn make_card_item(species: &str, date: Option<&str>, location: Option<&str>) -> 
         location_source: None,
         subdirectory: None,
         top_predictions: vec![],
+        category: AssetCategory::Bird,
     }
 }
 
@@ -49,6 +50,7 @@ fn item_with_subdir(subdir: &str) -> CatalogItem {
         location_source: None,
         subdirectory: Some(subdir.to_string()),
         top_predictions: vec![],
+        category: AssetCategory::Bird,
     }
 }
 
@@ -100,6 +102,7 @@ fn make_reclassify_item(
                 combined_score: 0.25,
             },
         ],
+        category: AssetCategory::Bird,
     }
 }
 

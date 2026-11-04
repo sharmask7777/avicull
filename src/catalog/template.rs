@@ -285,10 +285,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       pointer-events: none;
     }}
 
-    .filter-pills {{
+    .filter-pills, .category-pills {{
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      align-items: center;
     }}
 
     .pill {{
@@ -307,6 +308,39 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       background: var(--accent-blue);
       color: #ffffff;
       border-color: var(--accent-blue);
+    }}
+
+    .badge-category {{
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }}
+
+    .badge-cat-bird {{
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }}
+
+    .badge-cat-mammalia {{
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }}
+
+    .badge-cat-insecta {{
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }}
+
+    .badge-cat-scenery {{
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
     }}
 
     /* Gallery Cards Grid */
@@ -950,7 +984,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   <div class="controls-bar">
     <div class="search-box">
       <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-      <input type="text" id="searchInput" placeholder="Search by species, location, date, or filename..." oninput="handleSearch()"/>
+      <input type="text" id="searchInput" placeholder="Search by species, category, location, date, or filename..." oninput="handleSearch()"/>
+    </div>
+    <div class="category-pills" id="categoryPills">
+      <button class="pill category-pill active" data-category="all" onclick="setCategoryFilter('all', this)">All (<span id="catCountAll">{total_photos}</span>)</button>
+      <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">{bird_count}</span>)</button>
+      <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">{mammalia_count}</span>)</button>
+      <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
+      <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
     </div>
     <div class="filter-pills">
       <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
@@ -1197,6 +1238,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   const items = CATALOG_DATA.items || [];
   const speciesList = CATALOG_DATA.species_list || [];
   let currentFilter = 'all';
+  let currentCategory = 'all';
   let searchQuery = '';
   let activeModalItem = null;
   let activeModalItems = [];
@@ -1328,15 +1370,21 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     return items.filter(item => {{
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
+
+      const itemCat = item.category || 'Bird';
+      const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
+      if (!matchCategory) return false;
+
       if (!searchQuery) return true;
 
       const q = searchQuery.toLowerCase();
       const sp = (item.assigned_species || '').toLowerCase();
       const sc = (item.scientific_name || '').toLowerCase();
+      const cat = itemCat.toLowerCase();
       const loc = (item.location_name || '').toLowerCase();
       const dt = (item.capture_date || '').toLowerCase();
       const fn = (item.primary_filename || '').toLowerCase();
-      return sp.includes(q) || sc.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
+      return sp.includes(q) || sc.includes(q) || cat.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
     }});
   }}
 
@@ -1479,6 +1527,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
 
+      const category = item.category || 'Bird';
+      const catLower = category.toLowerCase();
+      const categoryBadgeMarkup = `<span class="badge-category badge-cat-${{catLower}}">${{category}}</span>`;
+
       return `
         <div class="card${{evictedClass}}${{selectedClass}}" id="card-${{item.id}}" onclick="handleCardClick('${{item.id}}', event)" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}">
           <div class="card-select-badge">
@@ -1491,7 +1543,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
           </div>
           <div class="card-body">
             <div class="card-species-title">
-              <span>${{item.assigned_species}}</span>
+              ${{categoryBadgeMarkup}} • <span>${{item.assigned_species}}</span>
             </div>
             ${{scientificMarkup}}
             ${{dateMarkup}}
@@ -1546,11 +1598,40 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     }}
   }}
 
+  function setCategoryFilter(category, btn) {{
+    currentCategory = category;
+    document.querySelectorAll('.category-pills .pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderGallery();
+  }}
+
   function setFilter(tier, btn) {{
     currentFilter = tier;
     document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
     renderGallery();
+  }}
+
+  function updateCategoryCounts() {{
+    const counts = {{ all: items.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 }};
+    items.forEach(i => {{
+      const c = i.category || 'Bird';
+      if (counts[c] !== undefined) {{
+        counts[c]++;
+      }} else {{
+        counts[c] = (counts[c] || 0) + 1;
+      }}
+    }});
+    const elAll = document.getElementById('catCountAll');
+    if (elAll) elAll.textContent = counts.all;
+    const elBird = document.getElementById('catCountBird');
+    if (elBird) elBird.textContent = counts.Bird;
+    const elMam = document.getElementById('catCountMammalia');
+    if (elMam) elMam.textContent = counts.Mammalia;
+    const elIns = document.getElementById('catCountInsecta');
+    if (elIns) elIns.textContent = counts.Insecta;
+    const elScn = document.getElementById('catCountScenery');
+    if (elScn) elScn.textContent = counts.Scenery;
   }}
 
   function handleSearch() {{
@@ -1785,9 +1866,10 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
+    const cat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --file "${{activeModalItem ? activeModalItem.original_stem : stem}}" --species "${{newSlug}}" 2>/dev/null || $AVICULL_CMD correct --file "${{stem}}" --species "${{newSlug}}"`);
+    commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{activeModalItem ? activeModalItem.original_stem : stem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{stem}}"`);
     commands.push(`else`);
 
     const currentPath = item.current_path;
@@ -1798,7 +1880,7 @@ fi
     const isLocal = item.is_local !== false;
 
     if (isHierarchy) {{
-      const targetDir = `birds_hierarchy/${{newSlug}}`;
+      const targetDir = isNoBird ? `birds_hierarchy/_No_Bird_Detected` : `birds_hierarchy/${{cat}}/${{newSlug}}`;
       commands.push(`  mkdir -p "${{targetDir}}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       const newPath = `${{targetDir}}/${{filename}}`;
@@ -2718,7 +2800,8 @@ fi
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
         const escStem = escapeShellArg(d.item.original_stem);
         const escSpec = escapeShellArg(d.proposedSpecies);
-        commands.push(`  avicull correct --file "${{escStem}}" --species "${{escSpec}}" 2>/dev/null || $AVICULL_CMD correct --file "${{escStem}}" --species "${{escSpec}}"`);
+        const cat = d.item.category || 'Bird';
+        commands.push(`  avicull correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}"`);
       }}
     }}
 
@@ -2828,8 +2911,15 @@ fi
     }}
   }});
 
+  if (typeof window !== 'undefined') {{
+    window.selectSpecies = selectSpecies;
+    window.setCategoryFilter = setCategoryFilter;
+    window.setFilter = setFilter;
+  }}
+
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {{
+    updateCategoryCounts();
     renderGallery();
   }});
 </script>
@@ -2844,6 +2934,10 @@ fi
         confirmed_count = payload.stats.confirmed_count,
         needs_review_count = payload.stats.needs_review_count,
         no_bird_count = payload.stats.no_bird_count,
+        bird_count = payload.stats.bird_count,
+        mammalia_count = payload.stats.mammalia_count,
+        insecta_count = payload.stats.insecta_count,
+        scenery_count = payload.stats.scenery_count,
         trip_location_display = trip_location_display,
         json_data = json_data
     )
@@ -2884,6 +2978,10 @@ mod tests {
             confirmed_count: 5,
             needs_review_count: 3,
             no_bird_count: 2,
+            bird_count: 6,
+            mammalia_count: 2,
+            insecta_count: 1,
+            scenery_count: 1,
         };
 
         let payload_hierarchy = CatalogPayload {
@@ -2937,6 +3035,10 @@ mod tests {
                 confirmed_count: 1,
                 needs_review_count: 0,
                 no_bird_count: 0,
+                bird_count: 1,
+                mammalia_count: 0,
+                insecta_count: 0,
+                scenery_count: 0,
             },
             items: vec![],
             species_list: vec![],

@@ -1,6 +1,6 @@
 use avicull::catalog::{generate_html_catalog, CatalogItem};
 use avicull::db::ManifestDb;
-use avicull::types::{OrganizationMode, RoutingTier};
+use avicull::types::{AssetCategory, OrganizationMode, RoutingTier};
 use std::path::PathBuf;
 use tempfile::tempdir;
 
@@ -23,6 +23,7 @@ fn dummy_item(id: &str, stem: &str) -> CatalogItem {
         location_source: None,
         subdirectory: None,
         top_predictions: vec![],
+        category: AssetCategory::Bird,
     }
 }
 
