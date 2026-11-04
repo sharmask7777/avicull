@@ -16,14 +16,13 @@ use avicull::location::path_parser::extract_candidate_location_tokens;
 use avicull::location::resolver::resolve_trip_locations;
 use avicull::organizer::{
     clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename,
-    materialize_bundle_hardlinks,
+    materialize_bundle_hardlinks, resolve_category_for_decision,
 };
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
 use avicull::types::{
-    AssetBundle, AssetCategory, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode,
-    RoutingTier,
+    AssetBundle, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
 };
 use clap::Parser;
 use image::DynamicImage;
@@ -1043,7 +1042,7 @@ fn main() -> Result<()> {
 
             for decision in &decisions {
                 let emb = embeddings_by_id.get(decision.bundle_id.as_str()).copied();
-                let category = AssetCategory::from_slug(&decision.assigned_species_slug);
+                let category = resolve_category_for_decision(decision);
                 db.insert_bundle_decision(decision, &category, emb)?;
             }
 
