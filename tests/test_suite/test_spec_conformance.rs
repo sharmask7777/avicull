@@ -69,7 +69,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
     // After Leh organize: link count is 2 (source + leh_hierarchy)
     let meta_after_leh = fs::metadata(&photo1).unwrap();
     assert_eq!(meta_after_leh.nlink(), 2);
-    let linked_leh = leh_hierarchy.join("Tibetan_Snowcock/IMG_0001_0.95.JPG");
+    let linked_leh = leh_hierarchy.join("Bird/Tibetan_Snowcock/IMG_0001_0.95.JPG");
     assert!(linked_leh.exists());
     assert_eq!(fs::metadata(&linked_leh).unwrap().ino(), src_ino);
 
@@ -127,7 +127,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         3,
         "Photo must co-exist across both child and parent hierarchies via hard links"
     );
-    let linked_parent = parent_hierarchy.join("Tibetan_Snowcock/IMG_0001_0.95.JPG");
+    let linked_parent = parent_hierarchy.join("Bird/Tibetan_Snowcock/IMG_0001_0.95.JPG");
     assert!(linked_parent.exists());
     assert_eq!(fs::metadata(&linked_parent).unwrap().ino(), src_ino);
 
@@ -233,9 +233,9 @@ fn test_incremental_auto_detection_of_newer_files() {
     db.record_hardlink_operations(&ops2).unwrap();
 
     // Verify all 3 files now exist in output
-    assert!(output.join("Painted_Stork/IMG_1001_0.90.JPG").exists());
-    assert!(output.join("Painted_Stork/IMG_1002_0.90.JPG").exists());
-    assert!(output.join("Painted_Stork/IMG_1003_0.92.JPG").exists());
+    assert!(output.join("Bird/Painted_Stork/IMG_1001_0.90.JPG").exists());
+    assert!(output.join("Bird/Painted_Stork/IMG_1002_0.90.JPG").exists());
+    assert!(output.join("Bird/Painted_Stork/IMG_1003_0.92.JPG").exists());
 
     let final_cached = db.get_existing_bundle_map().unwrap();
     assert_eq!(final_cached.len(), 3);
@@ -338,14 +338,17 @@ fn test_no_bird_detected_routes_to_special_tier_folder() {
     };
 
     let target_dir = compute_target_dir(&output, &decision);
-    assert_eq!(target_dir, output.join("_No_Bird_Detected"));
+    assert_eq!(target_dir, output.join("_No_Subject_Detected"));
 
     let ops =
         materialize_bundle_hardlinks(&bundles[0], &decision, &output, "run-empty", false).unwrap();
     assert_eq!(
         ops[0].dest_path,
-        output.join("_No_Bird_Detected/IMG_EMPTY_0.05.JPG")
+        output.join("_No_Subject_Detected/IMG_EMPTY_0.05.JPG")
     );
+    assert!(output
+        .join("_No_Subject_Detected/IMG_EMPTY_0.05.JPG")
+        .exists());
     assert!(output.join("_No_Bird_Detected/IMG_EMPTY_0.05.JPG").exists());
 }
 
@@ -548,4 +551,144 @@ fn test_cloud_storage_automatic_organic_pipeline() {
         "Renamed XMP sidecar must track photo 1 in lockstep: {:?}",
         entries
     );
+}
+
+#[test]
+fn test_hierarchy_organize_multi_taxa_category_routing() {
+    let dir = tempdir().expect("create temp dir");
+    let input = dir.path().join("Photos");
+    let output = input.join("birds_hierarchy");
+    fs::create_dir_all(&input).unwrap();
+
+    let f_mammal = input.join("DSC_MAMMAL.JPG");
+    let f_bird = input.join("DSC_BIRD.JPG");
+    File::create(&f_mammal)
+        .unwrap()
+        .write_all(b"MAMMAL DATA")
+        .unwrap();
+    File::create(&f_bird)
+        .unwrap()
+        .write_all(b"BIRD DATA")
+        .unwrap();
+
+    let bundles = scan_input_tree_with_skip(&input, Some(&output)).unwrap();
+    assert_eq!(bundles.len(), 2);
+
+    let mammal_bundle = bundles
+        .iter()
+        .find(|b| b.original_stem == "DSC_MAMMAL")
+        .unwrap();
+    let bird_bundle = bundles
+        .iter()
+        .find(|b| b.original_stem == "DSC_BIRD")
+        .unwrap();
+
+    let mammal_decision = BundleDecision {
+        bundle_id: mammal_bundle.bundle_id.clone(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "Malabar_Giant_Squirrel".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    let bird_decision = BundleDecision {
+        bundle_id: bird_bundle.bundle_id.clone(),
+        burst_id: None,
+        detection_confidence: 0.98,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.98,
+        final_confidence: 0.98,
+        assigned_species_slug: "White_throated_Kingfisher".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    let ops_m =
+        materialize_bundle_hardlinks(mammal_bundle, &mammal_decision, &output, "run-m", false)
+            .unwrap();
+    let ops_b =
+        materialize_bundle_hardlinks(bird_bundle, &bird_decision, &output, "run-b", false).unwrap();
+
+    // Verify Mammalia routes to birds_hierarchy/Mammalia/Malabar_Giant_Squirrel/<file>
+    assert_eq!(
+        ops_m[0].dest_path,
+        output.join("Mammalia/Malabar_Giant_Squirrel/DSC_MAMMAL_0.95.JPG")
+    );
+    assert!(output
+        .join("Mammalia/Malabar_Giant_Squirrel/DSC_MAMMAL_0.95.JPG")
+        .exists());
+    assert_eq!(
+        fs::metadata(&ops_m[0].dest_path).unwrap().ino(),
+        mammal_bundle.source_inode
+    );
+
+    // Verify Bird routes to birds_hierarchy/Bird/White_throated_Kingfisher/<file>
+    assert_eq!(
+        ops_b[0].dest_path,
+        output.join("Bird/White_throated_Kingfisher/DSC_BIRD_0.98.JPG")
+    );
+    assert!(output
+        .join("Bird/White_throated_Kingfisher/DSC_BIRD_0.98.JPG")
+        .exists());
+    assert_eq!(
+        fs::metadata(&ops_b[0].dest_path).unwrap().ino(),
+        bird_bundle.source_inode
+    );
+}
+
+#[test]
+fn test_no_subject_detected_contains_unclassified_files_with_symlink_to_no_bird_detected() {
+    let dir = tempdir().expect("create temp dir");
+    let input = dir.path().join("Photos");
+    let output = input.join("birds_hierarchy");
+    fs::create_dir_all(&input).unwrap();
+
+    let f = input.join("EMPTY_SHOT.JPG");
+    File::create(&f).unwrap().write_all(b"EMPTY SHOT").unwrap();
+
+    let bundles = scan_input_tree_with_skip(&input, Some(&output)).unwrap();
+    let decision = BundleDecision {
+        bundle_id: bundles[0].bundle_id.clone(),
+        burst_id: None,
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 0.0,
+        assigned_species_slug: "No_Subject_Detected".to_string(),
+        routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
+    };
+
+    let ops = materialize_bundle_hardlinks(&bundles[0], &decision, &output, "run-unclass", false)
+        .unwrap();
+    assert_eq!(
+        ops[0].dest_path,
+        output.join("_No_Subject_Detected/EMPTY_SHOT_0.00.JPG")
+    );
+    assert!(output
+        .join("_No_Subject_Detected/EMPTY_SHOT_0.00.JPG")
+        .exists());
+    // Verify symlink to _No_Bird_Detected
+    let symlink_path = output.join("_No_Bird_Detected");
+    assert!(
+        symlink_path.exists(),
+        "Symlink _No_Bird_Detected must exist"
+    );
+    assert!(
+        fs::symlink_metadata(&symlink_path)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "_No_Bird_Detected must be a symlink"
+    );
+    assert!(output
+        .join("_No_Bird_Detected/EMPTY_SHOT_0.00.JPG")
+        .exists());
 }

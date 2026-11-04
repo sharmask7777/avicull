@@ -178,8 +178,8 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
         .expect("materialize failed");
     db.record_hardlink_operations(&ops).unwrap();
 
-    let expected_dst = output_dir.join("Painted_Stork/DSC_4011_0.96.JPG");
-    let expected_sidecar = output_dir.join("Painted_Stork/DSC_4011_0.96.xmp");
+    let expected_dst = output_dir.join("Bird/Painted_Stork/DSC_4011_0.96.JPG");
+    let expected_sidecar = output_dir.join("Bird/Painted_Stork/DSC_4011_0.96.xmp");
 
     assert!(expected_dst.exists());
     assert!(expected_sidecar.exists());
@@ -275,13 +275,13 @@ fn test_collision_across_trips_prefixes_trip_name() {
 
     // Materialize Trip 1
     materialize_bundle_hardlinks(&b1, &decision, &output_dir, "run-1", false).unwrap();
-    let dst1 = output_dir.join("Painted_Stork/DSC_0001_0.96.JPG");
+    let dst1 = output_dir.join("Bird/Painted_Stork/DSC_0001_0.96.JPG");
     assert!(dst1.exists());
 
     // Materialize Trip 2: Collides at DSC_0001_0.96.JPG with different inode!
     // Must prefix with sanitized trip name: 2026_Trip2__DSC_0001_0.96.JPG
     materialize_bundle_hardlinks(&b2, &decision, &output_dir, "run-1", false).unwrap();
-    let dst2_prefixed = output_dir.join("Painted_Stork/2026_Trip2__DSC_0001_0.96.JPG");
+    let dst2_prefixed = output_dir.join("Bird/Painted_Stork/2026_Trip2__DSC_0001_0.96.JPG");
     assert!(
         dst2_prefixed.exists(),
         "Colliding file from Trip 2 must be prefixed with trip name"
@@ -352,16 +352,16 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         is_user_override: false,
     };
 
-    // Materialize first file: creates Chukar/IMG_9999_0.90.JPG
+    // Materialize first file: creates Bird/Chukar/IMG_9999_0.90.JPG
     materialize_bundle_hardlinks(&b1, &decision, &output_dir, "run-1", false).unwrap();
-    let dst1 = output_dir.join("Chukar/IMG_9999_0.90.JPG");
+    let dst1 = output_dir.join("Bird/Chukar/IMG_9999_0.90.JPG");
     assert!(dst1.exists());
     assert_eq!(fs::metadata(&dst1).unwrap().ino(), meta1.ino());
 
     // Materialize second file with identical stem and same trip:
-    // Primary path collides with different inode -> prefixes trip name: Chukar/trip__IMG_9999_0.90.JPG
+    // Primary path collides with different inode -> prefixes trip name: Bird/Chukar/trip__IMG_9999_0.90.JPG
     materialize_bundle_hardlinks(&b2, &decision, &output_dir, "run-1", false).unwrap();
-    let dst2 = output_dir.join("Chukar/trip__IMG_9999_0.90.JPG");
+    let dst2 = output_dir.join("Bird/Chukar/trip__IMG_9999_0.90.JPG");
     assert!(
         dst2.exists(),
         "Second colliding file must have trip prefix disambiguation"
@@ -369,7 +369,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
     assert_eq!(fs::metadata(&dst2).unwrap().ino(), meta2.ino());
 
     // Materialize third file (different inode, same stem, same trip):
-    // Both primary AND trip-prefixed path collide -> appends _1: Chukar/trip__IMG_9999_0.90_1.JPG
+    // Both primary AND trip-prefixed path collide -> appends _1: Bird/Chukar/trip__IMG_9999_0.90_1.JPG
     let sub3 = trip_dir.join("sub3");
     fs::create_dir_all(&sub3).unwrap();
     let f3 = sub3.join("IMG_9999.JPG");
@@ -390,7 +390,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         relative_path: None,
     };
     materialize_bundle_hardlinks(&b3, &decision, &output_dir, "run-1", false).unwrap();
-    let dst3 = output_dir.join("Chukar/trip__IMG_9999_0.90_1.JPG");
+    let dst3 = output_dir.join("Bird/Chukar/trip__IMG_9999_0.90_1.JPG");
     assert!(
         dst3.exists(),
         "Third colliding file must receive numbered counter _1"
@@ -418,7 +418,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         relative_path: None,
     };
     materialize_bundle_hardlinks(&b4, &decision, &output_dir, "run-1", false).unwrap();
-    let dst4 = output_dir.join("Chukar/trip__IMG_9999_0.90_2.JPG");
+    let dst4 = output_dir.join("Bird/Chukar/trip__IMG_9999_0.90_2.JPG");
     assert!(
         dst4.exists(),
         "Fourth colliding file must receive clean numbered counter _2"
@@ -481,8 +481,9 @@ fn test_materialize_hardlinks_with_date_and_location() {
         .unwrap();
     assert_eq!(ops.len(), 2);
 
-    let expected_dst = output_dir.join("Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.JPG");
-    let expected_sidecar = output_dir.join("Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.xmp");
+    let expected_dst = output_dir.join("Bird/Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.JPG");
+    let expected_sidecar =
+        output_dir.join("Bird/Brahminy_Kite/1X7A0791_2025-01-26_Saul_Kere_0.98.xmp");
 
     assert!(
         expected_dst.exists(),

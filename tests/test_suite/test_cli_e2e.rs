@@ -100,8 +100,8 @@ fn test_cli_e2e_full_lifecycle() {
     db.record_hardlink_operations(&all_ops).unwrap();
 
     // Verify Confirmed folder for Trip 1
-    let linked_t1_img = output_dir.join("Painted_Stork/DSC_4011_0.96.JPG");
-    let linked_t1_xmp = output_dir.join("Painted_Stork/DSC_4011_0.96.xmp");
+    let linked_t1_img = output_dir.join("Bird/Painted_Stork/DSC_4011_0.96.JPG");
+    let linked_t1_xmp = output_dir.join("Bird/Painted_Stork/DSC_4011_0.96.xmp");
     assert!(
         linked_t1_img.exists(),
         "Trip 1 image should be in Painted_Stork"
@@ -138,7 +138,7 @@ fn test_cli_e2e_full_lifecycle() {
     }
 
     let disambiguated_t2 =
-        output_dir.join("Painted_Stork/2026-01_Ranganathittu__DSC_4011_0.96.JPG");
+        output_dir.join("Bird/Painted_Stork/2026-01_Ranganathittu__DSC_4011_0.96.JPG");
     assert!(
         disambiguated_t2.exists(),
         "Relinked colliding file must be disambiguated with trip prefix"

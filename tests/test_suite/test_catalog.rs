@@ -1556,7 +1556,7 @@ fi
     assert!(decision.is_user_override, "is_user_override must be true");
 
     // Verify hard link moved to new species directory
-    let new_species_dir = output_dir.join("Painted_Stork");
+    let new_species_dir = output_dir.join("Bird/Painted_Stork");
     assert!(
         new_species_dir.exists(),
         "Target directory Painted_Stork must exist"
@@ -1722,7 +1722,7 @@ console.log(cmds.join('\n'));
     assert_eq!(decision.assigned_species_slug, "Brahminy_Kite");
     assert!(decision.is_user_override);
 
-    let target_dir = output_dir.join("Brahminy_Kite");
+    let target_dir = output_dir.join("Bird/Brahminy_Kite");
     assert!(target_dir.exists());
     let entries: Vec<_> = fs::read_dir(&target_dir)
         .unwrap()
@@ -2441,7 +2441,7 @@ setTimeout(() => {{
     );
 
     // Verify valid items (IMG_101 -> Osprey and IMG_103 -> Peregrine_Falcon) were both successfully processed!
-    let osprey_dir = output_dir.join("Osprey");
+    let osprey_dir = output_dir.join("Bird/Osprey");
     assert!(
         osprey_dir.exists(),
         "Osprey directory must exist for item 1"
@@ -2459,7 +2459,7 @@ setTimeout(() => {{
         "IMG_101 must have been moved to Osprey directory"
     );
 
-    let falcon_dir = output_dir.join("Peregrine_Falcon");
+    let falcon_dir = output_dir.join("Bird/Peregrine_Falcon");
     assert!(
         falcon_dir.exists(),
         "Peregrine_Falcon directory must exist for item 3"

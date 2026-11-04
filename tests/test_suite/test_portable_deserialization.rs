@@ -12,7 +12,10 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
         let entry = entry?;
         let ty = entry.file_type()?;
         let dst_path = dst.join(entry.file_name());
-        if ty.is_dir() {
+        if ty.is_symlink() {
+            let target = fs::read_link(entry.path())?;
+            std::os::unix::fs::symlink(target, dst_path)?;
+        } else if ty.is_dir() {
             copy_dir_all(&entry.path(), &dst_path)?;
         } else {
             fs::copy(entry.path(), dst_path)?;

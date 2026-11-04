@@ -1574,11 +1574,12 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
             .unwrap_or_else(|| PathBuf::from(".")),
     };
 
-    let results = avicull::organizer::apply_bundle_correction(
+    let results = avicull::organizer::apply_bundle_correction_with_category(
         &db,
         &operating_root,
         mode,
         &args.file,
+        &args.category,
         &args.species,
         args.input.as_deref(),
         args.propagate_burst,

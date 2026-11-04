@@ -539,10 +539,21 @@ impl ManifestDb {
         Ok(())
     }
 
-    /// Updates a bundle's classification as a manual user override.
-    pub fn update_bundle_override(
+    /// Updates a bundle's classification and taxonomic category as a manual user override.
+    ///
+    /// # Arguments
+    /// * `bundle_id` - Identifier of the bundle being updated.
+    /// * `category` - Singular taxonomic or genre category (e.g. `"Bird"`, `"Mammalia"`).
+    /// * `new_species_slug` - Sanitized subject directory slug.
+    /// * `routing_tier` - Destination sorting tier ([`RoutingTier`]).
+    /// * `final_conf` - Final confidence score (typically 1.0 for manual overrides).
+    ///
+    /// # Errors
+    /// Returns an error if SQLite update statements fail.
+    pub fn update_bundle_override_with_category(
         &self,
         bundle_id: &str,
+        category: &str,
         new_species_slug: &str,
         routing_tier: RoutingTier,
         final_conf: f32,
@@ -555,14 +566,51 @@ impl ManifestDb {
         };
         conn.execute(
             "UPDATE bundles
-             SET assigned_species_slug = ?1,
-                 routing_tier = ?2,
-                 final_conf = ?3,
+             SET category = ?1,
+                 assigned_species_slug = ?2,
+                 routing_tier = ?3,
+                 final_conf = ?4,
                  is_user_override = 1
-             WHERE bundle_id = ?4",
-            params![new_species_slug, tier_str, final_conf, bundle_id],
+             WHERE bundle_id = ?5",
+            params![category, new_species_slug, tier_str, final_conf, bundle_id],
         )?;
+        let _ = conn.execute(
+            "UPDATE bundle_decisions
+             SET category = ?1,
+                 assigned_species_slug = ?2,
+                 routing_tier = ?3,
+                 final_conf = ?4,
+                 is_user_override = 1
+             WHERE bundle_id = ?5",
+            params![category, new_species_slug, tier_str, final_conf, bundle_id],
+        );
         Ok(())
+    }
+
+    /// Updates a bundle's classification as a manual user override.
+    ///
+    /// # Arguments
+    /// * `bundle_id` - Identifier of the bundle being updated.
+    /// * `new_species_slug` - Sanitized species directory slug.
+    /// * `routing_tier` - Destination sorting tier ([`RoutingTier`]).
+    /// * `final_conf` - Final confidence score.
+    ///
+    /// # Errors
+    /// Returns an error if SQLite update statements fail.
+    pub fn update_bundle_override(
+        &self,
+        bundle_id: &str,
+        new_species_slug: &str,
+        routing_tier: RoutingTier,
+        final_conf: f32,
+    ) -> Result<()> {
+        self.update_bundle_override_with_category(
+            bundle_id,
+            "Bird",
+            new_species_slug,
+            routing_tier,
+            final_conf,
+        )
     }
 
     /// Prunes/deletes a bundle and its related operations from SQLite manifest.

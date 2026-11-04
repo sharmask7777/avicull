@@ -9,7 +9,10 @@ use crate::catalog::{generate_html_catalog, CatalogItem};
 use crate::db::ManifestDb;
 use crate::location::trigram_similarity;
 use crate::organizer::inplace::{execute_inplace_bundle_rename_with_stem, format_inplace_filename};
-use crate::organizer::{compute_target_dir, materialize_bundle_hardlinks, sanitize_species_slug};
+use crate::organizer::{
+    build_output_destination_path, compute_target_dir, materialize_bundle_hardlinks_with_category,
+    sanitize_species_slug,
+};
 use crate::storage::detect_storage_backend;
 use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier};
 use anyhow::{anyhow, Context, Result};
@@ -20,6 +23,7 @@ use std::path::{Path, PathBuf};
 /// Authoritative record from eBird / AviList taxonomy for typo matching and suggestion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaxonomyEntry {
+    pub category: String,
     pub common_name: String,
     pub folder_slug: String,
     pub scientific_name: Option<String>,
@@ -81,6 +85,11 @@ pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
                 if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
                     for obj in parsed {
                         if let Some(common_name) = obj.get("common_name").and_then(|v| v.as_str()) {
+                            let category = obj
+                                .get("category")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Bird")
+                                .to_string();
                             let folder_slug =
                                 obj.get("folder_slug").and_then(|v| v.as_str()).map_or_else(
                                     || sanitize_species_slug(common_name),
@@ -92,6 +101,7 @@ pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
                                 .map(std::string::ToString::to_string);
                             if seen.insert(common_name.to_lowercase()) {
                                 entries.push(TaxonomyEntry {
+                                    category,
                                     common_name: common_name.to_string(),
                                     folder_slug,
                                     scientific_name,
@@ -116,9 +126,9 @@ pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
     entries
 }
 
-/// Fallback list of prominent bird species across world families when taxonomy.json is unavailable.
+/// Fallback list of prominent bird and multi-taxa species across world families when taxonomy.json is unavailable.
 fn curated_taxonomy_fallback() -> Vec<TaxonomyEntry> {
-    vec![
+    let birds = vec![
         "House Sparrow",
         "Eurasian Tree Sparrow",
         "Black Redstart",
@@ -156,14 +166,44 @@ fn curated_taxonomy_fallback() -> Vec<TaxonomyEntry> {
         "Common Sandpiper",
         "Red-wattled Lapwing",
         "Little Ringed Plover",
-    ]
-    .into_iter()
-    .map(|name| TaxonomyEntry {
-        common_name: name.to_string(),
-        folder_slug: sanitize_species_slug(name),
-        scientific_name: None,
-    })
-    .collect()
+    ];
+
+    let mut entries: Vec<TaxonomyEntry> = birds
+        .into_iter()
+        .map(|name| TaxonomyEntry {
+            category: "Bird".to_string(),
+            common_name: name.to_string(),
+            folder_slug: sanitize_species_slug(name),
+            scientific_name: None,
+        })
+        .collect();
+
+    // Multi-taxa non-avian fallback entries
+    let non_avian = vec![
+        ("Mammalia", "Malabar Giant Squirrel", "Ratufa indica"),
+        ("Mammalia", "Tiger", "Panthera tigris"),
+        ("Mammalia", "Lion", "Panthera leo"),
+        ("Mammalia", "Indian Leopard", "Panthera pardus"),
+        ("Mammalia", "Asian Elephant", "Elephas maximus"),
+        ("Mammalia", "Gray Langur", "Semnopithecus entellus"),
+        ("Insecta", "Malabar Banded Peacock", "Papilio buddha"),
+        ("Insecta", "Monarch Butterfly", "Danaus plexippus"),
+        ("Insecta", "Common Mormon", "Papilio polytes"),
+        ("Scenery", "Aurora Borealis", "Aurora Borealis"),
+        ("Scenery", "Mountain Landscape", "Mountain Landscape"),
+        ("Scenery", "Waterfall", "Waterfall"),
+    ];
+
+    for (cat, common, sci) in non_avian {
+        entries.push(TaxonomyEntry {
+            category: cat.to_string(),
+            common_name: common.to_string(),
+            folder_slug: sanitize_species_slug(common),
+            scientific_name: Some(sci.to_string()),
+        });
+    }
+
+    entries
 }
 
 /// Identifies whether an input string is a probable typo for an authoritative taxonomy species
@@ -230,19 +270,43 @@ pub fn find_species_typo_suggestion(
     })
 }
 
-/// Applies a direct manual classification correction for a single photo bundle or burst.
-///
-/// Updates the bundle's classification and routing tier in the SQLite manifest,
-/// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
-/// moves or renames all associated files (primary image, companions, and sidecars)
-/// according to the active organization mode, and regenerates `bird_catalog.html`.
-/// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
-/// to the same burst are reclassified and relocated lockstep.
+/// Applies a direct manual classification correction for a single photo bundle or burst defaulting to `"Bird"`.
 pub fn apply_bundle_correction(
     db: &ManifestDb,
     operating_root: &Path,
     mode: OrganizationMode,
     file_query: &str,
+    new_species: &str,
+    input_root: Option<&Path>,
+    propagate_burst: bool,
+) -> Result<Vec<(BundleDecision, AssetBundle)>> {
+    apply_bundle_correction_with_category(
+        db,
+        operating_root,
+        mode,
+        file_query,
+        "Bird",
+        new_species,
+        input_root,
+        propagate_burst,
+    )
+}
+
+/// Applies a direct manual classification correction for a single photo bundle or burst with an explicit category.
+///
+/// Updates the bundle's classification, category, and routing tier in the SQLite manifest,
+/// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
+/// moves or renames all associated files (primary image, companions, and sidecars)
+/// according to the active organization mode, and regenerates `bird_catalog.html`.
+/// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
+/// to the same burst are reclassified and relocated lockstep.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_bundle_correction_with_category(
+    db: &ManifestDb,
+    operating_root: &Path,
+    mode: OrganizationMode,
+    file_query: &str,
+    category: &str,
     new_species: &str,
     input_root: Option<&Path>,
     propagate_burst: bool,
@@ -463,6 +527,20 @@ pub fn apply_bundle_correction(
         vec![(target_dec, target_bundle)]
     };
 
+    let normalized_category = match category.to_lowercase().as_str() {
+        "mammalia" | "mammal" | "mammals" => "Mammalia",
+        "insecta" | "insect" | "insects" => "Insecta",
+        "scenery" | "landscape" => "Scenery",
+        "bird" | "birds" => "Bird",
+        other => {
+            if other.is_empty() {
+                "Bird"
+            } else {
+                category
+            }
+        }
+    };
+
     let mut resolved_species = new_species.to_string();
     let (has_needs_review, species_to_check) =
         if let Some(stripped) = new_species.strip_prefix("_Needs_Review/") {
@@ -474,14 +552,18 @@ pub fn apply_bundle_correction(
     let is_no_bird = species_to_check == "_No_Bird_Detected"
         || species_to_check == "NoBirdDetected"
         || species_to_check.eq_ignore_ascii_case("No Bird Detected")
-        || species_to_check.eq_ignore_ascii_case("No_Bird_Detected");
+        || species_to_check.eq_ignore_ascii_case("No_Bird_Detected")
+        || species_to_check == "_No_Subject_Detected"
+        || species_to_check == "NoSubjectDetected"
+        || species_to_check.eq_ignore_ascii_case("No Subject Detected")
+        || species_to_check.eq_ignore_ascii_case("No_Subject_Detected");
 
     if !is_no_bird {
         let taxonomy = load_taxonomy_records();
         if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
             if is_interactive_session() {
                 print!(
-                    "\nSpecies '{}' not found in eBird taxonomy. Did you mean '{}'? [Y/n]: ",
+                    "\nSpecies '{}' not found in taxonomy. Did you mean '{}'? [Y/n]: ",
                     species_to_check, suggestion.common_name
                 );
                 std::io::stdout().flush()?;
@@ -507,12 +589,15 @@ pub fn apply_bundle_correction(
         }
     }
 
-    let (routing_tier, target_slug) = if resolved_species == "_No_Bird_Detected"
-        || resolved_species == "NoBirdDetected"
-        || resolved_species.eq_ignore_ascii_case("No Bird Detected")
-        || resolved_species.eq_ignore_ascii_case("No_Bird_Detected")
-    {
-        (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
+    let (routing_tier, target_slug) = if is_no_bird {
+        if species_to_check.to_ascii_lowercase().contains("subject") {
+            (
+                RoutingTier::NoBirdDetected,
+                "_No_Subject_Detected".to_string(),
+            )
+        } else {
+            (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
+        }
     } else if let Some(stripped) = resolved_species.strip_prefix("_Needs_Review/") {
         (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
     } else {
@@ -522,11 +607,12 @@ pub fn apply_bundle_correction(
         )
     };
 
-    let target_dir = match routing_tier {
-        RoutingTier::ConfirmedSpecies => operating_root.join(&target_slug),
-        RoutingTier::NeedsReview => operating_root.join("_Needs_Review").join(&target_slug),
-        RoutingTier::NoBirdDetected => operating_root.join("_No_Bird_Detected"),
-    };
+    let target_dir = build_output_destination_path(
+        operating_root,
+        normalized_category,
+        &target_slug,
+        routing_tier,
+    );
 
     if mode == OrganizationMode::HierarchicalHardlinkHierarchy && operating_root.exists() {
         fs::create_dir_all(&target_dir).with_context(|| {
@@ -535,6 +621,12 @@ pub fn apply_bundle_correction(
                 target_dir.display()
             )
         })?;
+        if routing_tier == RoutingTier::NoBirdDetected {
+            let legacy_symlink = operating_root.join("_No_Bird_Detected");
+            if !legacy_symlink.exists() && fs::symlink_metadata(&legacy_symlink).is_err() {
+                let _ = std::os::unix::fs::symlink("_No_Subject_Detected", &legacy_symlink);
+            }
+        }
     }
 
     let mut results = Vec::with_capacity(bundles_to_update.len());
@@ -550,7 +642,13 @@ pub fn apply_bundle_correction(
             .as_ref()
             .is_some_and(|loc| loc.is_dataless || !loc.pre_existing_local);
 
-        db.update_bundle_override(&bundle.bundle_id, &target_slug, routing_tier, 1.0)?;
+        db.update_bundle_override_with_category(
+            &bundle.bundle_id,
+            normalized_category,
+            &target_slug,
+            routing_tier,
+            1.0,
+        )?;
 
         match mode {
             OrganizationMode::HierarchicalHardlinkHierarchy => {
@@ -611,9 +709,10 @@ pub fn apply_bundle_correction(
                         let latest_run = db
                             .get_latest_run_id()?
                             .unwrap_or_else(|| "run-manual".to_string());
-                        let materialized = materialize_bundle_hardlinks(
+                        let materialized = materialize_bundle_hardlinks_with_category(
                             &bundle,
                             &new_dec,
+                            normalized_category,
                             operating_root,
                             &latest_run,
                             false,
@@ -674,7 +773,7 @@ pub fn apply_bundle_correction(
 
                 let new_stem = format_inplace_filename(
                     &bundle.original_stem,
-                    "Bird",
+                    normalized_category,
                     &target_slug,
                     date.as_deref(),
                     loc,
@@ -708,6 +807,15 @@ pub fn apply_bundle_correction(
                 let is_empty = fs::read_dir(&old_dir).is_ok_and(|mut i| i.next().is_none());
                 if is_empty {
                     let _ = fs::remove_dir(&old_dir);
+                }
+                if let Some(parent) = old_dir.parent() {
+                    if parent != operating_root && parent.exists() {
+                        let is_parent_empty =
+                            fs::read_dir(parent).is_ok_and(|mut i| i.next().is_none());
+                        if is_parent_empty {
+                            let _ = fs::remove_dir(parent);
+                        }
+                    }
                 }
             }
         }

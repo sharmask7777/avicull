@@ -263,7 +263,7 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
     let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, run_id, false).unwrap();
     db.record_hardlink_operations(&ops).unwrap();
 
-    let initial_photo = output_dir.join("Mallard/DSC_0003_0.95.JPG");
+    let initial_photo = output_dir.join("Bird/Mallard/DSC_0003_0.95.JPG");
     assert!(initial_photo.exists());
 
     // User moves photo into _No_Bird_Detected
