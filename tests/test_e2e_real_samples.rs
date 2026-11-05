@@ -132,8 +132,14 @@ fn test_e2e_real_samples_classification_and_hardlinks() {
 
     if models_available {
         // 4. Verify Filesystem Hard Links & APFS Invariants for Confirmed Species
+        // Under the 2-level hierarchy schema, birds are routed under `Bird/<species_slug>`.
+        // We check `output_dir.join("Bird").join(exp.species_slug)` with fallback to legacy `output_dir.join(exp.species_slug)`.
         for exp in &expectations {
-            let species_dir = output_dir.join(exp.species_slug);
+            let species_dir = if output_dir.join("Bird").join(exp.species_slug).exists() {
+                output_dir.join("Bird").join(exp.species_slug)
+            } else {
+                output_dir.join(exp.species_slug)
+            };
             assert!(
                 species_dir.exists(),
                 "Expected species directory {:?} to exist in output.\nOutput tree:\n{}",
