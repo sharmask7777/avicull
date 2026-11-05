@@ -278,6 +278,16 @@ pub fn generate_html_catalog(
         let embedded_thumb_data_uri =
             if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
                 Some(cached_uri.clone())
+            } else if let Some(ref prev) = item.relative_preview_path {
+                if prev.starts_with("data:image/") {
+                    Some(prev.clone())
+                } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
+                    new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
+                    cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
+                    Some(fresh_uri)
+                } else {
+                    None
+                }
             } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
                 new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
                 cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());

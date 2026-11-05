@@ -129,4 +129,27 @@ test.describe('Avicull Taxa Categories & Unified Semantic Search E2E Tests', () 
     await statusAllPill.click();
     await expect(subPillsRow).not.toHaveClass(/hidden/);
   });
+
+  test('images render valid thumbnail previews without falling back to Preview Unavailable', async ({ page }) => {
+    // There must be 8 photo cards rendered
+    const cards = page.locator('#galleryGrid .card');
+    await expect(cards).toHaveCount(8);
+
+    // No card should display the .preview-fallback "Preview Unavailable" container
+    const fallbackCount = await page.locator('#galleryGrid .preview-fallback').count();
+    expect(fallbackCount).toBe(0);
+
+    // Every card must have an <img> tag with a valid rendered src
+    const images = page.locator('#galleryGrid .card-media img');
+    await expect(images).toHaveCount(8);
+
+    for (let i = 0; i < 8; i++) {
+      const img = images.nth(i);
+      await expect(img).toBeVisible();
+      const src = await img.getAttribute('src');
+      expect(src).toBeTruthy();
+      expect(src?.length).toBeGreaterThan(0);
+      expect(src).toMatch(/^(data:image\/|https?:\/\/|\.avicull\/|\/)/);
+    }
+  });
 });

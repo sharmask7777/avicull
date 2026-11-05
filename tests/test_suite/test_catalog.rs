@@ -2805,6 +2805,12 @@ fn test_catalog_html_template_contains_category_filter_pills() {
     );
 }
 
+fn make_mock_svg_data_uri(species: &str, color: &str) -> String {
+    format!(
+        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='240'><rect width='100%' height='100%' fill='{color}'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff' font-size='18' font-family='sans-serif'>{species}</text></svg>"
+    )
+}
+
 #[test]
 fn test_generate_taxa_catalog_fixture_for_playwright() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -2815,6 +2821,7 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_BIRD_01".to_string(),
         current_path: PathBuf::from("IMG_BIRD_01_House_Sparrow.JPG"),
         primary_image: PathBuf::from("IMG_BIRD_01_House_Sparrow.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri("House Sparrow", "%23059669")),
         assigned_species: "House Sparrow".to_string(),
         scientific_name: Some("Passer domesticus".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2830,6 +2837,10 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_BIRD_02".to_string(),
         current_path: PathBuf::from("IMG_BIRD_02_White_throated_Kingfisher.JPG"),
         primary_image: PathBuf::from("IMG_BIRD_02_White_throated_Kingfisher.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri(
+            "White-throated Kingfisher",
+            "%230891b2",
+        )),
         assigned_species: "White-throated Kingfisher".to_string(),
         scientific_name: Some("Halcyon smyrnensis".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2845,6 +2856,10 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_MAMMAL_01".to_string(),
         current_path: PathBuf::from("IMG_MAMMAL_01_Malabar_Giant_Squirrel.JPG"),
         primary_image: PathBuf::from("IMG_MAMMAL_01_Malabar_Giant_Squirrel.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri(
+            "Malabar Giant Squirrel",
+            "%23d97706",
+        )),
         assigned_species: "Malabar Giant Squirrel".to_string(),
         scientific_name: Some("Ratufa indica".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2860,6 +2875,7 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_MAMMAL_02".to_string(),
         current_path: PathBuf::from("IMG_MAMMAL_02_Bengal_Tiger.JPG"),
         primary_image: PathBuf::from("IMG_MAMMAL_02_Bengal_Tiger.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri("Bengal Tiger", "%23ea580c")),
         assigned_species: "Bengal Tiger".to_string(),
         scientific_name: Some("Panthera tigris".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2875,6 +2891,7 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_INSECT_01".to_string(),
         current_path: PathBuf::from("IMG_INSECT_01_Atlas_Moth.JPG"),
         primary_image: PathBuf::from("IMG_INSECT_01_Atlas_Moth.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri("Atlas Moth", "%2310b981")),
         assigned_species: "Atlas Moth".to_string(),
         scientific_name: Some("Attacus atlas".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2890,6 +2907,10 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_INSECT_02".to_string(),
         current_path: PathBuf::from("IMG_INSECT_02_Malabar_Banded_Peacock.JPG"),
         primary_image: PathBuf::from("IMG_INSECT_02_Malabar_Banded_Peacock.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri(
+            "Malabar Banded Peacock",
+            "%2306b6d4",
+        )),
         assigned_species: "Malabar Banded Peacock".to_string(),
         scientific_name: Some("Papilio buddha".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2905,6 +2926,7 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_SCENERY_01".to_string(),
         current_path: PathBuf::from("IMG_SCENERY_01_Pangong_Lake.JPG"),
         primary_image: PathBuf::from("IMG_SCENERY_01_Pangong_Lake.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri("Pangong Lake", "%233b82f6")),
         assigned_species: "Pangong Lake".to_string(),
         scientific_name: None,
         routing_tier: RoutingTier::ConfirmedSpecies,
@@ -2920,6 +2942,7 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         original_stem: "IMG_SCENERY_02".to_string(),
         current_path: PathBuf::from("IMG_SCENERY_02_Aurora_Borealis.JPG"),
         primary_image: PathBuf::from("IMG_SCENERY_02_Aurora_Borealis.JPG"),
+        relative_preview_path: Some(make_mock_svg_data_uri("Aurora Borealis", "%238b5cf6")),
         assigned_species: "Aurora Borealis".to_string(),
         scientific_name: None,
         routing_tier: RoutingTier::ConfirmedSpecies,
