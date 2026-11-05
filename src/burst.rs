@@ -28,7 +28,7 @@
 //!    Depending on [`ConfidenceMode`], either the consensus score $C^*$ or the per-frame posterior $P(s^* | I_m)$
 //!    is recorded on each bundle decision.
 
-use crate::types::{BundleDecision, ConfidenceMode, RoutingTier, SpeciesPrediction};
+use crate::types::{AssetCategory, BundleDecision, ConfidenceMode, RoutingTier, SpeciesPrediction};
 use std::collections::HashMap;
 
 /// An intermediate representation of an image bundle with neural embeddings and posteriors ready for burst smoothing.
@@ -50,6 +50,18 @@ pub struct ClassifiedBundleItem {
     pub top_predictions: Vec<SpeciesPrediction>,
     /// Full posterior probability vector as pairs of `(taxon_id, posterior_probability)`.
     pub posteriors: Vec<(String, f32)>,
+}
+
+impl ClassifiedBundleItem {
+    /// Resolves the taxonomic or photographic category of this classified item.
+    #[must_use]
+    pub fn category(&self) -> AssetCategory {
+        self.top_predictions
+            .first()
+            .map_or(AssetCategory::Bird, |p| {
+                AssetCategory::from_slug(&p.folder_slug)
+            })
+    }
 }
 
 /// Computes the cosine similarity between two feature vectors in $[-1.0, 1.0]$.
@@ -130,8 +142,9 @@ pub fn smooth_burst_consensus(
                 };
 
                 let sim = cosine_similarity(&item.embedding, &prev.embedding);
+                let same_category = item.category() == prev.category();
 
-                if dt <= burst_window_ms && sim >= min_similarity {
+                if dt <= burst_window_ms && sim >= min_similarity && same_category {
                     current_burst.push(item);
                 } else {
                     bursts.push(current_burst);
@@ -189,10 +202,16 @@ pub fn smooth_burst_consensus(
                 .get(&best_species)
                 .cloned()
                 .unwrap_or_else(|| {
-                    burst[0]
-                        .top_predictions
-                        .first()
-                        .map_or_else(|| "Unknown_Bird".to_string(), |p| p.folder_slug.clone())
+                    burst[0].top_predictions.first().map_or_else(
+                        || match burst[0].category() {
+                            AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
+                            AssetCategory::Insecta => "Unknown_Insecta".to_string(),
+                            AssetCategory::Scenery => "Scenery".to_string(),
+                            AssetCategory::Other(ref g) => format!("Unknown_{g}"),
+                            AssetCategory::Bird => "Unknown_Bird".to_string(),
+                        },
+                        |p| p.folder_slug.clone(),
+                    )
                 });
 
             // Build decisions for each frame in the burst
@@ -213,13 +232,14 @@ pub fn smooth_burst_consensus(
                     ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
                 };
 
-                let routing_tier = if item.detection_confidence < 0.25 {
-                    RoutingTier::NoBirdDetected
-                } else if final_conf >= min_confidence {
-                    RoutingTier::ConfirmedSpecies
-                } else {
-                    RoutingTier::NeedsReview
-                };
+                let routing_tier =
+                    if item.detection_confidence < 0.25 && final_conf < min_confidence {
+                        RoutingTier::NoBirdDetected
+                    } else if final_conf >= min_confidence {
+                        RoutingTier::ConfirmedSpecies
+                    } else {
+                        RoutingTier::NeedsReview
+                    };
 
                 decisions.push(BundleDecision {
                     bundle_id: item.bundle_id.clone(),
@@ -247,4 +267,24 @@ pub fn smooth_burst_consensus(
         .iter()
         .filter_map(|it| decision_map.remove(&it.bundle_id))
         .collect()
+}
+
+/// Clusters classified multi-taxa bundles into temporal bursts and calculates confidence-weighted consensus pooling.
+///
+/// Convenience entry point defaulting to standard 3,000 ms burst windows and 0.80 cosine similarity threshold.
+///
+/// # Arguments
+/// * `items` - Slices of classified bundles with timestamps, embeddings, and category predictions.
+/// * `confidence_mode` - Whether to assign pooled burst consensus score or individual per-frame score.
+/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
+///
+/// # Returns
+/// A vector of [`BundleDecision`] preserving the exact original ordering of `items`.
+#[must_use]
+pub fn burst_consensus_multi_taxa(
+    items: &[ClassifiedBundleItem],
+    confidence_mode: ConfidenceMode,
+    min_confidence: f32,
+) -> Vec<BundleDecision> {
+    smooth_burst_consensus(items, 3000, 0.80, confidence_mode, min_confidence)
 }

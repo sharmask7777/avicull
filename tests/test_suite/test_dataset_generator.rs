@@ -62,6 +62,43 @@ fn test_create_mini_dataset_from_synthetic_source() {
 }
 
 #[test]
+fn test_default_curated_samples_includes_multi_taxa_categories() {
+    let samples = default_curated_samples();
+    assert_eq!(
+        samples.len(),
+        7,
+        "Must contain 7 curated samples across all categories"
+    );
+
+    let has_bird = samples
+        .iter()
+        .any(|s| s.image_rel_path.to_string_lossy().contains("Parakeet"));
+    let has_mammal = samples
+        .iter()
+        .any(|s| s.image_rel_path.to_string_lossy().contains("Mammalia"));
+    let has_insect = samples
+        .iter()
+        .any(|s| s.image_rel_path.to_string_lossy().contains("Insecta"));
+    let has_scenery = samples
+        .iter()
+        .any(|s| s.image_rel_path.to_string_lossy().contains("Scenery"));
+
+    assert!(has_bird, "Must include bird sample");
+    assert!(has_mammal, "Must include mammal sample");
+    assert!(has_insect, "Must include insect sample");
+    assert!(has_scenery, "Must include scenery sample");
+
+    let gazetteers = default_gazetteers();
+    assert_eq!(gazetteers.len(), 6, "Must contain 6 default gazetteers");
+    assert!(gazetteers
+        .iter()
+        .any(|g| g.dir_rel_path.to_string_lossy().contains("western ghats")));
+    assert!(gazetteers
+        .iter()
+        .any(|g| g.dir_rel_path.to_string_lossy().contains("ladakh")));
+}
+
+#[test]
 fn test_create_mini_dataset_source_immutability() {
     let temp_root = tempdir().expect("create temp dir");
     let src_dir = temp_root.path().join("Source_Photos");

@@ -10,7 +10,9 @@ pub mod template;
 
 use crate::scanner::extract_embedded_jpeg_preview;
 use crate::storage::StorageBackend;
-use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction};
+use crate::types::{
+    AssetBundle, AssetCategory, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
+};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -43,6 +45,8 @@ pub struct CatalogItem {
     #[serde(default)]
     pub subdirectory: Option<String>,
     pub top_predictions: Vec<SpeciesPrediction>,
+    #[serde(default)]
+    pub category: AssetCategory,
 }
 
 /// Backward and forward compatible alias so calling code can reference ClassifiedBundleItem.
@@ -68,6 +72,7 @@ impl Default for CatalogItem {
             location_source: None,
             subdirectory: None,
             top_predictions: Vec::new(),
+            category: AssetCategory::Bird,
         }
     }
 }
@@ -112,6 +117,8 @@ impl CatalogItem {
             })
         });
 
+        let category = crate::organizer::resolve_category_for_decision(decision);
+
         Self {
             bundle_id: bundle.bundle_id.clone(),
             original_stem: bundle.original_stem.clone(),
@@ -130,18 +137,27 @@ impl CatalogItem {
             location_source,
             subdirectory,
             top_predictions: decision.top_predictions.clone(),
+            category,
         }
     }
 }
 
 /// Statistics payload embedded into the client-side catalog.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct CatalogStats {
     pub total_photos: usize,
     pub species_count: usize,
     pub confirmed_count: usize,
     pub needs_review_count: usize,
     pub no_bird_count: usize,
+    #[serde(default)]
+    pub bird_count: usize,
+    #[serde(default)]
+    pub mammalia_count: usize,
+    #[serde(default)]
+    pub insecta_count: usize,
+    #[serde(default)]
+    pub scenery_count: usize,
 }
 
 /// Full JSON data structure embedded inside `<script id="catalog-data">`.
@@ -185,6 +201,8 @@ pub struct CatalogPayloadItem {
     pub companion_files: Vec<String>,
     pub sidecar_files: Vec<String>,
     pub top_predictions: Vec<PayloadPrediction>,
+    #[serde(default)]
+    pub category: String,
 }
 
 /// Serializable species prediction candidate for the catalog.
@@ -260,6 +278,16 @@ pub fn generate_html_catalog(
         let embedded_thumb_data_uri =
             if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
                 Some(cached_uri.clone())
+            } else if let Some(ref prev) = item.relative_preview_path {
+                if prev.starts_with("data:image/") {
+                    Some(prev.clone())
+                } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
+                    new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
+                    cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
+                    Some(fresh_uri)
+                } else {
+                    None
+                }
             } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
                 new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
                 cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
@@ -336,6 +364,7 @@ pub fn generate_html_catalog(
             companion_files,
             sidecar_files,
             top_predictions: top_preds,
+            category: item.category.as_str().to_string(),
         });
     }
 
@@ -349,12 +378,30 @@ pub fn generate_html_catalog(
         }
     }
 
+    let mut bird_count = 0;
+    let mut mammalia_count = 0;
+    let mut insecta_count = 0;
+    let mut scenery_count = 0;
+    for item in items {
+        match item.category {
+            AssetCategory::Bird => bird_count += 1,
+            AssetCategory::Mammalia => mammalia_count += 1,
+            AssetCategory::Insecta => insecta_count += 1,
+            AssetCategory::Scenery => scenery_count += 1,
+            AssetCategory::Other(_) => {}
+        }
+    }
+
     let stats = CatalogStats {
         total_photos: items.len(),
         species_count: unique_species.len(),
         confirmed_count,
         needs_review_count,
         no_bird_count,
+        bird_count,
+        mammalia_count,
+        insecta_count,
+        scenery_count,
     };
 
     let mut species_list = load_species_taxonomy_list();
@@ -433,6 +480,39 @@ pub fn generate_html_catalog(
     }
     fs::copy(temp_file.path(), output_path)
         .with_context(|| format!("Failed to copy catalog HTML to {}", output_path.display()))?;
+
+    // Maintain backwards-compatible 'catalog.html' symlink/alias alongside 'bird_catalog.html' (and vice versa)
+    let filename = output_path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("");
+    if filename == "bird_catalog.html" {
+        let alias_path = output_root.join("catalog.html");
+        let _ = fs::remove_file(&alias_path);
+        #[cfg(unix)]
+        {
+            if std::os::unix::fs::symlink("bird_catalog.html", &alias_path).is_err() {
+                let _ = fs::copy(output_path, &alias_path);
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::copy(output_path, &alias_path);
+        }
+    } else if filename == "catalog.html" {
+        let alias_path = output_root.join("bird_catalog.html");
+        let _ = fs::remove_file(&alias_path);
+        #[cfg(unix)]
+        {
+            if std::os::unix::fs::symlink("catalog.html", &alias_path).is_err() {
+                let _ = fs::copy(output_path, &alias_path);
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = fs::copy(output_path, &alias_path);
+        }
+    }
 
     Ok(())
 }

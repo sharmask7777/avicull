@@ -1,5 +1,5 @@
 use avicull::catalog::{generate_html_catalog, CatalogItem};
-use avicull::types::{OrganizationMode, RoutingTier, SpeciesPrediction};
+use avicull::types::{AssetCategory, OrganizationMode, RoutingTier, SpeciesPrediction};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
@@ -45,6 +45,7 @@ fn build_deterministic_catalog_items() -> Vec<CatalogItem> {
                     combined_score: 0.05,
                 },
             ],
+            category: AssetCategory::Bird,
         },
         CatalogItem {
             bundle_id: "bundle_2".into(),
@@ -85,6 +86,7 @@ fn build_deterministic_catalog_items() -> Vec<CatalogItem> {
                     combined_score: 0.003,
                 },
             ],
+            category: AssetCategory::Bird,
         },
     ]
 }

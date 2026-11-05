@@ -19,7 +19,9 @@ pub use reconcile::*;
 use crate::db::{HardlinkOperation, ManifestDb};
 use crate::scanner::decompose_filename;
 use crate::storage::{StorageBackend, StorageKind};
-use crate::types::{AssetBundle, AvicullError, BundleDecision, OrganizationMode, RoutingTier};
+use crate::types::{
+    AssetBundle, AssetCategory, AvicullError, BundleDecision, OrganizationMode, RoutingTier,
+};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::fs;
@@ -132,19 +134,171 @@ pub fn format_destination_filename(
     }
 }
 
-/// Computes the target destination directory inside output_root based on routing tier.
-pub fn compute_target_dir(output_root: &Path, decision: &BundleDecision) -> PathBuf {
-    match decision.routing_tier {
-        RoutingTier::ConfirmedSpecies => output_root.join(&decision.assigned_species_slug),
-        RoutingTier::NeedsReview => output_root
-            .join("_Needs_Review")
-            .join(&decision.assigned_species_slug),
-        RoutingTier::NoBirdDetected => output_root.join("_No_Bird_Detected"),
+/// Constructs the destination directory path for an asset in hierarchy mode.
+///
+/// Hierarchy paths follow the singular multi-taxa schema:
+/// - [`RoutingTier::ConfirmedSpecies`] -> `<output_root>/<Category>/<SubjectSlug>`
+/// - [`RoutingTier::NeedsReview`] -> `<output_root>/_Needs_Review/<SubjectSlug>`
+/// - [`RoutingTier::NoBirdDetected`] (or [`RoutingTier::NoSubjectDetected`]) -> `<output_root>/_No_Subject_Detected`
+///
+/// # Arguments
+/// * `output_root` - Root hierarchy directory (e.g. `birds_hierarchy`).
+/// * `category` - Singular taxonomic or genre category (e.g. `"Bird"`, `"Mammalia"`).
+/// * `subject_slug` - Sanitized subject or species directory slug (e.g. `"White_throated_Kingfisher"`).
+/// * `routing_tier` - Destination sorting tier ([`RoutingTier`]).
+///
+/// # Returns
+/// A [`PathBuf`] pointing to the target directory.
+#[must_use]
+pub fn build_output_destination_path(
+    output_root: &Path,
+    category: &str,
+    subject_slug: &str,
+    routing_tier: RoutingTier,
+) -> PathBuf {
+    let cat = if category.trim().is_empty() {
+        "Bird"
+    } else {
+        category.trim()
+    };
+    let clean_slug = subject_slug.trim();
+    let effective_subject = if let Some(stripped) = clean_slug.strip_prefix(&format!("{cat}_")) {
+        stripped
+    } else if let Some(stripped) = clean_slug.strip_prefix(&format!("{cat}/")) {
+        stripped
+    } else {
+        clean_slug
+    };
+
+    match routing_tier {
+        RoutingTier::ConfirmedSpecies => output_root.join(cat).join(effective_subject),
+        RoutingTier::NeedsReview => output_root.join("_Needs_Review").join(effective_subject),
+        RoutingTier::NoBirdDetected => output_root.join("_No_Subject_Detected"),
     }
+}
+
+/// Matches a species or subject slug against known multi-taxa categories.
+#[must_use]
+pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
+    let lower = slug.to_lowercase();
+    let clean = lower.trim_matches('_');
+
+    if clean.contains("squirrel")
+        || clean.contains("langur")
+        || clean.contains("macaque")
+        || clean.contains("monkey")
+        || clean.contains("tiger")
+        || clean.contains("lion")
+        || clean.contains("leopard")
+        || clean.contains("elephant")
+        || clean.contains("chital")
+        || clean.contains("sambar")
+        || clean.contains("deer")
+        || clean.contains("panda")
+        || clean.contains("rhino")
+        || clean.contains("bear")
+        || clean.contains("mammal")
+    {
+        Some(AssetCategory::Mammalia)
+    } else if clean.contains("peacock_butterfly")
+        || clean.contains("butterfly")
+        || clean.contains("moth")
+        || clean.contains("dragonfly")
+        || clean.contains("damselfly")
+        || clean.contains("insect")
+        || clean.contains("banded_peacock")
+        || clean.contains("common_mormon")
+        || clean.contains("blue_mormon")
+        || clean.contains("crimson_rose")
+    {
+        Some(AssetCategory::Insecta)
+    } else if clean.contains("aurora")
+        || clean.contains("mountain")
+        || clean.contains("waterfall")
+        || clean.contains("forest")
+        || clean.contains("sunset")
+        || clean.contains("sunrise")
+        || clean.contains("desert")
+        || clean.contains("coastline")
+        || clean.contains("night_sky")
+        || clean.contains("landscape")
+        || clean.contains("scenery")
+    {
+        Some(AssetCategory::Scenery)
+    } else {
+        None
+    }
+}
+
+/// Resolves the taxonomic or photographic category from a bundle decision.
+///
+/// # Arguments
+/// * `decision` - Classification decision for an asset bundle.
+///
+/// # Returns
+/// The resolved [`AssetCategory`], defaulting to [`AssetCategory::Bird`].
+#[must_use]
+pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory {
+    let from_slug = AssetCategory::from_slug(&decision.assigned_species_slug);
+    if from_slug != AssetCategory::Bird {
+        return from_slug;
+    }
+
+    if let Some(top) = decision.top_predictions.first() {
+        let from_pred = AssetCategory::from_slug(&top.folder_slug);
+        if from_pred != AssetCategory::Bird {
+            return from_pred;
+        }
+        let from_taxon_id = AssetCategory::from_slug(&top.taxon_id);
+        if from_taxon_id != AssetCategory::Bird {
+            return from_taxon_id;
+        }
+    }
+
+    if let Some(cat) = lookup_curated_category(&decision.assigned_species_slug) {
+        return cat;
+    }
+
+    AssetCategory::Bird
+}
+
+/// Computes the target destination directory inside output_root based on routing tier and category.
+#[must_use]
+pub fn compute_target_dir(output_root: &Path, decision: &BundleDecision) -> PathBuf {
+    let category = resolve_category_for_decision(decision);
+    compute_target_dir_with_category(output_root, category.as_str(), decision)
+}
+
+/// Computes the target destination directory inside output_root given an explicit category and decision.
+#[must_use]
+pub fn compute_target_dir_with_category(
+    output_root: &Path,
+    category: &str,
+    decision: &BundleDecision,
+) -> PathBuf {
+    build_output_destination_path(
+        output_root,
+        category,
+        &decision.assigned_species_slug,
+        decision.routing_tier,
+    )
 }
 
 /// Materializes POSIX hard links for an AssetBundle and its companion and sidecar files.
 /// Resolves collisions deterministically and handles re-run idempotency.
+///
+/// # Arguments
+/// * `bundle` - Source asset bundle.
+/// * `decision` - Classification decision.
+/// * `output_root` - Root hierarchy directory.
+/// * `run_id` - Current run identifier.
+/// * `dry_run` - If true, plans hardlinks without modifying disk.
+///
+/// # Returns
+/// A vector of [`HardlinkOperation`] records.
+///
+/// # Errors
+/// Returns an error if filesystem directory creation or linking fails.
 pub fn materialize_bundle_hardlinks(
     bundle: &AssetBundle,
     decision: &BundleDecision,
@@ -152,11 +306,54 @@ pub fn materialize_bundle_hardlinks(
     run_id: &str,
     dry_run: bool,
 ) -> Result<Vec<HardlinkOperation>> {
-    let target_dir = compute_target_dir(output_root, decision);
+    let category = resolve_category_for_decision(decision);
+    materialize_bundle_hardlinks_with_category(
+        bundle,
+        decision,
+        category.as_str(),
+        output_root,
+        run_id,
+        dry_run,
+    )
+}
 
-    if !dry_run && !target_dir.exists() {
-        fs::create_dir_all(&target_dir)
-            .with_context(|| format!("Failed to create directory: {}", target_dir.display()))?;
+/// Materializes POSIX hard links for an AssetBundle with an explicit taxonomic category.
+///
+/// # Arguments
+/// * `bundle` - Source asset bundle.
+/// * `decision` - Classification decision.
+/// * `category` - Singular taxonomic or genre category.
+/// * `output_root` - Root hierarchy directory.
+/// * `run_id` - Current run identifier.
+/// * `dry_run` - If true, plans hardlinks without modifying disk.
+///
+/// # Returns
+/// A vector of [`HardlinkOperation`] records.
+///
+/// # Errors
+/// Returns an error if filesystem directory creation or linking fails.
+pub fn materialize_bundle_hardlinks_with_category(
+    bundle: &AssetBundle,
+    decision: &BundleDecision,
+    category: &str,
+    output_root: &Path,
+    run_id: &str,
+    dry_run: bool,
+) -> Result<Vec<HardlinkOperation>> {
+    let target_dir = compute_target_dir_with_category(output_root, category, decision);
+
+    if !dry_run {
+        if !target_dir.exists() {
+            fs::create_dir_all(&target_dir)
+                .with_context(|| format!("Failed to create directory: {}", target_dir.display()))?;
+        }
+        // Backward compatibility: symlink _No_Bird_Detected -> _No_Subject_Detected
+        if decision.routing_tier == RoutingTier::NoBirdDetected {
+            let legacy_symlink = output_root.join("_No_Bird_Detected");
+            if !legacy_symlink.exists() && fs::symlink_metadata(&legacy_symlink).is_err() {
+                let _ = std::os::unix::fs::symlink("_No_Subject_Detected", &legacy_symlink);
+            }
+        }
     }
 
     // Collect all files in bundle (primary + companions + sidecars)
@@ -335,6 +532,9 @@ pub fn clean_run_operations(db: &ManifestDb, run_id: &str) -> Result<usize> {
                             cleaned_count += 1;
                             if let Some(parent) = op.dest_path.parent() {
                                 affected_dirs.push(parent.to_path_buf());
+                                if let Some(grandparent) = parent.parent() {
+                                    affected_dirs.push(grandparent.to_path_buf());
+                                }
                             }
                         }
                     }
@@ -353,6 +553,12 @@ pub fn clean_run_operations(db: &ManifestDb, run_id: &str) -> Result<usize> {
     for d in affected_dirs {
         if d.exists() {
             let _ = fs::remove_dir(&d);
+        }
+        if let Some(parent) = d.parent() {
+            let legacy_symlink = parent.join("_No_Bird_Detected");
+            if fs::symlink_metadata(&legacy_symlink).is_ok() && !legacy_symlink.exists() {
+                let _ = fs::remove_file(&legacy_symlink);
+            }
         }
     }
 

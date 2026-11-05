@@ -16,3 +16,4 @@ tests/e2e/fixtures/*.html
 .local_dataset/
 
 .gstack/
+.coverage

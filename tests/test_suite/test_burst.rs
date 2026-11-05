@@ -243,3 +243,46 @@ fn test_burst_consensus_empty_and_missing_timestamps() {
         "Items with None timestamps should belong to separate bursts"
     );
 }
+
+#[test]
+fn test_burst_consensus_non_avian_categories_route_without_bird_detector_gate() {
+    // Non-avian items (Mammalia, Insecta, Scenery) might have low avian YOLO detection confidence (e.g. 0.0)
+    // but high visual/classification confidence. They should route to ConfirmedSpecies or NeedsReview,
+    // not get forced into NoBirdDetected!
+    let squirrel_item = ClassifiedBundleItem {
+        bundle_id: "sq1".to_string(),
+        trip_folder: "Western Ghats".to_string(),
+        capture_timestamp_ms: Some(1_000_000),
+        detection_confidence: 0.0, // Avian YOLO detector found no bird
+        bbox_norm: None,
+        embedding: vec![0.5; 512],
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "mammalia_malabar_giant_squirrel".to_string(),
+            common_name: "Malabar Giant Squirrel".to_string(),
+            folder_slug: "Mammalia_Malabar_Giant_Squirrel".to_string(),
+            scientific_name: String::new(),
+            visual_prob: 0.95,
+            geo_prior: 1.0,
+            combined_score: 0.95,
+        }],
+        posteriors: vec![("mammalia_malabar_giant_squirrel".to_string(), 0.95)],
+    };
+
+    let decisions = smooth_burst_consensus(
+        std::slice::from_ref(&squirrel_item),
+        3000,
+        0.80,
+        ConfidenceMode::BurstConsensus,
+        0.65,
+    );
+    assert_eq!(decisions.len(), 1);
+    assert_eq!(
+        decisions[0].assigned_species_slug,
+        "Mammalia_Malabar_Giant_Squirrel"
+    );
+    assert_eq!(
+        decisions[0].routing_tier,
+        RoutingTier::ConfirmedSpecies,
+        "Mammalia with score 0.95 should route to ConfirmedSpecies despite detection_confidence == 0.0"
+    );
+}

@@ -263,7 +263,7 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
     let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, run_id, false).unwrap();
     db.record_hardlink_operations(&ops).unwrap();
 
-    let initial_photo = output_dir.join("Mallard/DSC_0003_0.95.JPG");
+    let initial_photo = output_dir.join("Bird/Mallard/DSC_0003_0.95.JPG");
     assert!(initial_photo.exists());
 
     // User moves photo into _No_Bird_Detected
@@ -281,6 +281,91 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
     assert_eq!(db_dec.routing_tier, RoutingTier::NoBirdDetected);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
+}
+
+#[test]
+fn test_reconcile_does_not_mark_auto_no_bird_as_user_override() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("input");
+    let output_dir = dir.path().join("birds_hierarchy");
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+
+    fs::create_dir_all(&input_dir).unwrap();
+    fs::create_dir_all(&output_dir).unwrap();
+
+    let src_file = input_dir.join("DSC_0099.JPG");
+    {
+        let mut f = File::create(&src_file).unwrap();
+        f.write_all(b"fake image bytes").unwrap();
+    }
+    let src_ino = fs::metadata(&src_file).unwrap().ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "DSC_0099_bundle".to_string(),
+        primary_image: src_file.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: src_ino,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        original_stem: "DSC_0099".to_string(),
+        trip_folder_name: "trip1".to_string(),
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0099.JPG")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "DSC_0099_bundle".to_string(),
+        burst_id: None,
+        detection_confidence: 0.15,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "Mallard".to_string(),
+            common_name: "Mallard".to_string(),
+            scientific_name: "Anas platyrhynchos".to_string(),
+            folder_slug: "Mallard".to_string(),
+            visual_prob: 0.10,
+            geo_prior: 0.5,
+            combined_score: 0.10,
+        }],
+        frame_confidence: 0.10,
+        final_confidence: 0.10,
+        assigned_species_slug: "Mallard".to_string(),
+        routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
+    };
+
+    let run_id = "run-0099";
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    db.record_run(run_id, &input_dir, &output_dir, false, "{}")
+        .unwrap();
+    db.record_bundles(
+        run_id,
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+    )
+    .unwrap();
+
+    // Materialize directly to _No_Bird_Detected as the pipeline normally would
+    let ops = materialize_bundle_hardlinks(&bundle, &decision, &output_dir, run_id, false).unwrap();
+    db.record_hardlink_operations(&ops).unwrap();
+
+    let initial_photo = output_dir.join("_No_Subject_Detected/DSC_0099_0.10.JPG");
+    assert!(initial_photo.exists());
+
+    // Run reconciliation on the directory where the file was automatically placed in _No_Bird_Detected
+    let mut map = db.get_existing_bundle_map().unwrap();
+    let count = reconcile_manual_disk_moves(&output_dir, &db, &mut map).unwrap();
+    // Reconcile count should be 0 because the file was already in NoBirdDetected!
+    assert_eq!(count, 0);
+
+    let (mem_dec, _) = map.get("DSC_0099_bundle").unwrap();
+    assert_eq!(mem_dec.assigned_species_slug, "Mallard");
+    assert_eq!(mem_dec.routing_tier, RoutingTier::NoBirdDetected);
+    assert!(
+        !mem_dec.is_user_override,
+        "Automated routing to _No_Bird_Detected must not be treated as a user override"
+    );
 }
 
 #[test]
@@ -692,4 +777,123 @@ fn test_reconciliation_handles_deleted_files() {
             .is_none(),
         "Deleted bundle IMG_0002 should be pruned from manifest"
     );
+}
+
+#[test]
+fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("photos");
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+
+    fs::create_dir_all(&input_dir).unwrap();
+
+    let file_bird = input_dir.join("DSC_0042.CR2");
+    let file_mammal = input_dir.join("DSC_0105.CR2");
+    {
+        let mut f1 = File::create(&file_bird).unwrap();
+        f1.write_all(b"bird-raw").unwrap();
+        let mut f2 = File::create(&file_mammal).unwrap();
+        f2.write_all(b"mammal-raw").unwrap();
+    }
+
+    let ino_bird = fs::metadata(&file_bird).unwrap().ino();
+    let ino_mammal = fs::metadata(&file_mammal).unwrap().ino();
+
+    let bundle_bird = AssetBundle {
+        bundle_id: "bundle_bird_0042".to_string(),
+        primary_image: file_bird.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: ino_bird,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        original_stem: "DSC_0042".to_string(),
+        trip_folder_name: "trip".to_string(),
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0042.CR2")),
+    };
+
+    let bundle_mammal = AssetBundle {
+        bundle_id: "bundle_mammal_0105".to_string(),
+        primary_image: file_mammal.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: ino_mammal,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        original_stem: "DSC_0105".to_string(),
+        trip_folder_name: "trip".to_string(),
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0105.CR2")),
+    };
+
+    let dec_bird = BundleDecision {
+        bundle_id: "bundle_bird_0042".to_string(),
+        burst_id: None,
+        detection_confidence: 0.90,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.70,
+        final_confidence: 0.70,
+        assigned_species_slug: "Common_Kingfisher".to_string(),
+        routing_tier: RoutingTier::NeedsReview,
+        is_user_override: false,
+    };
+
+    let dec_mammal = BundleDecision {
+        bundle_id: "bundle_mammal_0105".to_string(),
+        burst_id: None,
+        detection_confidence: 0.90,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.70,
+        final_confidence: 0.70,
+        assigned_species_slug: "Indian_Palm_Squirrel".to_string(),
+        routing_tier: RoutingTier::NeedsReview,
+        is_user_override: false,
+    };
+
+    let run_id = "run-reconcile-two-level";
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    db.record_run(run_id, &input_dir, &input_dir, false, "{}")
+        .unwrap();
+    db.record_bundles(
+        run_id,
+        &[dec_bird, dec_mammal],
+        &[bundle_bird, bundle_mammal],
+    )
+    .unwrap();
+
+    // 1. User renames DSC_0042 to 2-level Bird name with date & location
+    let renamed_bird =
+        input_dir.join("DSC_0042_Bird_white-throated_kingfisher_20261102_Western_Ghats.CR2");
+    fs::rename(&file_bird, &renamed_bird).unwrap();
+
+    // 2. User renames DSC_0105 to 2-level Mammalia name
+    let renamed_mammal =
+        input_dir.join("DSC_0105_Mammalia_malabar_giant_squirrel_20261102_Western_Ghats.CR2");
+    fs::rename(&file_mammal, &renamed_mammal).unwrap();
+
+    // 3. Reconcile in-place renames
+    let mut map = db.get_existing_bundle_map().unwrap();
+    let reconciled_count = reconcile_inplace_manual_renames(&input_dir, &db, &mut map).unwrap();
+    assert_eq!(reconciled_count, 2);
+
+    // Verify bird update
+    let (mem_dec_bird, _) = map.get("bundle_bird_0042").unwrap();
+    assert_eq!(
+        mem_dec_bird.assigned_species_slug,
+        "white-throated_kingfisher"
+    );
+    assert_eq!(mem_dec_bird.routing_tier, RoutingTier::ConfirmedSpecies);
+    assert!(mem_dec_bird.is_user_override);
+
+    // Verify mammal update
+    let (mem_dec_mammal, _) = map.get("bundle_mammal_0105").unwrap();
+    assert_eq!(
+        mem_dec_mammal.assigned_species_slug,
+        "malabar_giant_squirrel"
+    );
+    assert_eq!(mem_dec_mammal.routing_tier, RoutingTier::ConfirmedSpecies);
+    assert!(mem_dec_mammal.is_user_override);
 }

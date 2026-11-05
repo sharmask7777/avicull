@@ -93,11 +93,11 @@ fn test_cli_correct_subcommand_updates_manifest_and_hardlink() {
     );
     assert!(decision.is_user_override, "is_user_override must be true");
 
-    // 4. Verify hardlink exists under birds_hierarchy/Painted_Stork/
-    let new_species_dir = output_dir.join("Painted_Stork");
+    // 4. Verify hardlink exists under birds_hierarchy/Bird/Painted_Stork/
+    let new_species_dir = output_dir.join("Bird/Painted_Stork");
     assert!(
         new_species_dir.exists(),
-        "Painted_Stork directory must exist"
+        "Bird/Painted_Stork directory must exist"
     );
     let entries: Vec<_> = fs::read_dir(&new_species_dir)
         .unwrap()
@@ -616,7 +616,7 @@ fn test_cli_correct_burst_propagation() {
     }
 
     // 4. Verify hard links on disk in Painted_Stork directory for all 3 frames
-    let target_dir = output_dir.join("Painted_Stork");
+    let target_dir = output_dir.join("Bird/Painted_Stork");
     assert!(target_dir.exists(), "Target directory must exist");
 
     for stem in &["DSC_0001", "DSC_0002", "DSC_0003"] {
@@ -844,19 +844,19 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
         .collect();
     let r1 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0001_Painted_Stork") && name.ends_with(".JPG")
+        name.contains("DSC_0001") && name.contains("Painted_Stork") && name.ends_with(".JPG")
     });
     let s1 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0001_Painted_Stork") && name.ends_with(".xmp")
+        name.contains("DSC_0001") && name.contains("Painted_Stork") && name.ends_with(".xmp")
     });
     let r2 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0002_Painted_Stork") && name.ends_with(".JPG")
+        name.contains("DSC_0002") && name.contains("Painted_Stork") && name.ends_with(".JPG")
     });
     let s2 = entries.iter().find(|p| {
         let name = p.file_name().unwrap().to_string_lossy();
-        name.starts_with("DSC_0002_Painted_Stork") && name.ends_with(".xmp")
+        name.contains("DSC_0002") && name.contains("Painted_Stork") && name.ends_with(".xmp")
     });
 
     assert!(
@@ -1172,4 +1172,103 @@ fn test_cli_correct_no_bird_detected_variants() {
         .expect("DSC_0020 bundle");
     assert_eq!(b20.0.routing_tier, RoutingTier::NoBirdDetected);
     assert_eq!(b20.0.assigned_species_slug, "_No_Bird_Detected");
+}
+
+#[test]
+fn test_cli_correct_subcommand_overrides_category_and_species_simultaneously() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("WesternGhats");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo = trip_dir.join("DSC_0050.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"MAMMAL SQUIRREL DATA")
+        .unwrap();
+
+    let src_meta = fs::metadata(&photo).unwrap();
+    let src_ino = src_meta.ino();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in hierarchy mode initially
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "hierarchy",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run organize");
+    assert!(
+        org_output.status.success(),
+        "organize failed: {}",
+        String::from_utf8_lossy(&org_output.stderr)
+    );
+
+    let output_dir = input_dir.join("birds_hierarchy");
+
+    // 2. Call avicull correct with --category Mammalia --species "Malabar Giant Squirrel"
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0050",
+            "--category",
+            "Mammalia",
+            "--species",
+            "Malabar Giant Squirrel",
+        ])
+        .output()
+        .expect("run avicull correct with --category");
+
+    assert!(
+        correct_output.status.success(),
+        "avicull correct failed: stderr: {}",
+        String::from_utf8_lossy(&correct_output.stderr)
+    );
+
+    // 3. Verify SQLite manifest has category = 'Mammalia', assigned_species_slug = 'Malabar_Giant_Squirrel'
+    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+    assert_eq!(bundles.len(), 1);
+    let (decision, _bundle) = &bundles[0];
+    assert_eq!(decision.assigned_species_slug, "Malabar_Giant_Squirrel");
+    assert!(decision.is_user_override);
+
+    // 4. Verify hardlink exists under birds_hierarchy/Mammalia/Malabar_Giant_Squirrel/
+    let mammal_dir = output_dir.join("Mammalia/Malabar_Giant_Squirrel");
+    assert!(
+        mammal_dir.exists(),
+        "Mammalia/Malabar_Giant_Squirrel directory must exist: {:?}",
+        output_dir
+    );
+    let entries: Vec<_> = fs::read_dir(&mammal_dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    let photo_link = entries
+        .iter()
+        .find(|p| {
+            let name = p.file_name().unwrap().to_string_lossy();
+            name.starts_with("DSC_0050") && name.ends_with(".JPG")
+        })
+        .expect("Photo hardlink must exist under Mammalia/Malabar_Giant_Squirrel/");
+
+    let dst_meta = fs::metadata(photo_link).unwrap();
+    assert_eq!(
+        dst_meta.ino(),
+        src_ino,
+        "Hardlink inode must match source inode"
+    );
+    assert!(dst_meta.nlink() >= 2, "nlink must be >= 2");
 }

@@ -222,15 +222,51 @@
     /* Filters Bar */
     .controls-bar {
       display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      gap: 12px;
       margin-bottom: 24px;
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 12px 16px;
+      padding: 14px 16px;
+    }
+
+    .controls-top-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sub-pills-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      transition: opacity 0.15s ease;
+    }
+
+    .sub-pills-row.hidden {
+      display: none;
+    }
+
+    .pills-group-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      user-select: none;
     }
 
     .search-box {
@@ -264,10 +300,11 @@
       pointer-events: none;
     }
 
-    .filter-pills {
+    .filter-pills, .category-pills {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .pill {
@@ -286,6 +323,39 @@
       background: var(--accent-blue);
       color: #ffffff;
       border-color: var(--accent-blue);
+    }
+
+    .badge-category {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+
+    .badge-cat-bird {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }
+
+    .badge-cat-mammalia {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+
+    .badge-cat-insecta {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .badge-cat-scenery {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
     }
 
     /* Gallery Cards Grid */
@@ -917,7 +987,7 @@
       <span class="stat-val" id="statSpecies">2</span>
     </div>
     <div class="stat-card stat-confirmed">
-      <span class="stat-label">Confirmed Birds</span>
+      <span class="stat-label">Confirmed Species</span>
       <span class="stat-val" id="statConfirmed">1</span>
     </div>
     <div class="stat-card stat-review">
@@ -927,15 +997,30 @@
   </div>
 
   <div class="controls-bar">
-    <div class="search-box">
-      <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-      <input type="text" id="searchInput" placeholder="Search by species, location, date, or filename..." oninput="handleSearch()"/>
+    <div class="controls-top-row">
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by species, category, location, date, or filename..." oninput="handleSearch()"/>
+      </div>
+      <div class="filter-section">
+        <span class="pills-group-label">Status</span>
+        <div class="filter-pills">
+          <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
+          <button class="pill" data-filter="ConfirmedSpecies" onclick="setFilter('ConfirmedSpecies', this)">Confirmed (1)</button>
+          <button class="pill" data-filter="NeedsReview" onclick="setFilter('NeedsReview', this)">Needs Review (1)</button>
+          <button class="pill" data-filter="NoBirdDetected" onclick="setFilter('NoBirdDetected', this)">No Subject (0)</button>
+        </div>
+      </div>
     </div>
-    <div class="filter-pills">
-      <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
-      <button class="pill" data-filter="ConfirmedSpecies" onclick="setFilter('ConfirmedSpecies', this)">Confirmed (1)</button>
-      <button class="pill" data-filter="NeedsReview" onclick="setFilter('NeedsReview', this)">Needs Review (1)</button>
-      <button class="pill" data-filter="NoBirdDetected" onclick="setFilter('NoBirdDetected', this)">No Bird (0)</button>
+    <div class="sub-pills-row" id="categorySubPillsRow">
+      <span class="pills-group-label">Category</span>
+      <div class="category-pills" id="categoryPills">
+        <button class="pill category-pill active" data-category="all" onclick="setCategoryFilter('all', this)">All (<span id="catCountAll">2</span>)</button>
+        <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">2</span>)</button>
+        <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">0</span>)</button>
+        <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">0</span>)</button>
+        <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">0</span>)</button>
+      </div>
     </div>
   </div>
 
@@ -982,7 +1067,7 @@
             Select Correct Species (eBird Taxonomy Autocomplete):
           </label>
           <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-            Mark as No Bird Detected (False Positive)
+            Mark as No Subject (False Positive)
           </button>
         </div>
         <div class="autocomplete-wrap">
@@ -1159,7 +1244,7 @@
 
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
-{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}]},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}]}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
+{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"scenery_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
 </script>
 
 <script>
@@ -1176,6 +1261,7 @@
   const items = CATALOG_DATA.items || [];
   const speciesList = CATALOG_DATA.species_list || [];
   let currentFilter = 'all';
+  let currentCategory = 'all';
   let searchQuery = '';
   let activeModalItem = null;
   let activeModalItems = [];
@@ -1307,15 +1393,21 @@
     return items.filter(item => {
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
+
+      const itemCat = item.category || 'Bird';
+      const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
+      if (!matchCategory) return false;
+
       if (!searchQuery) return true;
 
       const q = searchQuery.toLowerCase();
       const sp = (item.assigned_species || '').toLowerCase();
       const sc = (item.scientific_name || '').toLowerCase();
+      const cat = itemCat.toLowerCase();
       const loc = (item.location_name || '').toLowerCase();
       const dt = (item.capture_date || '').toLowerCase();
       const fn = (item.primary_filename || '').toLowerCase();
-      return sp.includes(q) || sc.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
+      return sp.includes(q) || sc.includes(q) || cat.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
     });
   }
 
@@ -1427,7 +1519,7 @@
         tierLabel = `Review (${confPct}%)`;
       } else if (item.routing_tier === 'NoBirdDetected') {
         tierBadgeClass = "badge-nobird";
-        tierLabel = "No Bird";
+        tierLabel = "No Subject";
       }
 
       const locationMarkup = item.location_name ? `
@@ -1458,6 +1550,10 @@
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
 
+      const category = item.category || 'Bird';
+      const catLower = category.toLowerCase();
+      const categoryBadgeMarkup = `<span class="badge-category badge-cat-${catLower}">${category}</span>`;
+
       return `
         <div class="card${evictedClass}${selectedClass}" id="card-${item.id}" onclick="handleCardClick('${item.id}', event)" data-local-src="${item.local_src || item.current_path}" data-thumb-src="${item.thumb_src || item.preview_url}" data-embedded-src="${item.embedded_thumb_data_uri || ''}" data-is-local="${isLocal}">
           <div class="card-select-badge">
@@ -1470,7 +1566,7 @@
           </div>
           <div class="card-body">
             <div class="card-species-title">
-              <span>${item.assigned_species}</span>
+              ${categoryBadgeMarkup} • <span>${item.assigned_species}</span>
             </div>
             ${scientificMarkup}
             ${dateMarkup}
@@ -1525,11 +1621,57 @@
     }
   }
 
+  function setCategoryFilter(category, btn) {
+    currentCategory = category;
+    document.querySelectorAll('.category-pills .pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderGallery();
+  }
+
   function setFilter(tier, btn) {
     currentFilter = tier;
     document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
+
+    // Toggle category sub-pills row visibility for No Subject tier
+    const subPillsRow = document.getElementById('categorySubPillsRow');
+    if (subPillsRow) {
+      if (tier === 'NoBirdDetected') {
+        subPillsRow.classList.add('hidden');
+      } else {
+        subPillsRow.classList.remove('hidden');
+      }
+    }
+
+    // When changing status tier, update category sub-pill counts dynamically
+    updateCategoryCounts();
     renderGallery();
+  }
+
+  function updateCategoryCounts() {
+    const scopeItems = currentFilter === 'all'
+      ? items
+      : items.filter(i => i.routing_tier === currentFilter);
+
+    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 };
+    scopeItems.forEach(i => {
+      const c = i.category || 'Bird';
+      if (counts[c] !== undefined) {
+        counts[c]++;
+      } else {
+        counts[c] = (counts[c] || 0) + 1;
+      }
+    });
+    const elAll = document.getElementById('catCountAll');
+    if (elAll) elAll.textContent = counts.all;
+    const elBird = document.getElementById('catCountBird');
+    if (elBird) elBird.textContent = counts.Bird;
+    const elMam = document.getElementById('catCountMammalia');
+    if (elMam) elMam.textContent = counts.Mammalia;
+    const elIns = document.getElementById('catCountInsecta');
+    if (elIns) elIns.textContent = counts.Insecta;
+    const elScn = document.getElementById('catCountScenery');
+    if (elScn) elScn.textContent = counts.Scenery;
   }
 
   function handleSearch() {
@@ -1764,9 +1906,10 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
+    const cat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --file "${activeModalItem ? activeModalItem.original_stem : stem}" --species "${newSlug}" 2>/dev/null || $AVICULL_CMD correct --file "${stem}" --species "${newSlug}"`);
+    commands.push(`  avicull correct --category "${cat}" --species "${newSlug}" --file "${activeModalItem ? activeModalItem.original_stem : stem}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${newSlug}" --file "${stem}"`);
     commands.push(`else`);
 
     const currentPath = item.current_path;
@@ -1777,7 +1920,7 @@ fi
     const isLocal = item.is_local !== false;
 
     if (isHierarchy) {
-      const targetDir = `birds_hierarchy/${newSlug}`;
+      const targetDir = isNoBird ? `birds_hierarchy/_No_Bird_Detected` : `birds_hierarchy/${cat}/${newSlug}`;
       commands.push(`  mkdir -p "${targetDir}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       const newPath = `${targetDir}/${filename}`;
@@ -2697,7 +2840,8 @@ fi
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {
         const escStem = escapeShellArg(d.item.original_stem);
         const escSpec = escapeShellArg(d.proposedSpecies);
-        commands.push(`  avicull correct --file "${escStem}" --species "${escSpec}" 2>/dev/null || $AVICULL_CMD correct --file "${escStem}" --species "${escSpec}"`);
+        const cat = d.item.category || 'Bird';
+        commands.push(`  avicull correct --category "${cat}" --species "${escSpec}" --file "${escStem}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${escSpec}" --file "${escStem}"`);
       }
     }
 
@@ -2807,8 +2951,15 @@ fi
     }
   });
 
+  if (typeof window !== 'undefined') {
+    window.selectSpecies = selectSpecies;
+    window.setCategoryFilter = setCategoryFilter;
+    window.setFilter = setFilter;
+  }
+
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {
+    updateCategoryCounts();
     renderGallery();
   });
 </script>

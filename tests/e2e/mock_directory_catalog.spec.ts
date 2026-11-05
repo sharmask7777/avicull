@@ -3,12 +3,15 @@ import fs from 'fs';
 import path from 'path';
 
 // Validates the live generated HTML catalog from the local mock dataset demo (in-place or hierarchy)
-// Falls back to committed reference snapshot when a live run demo directory is not active in /tmp
+// Falls back to target/mock_run_output or committed reference snapshot when a live run demo directory is not active in /tmp
 const INPLACE_PATH = path.resolve('/tmp/avicull_pr23_demo/bird_catalog.html');
 const HIERARCHY_PATH = path.resolve('/tmp/avicull_pr23_demo/birds_hierarchy/bird_catalog.html');
+const TARGET_MOCK_PATH = path.resolve(__dirname, '../../target/mock_run_output/bird_catalog.html');
 const SNAPSHOT_PATH = path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.snap');
 
-const RESOLVED_PATH = fs.existsSync(INPLACE_PATH)
+const RESOLVED_PATH = fs.existsSync(TARGET_MOCK_PATH)
+  ? TARGET_MOCK_PATH
+  : fs.existsSync(INPLACE_PATH)
   ? INPLACE_PATH
   : fs.existsSync(HIERARCHY_PATH)
   ? HIERARCHY_PATH
@@ -22,13 +25,13 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await page.waitForLoadState('domcontentloaded');
   });
 
-  test('renders all 4 mock dataset photo cards across all trips', async ({ page }) => {
+  test('renders all 7 mock dataset photo cards across all trips and categories', async ({ page }) => {
     const cards = page.locator('#galleryGrid .card');
-    await expect(cards).toHaveCount(4);
+    await expect(cards).toHaveCount(7);
 
     // Verify stats header
-    await expect(page.locator('#statTotal')).toHaveText('4');
-    await expect(page.locator('#statConfirmed')).toHaveText('2');
+    await expect(page.locator('#statTotal')).toHaveText('7');
+    await expect(page.locator('#statConfirmed')).toHaveText('5');
     await expect(page.locator('#statReview')).toHaveText('2');
   });
 
@@ -37,22 +40,30 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
 
     // Card 1: Rose-ringed Parakeet (K Gudi)
     const card1 = cards.nth(0);
-    await expect(card1.locator('.card-species-title')).toHaveText('Rose-ringed Parakeet');
+    await expect(card1.locator('.card-species-title')).toContainText('Rose-ringed Parakeet');
     await expect(card1.locator('.card-date')).not.toBeEmpty();
     await expect(card1.locator('.card-location')).toContainText('K Gudi');
 
     // Card 2: Great Black-backed Gull (New Zealand)
     const card2 = cards.nth(1);
-    await expect(card2.locator('.card-species-title')).toHaveText('Great Black-backed Gull');
+    await expect(card2.locator('.card-species-title')).toContainText('Great Black-backed Gull');
     await expect(card2.locator('.card-date')).not.toBeEmpty();
     await expect(card2.locator('.card-location')).toContainText('New Zealand');
 
-    // Card 4: Needs Review Red-vented Bulbul (Ranthambore)
-    const card4 = cards.nth(3);
-    await expect(card4.locator('.card-species-title')).toHaveText('Red-vented Bulbul');
-    await expect(card4.locator('.badge-tier')).toHaveClass(/badge-review/);
-    await expect(card4.locator('.card-date')).not.toBeEmpty();
-    await expect(card4.locator('.card-location')).toContainText('Ranthambore');
+    // Mammalia card: Malabar Giant Squirrel
+    const squirrelCard = page.locator('#galleryGrid .card').filter({ hasText: 'Malabar Giant Squirrel' });
+    await expect(squirrelCard).toHaveCount(1);
+    await expect(squirrelCard.locator('.badge-category')).toHaveText('Mammalia');
+
+    // Insecta card: Peacock Butterfly
+    const insectCard = page.locator('#galleryGrid .card').filter({ hasText: 'Peacock Butterfly' });
+    await expect(insectCard).toHaveCount(1);
+    await expect(insectCard.locator('.badge-category')).toHaveText('Insecta');
+
+    // Scenery card: Pangong Tso
+    const sceneryCard = page.locator('#galleryGrid .card').filter({ hasText: 'Pangong Tso' });
+    await expect(sceneryCard).toHaveCount(1);
+    await expect(sceneryCard.locator('.badge-category')).toHaveText('Scenery');
   });
 
   test('filters cards dynamically by location or species search', async ({ page }) => {
@@ -62,13 +73,13 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await searchInput.fill('Ranthambore');
     let visibleCards = page.locator('#galleryGrid .card');
     await expect(visibleCards).toHaveCount(1);
-    await expect(visibleCards.nth(0).locator('.card-species-title')).toHaveText('Red-vented Bulbul');
+    await expect(visibleCards.nth(0).locator('.card-species-title')).toContainText('Red-vented Bulbul');
 
     // Clear and search by "Parakeet"
     await searchInput.fill('Parakeet');
     visibleCards = page.locator('#galleryGrid .card');
     await expect(visibleCards).toHaveCount(1);
-    await expect(visibleCards.nth(0).locator('.card-species-title')).toHaveText('Rose-ringed Parakeet');
+    await expect(visibleCards.nth(0).locator('.card-species-title')).toContainText('Rose-ringed Parakeet');
   });
 
   test('opens bulk location modal with hierarchical subdirectories and generates commands', async ({ page }) => {

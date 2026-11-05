@@ -9,6 +9,7 @@
 //! - Subsequent runs preserve the user's manual sorting and propagate it to all companion files and sidecars.
 
 use crate::db::{ExistingBundleMap, ManifestDb};
+use crate::organizer::inplace::parse_inplace_filename;
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
 use crate::types::RoutingTier;
@@ -101,12 +102,14 @@ pub fn reconcile_manual_disk_moves(
             if dir_components.len() > 1 {
                 (
                     RoutingTier::NeedsReview,
-                    sanitize_species_slug(dir_components[1]),
+                    sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1])),
                 )
             } else {
                 continue;
             }
-        } else if dir_components[0] == "_No_Bird_Detected" {
+        } else if dir_components[0] == "_No_Bird_Detected"
+            || dir_components[0] == "_No_Subject_Detected"
+        {
             (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
         } else if let Some(species_dir) = dir_components.last() {
             // Direct species directory under output root (or nested hierarchy)
@@ -172,15 +175,22 @@ pub fn reconcile_manual_disk_moves(
         };
 
         if let Some((existing_decision, _)) = existing_bundle_map.get(&bundle_id).cloned() {
-            let is_species_diff = existing_decision.assigned_species_slug != target_slug;
-            let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
-                && target_tier == RoutingTier::ConfirmedSpecies;
-            let is_tier_diff = existing_decision.routing_tier != target_tier;
+            // An item residing in _No_Bird_Detected / _No_Subject_Detected is only a manual override
+            // if the user deliberately demoted it from ConfirmedSpecies or NeedsReview.
+            // If it was already in NoBirdDetected, it was routed automatically and must not be marked as a user override.
+            let is_override = if target_tier == RoutingTier::NoBirdDetected {
+                existing_decision.routing_tier != RoutingTier::NoBirdDetected
+            } else {
+                let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+                let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
+                    && target_tier == RoutingTier::ConfirmedSpecies;
+                let is_tier_diff = existing_decision.routing_tier != target_tier;
+                is_species_diff
+                    || is_promoted
+                    || (is_tier_diff && !existing_decision.is_user_override)
+            };
 
-            if is_species_diff
-                || is_promoted
-                || (is_tier_diff && !existing_decision.is_user_override)
-            {
+            if is_override {
                 db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
                 let mut updated_dec = existing_decision.clone();
@@ -245,82 +255,42 @@ pub fn prune_missing_bundles_from_manifest(
 
 /// Extracts the species slug and routing tier from an in-place filename stem.
 ///
-/// Handles stems formatted as `<original_stem>_<Species>[_<Date>][_<Location>]`,
-/// `Needs_Review_<Species>`, `_No_Bird_Detected`, and bare original stems.
+/// Handles 2-level nomenclature `<original_stem>_<Category>_<Subject>[_<Date>][_<Location>]`,
+/// legacy v1 single-level stems `<original_stem>_<Species>[_<Date>][_<Location>]`,
+/// `Needs_Review_<Species>`, `_No_Bird_Detected`, and `_No_Subject_Detected`.
 pub(crate) fn parse_inplace_slug_and_tier(
     file_stem: &str,
     original_stem: &str,
     known_location: Option<&str>,
 ) -> Option<(String, RoutingTier)> {
-    if file_stem == original_stem {
-        return None;
-    }
-
-    let suffix = if file_stem.len() > original_stem.len() && file_stem.starts_with(original_stem) {
-        let rest = &file_stem[original_stem.len()..];
-        rest.trim_start_matches('_')
-    } else {
-        file_stem.trim_start_matches('_')
-    };
-
-    if suffix.is_empty()
-        || suffix == "_No_Bird_Detected"
-        || suffix == "No_Bird_Detected"
-        || suffix == "NoBirdDetected"
+    if let Some((_cat, subject, tier, _date, loc)) =
+        parse_inplace_filename(file_stem, original_stem)
     {
-        return Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected));
-    }
+        if tier == RoutingTier::NoBirdDetected {
+            return Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected));
+        }
 
-    let (tier, remainder) = if let Some(stripped) = suffix.strip_prefix("Needs_Review_") {
-        (RoutingTier::NeedsReview, stripped)
-    } else if let Some(stripped) = suffix.strip_prefix("NeedsReview_") {
-        (RoutingTier::NeedsReview, stripped)
-    } else {
-        (RoutingTier::ConfirmedSpecies, suffix)
-    };
-
-    let mut tokens: Vec<&str> = remainder.split('_').filter(|s| !s.is_empty()).collect();
-
-    let strip_location = |toks: &mut Vec<&str>| {
-        if let Some(loc) = known_location {
-            let loc_slug = sanitize_species_slug(loc);
-            if !loc_slug.is_empty() {
-                if let Some(last) = toks.last() {
-                    if last.eq_ignore_ascii_case(&loc_slug) {
-                        toks.pop();
-                        return true;
+        let mut final_subject = subject;
+        if loc.is_none() {
+            if let Some(known_loc) = known_location {
+                let loc_slug = sanitize_species_slug(known_loc);
+                if !loc_slug.is_empty() {
+                    let suffix_pattern = format!("_{loc_slug}");
+                    if let Some(stripped) = final_subject.strip_suffix(&suffix_pattern) {
+                        final_subject = stripped.to_string();
                     }
                 }
             }
         }
-        false
-    };
 
-    let strip_date = |toks: &mut Vec<&str>| {
-        if let Some(last) = toks.last() {
-            let is_numeric_date =
-                (last.len() == 4 || last.len() == 8) && last.chars().all(|c| c.is_ascii_digit());
-            if is_numeric_date {
-                toks.pop();
-                return true;
-            }
+        let slug = sanitize_species_slug(&final_subject);
+        if slug.is_empty() {
+            Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected))
+        } else {
+            Some((slug, tier))
         }
-        false
-    };
-
-    for _ in 0..2 {
-        if !strip_location(&mut tokens) {
-            strip_date(&mut tokens);
-        }
-    }
-
-    let species_raw = tokens.join("_");
-    let species_slug = sanitize_species_slug(&species_raw);
-
-    if species_slug.is_empty() {
-        Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected))
     } else {
-        Some((species_slug, tier))
+        None
     }
 }
 
@@ -443,12 +413,17 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         };
 
-        let is_species_diff = existing_decision.assigned_species_slug != target_slug;
-        let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
-            && target_tier == RoutingTier::ConfirmedSpecies;
-        let is_tier_diff = existing_decision.routing_tier != target_tier;
+        let is_override = if target_tier == RoutingTier::NoBirdDetected {
+            existing_decision.routing_tier != RoutingTier::NoBirdDetected
+        } else {
+            let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+            let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
+                && target_tier == RoutingTier::ConfirmedSpecies;
+            let is_tier_diff = existing_decision.routing_tier != target_tier;
+            is_species_diff || is_promoted || (is_tier_diff && !existing_decision.is_user_override)
+        };
 
-        if is_species_diff || is_promoted || (is_tier_diff && !existing_decision.is_user_override) {
+        if is_override {
             db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
             let mut updated_dec = existing_decision.clone();

@@ -36,6 +36,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Passer domesticus".to_string(),
                 score: 0.95,
             }],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-2".to_string(),
@@ -62,6 +63,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Passer montanus".to_string(),
                 score: 0.91,
             }],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-3".to_string(),
@@ -88,6 +90,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Psilopogon haemacephalus".to_string(),
                 score: 0.58,
             }],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-4".to_string(),
@@ -114,6 +117,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Psilopogon virens".to_string(),
                 score: 0.92,
             }],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-5".to_string(),
@@ -140,6 +144,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Phoenicurus ochruros".to_string(),
                 score: 0.49,
             }],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-6".to_string(),
@@ -162,6 +167,7 @@ fn create_payload() -> CatalogPayload {
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-7".to_string(),
@@ -184,6 +190,7 @@ fn create_payload() -> CatalogPayload {
             companion_files: vec![],
             sidecar_files: vec![],
             top_predictions: vec![],
+            category: "Bird".to_string(),
         },
         CatalogPayloadItem {
             id: "bundle-8".to_string(),
@@ -213,6 +220,7 @@ fn create_payload() -> CatalogPayload {
                 scientific_name: "Halcyon smyrnensis".to_string(),
                 score: 0.97,
             }],
+            category: "Bird".to_string(),
         },
     ];
 
@@ -238,6 +246,10 @@ fn create_payload() -> CatalogPayload {
         confirmed_count: 4,
         needs_review_count: 2,
         no_bird_count: 2,
+        bird_count: 8,
+        mammalia_count: 0,
+        insecta_count: 0,
+        scenery_count: 0,
     };
 
     CatalogPayload {

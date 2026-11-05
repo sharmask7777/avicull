@@ -312,6 +312,10 @@ pub struct CorrectArgs {
     #[arg(short, long)]
     pub species: String,
 
+    /// Correct category (e.g. "Bird", "Mammalia", "Insecta", "Scenery") (default: "Bird")
+    #[arg(short = 'c', long, default_value = "Bird")]
+    pub category: String,
+
     /// Organization mode: [in-place | hierarchy]
     #[arg(long, value_enum)]
     pub mode: Option<OrganizationMode>,
