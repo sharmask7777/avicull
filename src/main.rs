@@ -333,13 +333,15 @@ fn run_fallback_parallel_classification(
                 infer_prediction_from_stem(&bundle.original_stem)
             {
                 let posteriors = vec![(pred.taxon_id.clone(), pred.combined_score)];
+                let mut fallback_emb = vec![0.0f32; 512];
+                fallback_emb[0] = 1.0;
                 ClassifiedBundleItem {
                     bundle_id: bundle.bundle_id.clone(),
                     trip_folder: bundle.trip_folder_name.clone(),
                     capture_timestamp_ms: bundle.capture_timestamp_ms,
                     detection_confidence: 0.90,
                     bbox_norm: None,
-                    embedding: vec![0.0; 512],
+                    embedding: fallback_emb,
                     top_predictions: vec![pred],
                     posteriors,
                 }
