@@ -1,13 +1,15 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 import path from 'path';
 
 // Load the committed reference snapshot (.snap format to prevent CodeQL false positives)
-const SNAPSHOT_CATALOG_PATH = `file://${path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.snap')}`;
+const SNAPSHOT_CATALOG_FILE = path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.snap');
 
 test.describe('Avicull Catalog Visual & Layout Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to snapshot catalog
-    await page.goto(SNAPSHOT_CATALOG_PATH);
+    // Read html content from snapshot file and set content directly
+    const htmlContent = fs.readFileSync(SNAPSHOT_CATALOG_FILE, 'utf-8');
+    await page.setContent(htmlContent);
     await page.waitForLoadState('domcontentloaded');
   });
 

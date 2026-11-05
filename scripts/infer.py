@@ -532,7 +532,7 @@ class AvianInferenceEngine:
                 full_emb = full_emb / full_emb.norm(dim=-1, keepdim=True)
 
             anchor_res = classify_category_anchors(
-                full_emb[0], self.category_centroids, margin=0.02
+                full_emb[0], self.category_centroids, margin=0.03
             )
 
             # If full-frame is confident scenery (Scenery is top category,

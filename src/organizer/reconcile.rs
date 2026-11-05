@@ -175,15 +175,22 @@ pub fn reconcile_manual_disk_moves(
         };
 
         if let Some((existing_decision, _)) = existing_bundle_map.get(&bundle_id).cloned() {
-            let is_species_diff = existing_decision.assigned_species_slug != target_slug;
-            let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
-                && target_tier == RoutingTier::ConfirmedSpecies;
-            let is_tier_diff = existing_decision.routing_tier != target_tier;
+            // An item residing in _No_Bird_Detected / _No_Subject_Detected is only a manual override
+            // if the user deliberately demoted it from ConfirmedSpecies or NeedsReview.
+            // If it was already in NoBirdDetected, it was routed automatically and must not be marked as a user override.
+            let is_override = if target_tier == RoutingTier::NoBirdDetected {
+                existing_decision.routing_tier != RoutingTier::NoBirdDetected
+            } else {
+                let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+                let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
+                    && target_tier == RoutingTier::ConfirmedSpecies;
+                let is_tier_diff = existing_decision.routing_tier != target_tier;
+                is_species_diff
+                    || is_promoted
+                    || (is_tier_diff && !existing_decision.is_user_override)
+            };
 
-            if is_species_diff
-                || is_promoted
-                || (is_tier_diff && !existing_decision.is_user_override)
-            {
+            if is_override {
                 db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
                 let mut updated_dec = existing_decision.clone();
@@ -406,12 +413,17 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         };
 
-        let is_species_diff = existing_decision.assigned_species_slug != target_slug;
-        let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
-            && target_tier == RoutingTier::ConfirmedSpecies;
-        let is_tier_diff = existing_decision.routing_tier != target_tier;
+        let is_override = if target_tier == RoutingTier::NoBirdDetected {
+            existing_decision.routing_tier != RoutingTier::NoBirdDetected
+        } else {
+            let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+            let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
+                && target_tier == RoutingTier::ConfirmedSpecies;
+            let is_tier_diff = existing_decision.routing_tier != target_tier;
+            is_species_diff || is_promoted || (is_tier_diff && !existing_decision.is_user_override)
+        };
 
-        if is_species_diff || is_promoted || (is_tier_diff && !existing_decision.is_user_override) {
+        if is_override {
             db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
 
             let mut updated_dec = existing_decision.clone();
