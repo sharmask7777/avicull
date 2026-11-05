@@ -27,16 +27,40 @@ test.describe('Avicull Taxa Categories & Unified Semantic Search E2E Tests', () 
 
   test('clicking Mammalia pill isolates mammal cards', async ({ page }) => {
     const cards = page.locator('#galleryGrid .card');
-    await expect(cards).toHaveCount(4);
+    await expect(cards).toHaveCount(8);
 
     const mammaliaPill = page.locator('button[data-category="Mammalia"]');
     await mammaliaPill.click();
     await expect(mammaliaPill).toHaveClass(/active/);
 
     const visibleCards = page.locator('#galleryGrid .card');
-    await expect(visibleCards).toHaveCount(1);
+    await expect(visibleCards).toHaveCount(2);
     await expect(visibleCards.first().locator('.card-species-title')).toContainText('Malabar Giant Squirrel');
     await expect(visibleCards.first().locator('.badge-category')).toHaveText('Mammalia');
+    await expect(visibleCards.nth(1).locator('.card-species-title')).toContainText('Bengal Tiger');
+    await expect(visibleCards.nth(1).locator('.badge-category')).toHaveText('Mammalia');
+  });
+
+  test('clicking Insecta pill isolates insect cards', async ({ page }) => {
+    const insectaPill = page.locator('button[data-category="Insecta"]');
+    await insectaPill.click();
+    await expect(insectaPill).toHaveClass(/active/);
+
+    const visibleCards = page.locator('#galleryGrid .card');
+    await expect(visibleCards).toHaveCount(2);
+    await expect(visibleCards.first().locator('.card-species-title')).toContainText('Atlas Moth');
+    await expect(visibleCards.nth(1).locator('.card-species-title')).toContainText('Malabar Banded Peacock');
+  });
+
+  test('clicking Scenery pill isolates scenery cards', async ({ page }) => {
+    const sceneryPill = page.locator('button[data-category="Scenery"]');
+    await sceneryPill.click();
+    await expect(sceneryPill).toHaveClass(/active/);
+
+    const visibleCards = page.locator('#galleryGrid .card');
+    await expect(visibleCards).toHaveCount(2);
+    await expect(visibleCards.first().locator('.card-species-title')).toContainText('Pangong Lake');
+    await expect(visibleCards.nth(1).locator('.card-species-title')).toContainText('Aurora Borealis');
   });
 
   test('typing "squirrel" in search bar filters grid', async ({ page }) => {

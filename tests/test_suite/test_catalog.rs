@@ -2810,11 +2810,28 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         scientific_name: Some("Passer domesticus".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh Palace".to_string()),
         category: AssetCategory::Bird,
         ..CatalogItem::default()
     };
 
     let item2 = CatalogItem {
+        bundle_id: "b-bird-2".to_string(),
+        original_stem: "IMG_BIRD_02".to_string(),
+        current_path: PathBuf::from("IMG_BIRD_02_White_throated_Kingfisher.JPG"),
+        primary_image: PathBuf::from("IMG_BIRD_02_White_throated_Kingfisher.JPG"),
+        assigned_species: "White-throated Kingfisher".to_string(),
+        scientific_name: Some("Halcyon smyrnensis".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Okhla Bird Sanctuary".to_string()),
+        category: AssetCategory::Bird,
+        ..CatalogItem::default()
+    };
+
+    let item3 = CatalogItem {
         bundle_id: "b-mammal-1".to_string(),
         original_stem: "IMG_MAMMAL_01".to_string(),
         current_path: PathBuf::from("IMG_MAMMAL_01_Malabar_Giant_Squirrel.JPG"),
@@ -2823,11 +2840,28 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         scientific_name: Some("Ratufa indica".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         confidence: 0.92,
+        capture_date: Some("2026-10-26".to_string()),
+        location_name: Some("Western Ghats".to_string()),
         category: AssetCategory::Mammalia,
         ..CatalogItem::default()
     };
 
-    let item3 = CatalogItem {
+    let item4 = CatalogItem {
+        bundle_id: "b-mammal-2".to_string(),
+        original_stem: "IMG_MAMMAL_02".to_string(),
+        current_path: PathBuf::from("IMG_MAMMAL_02_Bengal_Tiger.JPG"),
+        primary_image: PathBuf::from("IMG_MAMMAL_02_Bengal_Tiger.JPG"),
+        assigned_species: "Bengal Tiger".to_string(),
+        scientific_name: Some("Panthera tigris".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.96,
+        capture_date: Some("2026-10-26".to_string()),
+        location_name: Some("Ranthambore National Park".to_string()),
+        category: AssetCategory::Mammalia,
+        ..CatalogItem::default()
+    };
+
+    let item5 = CatalogItem {
         bundle_id: "b-insect-1".to_string(),
         original_stem: "IMG_INSECT_01".to_string(),
         current_path: PathBuf::from("IMG_INSECT_01_Atlas_Moth.JPG"),
@@ -2836,11 +2870,28 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         scientific_name: Some("Attacus atlas".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         confidence: 0.89,
+        capture_date: Some("2026-10-27".to_string()),
+        location_name: Some("Coorg Rainforest".to_string()),
         category: AssetCategory::Insecta,
         ..CatalogItem::default()
     };
 
-    let item4 = CatalogItem {
+    let item6 = CatalogItem {
+        bundle_id: "b-insect-2".to_string(),
+        original_stem: "IMG_INSECT_02".to_string(),
+        current_path: PathBuf::from("IMG_INSECT_02_Malabar_Banded_Peacock.JPG"),
+        primary_image: PathBuf::from("IMG_INSECT_02_Malabar_Banded_Peacock.JPG"),
+        assigned_species: "Malabar Banded Peacock".to_string(),
+        scientific_name: Some("Papilio buddha".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.91,
+        capture_date: Some("2026-10-27".to_string()),
+        location_name: Some("K Gudi Wilderness".to_string()),
+        category: AssetCategory::Insecta,
+        ..CatalogItem::default()
+    };
+
+    let item7 = CatalogItem {
         bundle_id: "b-scenery-1".to_string(),
         original_stem: "IMG_SCENERY_01".to_string(),
         current_path: PathBuf::from("IMG_SCENERY_01_Pangong_Lake.JPG"),
@@ -2849,11 +2900,28 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
         scientific_name: None,
         routing_tier: RoutingTier::ConfirmedSpecies,
         confidence: 0.99,
+        capture_date: Some("2026-10-28".to_string()),
+        location_name: Some("Ladakh High Altitude".to_string()),
         category: AssetCategory::Scenery,
         ..CatalogItem::default()
     };
 
-    let items = vec![item1, item2, item3, item4];
+    let item8 = CatalogItem {
+        bundle_id: "b-scenery-2".to_string(),
+        original_stem: "IMG_SCENERY_02".to_string(),
+        current_path: PathBuf::from("IMG_SCENERY_02_Aurora_Borealis.JPG"),
+        primary_image: PathBuf::from("IMG_SCENERY_02_Aurora_Borealis.JPG"),
+        assigned_species: "Aurora Borealis".to_string(),
+        scientific_name: None,
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.97,
+        capture_date: Some("2026-10-28".to_string()),
+        location_name: Some("Tromsø Fjord".to_string()),
+        category: AssetCategory::Scenery,
+        ..CatalogItem::default()
+    };
+
+    let items = vec![item1, item2, item3, item4, item5, item6, item7, item8];
     generate_html_catalog(
         "Extensible Taxa Multi-Domain Catalog",
         &items,

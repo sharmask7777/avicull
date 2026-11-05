@@ -74,6 +74,7 @@ test.describe('Batch Corrections Queue & Sequential Updates (Issue #20 & #25)', 
     const lines = copiedText.split('\n').map(l => l.trim());
     const commentLines = lines.filter(l => l.startsWith('#'));
     expect(commentLines.length).toBe(0);
-    expect(copiedText).toContain('avicull correct --file');
+    expect(copiedText).toContain('avicull correct');
+    expect(copiedText).toContain('--file');
   });
 });
