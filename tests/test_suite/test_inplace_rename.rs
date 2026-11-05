@@ -647,3 +647,58 @@ fn test_parse_inplace_filename_legacy_v1_promotion() {
     assert_eq!(parsed_nobird.2, RoutingTier::NoBirdDetected);
     assert_eq!(parsed_nobird.3.as_deref(), Some("20261102"));
 }
+
+#[test]
+fn test_infer_prediction_from_stem_all_categories() {
+    // 1. Mammalia
+    let mammal_stem = "1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats";
+    let (cat, pred, tier) =
+        infer_prediction_from_stem(mammal_stem).expect("should infer prediction from mammal stem");
+    assert_eq!(cat, AssetCategory::Mammalia);
+    assert_eq!(pred.folder_slug, "Mammalia_Malabar_Giant_Squirrel");
+    assert_eq!(pred.common_name, "Malabar Giant Squirrel");
+    assert_eq!(tier, RoutingTier::ConfirmedSpecies);
+    assert!(pred.combined_score >= 0.90);
+
+    // 2. Insecta
+    let insect_stem = "1X7A9002_Insecta_Peacock_Butterfly_20251002_Western_Ghats";
+    let (cat, pred, tier) =
+        infer_prediction_from_stem(insect_stem).expect("should infer prediction from insect stem");
+    assert_eq!(cat, AssetCategory::Insecta);
+    assert_eq!(pred.folder_slug, "Insecta_Peacock_Butterfly");
+    assert_eq!(pred.common_name, "Peacock Butterfly");
+    assert_eq!(tier, RoutingTier::ConfirmedSpecies);
+    assert!(pred.combined_score >= 0.90);
+
+    // 3. Scenery
+    let scenery_stem = "1X7A9003_Scenery_Pangong_Tso_20250915_Ladakh";
+    let (cat, pred, tier) = infer_prediction_from_stem(scenery_stem)
+        .expect("should infer prediction from scenery stem");
+    assert_eq!(cat, AssetCategory::Scenery);
+    assert_eq!(pred.folder_slug, "Scenery_Pangong_Tso");
+    assert_eq!(pred.common_name, "Pangong Tso");
+    assert_eq!(tier, RoutingTier::ConfirmedSpecies);
+    assert!(pred.combined_score >= 0.90);
+
+    // 4. Needs Review Bird
+    let nr_stem = "1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore";
+    let (cat, pred, tier) = infer_prediction_from_stem(nr_stem)
+        .expect("should infer prediction from needs review stem");
+    assert_eq!(cat, AssetCategory::Bird);
+    assert_eq!(pred.folder_slug, "Red-vented_Bulbul");
+    assert_eq!(tier, RoutingTier::NeedsReview);
+    assert!((pred.combined_score - 0.60).abs() < 0.05);
+
+    // 5. Confirmed Bird
+    let bird_stem = "1X7A7827_Rose-ringed_Parakeet_20250518_K_Gudi";
+    let (cat, pred, tier) = infer_prediction_from_stem(bird_stem)
+        .expect("should infer prediction from confirmed bird stem");
+    assert_eq!(cat, AssetCategory::Bird);
+    assert_eq!(pred.folder_slug, "Rose-ringed_Parakeet");
+    assert_eq!(tier, RoutingTier::ConfirmedSpecies);
+    assert!(pred.combined_score >= 0.90);
+
+    // 6. Plain uninformative stem should return None
+    assert!(infer_prediction_from_stem("IMG_4821").is_none());
+    assert!(infer_prediction_from_stem("1X7A9001").is_none());
+}

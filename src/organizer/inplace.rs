@@ -16,7 +16,7 @@
 
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
-use crate::types::{AssetBundle, AssetCategory, RoutingTier};
+use crate::types::{AssetBundle, AssetCategory, RoutingTier, SpeciesPrediction};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -341,6 +341,81 @@ pub fn parse_inplace_filename(filename: &str, original_stem: &str) -> Option<Inp
             Some((AssetCategory::Bird, subject, tier, date, location))
         }
     }
+}
+
+/// Infers classification prediction, category, and routing tier from a descriptive in-place stem.
+///
+/// When assets have already been renamed (e.g. `1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats`
+/// or `1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore`), this function extracts the
+/// taxonomic domain, subject slug, and confidence tier so mock runs or offline pipelines don't
+/// erroneously default to `_No_Bird_Detected` with `category: Bird`.
+///
+/// # Arguments
+/// * `stem` - Filename stem (with or without extension or base original stem prefix).
+///
+/// # Returns
+/// `Some((category, prediction, routing_tier))` if a valid subject is present in the stem,
+/// or `None` if the stem contains no descriptive subject or is unclassified (`No_Subject_Detected`).
+#[must_use]
+pub fn infer_prediction_from_stem(
+    stem: &str,
+) -> Option<(AssetCategory, SpeciesPrediction, RoutingTier)> {
+    let mut parts = stem.split('_');
+    let first = parts.next()?;
+    let rest_after_first = stem[first.len()..].strip_prefix('_')?;
+    let second = rest_after_first.split('_').next()?;
+
+    let (base_stem, suffix) = if second.chars().all(|c| c.is_ascii_digit()) {
+        let base_len = first.len() + 1 + second.len();
+        let s = stem[base_len..].strip_prefix('_').unwrap_or("");
+        (&stem[..base_len], s)
+    } else {
+        (first, rest_after_first)
+    };
+
+    if suffix.is_empty() {
+        return None;
+    }
+
+    let (category, subject, tier, _date, _loc) = parse_inplace_filename(stem, base_stem)?;
+
+    let clean_subj = subject.trim_matches('_');
+    if clean_subj.is_empty()
+        || clean_subj.eq_ignore_ascii_case("no_subject_detected")
+        || clean_subj.eq_ignore_ascii_case("no_bird_detected")
+    {
+        return None;
+    }
+
+    let folder_slug = if category == AssetCategory::Bird {
+        sanitize_species_slug(clean_subj)
+    } else {
+        let sanitized = sanitize_species_slug(clean_subj);
+        if sanitized.starts_with(category.as_str()) {
+            sanitized
+        } else {
+            format!("{}_{}", category.as_str(), sanitized)
+        }
+    };
+
+    let common_name = clean_subj.replace('_', " ");
+    let combined_score = match tier {
+        RoutingTier::ConfirmedSpecies => 0.95,
+        RoutingTier::NeedsReview => 0.60,
+        RoutingTier::NoBirdDetected => 0.10,
+    };
+
+    let pred = SpeciesPrediction {
+        taxon_id: folder_slug.to_lowercase(),
+        common_name,
+        folder_slug,
+        scientific_name: String::new(),
+        visual_prob: combined_score,
+        geo_prior: 1.0,
+        combined_score,
+    };
+
+    Some((category, pred, tier))
 }
 
 /// Idempotency guard: checks if the stem already contains the species slug

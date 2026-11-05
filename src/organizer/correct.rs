@@ -380,6 +380,11 @@ pub fn apply_bundle_correction_with_category(
             if bundle.original_stem == clean_query || bundle.original_stem == query_stem {
                 return true;
             }
+            if bundle.original_stem.starts_with(&format!("{clean_query}_"))
+                || bundle.original_stem.starts_with(&format!("{query_stem}_"))
+            {
+                return true;
+            }
             if let Some(name) = bundle.primary_image.file_name().and_then(|n| n.to_str()) {
                 if name == query_file_name || name == clean_query {
                     return true;

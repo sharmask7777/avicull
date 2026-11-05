@@ -232,13 +232,14 @@ pub fn smooth_burst_consensus(
                     ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
                 };
 
-                let routing_tier = if item.detection_confidence < 0.25 {
-                    RoutingTier::NoBirdDetected
-                } else if final_conf >= min_confidence {
-                    RoutingTier::ConfirmedSpecies
-                } else {
-                    RoutingTier::NeedsReview
-                };
+                let routing_tier =
+                    if item.detection_confidence < 0.25 && final_conf < min_confidence {
+                        RoutingTier::NoBirdDetected
+                    } else if final_conf >= min_confidence {
+                        RoutingTier::ConfirmedSpecies
+                    } else {
+                        RoutingTier::NeedsReview
+                    };
 
                 decisions.push(BundleDecision {
                     bundle_id: item.bundle_id.clone(),

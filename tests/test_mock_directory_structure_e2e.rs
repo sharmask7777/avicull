@@ -77,7 +77,7 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
 
     copy_dir_all(&local_fixtures_dir, &input_dir).expect("failed to copy fixtures to test dir");
 
-    // Include sample mock non-avian assets (squirrel, butterfly, scenery) alongside bird assets
+    // Inspect source non-avian assets (squirrel, butterfly, scenery) from fixtures
     let source_ranthambore = input_dir.join(
         "ranthambore oct 2025/processed - oct 2 safari/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg",
     );
@@ -85,25 +85,32 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
         source_ranthambore.exists(),
         "Source photo must be preserved immutably"
     );
-    let sample_image_bytes = fs::read(&source_ranthambore).expect("read sample image bytes");
-    let sample_xmp_bytes = b"<xmp:Description xmlns:xmp='http://ns.adobe.com/xap/1.0/'><dc:title>Mock Sidecar</dc:title></xmp:Description>";
 
-    let western_ghats = input_dir.join("western ghats oct 2025/processed");
-    fs::create_dir_all(&western_ghats).expect("create western ghats dir");
-
-    let squirrel_photo = western_ghats.join("1X7A9001.jpg");
-    let squirrel_xmp = western_ghats.join("1X7A9001.jpg.xmp");
-    fs::write(&squirrel_photo, &sample_image_bytes).expect("write squirrel photo");
-    fs::write(&squirrel_xmp, sample_xmp_bytes).expect("write squirrel xmp");
+    let squirrel_photo = input_dir.join(
+        "western ghats oct 2025/processed/1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats.jpg",
+    );
+    let squirrel_xmp = input_dir.join(
+        "western ghats oct 2025/processed/1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats.jpg.xmp",
+    );
+    assert!(
+        squirrel_photo.exists(),
+        "Squirrel fixture photo must exist in copy"
+    );
     let src_ino_squirrel = fs::metadata(&squirrel_photo).expect("stat squirrel").ino();
     let src_ino_squirrel_xmp = fs::metadata(&squirrel_xmp)
         .expect("stat squirrel xmp")
         .ino();
 
-    let butterfly_photo = western_ghats.join("1X7A9002.jpg");
-    let butterfly_xmp = western_ghats.join("1X7A9002.jpg.xmp");
-    fs::write(&butterfly_photo, &sample_image_bytes).expect("write butterfly photo");
-    fs::write(&butterfly_xmp, sample_xmp_bytes).expect("write butterfly xmp");
+    let butterfly_photo = input_dir.join(
+        "western ghats oct 2025/processed/1X7A9002_Insecta_Peacock_Butterfly_20251002_Western_Ghats.jpg",
+    );
+    let butterfly_xmp = input_dir.join(
+        "western ghats oct 2025/processed/1X7A9002_Insecta_Peacock_Butterfly_20251002_Western_Ghats.jpg.xmp",
+    );
+    assert!(
+        butterfly_photo.exists(),
+        "Butterfly fixture photo must exist in copy"
+    );
     let src_ino_butterfly = fs::metadata(&butterfly_photo)
         .expect("stat butterfly")
         .ino();
@@ -111,13 +118,14 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
         .expect("stat butterfly xmp")
         .ino();
 
-    let ladakh_dir = input_dir.join("ladakh 2025/scenery");
-    fs::create_dir_all(&ladakh_dir).expect("create ladakh scenery dir");
-
-    let scenery_photo = ladakh_dir.join("1X7A9003.jpg");
-    let scenery_xmp = ladakh_dir.join("1X7A9003.jpg.xmp");
-    fs::write(&scenery_photo, &sample_image_bytes).expect("write scenery photo");
-    fs::write(&scenery_xmp, sample_xmp_bytes).expect("write scenery xmp");
+    let scenery_photo =
+        input_dir.join("ladakh 2025/scenery/1X7A9003_Scenery_Pangong_Tso_20250915_Ladakh.jpg");
+    let scenery_xmp =
+        input_dir.join("ladakh 2025/scenery/1X7A9003_Scenery_Pangong_Tso_20250915_Ladakh.jpg.xmp");
+    assert!(
+        scenery_photo.exists(),
+        "Scenery fixture photo must exist in copy"
+    );
     let src_ino_scenery = fs::metadata(&scenery_photo).expect("stat scenery").ino();
     let src_ino_scenery_xmp = fs::metadata(&scenery_xmp).expect("stat scenery xmp").ino();
 

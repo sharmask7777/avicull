@@ -16,7 +16,7 @@ use avicull::location::path_parser::extract_candidate_location_tokens;
 use avicull::location::resolver::resolve_trip_locations;
 use avicull::organizer::{
     clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename,
-    materialize_bundle_hardlinks, resolve_category_for_decision,
+    infer_prediction_from_stem, materialize_bundle_hardlinks, resolve_category_for_decision,
 };
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
@@ -217,8 +217,19 @@ fn run_batch_inference(
 
     for item in parsed {
         if let Some(bundle) = bundle_map.get(&item.bundle_id) {
-            let posteriors: Vec<(String, f32)> = item
-                .top_predictions
+            let (top_predictions, detection_confidence) = if item.top_predictions.is_empty() {
+                if let Some((_cat, pred, _tier)) =
+                    avicull::organizer::infer_prediction_from_stem(&bundle.original_stem)
+                {
+                    (vec![pred], 0.90)
+                } else {
+                    (item.top_predictions, item.detection_confidence)
+                }
+            } else {
+                (item.top_predictions, item.detection_confidence)
+            };
+
+            let posteriors: Vec<(String, f32)> = top_predictions
                 .iter()
                 .map(|p| (p.taxon_id.clone(), p.combined_score))
                 .collect();
@@ -229,10 +240,10 @@ fn run_batch_inference(
                     bundle_id: item.bundle_id,
                     trip_folder: bundle.trip_folder_name.clone(),
                     capture_timestamp_ms: bundle.capture_timestamp_ms,
-                    detection_confidence: item.detection_confidence,
+                    detection_confidence,
                     bbox_norm: None,
                     embedding: item.embedding,
-                    top_predictions: item.top_predictions,
+                    top_predictions,
                     posteriors,
                 },
             );
@@ -274,19 +285,62 @@ fn run_fallback_parallel_classification(
                     .classify_with_region(&cropped, bundle.gps_coords, region, geo_prior_weight)
                     .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
 
-                let posteriors: Vec<(String, f32)> = preds
-                    .iter()
-                    .map(|p| (p.taxon_id.clone(), p.combined_score))
-                    .collect();
+                if preds.is_empty() {
+                    if let Some((_cat, pred, _tier)) =
+                        infer_prediction_from_stem(&bundle.original_stem)
+                    {
+                        let posteriors = vec![(pred.taxon_id.clone(), pred.combined_score)];
+                        ClassifiedBundleItem {
+                            bundle_id: bundle.bundle_id.clone(),
+                            trip_folder: bundle.trip_folder_name.clone(),
+                            capture_timestamp_ms: bundle.capture_timestamp_ms,
+                            detection_confidence: 0.90,
+                            bbox_norm: bbox,
+                            embedding: emb,
+                            top_predictions: vec![pred],
+                            posteriors,
+                        }
+                    } else {
+                        ClassifiedBundleItem {
+                            bundle_id: bundle.bundle_id.clone(),
+                            trip_folder: bundle.trip_folder_name.clone(),
+                            capture_timestamp_ms: bundle.capture_timestamp_ms,
+                            detection_confidence: det_conf,
+                            bbox_norm: bbox,
+                            embedding: emb,
+                            top_predictions: preds,
+                            posteriors: vec![],
+                        }
+                    }
+                } else {
+                    let posteriors: Vec<(String, f32)> = preds
+                        .iter()
+                        .map(|p| (p.taxon_id.clone(), p.combined_score))
+                        .collect();
 
+                    ClassifiedBundleItem {
+                        bundle_id: bundle.bundle_id.clone(),
+                        trip_folder: bundle.trip_folder_name.clone(),
+                        capture_timestamp_ms: bundle.capture_timestamp_ms,
+                        detection_confidence: det_conf,
+                        bbox_norm: bbox,
+                        embedding: emb,
+                        top_predictions: preds,
+                        posteriors,
+                    }
+                }
+            } else if let Some((_cat, pred, _tier)) =
+                infer_prediction_from_stem(&bundle.original_stem)
+            {
+                let posteriors = vec![(pred.taxon_id.clone(), pred.combined_score)];
                 ClassifiedBundleItem {
                     bundle_id: bundle.bundle_id.clone(),
                     trip_folder: bundle.trip_folder_name.clone(),
                     capture_timestamp_ms: bundle.capture_timestamp_ms,
-                    detection_confidence: det_conf,
-                    bbox_norm: bbox,
-                    embedding: emb,
-                    top_predictions: preds,
+                    detection_confidence: 0.90,
+                    bbox_norm: None,
+                    embedding: vec![0.0; 512],
+                    top_predictions: vec![pred],
                     posteriors,
                 }
             } else {

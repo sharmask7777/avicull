@@ -74,6 +74,30 @@ pub fn default_curated_samples() -> Vec<CuratedSample> {
             ),
             sidecar_rel_path: None,
         },
+        CuratedSample {
+            image_rel_path: PathBuf::from(
+                "western ghats oct 2025/processed/1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats.jpg",
+            ),
+            sidecar_rel_path: Some(PathBuf::from(
+                "western ghats oct 2025/processed/1X7A9001_Mammalia_Malabar_Giant_Squirrel_20251002_Western_Ghats.jpg.xmp",
+            )),
+        },
+        CuratedSample {
+            image_rel_path: PathBuf::from(
+                "western ghats oct 2025/processed/1X7A9002_Insecta_Peacock_Butterfly_20251002_Western_Ghats.jpg",
+            ),
+            sidecar_rel_path: Some(PathBuf::from(
+                "western ghats oct 2025/processed/1X7A9002_Insecta_Peacock_Butterfly_20251002_Western_Ghats.jpg.xmp",
+            )),
+        },
+        CuratedSample {
+            image_rel_path: PathBuf::from(
+                "ladakh 2025/scenery/1X7A9003_Scenery_Pangong_Tso_20250915_Ladakh.jpg",
+            ),
+            sidecar_rel_path: Some(PathBuf::from(
+                "ladakh 2025/scenery/1X7A9003_Scenery_Pangong_Tso_20250915_Ladakh.jpg.xmp",
+            )),
+        },
     ]
 }
 
@@ -97,6 +121,16 @@ pub fn default_gazetteers() -> Vec<GazetteerFixture> {
         GazetteerFixture {
             dir_rel_path: PathBuf::from("New zealand 2025"),
             content: "trip_name = \"Rotorua\"\nlatitude = -38.1368\nlongitude = 176.2497\n"
+                .to_string(),
+        },
+        GazetteerFixture {
+            dir_rel_path: PathBuf::from("western ghats oct 2025"),
+            content: "trip_name = \"Western Ghats\"\nlatitude = 10.5000\nlongitude = 76.8000\n"
+                .to_string(),
+        },
+        GazetteerFixture {
+            dir_rel_path: PathBuf::from("ladakh 2025"),
+            content: "trip_name = \"Ladakh\"\nlatitude = 34.1500\nlongitude = 77.5800\n"
                 .to_string(),
         },
     ]
@@ -207,7 +241,7 @@ mod tests {
     #[test]
     fn test_default_curated_samples_and_gazetteers() {
         let samples = default_curated_samples();
-        assert_eq!(samples.len(), 4);
+        assert_eq!(samples.len(), 7);
         assert!(samples
             .iter()
             .any(|s| s.image_rel_path.to_string_lossy().contains("ranthambore")));
@@ -220,10 +254,20 @@ mod tests {
         assert!(samples
             .iter()
             .any(|s| s.image_rel_path.to_string_lossy().contains("New zealand")));
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("western ghats")));
+        assert!(samples
+            .iter()
+            .any(|s| s.image_rel_path.to_string_lossy().contains("ladakh")));
 
         let gazetteers = default_gazetteers();
-        assert_eq!(gazetteers.len(), 4);
+        assert_eq!(gazetteers.len(), 6);
         assert!(gazetteers.iter().any(|g| g.content.contains("Ranthambore")));
+        assert!(gazetteers
+            .iter()
+            .any(|g| g.content.contains("Western Ghats")));
+        assert!(gazetteers.iter().any(|g| g.content.contains("Ladakh")));
         assert!(gazetteers.iter().any(|g| g.content.contains("Coorg")));
         assert!(gazetteers.iter().any(|g| g.content.contains("K Gudi")));
         assert!(gazetteers.iter().any(|g| g.content.contains("Rotorua")));
