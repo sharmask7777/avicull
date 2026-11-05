@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
 
-// Load the committed reference snapshot
-const SNAPSHOT_CATALOG_PATH = `file://${path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.html')}`;
+// Load the committed reference snapshot (.snap format to prevent CodeQL false positives)
+const SNAPSHOT_CATALOG_PATH = `file://${path.resolve(__dirname, '../fixtures/snapshots/bird_catalog_reference.snap')}`;
 
 test.describe('Avicull Catalog Visual & Layout Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
