@@ -2784,6 +2784,15 @@ fn test_catalog_html_template_contains_category_filter_pills() {
         "HTML must contain 'Scenery' category filter pill"
     );
     assert!(
+        html.contains("<span class=\"stat-label\">Confirmed Species</span>"),
+        "HTML must generalize stat card label to 'Confirmed Species'"
+    );
+    assert!(
+        html.contains(">No Subject (")
+            || html.contains("data-filter=\"NoBirdDetected\">No Subject"),
+        "HTML must contain generalized No Subject status filter pill"
+    );
+    assert!(
         html.contains("badge-category") || html.contains("Mammalia • Malabar Giant Squirrel"),
         "HTML must render category badge or card title with category"
     );

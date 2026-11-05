@@ -243,15 +243,51 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     /* Filters Bar */
     .controls-bar {{
       display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      gap: 12px;
       margin-bottom: 24px;
       background: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 12px 16px;
+      padding: 14px 16px;
+    }}
+
+    .controls-top-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }}
+
+    .filter-section {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+
+    .sub-pills-row {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      transition: opacity 0.15s ease;
+    }}
+
+    .sub-pills-row.hidden {{
+      display: none;
+    }}
+
+    .pills-group-label {{
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      user-select: none;
     }}
 
     .search-box {{
@@ -972,7 +1008,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       <span class="stat-val" id="statSpecies">{species_count}</span>
     </div>
     <div class="stat-card stat-confirmed">
-      <span class="stat-label">Confirmed Birds</span>
+      <span class="stat-label">Confirmed Species</span>
       <span class="stat-val" id="statConfirmed">{confirmed_count}</span>
     </div>
     <div class="stat-card stat-review">
@@ -982,22 +1018,30 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   </div>
 
   <div class="controls-bar">
-    <div class="search-box">
-      <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
-      <input type="text" id="searchInput" placeholder="Search by species, category, location, date, or filename..." oninput="handleSearch()"/>
+    <div class="controls-top-row">
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by species, category, location, date, or filename..." oninput="handleSearch()"/>
+      </div>
+      <div class="filter-section">
+        <span class="pills-group-label">Status</span>
+        <div class="filter-pills">
+          <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
+          <button class="pill" data-filter="ConfirmedSpecies" onclick="setFilter('ConfirmedSpecies', this)">Confirmed ({confirmed_count})</button>
+          <button class="pill" data-filter="NeedsReview" onclick="setFilter('NeedsReview', this)">Needs Review ({needs_review_count})</button>
+          <button class="pill" data-filter="NoBirdDetected" onclick="setFilter('NoBirdDetected', this)">No Subject ({no_bird_count})</button>
+        </div>
+      </div>
     </div>
-    <div class="category-pills" id="categoryPills">
-      <button class="pill category-pill active" data-category="all" onclick="setCategoryFilter('all', this)">All (<span id="catCountAll">{total_photos}</span>)</button>
-      <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">{bird_count}</span>)</button>
-      <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">{mammalia_count}</span>)</button>
-      <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
-      <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
-    </div>
-    <div class="filter-pills">
-      <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
-      <button class="pill" data-filter="ConfirmedSpecies" onclick="setFilter('ConfirmedSpecies', this)">Confirmed ({confirmed_count})</button>
-      <button class="pill" data-filter="NeedsReview" onclick="setFilter('NeedsReview', this)">Needs Review ({needs_review_count})</button>
-      <button class="pill" data-filter="NoBirdDetected" onclick="setFilter('NoBirdDetected', this)">No Bird ({no_bird_count})</button>
+    <div class="sub-pills-row" id="categorySubPillsRow">
+      <span class="pills-group-label">Category</span>
+      <div class="category-pills" id="categoryPills">
+        <button class="pill category-pill active" data-category="all" onclick="setCategoryFilter('all', this)">All (<span id="catCountAll">{total_photos}</span>)</button>
+        <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">{bird_count}</span>)</button>
+        <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">{mammalia_count}</span>)</button>
+        <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
+        <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
+      </div>
     </div>
   </div>
 
@@ -1044,7 +1088,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             Select Correct Species (eBird Taxonomy Autocomplete):
           </label>
           <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-            Mark as No Bird Detected (False Positive)
+            Mark as No Subject (False Positive)
           </button>
         </div>
         <div class="autocomplete-wrap">
@@ -1496,7 +1540,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         tierLabel = `Review (${{confPct}}%)`;
       }} else if (item.routing_tier === 'NoBirdDetected') {{
         tierBadgeClass = "badge-nobird";
-        tierLabel = "No Bird";
+        tierLabel = "No Subject";
       }}
 
       const locationMarkup = item.location_name ? `
@@ -1609,12 +1653,29 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     currentFilter = tier;
     document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
+
+    // Toggle category sub-pills row visibility for No Subject tier
+    const subPillsRow = document.getElementById('categorySubPillsRow');
+    if (subPillsRow) {{
+      if (tier === 'NoBirdDetected') {{
+        subPillsRow.classList.add('hidden');
+      }} else {{
+        subPillsRow.classList.remove('hidden');
+      }}
+    }}
+
+    // When changing status tier, update category sub-pill counts dynamically
+    updateCategoryCounts();
     renderGallery();
   }}
 
   function updateCategoryCounts() {{
-    const counts = {{ all: items.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 }};
-    items.forEach(i => {{
+    const scopeItems = currentFilter === 'all'
+      ? items
+      : items.filter(i => i.routing_tier === currentFilter);
+
+    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 }};
+    scopeItems.forEach(i => {{
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {{
         counts[c]++;

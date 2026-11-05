@@ -94,4 +94,39 @@ test.describe('Avicull Taxa Categories & Unified Semantic Search E2E Tests', () 
     const cmdOutput = page.locator('#commandOutput');
     await expect(cmdOutput).toContainText('avicull correct --category "Mammalia" --species "Indian_Giant_Squirrel"');
   });
+
+  test('status filter pills and dynamic category sub-pills interaction', async ({ page }) => {
+    // Stat card check
+    const statConfirmedLabel = page.locator('.stat-confirmed .stat-label');
+    await expect(statConfirmedLabel).toHaveText('Confirmed Species');
+
+    // Status pill checks
+    const statusConfirmedPill = page.locator('.filter-pills button[data-filter="ConfirmedSpecies"]');
+    const statusNoSubjectPill = page.locator('.filter-pills button[data-filter="NoBirdDetected"]');
+    await expect(statusNoSubjectPill).toContainText('No Subject');
+
+    // Sub-pills row visible initially
+    const subPillsRow = page.locator('#categorySubPillsRow');
+    await expect(subPillsRow).toBeVisible();
+
+    // Click Confirmed status
+    await statusConfirmedPill.click();
+    await expect(statusConfirmedPill).toHaveClass(/active/);
+
+    // Dynamic category sub-pill counts when Confirmed is active
+    const birdSubCount = page.locator('#catCountBird');
+    const mamSubCount = page.locator('#catCountMammalia');
+    await expect(birdSubCount).toHaveText('2');
+    await expect(mamSubCount).toHaveText('2');
+
+    // Click No Subject status -> sub-pills row should be hidden
+    await statusNoSubjectPill.click();
+    await expect(statusNoSubjectPill).toHaveClass(/active/);
+    await expect(subPillsRow).toHaveClass(/hidden/);
+
+    // Reset to All status -> sub-pills row visible again
+    const statusAllPill = page.locator('.filter-pills button[data-filter="all"]');
+    await statusAllPill.click();
+    await expect(subPillsRow).not.toHaveClass(/hidden/);
+  });
 });
