@@ -17,7 +17,7 @@ fn setup_fixture_models_dir(temp_dir: &tempfile::TempDir) -> PathBuf {
 }
 
 #[test]
-fn test_catalog_filename_is_bird_catalog() {
+fn test_catalog_filename_is_catalog_html() {
     let temp = tempdir().unwrap();
     let fixture_models_dir = setup_fixture_models_dir(&temp);
 
@@ -43,13 +43,24 @@ fn test_catalog_filename_is_bird_catalog() {
 
     assert!(output.status.success(), "avicull organize should succeed");
 
-    assert!(
-        input_dir.join("bird_catalog.html").exists(),
-        "bird_catalog.html must exist at input root"
+    assert_eq!(
+        avicull::catalog::DEFAULT_CATALOG_FILENAME,
+        "catalog.html",
+        "DEFAULT_CATALOG_FILENAME must be catalog.html"
     );
+
+    let catalog_path = input_dir.join("catalog.html");
     assert!(
-        input_dir.join("catalog.html").exists(),
-        "catalog.html symlink/alias must exist at input root"
+        catalog_path.exists(),
+        "catalog.html must exist at input root"
+    );
+    let meta = fs::metadata(&catalog_path).expect("catalog.html metadata");
+    assert!(meta.len() > 0, "catalog.html must exist and be non-empty");
+
+    let legacy_alias = input_dir.join("bird_catalog.html");
+    assert!(
+        legacy_alias.exists(),
+        "bird_catalog.html backwards-compatible alias must exist at input root"
     );
 }
 

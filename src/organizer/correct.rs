@@ -297,7 +297,7 @@ pub fn apply_bundle_correction(
 /// Updates the bundle's classification, category, and routing tier in the SQLite manifest,
 /// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
 /// moves or renames all associated files (primary image, companions, and sidecars)
-/// according to the active organization mode, and regenerates `bird_catalog.html`.
+/// according to the active organization mode, and regenerates `catalog.html`.
 /// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
 /// to the same burst are reclassified and relocated lockstep.
 #[allow(clippy::too_many_arguments)]
@@ -826,7 +826,7 @@ pub fn apply_bundle_correction_with_category(
         }
     }
 
-    // Regenerate bird_catalog.html if catalog or output tree exists
+    // Regenerate catalog.html if catalog or output tree exists
     let catalog_path = operating_root.join(crate::catalog::DEFAULT_CATALOG_FILENAME);
     if operating_root.exists() {
         let trip_name = input_root
