@@ -105,6 +105,10 @@ def test_regional_checklists_integrity_and_species_filtering():
         "African Pied Wagtail (afpwag1) must not be in IN-KA checklist"
     )
 
+    # Ladakh (IN-LA) checklist checks
+    ladakh = set(checklists["IN-LA"])
+    assert "blueth" in ladakh, "Bluethroat (blueth) must be in IN-LA regional checklist"
+
     # Florida should have Bald Eagle
     florida = set(checklists["US-FL"])
     assert "baleag" in florida, "Bald Eagle (baleag) should be in US-FL checklist"
