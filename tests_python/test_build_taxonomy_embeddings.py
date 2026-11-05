@@ -119,6 +119,13 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
                 "common_name": "Aurora Borealis",
                 "scientific_name": "Aurora Borealis",
             },
+            # eBird intergrade record should normalize to Bird
+            {
+                "category": "intergrade",
+                "speciesCode": "whiwag12",
+                "comName": "White Wagtail (Chinese x Hodgson's)",
+                "sciName": "Motacilla alba leucopsis x alboides",
+            },
             # eBird non-species slash should be skipped
             {
                 "category": "slash",
@@ -136,7 +143,7 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         ]
 
         entries = parse_taxonomy_records(raw_records)
-        self.assertEqual(len(entries), 5)
+        self.assertEqual(len(entries), 6)
 
         by_code = {e.species_code: e for e in entries}
         self.assertEqual(by_code["whbkin1"].category, "Bird")
@@ -144,6 +151,7 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         self.assertEqual(by_code["mamm_mal_sq1"].category, "Mammalia")
         self.assertEqual(by_code["ins_peacock1"].category, "Insecta")
         self.assertEqual(by_code["scen_aurora"].category, "Scenery")
+        self.assertEqual(by_code["whiwag12"].category, "Bird")
 
     def test_prompt_generation_per_category(self):
         """Verify prompt generation produces category-specific BioCLIP text prompts."""

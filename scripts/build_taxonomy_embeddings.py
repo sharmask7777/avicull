@@ -176,7 +176,8 @@ def parse_taxonomy_records(
         if raw_cat == "species" or raw_cat is None:
             resolved_category = default_category
         elif isinstance(raw_cat, str):
-            resolved_category = normalize_category(raw_cat)
+            norm_cat = normalize_category(raw_cat)
+            resolved_category = norm_cat if norm_cat in CANONICAL_CATEGORIES else default_category
         else:
             resolved_category = default_category
 

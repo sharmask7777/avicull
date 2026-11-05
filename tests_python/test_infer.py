@@ -627,7 +627,9 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         engine.detector.return_value = []
 
         img_path = os.path.join(self.models_dir, "landscape.jpg")
-        Image.new("RGB", (200, 200), color="blue").save(img_path)
+        # Natural image with texture / gradients (non-zero visual entropy)
+        landscape_img = Image.effect_noise((200, 200), 20).convert("RGB")
+        landscape_img.save(img_path)
 
         res = engine.process_image(img_path)
 
@@ -658,6 +660,70 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         self.assertFalse(res["detected"])
         self.assertEqual(res["detection_confidence"], 0.0)
         self.assertEqual(len(res["top_predictions"]), 0)
+
+    def test_detector_bird_crop_defaults_to_bird_category(self):
+        """Verify that when YOLO detects a bird (class_id == 14), category defaults to Bird."""
+        # Bird vector on dim 0
+        # If mammal centroid similarity is artificially higher due to centroid pooling:
+        # Centroid for Bird might be dim 0 (0.5), Centroid for Mammalia is dim 1 (1.0).
+        # Visual embedding has Bird similarity 0.7 on dim 0, Mammal similarity 0.72 on dim 1.
+        bird_vec = torch.zeros(512, dtype=torch.float32)
+        bird_vec[0] = 0.7
+        bird_vec[1] = 0.72  # slightly higher mammal centroid
+
+        engine = self._create_mock_engine(bird_vec)
+
+        # YOLO detects a bird box (class_id = 14)
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(COCO_BIRD_CLASS_ID)]
+        mock_box.conf = [torch.tensor(0.85)]
+        mock_box.xyxy = [torch.tensor([10.0, 10.0, 90.0, 90.0])]
+        mock_res = MagicMock()
+        mock_res.boxes = [mock_box]
+        engine.detector.return_value = [mock_res]
+
+        img_path = os.path.join(self.models_dir, "bird_sample.jpg")
+        Image.new("RGB", (100, 100), color="brown").save(img_path)
+
+        res = engine.process_image(img_path)
+        self.assertEqual(res["category"], "Bird")
+        self.assertEqual(res["assigned_species_slug"], "Brahminy_Kite")
+        self.assertTrue(res["detected"])
+
+    def test_detector_fallback_synthetic_black_returns_no_subject_detected(self):
+        """Verify fallback on pure black/synthetic image returns _No_Subject_Detected."""
+        # Even if scenery vector is high
+        scenery_vec = torch.zeros(512, dtype=torch.float32)
+        scenery_vec[3] = 1.0
+
+        engine = self._create_mock_engine(scenery_vec)
+        engine.detector.return_value = []
+
+        # Synthetic pure black image (zero entropy)
+        img_path = os.path.join(self.models_dir, "pure_black.jpg")
+        Image.new("RGB", (100, 100), color="black").save(img_path)
+
+        res = engine.process_image(img_path)
+        self.assertEqual(res["assigned_species_slug"], "_No_Subject_Detected")
+        self.assertEqual(res["category"], "Unknown")
+        self.assertFalse(res["detected"])
+
+    def test_compute_category_centroids_normalizes_missing_or_invalid_category(self):
+        """Verify compute_category_centroids normalizes invalid or intergrade categories to Bird."""
+        emb = torch.zeros(3, 512, dtype=torch.float32)
+        emb[0, 0] = 1.0
+        emb[1, 0] = 1.0
+        emb[2, 1] = 1.0
+        tax = [
+            {"category": "intergrade", "taxon_id": "sp1"},
+            {"category": "unknown_cat", "taxon_id": "sp2"},
+            {"category": "Mammalia", "taxon_id": "mamm1"},
+        ]
+        centroids = compute_category_centroids(emb, tax)
+        self.assertIn("Bird", centroids)
+        self.assertIn("Mammalia", centroids)
+        self.assertNotIn("intergrade", centroids)
+        self.assertNotIn("unknown_cat", centroids)
 
 
 if __name__ == "__main__":

@@ -702,3 +702,14 @@ fn test_infer_prediction_from_stem_all_categories() {
     assert!(infer_prediction_from_stem("IMG_4821").is_none());
     assert!(infer_prediction_from_stem("1X7A9001").is_none());
 }
+
+#[test]
+fn test_infer_prediction_from_stem_rejects_numeric_suffixes() {
+    // Camera shot files with numeric suffixes or duplicate counter tokens
+    // should not have those numbers interpreted as species names.
+    assert!(infer_prediction_from_stem("IMG_3172_01").is_none());
+    assert!(infer_prediction_from_stem("IMG_3250_02").is_none());
+    assert!(infer_prediction_from_stem("DSC_0042_1").is_none());
+    assert!(infer_prediction_from_stem("IMG_1234_999").is_none());
+    assert!(infer_prediction_from_stem("1X7A9001_02").is_none());
+}

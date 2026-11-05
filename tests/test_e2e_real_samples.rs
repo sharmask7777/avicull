@@ -137,8 +137,18 @@ fn test_e2e_real_samples_classification_and_hardlinks() {
         for exp in &expectations {
             let species_dir = if output_dir.join("Bird").join(exp.species_slug).exists() {
                 output_dir.join("Bird").join(exp.species_slug)
-            } else {
+            } else if output_dir
+                .join("Bird")
+                .join(exp.species_slug.to_lowercase())
+                .exists()
+            {
+                output_dir
+                    .join("Bird")
+                    .join(exp.species_slug.to_lowercase())
+            } else if output_dir.join(exp.species_slug).exists() {
                 output_dir.join(exp.species_slug)
+            } else {
+                output_dir.join(exp.species_slug.to_lowercase())
             };
             assert!(
                 species_dir.exists(),

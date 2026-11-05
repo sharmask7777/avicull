@@ -383,6 +383,7 @@ pub fn infer_prediction_from_stem(
     if clean_subj.is_empty()
         || clean_subj.eq_ignore_ascii_case("no_subject_detected")
         || clean_subj.eq_ignore_ascii_case("no_bird_detected")
+        || !clean_subj.chars().any(|c| c.is_ascii_alphabetic())
     {
         return None;
     }

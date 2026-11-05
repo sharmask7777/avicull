@@ -11,6 +11,7 @@ Executes:
 import argparse
 import json
 import logging
+import math
 import os
 import sys
 import warnings
@@ -243,6 +244,21 @@ def apply_regional_prior(
     return scores
 
 
+def calculate_visual_entropy(img: Image.Image) -> float:
+    """Computes the Shannon entropy of grayscale pixel distribution.
+
+    Uniform, pure black, or synthetic solid frames return entropy ~ 0.0,
+    whereas natural photographic scenes exhibit entropy > 2.0.
+    """
+    gray = img.convert("L")
+    hist = gray.histogram()
+    total = sum(hist)
+    if total == 0:
+        return 0.0
+    probs = [c / total for c in hist if c > 0]
+    return float(-sum(p * math.log2(p) for p in probs))
+
+
 def compute_category_centroids(
     embeddings: torch.Tensor | np.ndarray,
     taxonomy: Sequence[dict[str, Any] | Any],
@@ -254,7 +270,7 @@ def compute_category_centroids(
         taxonomy: Sequence of taxonomy records containing category field.
 
     Returns:
-        Dictionary mapping category names ('Bird', 'Mammalia', 'Insecta', 'Scenery')
+        Dictionary mapping canonical category names ('Bird', 'Mammalia', 'Insecta', 'Scenery')
         to their 512-dimensional unit-norm centroid vector.
     """
     if not isinstance(embeddings, torch.Tensor):
@@ -267,9 +283,10 @@ def compute_category_centroids(
 
     for idx, item in enumerate(taxonomy):
         if isinstance(item, dict):
-            cat = item.get("category", "Bird")
+            raw_cat = item.get("category", "Bird")
         else:
-            cat = getattr(item, "category", "Bird")
+            raw_cat = getattr(item, "category", "Bird")
+        cat = raw_cat if raw_cat in CANONICAL_CATEGORIES else "Bird"
         cat_indices.setdefault(cat, []).append(idx)
 
     for cat, indices in cat_indices.items():
@@ -294,6 +311,8 @@ def classify_category_anchors(
 
     Evaluates cosine similarity against category centroids (Bird, Mammalia, Insecta, Scenery).
     Applies margin delta: if |s_top - s_second| < margin, flags result as ambiguous.
+    When ambiguous and 'Bird' is among the top contenders, resolves to 'Bird' rather than
+    blindly defaulting to non-bird categories.
 
     Args:
         embedding: 512-dimensional visual embedding vector.
@@ -339,6 +358,11 @@ def classify_category_anchors(
         diff = top_score - second_score
         if diff < margin:
             is_ambiguous = True
+            # When ambiguous, do not blindly default away from Bird if Bird is close to the top
+            bird_score = scores.get("Bird")
+            if bird_score is not None and (top_score - bird_score) < margin:
+                top_cat = "Bird"
+                top_score = bird_score
 
     return CategoryAnchorResult(
         category=top_cat,
@@ -535,12 +559,16 @@ class AvianInferenceEngine:
                 full_emb[0], self.category_centroids, margin=0.03
             )
 
+            # Evaluate natural visual entropy to reject pure black/synthetic uniform images
+            visual_entropy = calculate_visual_entropy(img)
+
             # If full-frame is confident scenery (Scenery is top category,
-            # not ambiguous, and score >= 0.15)
+            # not ambiguous, natural visual entropy >= 1.0, and score >= 0.20)
             is_scenery = (
                 anchor_res.category == "Scenery"
                 and not anchor_res.is_ambiguous
-                and anchor_res.confidence >= 0.15
+                and visual_entropy >= 1.0
+                and anchor_res.confidence >= 0.20
             )
 
             if not is_scenery:
@@ -569,8 +597,48 @@ class AvianInferenceEngine:
                 img_emb = self.vision_model(crop_tensor)
                 img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
 
-            anchor_res = classify_category_anchors(img_emb[0], self.category_centroids, margin=0.02)
-            target_category = anchor_res.category
+            # Detect whether YOLO specifically localized a bird (COCO_BIRD_CLASS_ID = 14)
+            detected_bird = any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections)
+
+            # Avoid centroid dilution: evaluate top candidates directly across all species
+            with torch.no_grad():
+                all_sims = (img_emb @ self.species_embeddings.T)[0]
+                top_sp_idx = int(torch.argmax(all_sims).item())
+                top_sp_cat = self.taxonomy[top_sp_idx].get("category", "Bird")
+                if top_sp_cat not in CANONICAL_CATEGORIES:
+                    top_sp_cat = "Bird"
+
+            if detected_bird:
+                # When YOLO detected a bird, target_category defaults to Bird unless
+                # a non-bird candidate has overwhelming visual cosine similarity exceeding
+                # the top bird prediction by a significant margin (e.g. >= 0.05).
+                bird_indices = [
+                    i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
+                ]
+                non_bird_indices = [
+                    i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") != "Bird"
+                ]
+
+                max_bird_sim = float(all_sims[bird_indices].max().item()) if bird_indices else -1.0
+                max_non_bird_sim = (
+                    float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
+                )
+
+                target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
+            else:
+                # If YOLO detected an animal (cat, dog, etc.) or open-set entity:
+                # If top candidate species across all categories is Bird, target_category is Bird.
+                # Otherwise, consult centroid anchor or winning candidate species.
+                if top_sp_cat == "Bird":
+                    target_category = "Bird"
+                else:
+                    anchor_res = classify_category_anchors(
+                        img_emb[0], self.category_centroids, margin=0.02
+                    )
+                    target_category = (
+                        anchor_res.category if not anchor_res.is_ambiguous else top_sp_cat
+                    )
+
             is_fallback_crop = False
 
         # Stage 2: Fine-grained ranking within target_category
