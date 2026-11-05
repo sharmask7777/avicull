@@ -35,6 +35,7 @@ from safetensors.torch import load_file
 from ultralytics import YOLO
 
 COCO_BIRD_CLASS_ID = 14
+COCO_MAMMAL_CLASS_IDS: frozenset[int] = frozenset({15, 16, 17, 18, 19, 20, 21, 22, 23})
 COCO_ANIMAL_CLASS_IDS: frozenset[int] = frozenset(
     {
         14,  # bird
@@ -442,9 +443,10 @@ class AvianInferenceEngine:
         return tensor
 
     def detect_and_crop(
-        self, img: Image.Image, min_detect: float = 0.25
+        self, img: Image.Image, min_detect: float = 0.25, min_area_ratio: float = 0.001
     ) -> tuple[Image.Image | None, float, list[dict[str, Any]]]:
         w, h = img.size
+        img_area = float(w * h)
         results = self.detector(img, verbose=False, imgsz=640)
         best_candidate: tuple[float, DetectionBox] | None = None
         best_score = -1.0
@@ -466,7 +468,8 @@ class AvianInferenceEngine:
                         class_id=cls_id,
                     )
                     all_detections.append(det_box)
-                    if conf >= min_detect:
+                    area_ratio = det_box.area / img_area if img_area > 0 else 0.0
+                    if conf >= min_detect and area_ratio >= min_area_ratio:
                         score = conf * det_box.area
                         if score > best_score:
                             best_score = score
@@ -597,7 +600,10 @@ class AvianInferenceEngine:
                 img_emb = self.vision_model(crop_tensor)
                 img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
 
-            # Detect whether YOLO specifically localized a bird (COCO_BIRD_CLASS_ID = 14)
+            # Detect whether YOLO specifically localized a mammal or bird
+            detected_mammal = any(
+                det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections
+            )
             detected_bird = any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections)
 
             # Avoid centroid dilution: evaluate top candidates directly across all species
@@ -608,22 +614,33 @@ class AvianInferenceEngine:
                 if top_sp_cat not in CANONICAL_CATEGORIES:
                     top_sp_cat = "Bird"
 
-            if detected_bird:
-                # When YOLO detected a bird, target_category defaults to Bird unless
-                # a non-bird candidate has overwhelming visual cosine similarity exceeding
-                # the top bird prediction by a significant margin (e.g. >= 0.05).
-                bird_indices = [
-                    i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
-                ]
-                non_bird_indices = [
-                    i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") != "Bird"
-                ]
+            bird_indices = [
+                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
+            ]
+            mammal_indices = [
+                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Mammalia"
+            ]
+            non_bird_indices = [
+                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") != "Bird"
+            ]
 
-                max_bird_sim = float(all_sims[bird_indices].max().item()) if bird_indices else -1.0
-                max_non_bird_sim = (
-                    float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
-                )
+            max_bird_sim = float(all_sims[bird_indices].max().item()) if bird_indices else -1.0
+            max_mammal_sim = (
+                float(all_sims[mammal_indices].max().item()) if mammal_indices else -1.0
+            )
+            max_non_bird_sim = (
+                float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
+            )
 
+            if detected_mammal and not detected_bird:
+                # If YOLO detected a mammal with high confidence and no bird, route
+                # target_category = "Mammalia" unless a bird candidate has overwhelming
+                # visual similarity margin exceeding the top mammal prediction by >= 0.15.
+                target_category = "Bird" if max_bird_sim - max_mammal_sim >= 0.15 else "Mammalia"
+            elif detected_bird and not detected_mammal:
+                # Default target_category = "Bird" unless non-bird has margin >= 0.05.
+                target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
+            elif detected_bird and detected_mammal:
                 target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
             else:
                 # If YOLO detected an animal (cat, dog, etc.) or open-set entity:

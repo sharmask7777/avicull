@@ -1151,6 +1151,7 @@ RAJASTHAN_TAXON_IDS = [
 # Birds for Ladakh (IN-LA)
 LADAKH_TAXON_IDS = [
     "blared1",  # Black Redstart
+    "blueth",  # Bluethroat
     "chukar",  # Chukar
     "himrub1",  # Himalayan Rubythroat
     "bahgoo",  # Bar-headed Goose

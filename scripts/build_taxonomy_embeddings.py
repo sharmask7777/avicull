@@ -275,6 +275,41 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
         "scientific_name": "Semnopithecus entellus",
         "aliases": ["Hanuman Langur"],
     },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_wild_yak1",
+        "common_name": "Wild Yak",
+        "scientific_name": "Bos mutus",
+        "aliases": ["Wild Yak", "Yak"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_dom_yak1",
+        "common_name": "Domestic Yak",
+        "scientific_name": "Bos grunniens",
+        "aliases": ["Domestic Yak", "Himalayan Yak"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_wool_hare1",
+        "common_name": "Woolly Hare",
+        "scientific_name": "Lepus oiostolus",
+        "aliases": ["Woolly Hare", "Tibetan Hare", "Mountain Hare"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_him_marmot1",
+        "common_name": "Himalayan Marmot",
+        "scientific_name": "Marmota himalayana",
+        "aliases": ["Himalayan Marmot"],
+    },
+    {
+        "category": "Mammalia",
+        "taxon_id": "mamm_bharal1",
+        "common_name": "Bharal",
+        "scientific_name": "Pseudois nayaur",
+        "aliases": ["Blue Sheep", "Bharal"],
+    },
     # --- Insecta (Prominent global Lepidoptera, Odonata, etc.) ---
     {
         "category": "Insecta",
@@ -391,6 +426,13 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
         "common_name": "Starry Night Sky",
         "scientific_name": "Starry Night Sky",
         "aliases": ["Milky Way", "Astrophotography"],
+    },
+    {
+        "category": "Scenery",
+        "taxon_id": "scen_rainbow",
+        "common_name": "Rainbow over Landscape",
+        "scientific_name": "Rainbow",
+        "aliases": ["Rainbow", "Rainbow Sky"],
     },
 )
 
