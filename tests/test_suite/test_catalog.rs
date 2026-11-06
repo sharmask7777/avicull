@@ -2964,3 +2964,66 @@ fn test_generate_taxa_catalog_fixture_for_playwright() {
 
     assert!(fixture_path.exists());
 }
+
+#[test]
+fn test_resolve_category_for_decision_mammals_preservation() {
+    use avicull::organizer::resolve_category_for_decision;
+    use avicull::types::{AssetCategory, BundleDecision, RoutingTier, SpeciesPrediction};
+
+    let mammal_slugs = [
+        "Wild_Yak",
+        "Domestic_Yak",
+        "Woolly_Hare",
+        "Himalayan_Marmot",
+        "Bharal",
+        "Snow_Leopard",
+    ];
+
+    for slug in mammal_slugs {
+        // Test direct assigned_species_slug resolution
+        let decision_slug = BundleDecision {
+            bundle_id: format!("b-{slug}"),
+            burst_id: None,
+            detection_confidence: 0.9,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![],
+            frame_confidence: 0.9,
+            final_confidence: 0.9,
+            assigned_species_slug: slug.to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
+        };
+        assert_eq!(
+            resolve_category_for_decision(&decision_slug),
+            AssetCategory::Mammalia,
+            "Expected Mammalia for slug: {slug}"
+        );
+
+        // Test top_predictions resolution
+        let decision_pred = BundleDecision {
+            bundle_id: format!("b-pred-{slug}"),
+            burst_id: None,
+            detection_confidence: 0.9,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![SpeciesPrediction {
+                taxon_id: format!("mamm_{slug}"),
+                common_name: slug.replace('_', " "),
+                folder_slug: slug.to_string(),
+                scientific_name: "Mammal species".to_string(),
+                visual_prob: 0.95,
+                geo_prior: 1.0,
+                combined_score: 0.95,
+            }],
+            frame_confidence: 0.95,
+            final_confidence: 0.95,
+            assigned_species_slug: "Unknown".to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
+        };
+        assert_eq!(
+            resolve_category_for_decision(&decision_pred),
+            AssetCategory::Mammalia,
+            "Expected Mammalia for top prediction: {slug}"
+        );
+    }
+}

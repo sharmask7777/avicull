@@ -115,6 +115,7 @@
   ],
   "IN-LA": [
     "blared1",
+    "blueth",
     "chukar",
     "himrub1",
     "bahgoo",
@@ -147,7 +148,18 @@
     "comsan",
     "citwag",
     "whiwag",
-    "deswhe1"
+    "deswhe1",
+    "mamm_wild_yak1",
+    "mamm_dom_yak1",
+    "mamm_wool_hare1",
+    "mamm_him_marmot1",
+    "mamm_bharal1",
+    "mamm_snow_leop1",
+    "ins_peacock1",
+    "scen_rainbow",
+    "scen_mountain",
+    "scen_sunset",
+    "scen_night_sky"
   ],
   "IN-GJ": [
     "compea",
@@ -250,13 +262,13 @@
     "junbab2",
     "grecou1",
     "blared1",
+    "blueth",
     "chukar",
     "himrub1",
     "bnhgul1",
     "blncra1",
     "tibsno1",
-    "himsno",
-    "tibpar1"
+    "himsno"
   ],
   "IN-AS": [
     "brakit1",
@@ -787,6 +799,7 @@
   ],
   "US-AK": [
     "blared1",
+    "blueth",
     "chukar",
     "himrub1",
     "bahgoo",
@@ -800,7 +813,6 @@
     "ibisbi1",
     "whwred2",
     "robacc1",
-    "broacc1",
     "rethaw",
     "coohaw",
     "perfal",

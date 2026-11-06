@@ -1148,9 +1148,39 @@ RAJASTHAN_TAXON_IDS = [
     "grecou1",  # Greater Coucal
 ]
 
+# iNaturalist Place IDs mapped to administrative region codes
+INATURALIST_PLACE_IDS: dict[str, int] = {
+    "IN-LA": 184748,  # Ladakh Union Territory
+    "IN-KA": 7043,  # Karnataka
+    "IN-RJ": 7215,  # Rajasthan
+    "IN-GJ": 6682,  # Gujarat
+    "IN-TN": 6842,  # Tamil Nadu
+    "US-FL": 14,  # Florida
+    "ZA": 6986,  # South Africa
+    "NZ": 6803,  # New Zealand
+}
+
+# Confirmed regional wildlife and scenery taxon IDs (iNaturalist observations / multi-taxa)
+LADAKH_WILDLIFE_TAXON_IDS = [
+    # Mammalia
+    "mamm_wild_yak1",
+    "mamm_dom_yak1",
+    "mamm_wool_hare1",
+    "mamm_him_marmot1",
+    "mamm_bharal1",
+    "mamm_snow_leop1",
+    # Reptiles & Insects & Scenery
+    "ins_peacock1",
+    "scen_rainbow",
+    "scen_mountain",
+    "scen_sunset",
+    "scen_night_sky",
+]
+
 # Birds for Ladakh (IN-LA)
 LADAKH_TAXON_IDS = [
     "blared1",  # Black Redstart
+    "blueth",  # Bluethroat
     "chukar",  # Chukar
     "himrub1",  # Himalayan Rubythroat
     "bahgoo",  # Bar-headed Goose
@@ -1386,7 +1416,7 @@ NEW_ZEALAND_TAXON_IDS = [
 REGIONAL_CHECKLISTS_MAP: dict[str, list[str]] = {
     "IN-KA": KARNATAKA_TAXON_IDS,
     "IN-RJ": RAJASTHAN_TAXON_IDS,
-    "IN-LA": LADAKH_TAXON_IDS,
+    "IN-LA": LADAKH_TAXON_IDS + LADAKH_WILDLIFE_TAXON_IDS,
     "IN-GJ": RAJASTHAN_TAXON_IDS + KARNATAKA_TAXON_IDS[:25],
     "IN-UT": RAJASTHAN_TAXON_IDS + LADAKH_TAXON_IDS[:10],
     "IN-AS": KARNATAKA_TAXON_IDS[:30],

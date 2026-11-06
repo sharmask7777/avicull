@@ -105,6 +105,10 @@ def test_regional_checklists_integrity_and_species_filtering():
         "African Pied Wagtail (afpwag1) must not be in IN-KA checklist"
     )
 
+    # Ladakh (IN-LA) checklist checks
+    ladakh = set(checklists["IN-LA"])
+    assert "blueth" in ladakh, "Bluethroat (blueth) must be in IN-LA regional checklist"
+
     # Florida should have Bald Eagle
     florida = set(checklists["US-FL"])
     assert "baleag" in florida, "Bald Eagle (baleag) should be in US-FL checklist"
@@ -298,3 +302,95 @@ def test_build_gazetteer_execution(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="Taxon ID .* not found in taxonomy.json"):
         bg.build_gazetteer(str(inv_file))
+
+
+def test_inaturalist_place_ids_mapping():
+    from scripts.build_gazetteer import INATURALIST_PLACE_IDS
+
+    expected = {
+        "IN-LA": 184748,
+        "IN-KA": 7043,
+        "IN-RJ": 7215,
+        "IN-GJ": 6682,
+        "IN-TN": 6842,
+        "US-FL": 14,
+        "ZA": 6986,
+        "NZ": 6803,
+    }
+    for region, place_id in expected.items():
+        assert INATURALIST_PLACE_IDS.get(region) == place_id, (
+            f"Place ID for {region} must be {place_id}"
+        )
+
+
+def test_ladakh_wildlife_and_scenery_in_checklist():
+    checklists_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "regional_checklists.json"
+    )
+    with open(checklists_path, encoding="utf-8") as f:
+        checklists = json.load(f)
+
+    ladakh = set(checklists["IN-LA"])
+    # Verify Birds
+    expected_birds = [
+        "blared1",
+        "blueth",
+        "chukar",
+        "himrub1",
+        "bahgoo",
+        "bnhgul1",
+        "rudshe",
+        "blncra1",
+        "tibsno1",
+        "himsno",
+        "tibpar1",
+        "tibsan1",
+        "ibisbi1",
+        "whwred2",
+        "robacc1",
+        "broacc1",
+        "goleag",
+        "lammer1",
+        "rebcho1",
+        "yebcho1",
+        "horlar",
+        "greros1",
+        "comrav",
+        "eurmag1",
+        "norpin",
+        "commer",
+        "gargan",
+        "tufduc",
+        "compoc",
+        "comgre",
+        "woosan",
+        "comsan",
+        "citwag",
+        "whiwag",
+        "deswhe1",
+    ]
+    for b in expected_birds:
+        assert b in ladakh, f"Bird {b} must be in Ladakh checklist"
+
+    # Verify Mammals
+    expected_mammals = [
+        "mamm_wild_yak1",
+        "mamm_dom_yak1",
+        "mamm_wool_hare1",
+        "mamm_him_marmot1",
+        "mamm_bharal1",
+        "mamm_snow_leop1",
+    ]
+    for m in expected_mammals:
+        assert m in ladakh, f"Mammal {m} must be in Ladakh checklist"
+
+    # Verify Reptiles & Insects & Scenery
+    expected_other = [
+        "ins_peacock1",
+        "scen_rainbow",
+        "scen_mountain",
+        "scen_sunset",
+        "scen_night_sky",
+    ]
+    for o in expected_other:
+        assert o in ladakh, f"Taxon {o} must be in Ladakh checklist"

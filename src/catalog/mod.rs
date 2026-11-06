@@ -21,7 +21,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Standard default filename for the HTML bird photo catalog.
-pub const DEFAULT_CATALOG_FILENAME: &str = "bird_catalog.html";
+pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.html";
 
 /// Individual photo bundle item represented in the HTML catalog.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

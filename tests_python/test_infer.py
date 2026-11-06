@@ -517,6 +517,31 @@ class TestCOCOAnimalCandidateDetections(unittest.TestCase):
         det_classes = {d["class_id"] for d in all_detections}
         self.assertEqual(det_classes, {16, 20})
 
+    def test_detect_and_crop_filters_microscopic_speckle_boxes(self):
+        """A detection box with area ratio < 0.001 of total image area should be rejected."""
+        engine = MagicMock(spec=AvianInferenceEngine)
+        engine.detector = MagicMock()
+
+        # Image size: 1000 x 1000 = 1,000,000 area
+        # Box size: 10 x 10 = 100 area (ratio 0.0001 < 0.001)
+        mock_box_speckle = MagicMock()
+        mock_box_speckle.cls = [torch.tensor(14)]  # bird
+        mock_box_speckle.conf = [torch.tensor(0.95)]  # high confidence speckle/noise
+        mock_box_speckle.xyxy = [torch.tensor([100.0, 100.0, 110.0, 110.0])]
+
+        mock_result = MagicMock()
+        mock_result.boxes = [mock_box_speckle]
+        engine.detector.return_value = [mock_result]
+
+        img = Image.new("RGB", (1000, 1000), color="blue")
+        crop, conf, all_detections = AvianInferenceEngine.detect_and_crop(
+            engine, img, min_detect=0.25
+        )
+
+        self.assertIsNone(crop)
+        self.assertEqual(conf, 0.0)
+        self.assertEqual(len(all_detections), 1)
+
 
 class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
     def setUp(self):
@@ -688,6 +713,33 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         res = engine.process_image(img_path)
         self.assertEqual(res["category"], "Bird")
         self.assertEqual(res["assigned_species_slug"], "Brahminy_Kite")
+        self.assertTrue(res["detected"])
+
+    def test_yolo_mammal_detection_routes_to_mammalia_not_bird(self):
+        """When YOLO detects a mammal class with high confidence and no bird class,
+        target_category should be Mammalia even if top raw candidate in taxonomy is a bird."""
+        # Visual embedding has highest cosine similarity with Bird (dim 0 = 0.9, dim 1 = 0.8)
+        bird_leaning_vec = torch.zeros(512, dtype=torch.float32)
+        bird_leaning_vec[0] = 0.9  # Brahminy Kite (Bird)
+        bird_leaning_vec[1] = 0.8  # Malabar Giant Squirrel (Mammalia)
+
+        engine = self._create_mock_engine(bird_leaning_vec)
+
+        # YOLO detects a mammal box (e.g. class 18 'sheep') with high conf and NO bird box
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(18)]  # sheep (mammal)
+        mock_box.conf = [torch.tensor(0.92)]
+        mock_box.xyxy = [torch.tensor([10.0, 10.0, 90.0, 90.0])]
+        mock_res = MagicMock()
+        mock_res.boxes = [mock_box]
+        engine.detector.return_value = [mock_res]
+
+        img_path = os.path.join(self.models_dir, "mammal_sample.jpg")
+        Image.new("RGB", (100, 100), color="gray").save(img_path)
+
+        res = engine.process_image(img_path)
+        self.assertEqual(res["category"], "Mammalia")
+        self.assertEqual(res["assigned_species_slug"], "Malabar_Giant_Squirrel")
         self.assertTrue(res["detected"])
 
     def test_detector_fallback_synthetic_black_returns_no_subject_detected(self):

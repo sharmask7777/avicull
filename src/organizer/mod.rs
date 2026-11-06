@@ -197,6 +197,10 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         || clean.contains("panda")
         || clean.contains("rhino")
         || clean.contains("bear")
+        || clean.contains("yak")
+        || clean.contains("hare")
+        || clean.contains("marmot")
+        || clean.contains("bharal")
         || clean.contains("mammal")
     {
         Some(AssetCategory::Mammalia)
@@ -244,6 +248,10 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         return from_slug;
     }
 
+    if let Some(cat) = lookup_curated_category(&decision.assigned_species_slug) {
+        return cat;
+    }
+
     if let Some(top) = decision.top_predictions.first() {
         let from_pred = AssetCategory::from_slug(&top.folder_slug);
         if from_pred != AssetCategory::Bird {
@@ -253,10 +261,12 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         if from_taxon_id != AssetCategory::Bird {
             return from_taxon_id;
         }
-    }
-
-    if let Some(cat) = lookup_curated_category(&decision.assigned_species_slug) {
-        return cat;
+        if let Some(cat) = lookup_curated_category(&top.folder_slug) {
+            return cat;
+        }
+        if let Some(cat) = lookup_curated_category(&top.common_name) {
+            return cat;
+        }
     }
 
     AssetCategory::Bird
