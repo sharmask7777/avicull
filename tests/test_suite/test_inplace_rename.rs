@@ -540,6 +540,40 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     assert_eq!(parsed_scenery.3.as_deref(), Some("20261102"));
     assert_eq!(parsed_scenery.4.as_deref(), Some("Tromso"));
 
+    // Reptilia round-trip
+    let reptile_file = format_inplace_filename(
+        "DSC_0301",
+        "Reptilia",
+        "mugger_crocodile",
+        Some("20261102"),
+        Some("Ranthambore"),
+        "CR2",
+    );
+    let parsed_reptile =
+        parse_inplace_filename(&reptile_file, "DSC_0301").expect("should parse reptile file");
+    assert_eq!(parsed_reptile.0, AssetCategory::Reptilia);
+    assert_eq!(parsed_reptile.1, "mugger_crocodile");
+    assert_eq!(parsed_reptile.2, RoutingTier::ConfirmedSpecies);
+    assert_eq!(parsed_reptile.3.as_deref(), Some("20261102"));
+    assert_eq!(parsed_reptile.4.as_deref(), Some("Ranthambore"));
+
+    // Amphibia round-trip
+    let amphibia_file = format_inplace_filename(
+        "DSC_0302",
+        "Amphibia",
+        "american_bullfrog",
+        Some("20261102"),
+        Some("Everglades"),
+        "CR2",
+    );
+    let parsed_amphibia =
+        parse_inplace_filename(&amphibia_file, "DSC_0302").expect("should parse amphibia file");
+    assert_eq!(parsed_amphibia.0, AssetCategory::Amphibia);
+    assert_eq!(parsed_amphibia.1, "american_bullfrog");
+    assert_eq!(parsed_amphibia.2, RoutingTier::ConfirmedSpecies);
+    assert_eq!(parsed_amphibia.3.as_deref(), Some("20261102"));
+    assert_eq!(parsed_amphibia.4.as_deref(), Some("Everglades"));
+
     // Portrait (Other category) round-trip
     let portrait_file = format_inplace_filename(
         "IMG_5012",

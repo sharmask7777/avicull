@@ -27,7 +27,14 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
-CANONICAL_CATEGORIES: tuple[str, ...] = ("Bird", "Mammalia", "Insecta", "Scenery")
+CANONICAL_CATEGORIES: tuple[str, ...] = (
+    "Bird",
+    "Mammalia",
+    "Insecta",
+    "Reptilia",
+    "Amphibia",
+    "Scenery",
+)
 
 CATEGORY_MAPPING: dict[str, str] = {
     "bird": "Bird",
@@ -38,6 +45,12 @@ CATEGORY_MAPPING: dict[str, str] = {
     "insect": "Insecta",
     "insecta": "Insecta",
     "insects": "Insecta",
+    "reptile": "Reptilia",
+    "reptiles": "Reptilia",
+    "reptilia": "Reptilia",
+    "amphibian": "Amphibia",
+    "amphibians": "Amphibia",
+    "amphibia": "Amphibia",
     "scenery": "Scenery",
     "landscape": "Scenery",
 }
@@ -46,6 +59,8 @@ CATEGORY_PROMPT_NOUNS: dict[str, str] = {
     "Bird": "bird",
     "Mammalia": "mammal",
     "Insecta": "insect",
+    "Reptilia": "reptile",
+    "Amphibia": "amphibian",
     "Scenery": "scenery",
 }
 

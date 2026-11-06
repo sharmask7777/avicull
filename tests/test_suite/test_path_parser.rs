@@ -11,6 +11,17 @@ fn test_noise_token_detection() {
     assert!(is_structural_noise_token("processed"));
     assert!(is_structural_noise_token("selects"));
     assert!(is_structural_noise_token("100canon"));
+    assert!(is_structural_noise_token("100MEDIA"));
+    assert!(is_structural_noise_token("101MSDCF"));
+    assert!(is_structural_noise_token("gopro"));
+    assert!(is_structural_noise_token("dji"));
+    assert!(is_structural_noise_token("insta360"));
+    assert!(is_structural_noise_token("om system"));
+    assert!(is_structural_noise_token("sigma"));
+    assert!(is_structural_noise_token("phase one"));
+    assert!(is_structural_noise_token("ricoh"));
+    assert!(is_structural_noise_token("lightroom"));
+    assert!(is_structural_noise_token("captureone"));
     assert!(is_structural_noise_token("2025-04-19"));
     assert!(is_structural_noise_token("apr 19 2026"));
     assert!(is_structural_noise_token("oct 2025"));

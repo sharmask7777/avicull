@@ -104,6 +104,44 @@ fn test_taxon_classifier_extensibility_non_avian_domains() {
         AssetCategory::Scenery
     );
 
+    // Test Reptilia classification
+    let reptile_pred = SpeciesPrediction {
+        taxon_id: "rept_mugger1".to_string(),
+        common_name: "Mugger Crocodile".to_string(),
+        folder_slug: "Reptilia/Mugger_Crocodile".to_string(),
+        scientific_name: "Crocodylus palustris".to_string(),
+        visual_prob: 0.94,
+        geo_prior: 1.0,
+        combined_score: 0.94,
+    };
+    let reptile_classifier = MockTaxonClassifier::new(vec![reptile_pred]);
+    let (_emb_r, preds_r) = reptile_classifier
+        .classify(&dummy_img, None, 0.0)
+        .expect("Reptilia classification must succeed");
+    assert_eq!(
+        AssetCategory::from_slug(&preds_r[0].folder_slug),
+        AssetCategory::Reptilia
+    );
+
+    // Test Amphibia classification
+    let amphibian_pred = SpeciesPrediction {
+        taxon_id: "amph_bullfrog1".to_string(),
+        common_name: "American Bullfrog".to_string(),
+        folder_slug: "Amphibia/American_Bullfrog".to_string(),
+        scientific_name: "Lithobates catesbeianus".to_string(),
+        visual_prob: 0.91,
+        geo_prior: 1.0,
+        combined_score: 0.91,
+    };
+    let amphibian_classifier = MockTaxonClassifier::new(vec![amphibian_pred]);
+    let (_emb_a, preds_a) = amphibian_classifier
+        .classify(&dummy_img, None, 0.0)
+        .expect("Amphibia classification must succeed");
+    assert_eq!(
+        AssetCategory::from_slug(&preds_a[0].folder_slug),
+        AssetCategory::Amphibia
+    );
+
     // Test Portrait (Other) classification
     let portrait_classifier = MockTaxonClassifier::new(vec![portrait_pred]);
     let (_emb_p, preds_p) = portrait_classifier

@@ -51,7 +51,14 @@ COCO_ANIMAL_CLASS_IDS: frozenset[int] = frozenset(
     }
 )
 
-CANONICAL_CATEGORIES: tuple[str, ...] = ("Bird", "Mammalia", "Insecta", "Scenery")
+CANONICAL_CATEGORIES: tuple[str, ...] = (
+    "Bird",
+    "Mammalia",
+    "Insecta",
+    "Reptilia",
+    "Amphibia",
+    "Scenery",
+)
 
 
 class CategoryAnchorResult(NamedTuple):

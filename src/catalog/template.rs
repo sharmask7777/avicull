@@ -1040,6 +1040,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">{bird_count}</span>)</button>
         <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">{mammalia_count}</span>)</button>
         <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
+        <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">{reptilia_count}</span>)</button>
+        <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">{amphibia_count}</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
       </div>
     </div>
@@ -2998,6 +3000,8 @@ fi
         bird_count = payload.stats.bird_count,
         mammalia_count = payload.stats.mammalia_count,
         insecta_count = payload.stats.insecta_count,
+        reptilia_count = payload.stats.reptilia_count,
+        amphibia_count = payload.stats.amphibia_count,
         scenery_count = payload.stats.scenery_count,
         trip_location_display = trip_location_display,
         json_data = json_data
@@ -3042,6 +3046,8 @@ mod tests {
             bird_count: 6,
             mammalia_count: 2,
             insecta_count: 1,
+            reptilia_count: 0,
+            amphibia_count: 0,
             scenery_count: 1,
         };
 
@@ -3099,6 +3105,8 @@ mod tests {
                 bird_count: 1,
                 mammalia_count: 0,
                 insecta_count: 0,
+                reptilia_count: 0,
+                amphibia_count: 0,
                 scenery_count: 0,
             },
             items: vec![],

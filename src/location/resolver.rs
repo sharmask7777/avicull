@@ -106,8 +106,9 @@ pub fn resolve_from_override(
     let parts: Vec<&str> = override_str.split(',').map(str::trim).collect();
     if parts.len() == 2 {
         if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
-            // Find nearest gazetteer entry to infer granular region code and localized name
-            let nearest = engine.find_nearest(lat, lon, None);
+            // Find nearest gazetteer entry within territorial bounds (e.g. 300 km)
+            // to avoid latching onto distant continental checklists in remote waters.
+            let nearest = engine.find_nearest(lat, lon, Some(300.0));
             let (name, region_code) = if let Some((entry, dist_km)) = nearest {
                 if dist_km < 25.0 {
                     (entry.name.clone(), entry.region_code.clone())
