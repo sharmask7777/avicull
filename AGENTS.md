@@ -198,6 +198,8 @@ When upgrading neural network backbones, bird detectors, taxonomies, regional ch
    - Comments in code MUST instruct the human reader on what the code does, its architectural invariants, algorithms, and non-obvious domain logic.
    - **Strictly Prohibited**: Never include procedural agent meta-comments like `// Step 1: ...`, `// Step 2: ...`, `// Step 3: Implement ...`, or descriptions of an AI agent's internal planning phases.
 2. **Generic Architecture & Zero Context Leaks**:
-   - Code and algorithms must be completely generic. Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
+   - Code and algorithms must be completely generic and globally representative. Never implement features, taxonomies, or regional lists tailored narrowly to one specific user trip or local personal archive.
+   - All multi-taxa categories (Mammalia, Insecta, Scenery, and avifauna) must encompass comprehensive global biodiversity across continents (e.g. Felidae, Canidae, Ursidae, Bovidae, Cervidae, Primates, Marsupialia, Pinnipedia, Cetacea, etc.), rather than only local datasets.
+   - Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
 3. **End-to-End Mock Testing**:
    - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs` and `tests/test_mock_directory_structure_e2e.rs`).
