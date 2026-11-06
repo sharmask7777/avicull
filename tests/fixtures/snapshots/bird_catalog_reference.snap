@@ -1022,6 +1022,7 @@
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">0</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">0</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">0</span>)</button>
+        <button class="pill category-pill" data-category="No_Subject_Detected" onclick="setCategoryFilter('No_Subject_Detected', this)">No Subject (<span id="catCountNoSubject">0</span>)</button>
       </div>
     </div>
   </div>
@@ -1246,7 +1247,7 @@
 
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
-{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
+{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
 </script>
 
 <script>
@@ -1655,7 +1656,7 @@
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 };
+    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, No_Subject_Detected: 0 };
     scopeItems.forEach(i => {
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {
@@ -1672,8 +1673,14 @@
     if (elMam) elMam.textContent = counts.Mammalia;
     const elIns = document.getElementById('catCountInsecta');
     if (elIns) elIns.textContent = counts.Insecta;
+    const elRep = document.getElementById('catCountReptilia');
+    if (elRep) elRep.textContent = counts.Reptilia;
+    const elAmp = document.getElementById('catCountAmphibia');
+    if (elAmp) elAmp.textContent = counts.Amphibia;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
+    const elNoSub = document.getElementById('catCountNoSubject');
+    if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
   }
 
   function handleSearch() {
@@ -1894,6 +1901,20 @@ fi
 `;
   }
 
+  function resolveTargetCategory(species, fallbackCategory) {
+    if (!species) return fallbackCategory || 'Bird';
+    const s = species.toLowerCase().trim().replace(/^_+/, '');
+    if (s.startsWith('mammalia') || s.includes('squirrel') || s.includes('langur') || s.includes('macaque') || s.includes('monkey') || s.includes('tiger') || s.includes('lion') || s.includes('leopard') || s.includes('elephant') || s.includes('chital') || s.includes('sambar') || s.includes('deer') || s.includes('panda') || s.includes('rhino') || s.includes('bear') || s.includes('yak') || s.includes('hare') || s.includes('marmot') || s.includes('bharal')) return 'Mammalia';
+    if (s.startsWith('insecta') || s.includes('butterfly') || s.includes('moth') || s.includes('dragonfly') || s.includes('damselfly') || s.includes('beetle')) return 'Insecta';
+    if (s.startsWith('reptilia') || s.includes('crocodile') || s.includes('alligator') || s.includes('lizard') || s.includes('gecko') || s.includes('snake') || s.includes('viper') || s.includes('cobra') || s.includes('sea_turtle') || s.includes('tortoise')) return 'Reptilia';
+    if (s.startsWith('amphibia') || s.includes('frog') || s.includes('toad') || s.includes('salamander') || s.includes('newt')) return 'Amphibia';
+    if (s.startsWith('scenery') || s.includes('aurora') || s.includes('mountain') || s.includes('waterfall') || s.includes('sunset') || s.includes('landscape')) return 'Scenery';
+    if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
+    // If user selected a valid species (like Brahminy Kite), it is a Bird!
+    if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
+    return fallbackCategory;
+  }
+
   function buildMoveCommandsForItem(item, species) {
     if (!item) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
@@ -1908,7 +1929,8 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
-    const cat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
+    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
+    const cat = resolveTargetCategory(species, itemCat);
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
     commands.push(`  avicull correct --category "${cat}" --species "${newSlug}" --file "${activeModalItem ? activeModalItem.original_stem : stem}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${newSlug}" --file "${stem}"`);

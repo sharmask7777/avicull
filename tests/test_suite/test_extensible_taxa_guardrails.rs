@@ -365,4 +365,32 @@ fn test_non_confident_items_route_to_no_subject_detected_alias() {
         RoutingTier::NoSubjectDetected,
         "Zero detection blurred frame must route to NoSubjectDetected"
     );
+
+    // Verify AssetCategory::from_slug on unclassified / no-subject slugs
+    assert_eq!(
+        AssetCategory::from_slug("_No_Bird_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        AssetCategory::from_slug("_No_Subject_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        AssetCategory::from_slug("No_Bird_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        AssetCategory::from_slug("No_Subject_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+
+    // Verify resolve_category_for_decision resolves to NoSubjectDetected
+    assert_eq!(
+        avicull::organizer::resolve_category_for_decision(&decisions[0]),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        avicull::organizer::resolve_category_for_decision(&decisions[1]),
+        AssetCategory::NoSubjectDetected
+    );
 }

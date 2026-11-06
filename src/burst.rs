@@ -211,6 +211,7 @@ pub fn smooth_burst_consensus(
                             AssetCategory::Scenery => "Scenery".to_string(),
                             AssetCategory::Other(ref g) => format!("Unknown_{g}"),
                             AssetCategory::Bird => "Unknown_Bird".to_string(),
+                            AssetCategory::NoSubjectDetected => "_No_Subject_Detected".to_string(),
                         },
                         |p| p.folder_slug.clone(),
                     )

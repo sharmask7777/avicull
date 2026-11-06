@@ -1703,6 +1703,7 @@ console.log(cmds.join('\n'));
     );
 
     let generated_bash = String::from_utf8_lossy(&node_output.stdout).to_string();
+    println!("DEBUG generated_bash:\n{}", generated_bash);
     assert!(
         generated_bash.contains("avicull correct --category \"Bird\" --species \"Brahminy_Kite\" --file \"IMG_1234\"")
             || generated_bash
