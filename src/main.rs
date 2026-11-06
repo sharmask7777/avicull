@@ -624,6 +624,7 @@ fn main() -> Result<()> {
             // Location resolution via Gazetteer and Path Inference for bundles lacking EXIF GPS
             let mut bundle_regions: std::collections::HashMap<String, String> =
                 std::collections::HashMap::new();
+            let gazetteer_engine = GazetteerEngine::load_embedded()?;
 
             // Group trips where bundles lack EXIF GPS, or all trips if global --location is specified
             let mut trip_map: std::collections::BTreeMap<
@@ -661,14 +662,13 @@ fn main() -> Result<()> {
                     trips_to_tokens.push((trip_name.clone(), tokens));
                 }
 
-                let engine = GazetteerEngine::load_embedded()?;
                 let mut stdin = std::io::stdin().lock();
                 let mut stdout = std::io::stdout();
                 let is_interactive = !args.no_prompt && std::io::stdin().is_terminal();
 
                 let resolved = resolve_trip_locations(
                     &trips_to_tokens,
-                    &engine,
+                    &gazetteer_engine,
                     &db,
                     &mut stdin,
                     &mut stdout,
@@ -741,6 +741,18 @@ fn main() -> Result<()> {
                     {
                         if !loc.region_code.is_empty() {
                             bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
+                        }
+                    } else if let Some(coords) = bundle.gps_coords {
+                        // Infer nearest granular region from raw GPS coordinates (e.g. camera EXIF)
+                        if let Some((nearest_entry, _dist_km)) =
+                            gazetteer_engine.find_nearest(coords.latitude, coords.longitude, None)
+                        {
+                            if !nearest_entry.region_code.is_empty() {
+                                bundle_regions.insert(
+                                    bundle.bundle_id.clone(),
+                                    nearest_entry.region_code.clone(),
+                                );
+                            }
                         }
                     }
                 }

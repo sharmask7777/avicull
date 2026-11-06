@@ -182,3 +182,45 @@ fn test_gazetteer_category_boost_priority() {
     assert_eq!(results[0].0.category, "hotspot");
     assert_eq!(results[1].0.category, "city");
 }
+
+#[test]
+fn test_gazetteer_find_nearest_haversine() {
+    let engine = GazetteerEngine::load_embedded().expect("should load embedded gazetteer");
+
+    // Coordinates right next to Saul Kere lake in Bengaluru (12.912, 77.684)
+    let (nearest_saul, dist_saul) = engine
+        .find_nearest(12.9123, 77.6845, Some(50.0))
+        .expect("should find nearest hotspot to Saul Kere coords");
+    assert_eq!(nearest_saul.region_code, "IN-KA");
+    assert!(
+        dist_saul < 1.0,
+        "Distance should be under 1 km, got {dist_saul}"
+    );
+
+    // Coordinates in Leh / Ladakh (34.152, 77.577)
+    let (nearest_leh, dist_leh) = engine
+        .find_nearest(34.1526, 77.5771, Some(100.0))
+        .expect("should find nearest hotspot to Leh coords");
+    assert_eq!(nearest_leh.region_code, "IN-LA");
+    assert!(
+        dist_leh < 10.0,
+        "Distance to Leh should be under 10 km, got {dist_leh}"
+    );
+
+    // Coordinates in the Everglades, Florida (25.2866, -80.8987)
+    let (nearest_fl, dist_fl) = engine
+        .find_nearest(25.2866, -80.8987, Some(100.0))
+        .expect("should find Everglades");
+    assert_eq!(nearest_fl.region_code, "US-FL");
+    assert!(
+        dist_fl < 5.0,
+        "Distance to Everglades should be under 5 km, got {dist_fl}"
+    );
+
+    // Max distance cutoff test (Middle of Pacific ocean should find nothing within 100km)
+    let pacific = engine.find_nearest(0.0, -160.0, Some(100.0));
+    assert!(
+        pacific.is_none(),
+        "Middle of Pacific should exceed 100km max distance"
+    );
+}

@@ -134,6 +134,8 @@ fn test_resolver_with_location_override_coordinates_and_gazetteer() {
     let loc_coords = resolved_coords.get("trips/some_trip").unwrap();
     assert!((loc_coords.latitude - 12.919).abs() < 1e-4);
     assert!((loc_coords.longitude - 77.677).abs() < 1e-4);
+    // Nearest gazetteer entry to (12.919, 77.677) is Saul Kere (within 1km), so region should be inferred as IN-KA
+    assert_eq!(loc_coords.region_code, "IN-KA");
 
     // Test named gazetteer override
     let resolved_name = resolve_trip_locations(

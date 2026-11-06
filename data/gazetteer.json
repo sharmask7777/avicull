@@ -1,5 +1,1337 @@
 [
   {
+    "name": "Agumbe",
+    "region_code": "IN-KA",
+    "lat": 13.5074,
+    "lon": 75.0931,
+    "latitude": 13.5074,
+    "longitude": 75.0931,
+    "category": "reserve"
+  },
+  {
+    "name": "Bhadra Wildlife Sanctuary",
+    "region_code": "IN-KA",
+    "lat": 13.6966,
+    "lon": 75.6344,
+    "latitude": 13.6966,
+    "longitude": 75.6344,
+    "category": "reserve"
+  },
+  {
+    "name": "Kabini",
+    "region_code": "IN-KA",
+    "lat": 11.9167,
+    "lon": 76.35,
+    "latitude": 11.9167,
+    "longitude": 76.35,
+    "category": "reserve"
+  },
+  {
+    "name": "Kabini Wildlife Sanctuary",
+    "region_code": "IN-KA",
+    "lat": 11.9167,
+    "lon": 76.35,
+    "latitude": 11.9167,
+    "longitude": 76.35,
+    "category": "reserve"
+  },
+  {
+    "name": "K Gudi",
+    "region_code": "IN-KA",
+    "lat": 11.9833,
+    "lon": 77.1333,
+    "latitude": 11.9833,
+    "longitude": 77.1333,
+    "category": "reserve"
+  },
+  {
+    "name": "BR Hills",
+    "region_code": "IN-KA",
+    "lat": 11.9833,
+    "lon": 77.1333,
+    "latitude": 11.9833,
+    "longitude": 77.1333,
+    "category": "reserve"
+  },
+  {
+    "name": "Biligiriranga Hills",
+    "region_code": "IN-KA",
+    "lat": 11.9833,
+    "lon": 77.1333,
+    "latitude": 11.9833,
+    "longitude": 77.1333,
+    "category": "reserve"
+  },
+  {
+    "name": "Madikeri",
+    "region_code": "IN-KA",
+    "lat": 12.4244,
+    "lon": 75.7382,
+    "latitude": 12.4244,
+    "longitude": 75.7382,
+    "category": "city"
+  },
+  {
+    "name": "Kudremukh National Park",
+    "region_code": "IN-KA",
+    "lat": 13.2167,
+    "lon": 75.25,
+    "latitude": 13.2167,
+    "longitude": 75.25,
+    "category": "reserve"
+  },
+  {
+    "name": "Brahmagiri Wildlife Sanctuary",
+    "region_code": "IN-KA",
+    "lat": 12.0167,
+    "lon": 75.9833,
+    "latitude": 12.0167,
+    "longitude": 75.9833,
+    "category": "reserve"
+  },
+  {
+    "name": "Pushpagiri Wildlife Sanctuary",
+    "region_code": "IN-KA",
+    "lat": 12.5833,
+    "lon": 75.6833,
+    "latitude": 12.5833,
+    "longitude": 75.6833,
+    "category": "reserve"
+  },
+  {
+    "name": "Talakaveri Wildlife Sanctuary",
+    "region_code": "IN-KA",
+    "lat": 12.3833,
+    "lon": 75.4833,
+    "latitude": 12.3833,
+    "longitude": 75.4833,
+    "category": "reserve"
+  },
+  {
+    "name": "Lalbagh Botanical Garden",
+    "region_code": "IN-KA",
+    "lat": 12.9507,
+    "lon": 77.5848,
+    "latitude": 12.9507,
+    "longitude": 77.5848,
+    "category": "hotspot"
+  },
+  {
+    "name": "Cubbon Park",
+    "region_code": "IN-KA",
+    "lat": 12.9763,
+    "lon": 77.5929,
+    "latitude": 12.9763,
+    "longitude": 77.5929,
+    "category": "hotspot"
+  },
+  {
+    "name": "Madiwala Lake",
+    "region_code": "IN-KA",
+    "lat": 12.915,
+    "lon": 77.6186,
+    "latitude": 12.915,
+    "longitude": 77.6186,
+    "category": "hotspot"
+  },
+  {
+    "name": "Agara Lake",
+    "region_code": "IN-KA",
+    "lat": 12.9242,
+    "lon": 77.6464,
+    "latitude": 12.9242,
+    "longitude": 77.6464,
+    "category": "hotspot"
+  },
+  {
+    "name": "Puttenahalli Lake",
+    "region_code": "IN-KA",
+    "lat": 12.8906,
+    "lon": 77.5864,
+    "latitude": 12.8906,
+    "longitude": 77.5864,
+    "category": "hotspot"
+  },
+  {
+    "name": "Bellandur Lake",
+    "region_code": "IN-KA",
+    "lat": 12.9366,
+    "lon": 77.6666,
+    "latitude": 12.9366,
+    "longitude": 77.6666,
+    "category": "hotspot"
+  },
+  {
+    "name": "Jakkur Lake",
+    "region_code": "IN-KA",
+    "lat": 13.0769,
+    "lon": 77.6083,
+    "latitude": 13.0769,
+    "longitude": 77.6083,
+    "category": "hotspot"
+  },
+  {
+    "name": "Hesaraghatta Grasslands",
+    "region_code": "IN-KA",
+    "lat": 13.155,
+    "lon": 77.485,
+    "latitude": 13.155,
+    "longitude": 77.485,
+    "category": "hotspot"
+  },
+  {
+    "name": "Manchinbele Dam",
+    "region_code": "IN-KA",
+    "lat": 12.875,
+    "lon": 77.334,
+    "latitude": 12.875,
+    "longitude": 77.334,
+    "category": "hotspot"
+  },
+  {
+    "name": "Gokarna",
+    "region_code": "IN-KA",
+    "lat": 14.5479,
+    "lon": 74.3188,
+    "latitude": 14.5479,
+    "longitude": 74.3188,
+    "category": "city"
+  },
+  {
+    "name": "Karwar",
+    "region_code": "IN-KA",
+    "lat": 14.8167,
+    "lon": 74.1333,
+    "latitude": 14.8167,
+    "longitude": 74.1333,
+    "category": "city"
+  },
+  {
+    "name": "Thattekad Bird Sanctuary",
+    "region_code": "IN-KL",
+    "lat": 10.1333,
+    "lon": 76.7,
+    "latitude": 10.1333,
+    "longitude": 76.7,
+    "category": "reserve"
+  },
+  {
+    "name": "Salim Ali Bird Sanctuary Thattekad",
+    "region_code": "IN-KL",
+    "lat": 10.1333,
+    "lon": 76.7,
+    "latitude": 10.1333,
+    "longitude": 76.7,
+    "category": "reserve"
+  },
+  {
+    "name": "Munnar",
+    "region_code": "IN-KL",
+    "lat": 10.0889,
+    "lon": 77.0595,
+    "latitude": 10.0889,
+    "longitude": 77.0595,
+    "category": "hotspot"
+  },
+  {
+    "name": "Eravikulam National Park",
+    "region_code": "IN-KL",
+    "lat": 10.2,
+    "lon": 77.0667,
+    "latitude": 10.2,
+    "longitude": 77.0667,
+    "category": "reserve"
+  },
+  {
+    "name": "Periyar Tiger Reserve",
+    "region_code": "IN-KL",
+    "lat": 9.4667,
+    "lon": 77.1667,
+    "latitude": 9.4667,
+    "longitude": 77.1667,
+    "category": "reserve"
+  },
+  {
+    "name": "Wayanad Wildlife Sanctuary",
+    "region_code": "IN-KL",
+    "lat": 11.6854,
+    "lon": 76.3686,
+    "latitude": 11.6854,
+    "longitude": 76.3686,
+    "category": "reserve"
+  },
+  {
+    "name": "Silent Valley National Park",
+    "region_code": "IN-KL",
+    "lat": 11.1333,
+    "lon": 76.4333,
+    "latitude": 11.1333,
+    "longitude": 76.4333,
+    "category": "reserve"
+  },
+  {
+    "name": "Parambikulam Tiger Reserve",
+    "region_code": "IN-KL",
+    "lat": 10.4333,
+    "lon": 76.7833,
+    "latitude": 10.4333,
+    "longitude": 76.7833,
+    "category": "reserve"
+  },
+  {
+    "name": "Kumarakom Bird Sanctuary",
+    "region_code": "IN-KL",
+    "lat": 9.6167,
+    "lon": 76.4167,
+    "latitude": 9.6167,
+    "longitude": 76.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Vembanad Lake",
+    "region_code": "IN-KL",
+    "lat": 9.6,
+    "lon": 76.4,
+    "latitude": 9.6,
+    "longitude": 76.4,
+    "category": "hotspot"
+  },
+  {
+    "name": "Mudumalai National Park",
+    "region_code": "IN-TN",
+    "lat": 11.5622,
+    "lon": 76.5342,
+    "latitude": 11.5622,
+    "longitude": 76.5342,
+    "category": "reserve"
+  },
+  {
+    "name": "Anamalai Tiger Reserve",
+    "region_code": "IN-TN",
+    "lat": 10.5,
+    "lon": 76.9667,
+    "latitude": 10.5,
+    "longitude": 76.9667,
+    "category": "reserve"
+  },
+  {
+    "name": "Valparai",
+    "region_code": "IN-TN",
+    "lat": 10.3204,
+    "lon": 76.9554,
+    "latitude": 10.3204,
+    "longitude": 76.9554,
+    "category": "hotspot"
+  },
+  {
+    "name": "Ooty",
+    "region_code": "IN-TN",
+    "lat": 11.4102,
+    "lon": 76.695,
+    "latitude": 11.4102,
+    "longitude": 76.695,
+    "category": "city"
+  },
+  {
+    "name": "Kodaikanal",
+    "region_code": "IN-TN",
+    "lat": 10.2381,
+    "lon": 77.4892,
+    "latitude": 10.2381,
+    "longitude": 77.4892,
+    "category": "city"
+  },
+  {
+    "name": "Vedanthangal Bird Sanctuary",
+    "region_code": "IN-TN",
+    "lat": 12.5444,
+    "lon": 79.8556,
+    "latitude": 12.5444,
+    "longitude": 79.8556,
+    "category": "reserve"
+  },
+  {
+    "name": "Point Calimere Wildlife and Bird Sanctuary",
+    "region_code": "IN-TN",
+    "lat": 10.3,
+    "lon": 79.8667,
+    "latitude": 10.3,
+    "longitude": 79.8667,
+    "category": "reserve"
+  },
+  {
+    "name": "Pulicat Lake",
+    "region_code": "IN-TN",
+    "lat": 13.4167,
+    "lon": 80.1667,
+    "latitude": 13.4167,
+    "longitude": 80.1667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Shey Marshes",
+    "region_code": "IN-LA",
+    "lat": 34.0722,
+    "lon": 77.6361,
+    "latitude": 34.0722,
+    "longitude": 77.6361,
+    "category": "hotspot"
+  },
+  {
+    "name": "Sindhu Ghat",
+    "region_code": "IN-LA",
+    "lat": 34.095,
+    "lon": 77.618,
+    "latitude": 34.095,
+    "longitude": 77.618,
+    "category": "hotspot"
+  },
+  {
+    "name": "Thiksey",
+    "region_code": "IN-LA",
+    "lat": 34.0583,
+    "lon": 77.6667,
+    "latitude": 34.0583,
+    "longitude": 77.6667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Spituk",
+    "region_code": "IN-LA",
+    "lat": 34.1297,
+    "lon": 77.5258,
+    "latitude": 34.1297,
+    "longitude": 77.5258,
+    "category": "hotspot"
+  },
+  {
+    "name": "Hemis National Park",
+    "region_code": "IN-LA",
+    "lat": 33.9167,
+    "lon": 77.4167,
+    "latitude": 33.9167,
+    "longitude": 77.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Pangong Tso",
+    "region_code": "IN-LA",
+    "lat": 33.7289,
+    "lon": 78.7189,
+    "latitude": 33.7289,
+    "longitude": 78.7189,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tso Moriri",
+    "region_code": "IN-LA",
+    "lat": 32.9167,
+    "lon": 78.3167,
+    "latitude": 32.9167,
+    "longitude": 78.3167,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tso Kar",
+    "region_code": "IN-LA",
+    "lat": 33.3167,
+    "lon": 77.9833,
+    "latitude": 33.3167,
+    "longitude": 77.9833,
+    "category": "hotspot"
+  },
+  {
+    "name": "Hanle",
+    "region_code": "IN-LA",
+    "lat": 32.7667,
+    "lon": 78.9667,
+    "latitude": 32.7667,
+    "longitude": 78.9667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Nubra Valley",
+    "region_code": "IN-LA",
+    "lat": 34.6833,
+    "lon": 77.5667,
+    "latitude": 34.6833,
+    "longitude": 77.5667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Diskit",
+    "region_code": "IN-LA",
+    "lat": 34.5428,
+    "lon": 77.5583,
+    "latitude": 34.5428,
+    "longitude": 77.5583,
+    "category": "city"
+  },
+  {
+    "name": "Hunder",
+    "region_code": "IN-LA",
+    "lat": 34.5833,
+    "lon": 77.4667,
+    "latitude": 34.5833,
+    "longitude": 77.4667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Khardung La",
+    "region_code": "IN-LA",
+    "lat": 34.2789,
+    "lon": 77.6044,
+    "latitude": 34.2789,
+    "longitude": 77.6044,
+    "category": "hotspot"
+  },
+  {
+    "name": "Chang La",
+    "region_code": "IN-LA",
+    "lat": 34.0489,
+    "lon": 77.9303,
+    "latitude": 34.0489,
+    "longitude": 77.9303,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tangtse",
+    "region_code": "IN-LA",
+    "lat": 34.02,
+    "lon": 78.18,
+    "latitude": 34.02,
+    "longitude": 78.18,
+    "category": "hotspot"
+  },
+  {
+    "name": "Puga Valley",
+    "region_code": "IN-LA",
+    "lat": 33.2333,
+    "lon": 78.3167,
+    "latitude": 33.2333,
+    "longitude": 78.3167,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tal Chhapar Sanctuary",
+    "region_code": "IN-RJ",
+    "lat": 27.8,
+    "lon": 74.4333,
+    "latitude": 27.8,
+    "longitude": 74.4333,
+    "category": "reserve"
+  },
+  {
+    "name": "Desert National Park",
+    "region_code": "IN-RJ",
+    "lat": 26.5,
+    "lon": 70.6667,
+    "latitude": 26.5,
+    "longitude": 70.6667,
+    "category": "reserve"
+  },
+  {
+    "name": "Sam Sand Dunes",
+    "region_code": "IN-RJ",
+    "lat": 26.8333,
+    "lon": 70.5,
+    "latitude": 26.8333,
+    "longitude": 70.5,
+    "category": "hotspot"
+  },
+  {
+    "name": "Khichan Bird Sanctuary",
+    "region_code": "IN-RJ",
+    "lat": 27.1333,
+    "lon": 72.4167,
+    "latitude": 27.1333,
+    "longitude": 72.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Sambhar Salt Lake",
+    "region_code": "IN-RJ",
+    "lat": 26.9,
+    "lon": 75.2,
+    "latitude": 26.9,
+    "longitude": 75.2,
+    "category": "hotspot"
+  },
+  {
+    "name": "Chandlai Lake",
+    "region_code": "IN-RJ",
+    "lat": 26.68,
+    "lon": 75.87,
+    "latitude": 26.68,
+    "longitude": 75.87,
+    "category": "hotspot"
+  },
+  {
+    "name": "Barkheda",
+    "region_code": "IN-RJ",
+    "lat": 26.7,
+    "lon": 75.9,
+    "latitude": 26.7,
+    "longitude": 75.9,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kumbhalgarh Wildlife Sanctuary",
+    "region_code": "IN-RJ",
+    "lat": 25.15,
+    "lon": 73.5833,
+    "latitude": 25.15,
+    "longitude": 73.5833,
+    "category": "reserve"
+  },
+  {
+    "name": "Mount Abu Wildlife Sanctuary",
+    "region_code": "IN-RJ",
+    "lat": 24.5925,
+    "lon": 72.7156,
+    "latitude": 24.5925,
+    "longitude": 72.7156,
+    "category": "reserve"
+  },
+  {
+    "name": "Sariska Tiger Reserve",
+    "region_code": "IN-RJ",
+    "lat": 27.3167,
+    "lon": 76.4333,
+    "latitude": 27.3167,
+    "longitude": 76.4333,
+    "category": "reserve"
+  },
+  {
+    "name": "Mukundra Hills National Park",
+    "region_code": "IN-RJ",
+    "lat": 24.8167,
+    "lon": 75.9833,
+    "latitude": 24.8167,
+    "longitude": 75.9833,
+    "category": "reserve"
+  },
+  {
+    "name": "Gir National Park",
+    "region_code": "IN-GJ",
+    "lat": 21.1244,
+    "lon": 70.8242,
+    "latitude": 21.1244,
+    "longitude": 70.8242,
+    "category": "reserve"
+  },
+  {
+    "name": "Velavadar Blackbuck National Park",
+    "region_code": "IN-GJ",
+    "lat": 21.9333,
+    "lon": 72.0333,
+    "latitude": 21.9333,
+    "longitude": 72.0333,
+    "category": "reserve"
+  },
+  {
+    "name": "Little Rann of Kutch",
+    "region_code": "IN-GJ",
+    "lat": 23.3333,
+    "lon": 71.5,
+    "latitude": 23.3333,
+    "longitude": 71.5,
+    "category": "reserve"
+  },
+  {
+    "name": "Wild Ass Sanctuary",
+    "region_code": "IN-GJ",
+    "lat": 23.3333,
+    "lon": 71.5,
+    "latitude": 23.3333,
+    "longitude": 71.5,
+    "category": "reserve"
+  },
+  {
+    "name": "Greater Rann of Kutch",
+    "region_code": "IN-GJ",
+    "lat": 24.0833,
+    "lon": 70.4167,
+    "latitude": 24.0833,
+    "longitude": 70.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Banni Grasslands",
+    "region_code": "IN-GJ",
+    "lat": 23.6667,
+    "lon": 69.5,
+    "latitude": 23.6667,
+    "longitude": 69.5,
+    "category": "hotspot"
+  },
+  {
+    "name": "Chari-Dhand Wetland Conservation Reserve",
+    "region_code": "IN-GJ",
+    "lat": 23.5833,
+    "lon": 69.35,
+    "latitude": 23.5833,
+    "longitude": 69.35,
+    "category": "reserve"
+  },
+  {
+    "name": "Nalsarovar Bird Sanctuary",
+    "region_code": "IN-GJ",
+    "lat": 22.8,
+    "lon": 72.05,
+    "latitude": 22.8,
+    "longitude": 72.05,
+    "category": "reserve"
+  },
+  {
+    "name": "Khijadiya Bird Sanctuary",
+    "region_code": "IN-GJ",
+    "lat": 22.5167,
+    "lon": 70.1667,
+    "latitude": 22.5167,
+    "longitude": 70.1667,
+    "category": "reserve"
+  },
+  {
+    "name": "Marine National Park Jamnagar",
+    "region_code": "IN-GJ",
+    "lat": 22.4667,
+    "lon": 69.95,
+    "latitude": 22.4667,
+    "longitude": 69.95,
+    "category": "reserve"
+  },
+  {
+    "name": "Thol Bird Sanctuary",
+    "region_code": "IN-GJ",
+    "lat": 23.1333,
+    "lon": 72.4,
+    "latitude": 23.1333,
+    "longitude": 72.4,
+    "category": "reserve"
+  },
+  {
+    "name": "Jim Corbett National Park",
+    "region_code": "IN-UT",
+    "lat": 29.53,
+    "lon": 78.7747,
+    "latitude": 29.53,
+    "longitude": 78.7747,
+    "category": "reserve"
+  },
+  {
+    "name": "Corbett National Park",
+    "region_code": "IN-UT",
+    "lat": 29.53,
+    "lon": 78.7747,
+    "latitude": 29.53,
+    "longitude": 78.7747,
+    "category": "reserve"
+  },
+  {
+    "name": "Pangot",
+    "region_code": "IN-UT",
+    "lat": 29.4167,
+    "lon": 79.4333,
+    "latitude": 29.4167,
+    "longitude": 79.4333,
+    "category": "hotspot"
+  },
+  {
+    "name": "Sattal",
+    "region_code": "IN-UT",
+    "lat": 29.35,
+    "lon": 79.5333,
+    "latitude": 29.35,
+    "longitude": 79.5333,
+    "category": "hotspot"
+  },
+  {
+    "name": "Chopta",
+    "region_code": "IN-UT",
+    "lat": 30.4833,
+    "lon": 79.1833,
+    "latitude": 30.4833,
+    "longitude": 79.1833,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kedarnath Wildlife Sanctuary",
+    "region_code": "IN-UT",
+    "lat": 30.55,
+    "lon": 79.15,
+    "latitude": 30.55,
+    "longitude": 79.15,
+    "category": "reserve"
+  },
+  {
+    "name": "Valley of Flowers National Park",
+    "region_code": "IN-UT",
+    "lat": 30.728,
+    "lon": 79.6053,
+    "latitude": 30.728,
+    "longitude": 79.6053,
+    "category": "reserve"
+  },
+  {
+    "name": "Rajaji National Park",
+    "region_code": "IN-UT",
+    "lat": 30.05,
+    "lon": 78.1833,
+    "latitude": 30.05,
+    "longitude": 78.1833,
+    "category": "reserve"
+  },
+  {
+    "name": "Asan Barrage Bird Sanctuary",
+    "region_code": "IN-UT",
+    "lat": 30.4333,
+    "lon": 77.6667,
+    "latitude": 30.4333,
+    "longitude": 77.6667,
+    "category": "reserve"
+  },
+  {
+    "name": "Milford Sound",
+    "region_code": "NZ",
+    "lat": -44.6714,
+    "lon": 167.9264,
+    "latitude": -44.6714,
+    "longitude": 167.9264,
+    "category": "hotspot"
+  },
+  {
+    "name": "Fiordland National Park",
+    "region_code": "NZ",
+    "lat": -45.4167,
+    "lon": 167.7167,
+    "latitude": -45.4167,
+    "longitude": 167.7167,
+    "category": "reserve"
+  },
+  {
+    "name": "Stewart Island",
+    "region_code": "NZ",
+    "lat": -46.9,
+    "lon": 167.8333,
+    "latitude": -46.9,
+    "longitude": 167.8333,
+    "category": "hotspot"
+  },
+  {
+    "name": "Rakiura National Park",
+    "region_code": "NZ",
+    "lat": -46.9,
+    "lon": 167.8333,
+    "latitude": -46.9,
+    "longitude": 167.8333,
+    "category": "reserve"
+  },
+  {
+    "name": "Ulva Island",
+    "region_code": "NZ",
+    "lat": -46.9286,
+    "lon": 168.1283,
+    "latitude": -46.9286,
+    "longitude": 168.1283,
+    "category": "reserve"
+  },
+  {
+    "name": "Arthur's Pass National Park",
+    "region_code": "NZ",
+    "lat": -42.9419,
+    "lon": 171.5583,
+    "latitude": -42.9419,
+    "longitude": 171.5583,
+    "category": "reserve"
+  },
+  {
+    "name": "Aoraki Mount Cook National Park",
+    "region_code": "NZ",
+    "lat": -43.7333,
+    "lon": 170.1,
+    "latitude": -43.7333,
+    "longitude": 170.1,
+    "category": "reserve"
+  },
+  {
+    "name": "Mount Cook",
+    "region_code": "NZ",
+    "lat": -43.7333,
+    "lon": 170.1,
+    "latitude": -43.7333,
+    "longitude": 170.1,
+    "category": "hotspot"
+  },
+  {
+    "name": "Lake Tekapo",
+    "region_code": "NZ",
+    "lat": -44.0047,
+    "lon": 170.4771,
+    "latitude": -44.0047,
+    "longitude": 170.4771,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kaikoura",
+    "region_code": "NZ",
+    "lat": -42.4,
+    "lon": 173.6833,
+    "latitude": -42.4,
+    "longitude": 173.6833,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tiritiri Matangi Island",
+    "region_code": "NZ",
+    "lat": -36.6,
+    "lon": 174.8833,
+    "latitude": -36.6,
+    "longitude": 174.8833,
+    "category": "reserve"
+  },
+  {
+    "name": "Zealandia",
+    "region_code": "NZ",
+    "lat": -41.2906,
+    "lon": 174.7533,
+    "latitude": -41.2906,
+    "longitude": 174.7533,
+    "category": "reserve"
+  },
+  {
+    "name": "Karori Sanctuary",
+    "region_code": "NZ",
+    "lat": -41.2906,
+    "lon": 174.7533,
+    "latitude": -41.2906,
+    "longitude": 174.7533,
+    "category": "reserve"
+  },
+  {
+    "name": "Miranda Shorebird Centre",
+    "region_code": "NZ",
+    "lat": -37.1833,
+    "lon": 175.3167,
+    "latitude": -37.1833,
+    "longitude": 175.3167,
+    "category": "hotspot"
+  },
+  {
+    "name": "Otago Peninsula",
+    "region_code": "NZ",
+    "lat": -45.8667,
+    "lon": 170.65,
+    "latitude": -45.8667,
+    "longitude": 170.65,
+    "category": "hotspot"
+  },
+  {
+    "name": "Taiaroa Head",
+    "region_code": "NZ",
+    "lat": -45.7725,
+    "lon": 170.7289,
+    "latitude": -45.7725,
+    "longitude": 170.7289,
+    "category": "reserve"
+  },
+  {
+    "name": "Cape Kidnappers",
+    "region_code": "NZ",
+    "lat": -39.6433,
+    "lon": 177.0917,
+    "latitude": -39.6433,
+    "longitude": 177.0917,
+    "category": "reserve"
+  },
+  {
+    "name": "Tongariro National Park",
+    "region_code": "NZ",
+    "lat": -39.2,
+    "lon": 175.5833,
+    "latitude": -39.2,
+    "longitude": 175.5833,
+    "category": "reserve"
+  },
+  {
+    "name": "Abel Tasman National Park",
+    "region_code": "NZ",
+    "lat": -40.9167,
+    "lon": 172.9667,
+    "latitude": -40.9167,
+    "longitude": 172.9667,
+    "category": "reserve"
+  },
+  {
+    "name": "Merritt Island National Wildlife Refuge",
+    "region_code": "US-FL",
+    "lat": 28.6333,
+    "lon": -80.7167,
+    "latitude": 28.6333,
+    "longitude": -80.7167,
+    "category": "reserve"
+  },
+  {
+    "name": "J.N. Ding Darling National Wildlife Refuge",
+    "region_code": "US-FL",
+    "lat": 26.4469,
+    "lon": -82.1128,
+    "latitude": 26.4469,
+    "longitude": -82.1128,
+    "category": "reserve"
+  },
+  {
+    "name": "Corkscrew Swamp Sanctuary",
+    "region_code": "US-FL",
+    "lat": 26.3756,
+    "lon": -81.6033,
+    "latitude": 26.3756,
+    "longitude": -81.6033,
+    "category": "reserve"
+  },
+  {
+    "name": "Dry Tortugas National Park",
+    "region_code": "US-FL",
+    "lat": 24.6285,
+    "lon": -82.8732,
+    "latitude": 24.6285,
+    "longitude": -82.8732,
+    "category": "reserve"
+  },
+  {
+    "name": "Biscayne National Park",
+    "region_code": "US-FL",
+    "lat": 25.4667,
+    "lon": -80.1833,
+    "latitude": 25.4667,
+    "longitude": -80.1833,
+    "category": "reserve"
+  },
+  {
+    "name": "Big Cypress National Preserve",
+    "region_code": "US-FL",
+    "lat": 25.8583,
+    "lon": -81.0333,
+    "latitude": 25.8583,
+    "longitude": -81.0333,
+    "category": "reserve"
+  },
+  {
+    "name": "St. Marks National Wildlife Refuge",
+    "region_code": "US-FL",
+    "lat": 30.15,
+    "lon": -84.15,
+    "latitude": 30.15,
+    "longitude": -84.15,
+    "category": "reserve"
+  },
+  {
+    "name": "Arthur R. Marshall Loxahatchee National Wildlife Refuge",
+    "region_code": "US-FL",
+    "lat": 26.5,
+    "lon": -80.2667,
+    "latitude": 26.5,
+    "longitude": -80.2667,
+    "category": "reserve"
+  },
+  {
+    "name": "Yosemite National Park",
+    "region_code": "US-CA",
+    "lat": 37.8651,
+    "lon": -119.5383,
+    "latitude": 37.8651,
+    "longitude": -119.5383,
+    "category": "reserve"
+  },
+  {
+    "name": "Point Reyes National Seashore",
+    "region_code": "US-CA",
+    "lat": 38.0694,
+    "lon": -122.8869,
+    "latitude": 38.0694,
+    "longitude": -122.8869,
+    "category": "reserve"
+  },
+  {
+    "name": "Monterey Bay",
+    "region_code": "US-CA",
+    "lat": 36.8,
+    "lon": -121.9,
+    "latitude": 36.8,
+    "longitude": -121.9,
+    "category": "hotspot"
+  },
+  {
+    "name": "Santa Cruz Island",
+    "region_code": "US-CA",
+    "lat": 34.02,
+    "lon": -119.77,
+    "latitude": 34.02,
+    "longitude": -119.77,
+    "category": "reserve"
+  },
+  {
+    "name": "Masai Mara National Reserve",
+    "region_code": "KE",
+    "lat": -1.4917,
+    "lon": 35.1444,
+    "latitude": -1.4917,
+    "longitude": 35.1444,
+    "category": "reserve"
+  },
+  {
+    "name": "Amboseli National Park",
+    "region_code": "KE",
+    "lat": -2.6528,
+    "lon": 37.2606,
+    "latitude": -2.6528,
+    "longitude": 37.2606,
+    "category": "reserve"
+  },
+  {
+    "name": "Lake Nakuru National Park",
+    "region_code": "KE",
+    "lat": -0.3667,
+    "lon": 36.0833,
+    "latitude": -0.3667,
+    "longitude": 36.0833,
+    "category": "reserve"
+  },
+  {
+    "name": "Lake Naivasha",
+    "region_code": "KE",
+    "lat": -0.7667,
+    "lon": 36.35,
+    "latitude": -0.7667,
+    "longitude": 36.35,
+    "category": "hotspot"
+  },
+  {
+    "name": "Tsavo East National Park",
+    "region_code": "KE",
+    "lat": -2.7667,
+    "lon": 38.7667,
+    "latitude": -2.7667,
+    "longitude": 38.7667,
+    "category": "reserve"
+  },
+  {
+    "name": "Tsavo West National Park",
+    "region_code": "KE",
+    "lat": -3.0,
+    "lon": 38.0,
+    "latitude": -3.0,
+    "longitude": 38.0,
+    "category": "reserve"
+  },
+  {
+    "name": "Samburu National Reserve",
+    "region_code": "KE",
+    "lat": 0.6167,
+    "lon": 37.5333,
+    "latitude": 0.6167,
+    "longitude": 37.5333,
+    "category": "reserve"
+  },
+  {
+    "name": "Serengeti National Park",
+    "region_code": "TZ",
+    "lat": -2.3333,
+    "lon": 34.8333,
+    "latitude": -2.3333,
+    "longitude": 34.8333,
+    "category": "reserve"
+  },
+  {
+    "name": "Ngorongoro Conservation Area",
+    "region_code": "TZ",
+    "lat": -3.2,
+    "lon": 35.5,
+    "latitude": -3.2,
+    "longitude": 35.5,
+    "category": "reserve"
+  },
+  {
+    "name": "Tarangire National Park",
+    "region_code": "TZ",
+    "lat": -3.8333,
+    "lon": 36.0,
+    "latitude": -3.8333,
+    "longitude": 36.0,
+    "category": "reserve"
+  },
+  {
+    "name": "Lake Manyara National Park",
+    "region_code": "TZ",
+    "lat": -3.5,
+    "lon": 35.8333,
+    "latitude": -3.5,
+    "longitude": 35.8333,
+    "category": "reserve"
+  },
+  {
+    "name": "Chobe National Park",
+    "region_code": "BW",
+    "lat": -18.6667,
+    "lon": 24.5,
+    "latitude": -18.6667,
+    "longitude": 24.5,
+    "category": "reserve"
+  },
+  {
+    "name": "Okavango Delta",
+    "region_code": "BW",
+    "lat": -19.2833,
+    "lon": 22.9,
+    "latitude": -19.2833,
+    "longitude": 22.9,
+    "category": "reserve"
+  },
+  {
+    "name": "Moremi Game Reserve",
+    "region_code": "BW",
+    "lat": -19.1667,
+    "lon": 23.4167,
+    "latitude": -19.1667,
+    "longitude": 23.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Boulders Beach African Penguin Colony",
+    "region_code": "ZA",
+    "lat": -34.1972,
+    "lon": 18.4514,
+    "latitude": -34.1972,
+    "longitude": 18.4514,
+    "category": "reserve"
+  },
+  {
+    "name": "Cape Point Nature Reserve",
+    "region_code": "ZA",
+    "lat": -34.3569,
+    "lon": 18.4975,
+    "latitude": -34.3569,
+    "longitude": 18.4975,
+    "category": "reserve"
+  },
+  {
+    "name": "Kirstenbosch National Botanical Garden",
+    "region_code": "ZA",
+    "lat": -33.9875,
+    "lon": 18.4328,
+    "latitude": -33.9875,
+    "longitude": 18.4328,
+    "category": "hotspot"
+  },
+  {
+    "name": "Hluhluwe-iMfolozi Park",
+    "region_code": "ZA",
+    "lat": -28.2167,
+    "lon": 31.95,
+    "latitude": -28.2167,
+    "longitude": 31.95,
+    "category": "reserve"
+  },
+  {
+    "name": "iSimangaliso Wetland Park",
+    "region_code": "ZA",
+    "lat": -28.0,
+    "lon": 32.5,
+    "latitude": -28.0,
+    "longitude": 32.5,
+    "category": "reserve"
+  },
+  {
+    "name": "Daintree Rainforest",
+    "region_code": "AU-QLD",
+    "lat": -16.2833,
+    "lon": 145.4167,
+    "latitude": -16.2833,
+    "longitude": 145.4167,
+    "category": "reserve"
+  },
+  {
+    "name": "Cairns Esplanade",
+    "region_code": "AU-QLD",
+    "lat": -16.9167,
+    "lon": 145.7667,
+    "latitude": -16.9167,
+    "longitude": 145.7667,
+    "category": "hotspot"
+  },
+  {
+    "name": "Kakadu National Park",
+    "region_code": "AU-NT",
+    "lat": -12.8333,
+    "lon": 132.8333,
+    "latitude": -12.8333,
+    "longitude": 132.8333,
+    "category": "reserve"
+  },
+  {
+    "name": "Blue Mountains National Park",
+    "region_code": "AU-NSW",
+    "lat": -33.7167,
+    "lon": 150.3167,
+    "latitude": -33.7167,
+    "longitude": 150.3167,
+    "category": "reserve"
+  },
+  {
+    "name": "Royal National Park",
+    "region_code": "AU-NSW",
+    "lat": -34.1333,
+    "lon": 151.0667,
+    "latitude": -34.1333,
+    "longitude": 151.0667,
+    "category": "reserve"
+  },
+  {
+    "name": "Fuji-Hakone-Izu National Park",
+    "region_code": "JP",
+    "lat": 35.3333,
+    "lon": 138.8333,
+    "latitude": 35.3333,
+    "longitude": 138.8333,
+    "category": "reserve"
+  },
+  {
+    "name": "Kushiro Shitsugen National Park",
+    "region_code": "JP",
+    "lat": 43.1,
+    "lon": 144.4,
+    "latitude": 43.1,
+    "longitude": 144.4,
+    "category": "reserve"
+  },
+  {
+    "name": "Shiretoko National Park",
+    "region_code": "JP",
+    "lat": 44.1167,
+    "lon": 145.1333,
+    "latitude": 44.1167,
+    "longitude": 145.1333,
+    "category": "reserve"
+  },
+  {
+    "name": "Khao Yai National Park",
+    "region_code": "TH",
+    "lat": 14.4333,
+    "lon": 101.3667,
+    "latitude": 14.4333,
+    "longitude": 101.3667,
+    "category": "reserve"
+  },
+  {
+    "name": "Kaeng Krachan National Park",
+    "region_code": "TH",
+    "lat": 12.9,
+    "lon": 99.3,
+    "latitude": 12.9,
+    "longitude": 99.3,
+    "category": "reserve"
+  },
+  {
     "name": "Saul Kere",
     "region_code": "IN-KA",
     "lat": 12.9123,
