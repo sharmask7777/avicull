@@ -167,9 +167,28 @@ All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject
 
 ---
 
-## 6. Updating Models & Classifiers
+## 6. Updating Models, Taxonomies & Regional Checklists
 
-When upgrading neural network backbones, bird detectors, taxonomies, or spatial-temporal priors to current cutting-edge architectures, follow the instructions in [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
+When upgrading neural network backbones, bird detectors, taxonomies, regional checklists, or spatial-temporal priors to current cutting-edge architectures:
+
+1. **Model Upgrades**:
+   Follow the instructions in [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
+2. **Taxonomy & Name Changes Handling**:
+   - Cornell eBird / Clements and IOC revise common and scientific species names annually (e.g. splits, lumps, renamings).
+   - In `models/taxonomy.json`, each taxon is permanently keyed by its immutable eBird 6-letter `taxon_id` (e.g. `paisto1`, `brakit1`, `gnwtea`).
+   - When species are renamed, updated `common_name` and `folder_slug` values are mapped without altering primary keys, preserving user historical tags and filesystem backward compatibility.
+   - Run `python3 scripts/build_taxonomy.py` to ingest updated eBird checklists into `models/taxonomy.json`.
+3. **Regional Checklists & iNaturalist Place IDs Updating**:
+   - `scripts/build_gazetteer.py` compiles `data/gazetteer.json` (geographic waypoints) and `data/regional_checklists.json` (taxa present in each administrative region).
+   - `INATURALIST_PLACE_IDS` in `scripts/build_gazetteer.py` maps ISO 3166-1/2 codes to standard iNaturalist place identifiers.
+   - Run the builder whenever gazetteer waypoints, taxonomy, or checklist coverage expands:
+     ```bash
+     python3 scripts/build_gazetteer.py
+     uv run pytest tests/test_build_gazetteer.py
+     ```
+   - All taxon IDs referenced in `scripts/build_gazetteer.py` are strictly validated against `models/taxonomy.json`; invalid IDs immediately abort the build.
+4. **Automated Monthly Synchronization**:
+   - `.github/workflows/update_gazetteer.yml` automatically triggers on the 1st of every month to re-run `scripts/build_gazetteer.py`, execute tests, and open automated pull requests when upstream checklists change.
 
 ---
 

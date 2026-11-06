@@ -106,9 +106,21 @@ pub fn resolve_from_override(
     let parts: Vec<&str> = override_str.split(',').map(str::trim).collect();
     if parts.len() == 2 {
         if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+            // Find nearest gazetteer entry to infer granular region code and localized name
+            let nearest = engine.find_nearest(lat, lon, None);
+            let (name, region_code) = if let Some((entry, dist_km)) = nearest {
+                if dist_km < 25.0 {
+                    (entry.name.clone(), entry.region_code.clone())
+                } else {
+                    (format!("{lat:.4}, {lon:.4}"), entry.region_code.clone())
+                }
+            } else {
+                (format!("{lat:.4}, {lon:.4}"), String::new())
+            };
+
             return Some(ResolvedLocation {
-                name: format!("{lat:.4}, {lon:.4}"),
-                region_code: String::new(),
+                name,
+                region_code,
                 latitude: lat,
                 longitude: lon,
                 source: "override_coord".to_string(),

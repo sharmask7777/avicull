@@ -164,6 +164,77 @@ impl GazetteerEngine {
         scored.truncate(limit);
         scored
     }
+
+    /// Finds the nearest gazetteer entry to a given `(lat, lon)` using Great-Circle Haversine distance.
+    ///
+    /// # Arguments
+    /// * `lat` - Target latitude in degrees.
+    /// * `lon` - Target longitude in degrees.
+    /// * `max_distance_km` - Optional distance cutoff in kilometers.
+    ///
+    /// # Returns
+    /// An optional tuple `(&GazetteerEntry, distance_km)` of the closest known location.
+    pub fn find_nearest(
+        &self,
+        lat: f64,
+        lon: f64,
+        max_distance_km: Option<f64>,
+    ) -> Option<(&GazetteerEntry, f64)> {
+        if self.entries.is_empty() {
+            return None;
+        }
+
+        let mut closest_entry: Option<&GazetteerEntry> = None;
+        let mut min_distance = f64::INFINITY;
+
+        for item in &self.entries {
+            let dist = haversine_distance_km(lat, lon, item.entry.latitude, item.entry.longitude);
+            if dist < min_distance {
+                min_distance = dist;
+                closest_entry = Some(&item.entry);
+            }
+        }
+
+        if let Some(entry) = closest_entry {
+            if let Some(cutoff) = max_distance_km {
+                if min_distance > cutoff {
+                    return None;
+                }
+            }
+            Some((entry, min_distance))
+        } else {
+            None
+        }
+    }
+}
+
+/// Earth mean radius in kilometers (WGS 84 spherical approximation).
+const EARTH_RADIUS_KM: f64 = 6371.0;
+
+/// Calculates the Great-Circle distance between two decimal coordinates in kilometers
+/// using the numerically stable Haversine formula:
+///
+/// $$d = 2 R \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta\phi}{2}\right) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(\frac{\Delta\lambda}{2}\right)}\right)$$
+///
+/// # Arguments
+/// * `lat1` - Latitude of point 1 in degrees.
+/// * `lon1` - Longitude of point 1 in degrees.
+/// * `lat2` - Latitude of point 2 in degrees.
+/// * `lon2` - Longitude of point 2 in degrees.
+///
+/// # Returns
+/// Distance in kilometers.
+pub fn haversine_distance_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    let phi1 = lat1.to_radians();
+    let phi2 = lat2.to_radians();
+    let delta_phi = (lat2 - lat1).to_radians();
+    let delta_lambda = (lon2 - lon1).to_radians();
+
+    let a = (delta_phi / 2.0).sin().powi(2)
+        + phi1.cos() * phi2.cos() * (delta_lambda / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+
+    EARTH_RADIUS_KM * c
 }
 
 /// Normalizes a string by lowercasing, folding accented Latin characters,

@@ -307,6 +307,7 @@ def test_build_gazetteer_execution(tmp_path, monkeypatch):
 def test_inaturalist_place_ids_mapping():
     from scripts.build_gazetteer import INATURALIST_PLACE_IDS
 
+    # Verify key historical mappings
     expected = {
         "IN-LA": 184748,
         "IN-KA": 7043,
@@ -321,6 +322,73 @@ def test_inaturalist_place_ids_mapping():
         assert INATURALIST_PLACE_IDS.get(region) == place_id, (
             f"Place ID for {region} must be {place_id}"
         )
+
+    # Invariant: Every region present in gazetteer must have a corresponding iNaturalist place ID
+    gazetteer_path = os.path.join(os.path.dirname(__file__), "..", "data", "gazetteer.json")
+    with open(gazetteer_path, encoding="utf-8") as f:
+        gazetteer = json.load(f)
+    gazetteer_regions = {entry["region_code"] for entry in gazetteer}
+    missing_place_ids = gazetteer_regions - set(INATURALIST_PLACE_IDS.keys())
+    assert not missing_place_ids, (
+        f"Missing iNaturalist place IDs for gazetteer regions: {sorted(list(missing_place_ids))}"
+    )
+
+    # Invariant: Must contain at least 40 diverse global and regional place IDs
+    assert len(INATURALIST_PLACE_IDS) >= 40, (
+        f"INATURALIST_PLACE_IDS must be populated, found only {len(INATURALIST_PLACE_IDS)}"
+    )
+
+
+def test_expanded_regional_checklists_and_wildlife():
+    checklists_path = os.path.join(
+        os.path.dirname(__file__), "..", "data", "regional_checklists.json"
+    )
+    with open(checklists_path, encoding="utf-8") as f:
+        checklists = json.load(f)
+
+    # Invariant: Every region in gazetteer must have a regional checklist
+    gazetteer_path = os.path.join(os.path.dirname(__file__), "..", "data", "gazetteer.json")
+    with open(gazetteer_path, encoding="utf-8") as f:
+        gazetteer = json.load(f)
+    gazetteer_regions = {entry["region_code"] for entry in gazetteer}
+    missing_checklists = gazetteer_regions - set(checklists.keys())
+    assert not missing_checklists, (
+        f"Missing regional checklist for gazetteer regions: {sorted(list(missing_checklists))}"
+    )
+
+    # Invariant: Major birding regions must be extensively detailed (>60 species)
+    assert len(checklists["IN-KA"]) >= 120, (
+        f"IN-KA checklist should have at least 120 taxa, got {len(checklists['IN-KA'])}"
+    )
+    assert len(checklists["NZ"]) >= 40, (
+        f"NZ checklist should have at least 40 taxa, got {len(checklists['NZ'])}"
+    )
+    assert len(checklists["US-FL"]) >= 60, (
+        f"US-FL checklist should have at least 60 taxa, got {len(checklists['US-FL'])}"
+    )
+    assert len(checklists["ZA"]) >= 60, (
+        f"ZA checklist should have at least 60 taxa, got {len(checklists['ZA'])}"
+    )
+    assert len(checklists["KE"]) >= 50, (
+        f"KE checklist should have at least 50 taxa, got {len(checklists['KE'])}"
+    )
+
+    # Verify Western Ghats multi-taxa (Tiger, Leopard, Elephant, Giant Squirrel, Peacock, Scenery)
+    ka = set(checklists["IN-KA"])
+    assert "mamm_tiger1" in ka, "Bengal Tiger must be in IN-KA"
+    assert "mamm_eleph1" in ka, "Asian Elephant must be in IN-KA"
+    assert "mamm_mal_sq1" in ka, "Malabar Giant Squirrel must be in IN-KA"
+    assert "mamm_ind_leop1" in ka, "Indian Leopard must be in IN-KA"
+    assert "ins_peacock1" in ka, "Malabar Banded Peacock butterfly must be in IN-KA"
+    assert "scen_forest" in ka, "Forest Canopy must be in IN-KA"
+    assert "scen_waterfall" in ka, "Waterfall must be in IN-KA"
+
+    # Verify New Zealand endemics (Kiwi, Takahe, Kea, Weka, Kaka, Bellbird, Fantail)
+    nz = set(checklists["NZ"])
+    assert "sobkiw1" in nz, "Southern Brown Kiwi must be in NZ"
+    assert "kea1" in nz, "Kea must be in NZ"
+    assert "takahe3" in nz, "South Island Takahe must be in NZ"
+    assert "weka1" in nz, "Weka must be in NZ"
 
 
 def test_ladakh_wildlife_and_scenery_in_checklist():
