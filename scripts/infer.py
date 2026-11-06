@@ -578,24 +578,23 @@ class AvianInferenceEngine:
             # Evaluate natural visual entropy to reject pure black/synthetic uniform images
             visual_entropy = calculate_visual_entropy(img)
 
-            # Fallback genre candidates: non-avian genres (Scenery, Architecture,
-            # Botanical, Abstract)
+            # Robust non-animal genre fallback:
+            # Require higher threshold and peak confidence so unlabeled frames or low-confidence
+            # noise do not falsely classify into Botanical or other genres. Fall back to No Subject.
             non_animal_genres = ("Scenery", "Architecture", "Botanical", "Abstract")
             with torch.no_grad():
                 all_sims = (full_emb @ self.species_embeddings.T)[0]
 
-            # To avoid centroid dilution across diverse scenery scenes (e.g. desert dunes,
-            # mountain passes, canyons vs water/forests), evaluate the top candidate scores
-            # per genre across individual species embeddings
+            # Evaluate the top candidate scores and peak score per non-animal genre
             genre_top_scores: dict[str, float] = {}
+            genre_peak_scores: dict[str, float] = {}
             for g in non_animal_genres:
                 g_indices = [i for i, sp in enumerate(self.taxonomy) if sp.get("category") == g]
                 if g_indices:
-                    # top-2 average to balance peak specificity with genre consistency
                     k_top = min(2, len(g_indices))
-                    genre_top_scores[g] = float(
-                        torch.topk(all_sims[g_indices], k_top).values.mean().item()
-                    )
+                    top_vals = torch.topk(all_sims[g_indices], k_top).values
+                    genre_top_scores[g] = float(top_vals.mean().item())
+                    genre_peak_scores[g] = float(top_vals[0].item())
 
             best_genre = (
                 max(genre_top_scores.items(), key=lambda x: x[1])[0]
@@ -603,15 +602,26 @@ class AvianInferenceEngine:
                 else anchor_res.category
             )
             best_genre_score = genre_top_scores.get(best_genre, 0.0)
+            best_genre_peak = genre_peak_scores.get(best_genre, 0.0)
+
+            # Robust classification gate:
+            # - For Scenery (e.g. mountain valleys, waterfalls): top-2 mean >= 0.16 and peak >= 0.18
+            # - For Botanical, Architecture, Abstract: top-2 mean >= 0.18 and peak >= 0.22,
+            #   preventing generic outdoor foliage/textures from falsely claiming flower
+            #   classification. Frames below these gates cleanly fall back to _No_Subject_Detected
+            #   rather than a bad classification.
+            min_mean_thresh = 0.16 if best_genre == "Scenery" else 0.18
+            min_peak_thresh = 0.18 if best_genre == "Scenery" else 0.22
 
             is_valid_genre = (
                 best_genre in non_animal_genres
                 and visual_entropy >= 1.0
-                and best_genre_score >= 0.10
+                and best_genre_score >= min_mean_thresh
+                and best_genre_peak >= min_peak_thresh
             )
 
             if not is_valid_genre:
-                # Ambiguous blur or no detected subject -> route cleanly to _No_Subject_Detected
+                # Ambiguous or no confident subject -> fallback to _No_Subject_Detected
                 return {
                     "image_path": image_path,
                     "category": "Unknown",

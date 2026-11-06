@@ -3046,4 +3046,41 @@ fn test_resolve_category_for_decision_mammals_preservation() {
         AssetCategory::Portrait,
         "Expected Portrait for Cultural_Street_Portrait"
     );
+
+    // Verify birds with animal/reptile/botanical substring names remain Bird
+    let bird_substring_slugs = [
+        "European_Turtle_Dove",
+        "European_Turtle-Dove",
+        "Oriental_Turtle_Dove",
+        "Killdeer",
+        "Western_Banded_Snake_Eagle",
+        "Jamaican_Lizard_Cuckoo",
+        "Tawny_Frogmouth",
+        "Mexican_Squirrel_Cuckoo",
+        "Bearded_Guan",
+        "Butterfly_Coquette",
+        "Crested_Treeswift",
+        "Mountain_Quail",
+        "Desert_Lark",
+        "Flame_templed_Babbler",
+    ];
+    for b_slug in bird_substring_slugs {
+        let bird_dec = BundleDecision {
+            bundle_id: format!("b-{b_slug}"),
+            burst_id: None,
+            detection_confidence: 0.9,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![],
+            frame_confidence: 0.9,
+            final_confidence: 0.9,
+            assigned_species_slug: b_slug.to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: false,
+        };
+        assert_eq!(
+            resolve_category_for_decision(&bird_dec),
+            AssetCategory::Bird,
+            "Expected Bird for {b_slug}"
+        );
+    }
 }

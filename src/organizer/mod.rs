@@ -24,9 +24,49 @@ use crate::types::{
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
+use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
+
+static CURATED_MULTI_TAXA_JSON: &str = include_str!("../../data/curated_multi_taxa.json");
+
+static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(CURATED_MULTI_TAXA_JSON) {
+        for r in records {
+            if let Some(cat_str) = r.get("category").and_then(|v| v.as_str()) {
+                let cat = match cat_str {
+                    "Mammalia" => AssetCategory::Mammalia,
+                    "Insecta" => AssetCategory::Insecta,
+                    "Reptilia" => AssetCategory::Reptilia,
+                    "Amphibia" => AssetCategory::Amphibia,
+                    "Botanical" => AssetCategory::Botanical,
+                    "Scenery" => AssetCategory::Scenery,
+                    "Architecture" => AssetCategory::Architecture,
+                    "Portrait" => AssetCategory::Portrait,
+                    "Abstract" => AssetCategory::Abstract,
+                    _ => AssetCategory::Bird,
+                };
+                if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
+                    map.insert(tid.to_lowercase(), cat.clone());
+                }
+                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                    map.insert(cname.to_lowercase(), cat.clone());
+                    let slug = cname.replace(' ', "_").to_lowercase();
+                    map.insert(slug.clone(), cat.clone());
+                    map.insert(slug.replace('_', " "), cat.clone());
+                }
+                if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
+                    map.insert(slug.to_lowercase(), cat.clone());
+                    map.insert(slug.replace('_', " ").to_lowercase(), cat);
+                }
+            }
+        }
+    }
+    map
+});
 
 /// Validates that the requested organization mode is supported by the storage backend.
 /// Rejects `--mode hierarchy` on non-local storage backends (CloudStorage / NetworkShare).
@@ -183,123 +223,44 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
     let lower = slug.to_lowercase();
     let clean = lower.trim_matches('_');
 
-    if clean.contains("squirrel")
-        || clean.contains("langur")
-        || clean.contains("macaque")
-        || clean.contains("monkey")
-        || clean.contains("tiger")
-        || clean.contains("lion")
-        || clean.contains("leopard")
-        || clean.contains("elephant")
-        || clean.contains("chital")
-        || clean.contains("sambar")
-        || clean.contains("deer")
-        || clean.contains("panda")
-        || clean.contains("rhino")
-        || clean.contains("bear")
-        || clean.contains("yak")
-        || clean.contains("hare")
-        || clean.contains("marmot")
-        || clean.contains("bharal")
-        || clean.contains("mammal")
-    {
+    // 1. Exact match against curated multi-taxa registry
+    if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(clean) {
+        return Some(cat.clone());
+    }
+    let with_spaces = clean.replace('_', " ");
+    if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(&with_spaces) {
+        return Some(cat.clone());
+    }
+
+    // 2. Exact match against folder slug suffix (e.g. "portrait/cultural_street_portrait" -> "cultural_street_portrait")
+    if let Some(pos) = clean.rfind('/') {
+        let suffix = &clean[pos + 1..];
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(suffix) {
+            return Some(cat.clone());
+        }
+    }
+
+    // 3. Category path prefixes (e.g. "mammalia/...", "botanical/...")
+    if clean.starts_with("mammalia") || clean.starts_with("mammal") {
         Some(AssetCategory::Mammalia)
-    } else if clean.contains("peacock_butterfly")
-        || clean.contains("butterfly")
-        || clean.contains("moth")
-        || clean.contains("dragonfly")
-        || clean.contains("damselfly")
-        || clean.contains("beetle")
-        || clean.contains("insect")
-        || clean.contains("banded_peacock")
-        || clean.contains("common_mormon")
-        || clean.contains("blue_mormon")
-        || clean.contains("crimson_rose")
-    {
+    } else if clean.starts_with("insecta") || clean.starts_with("insect") {
         Some(AssetCategory::Insecta)
-    } else if clean.contains("crocodile")
-        || clean.contains("alligator")
-        || clean.contains("caiman")
-        || clean.contains("gharial")
-        || clean.contains("lizard")
-        || clean.contains("gecko")
-        || clean.contains("chameleon")
-        || clean.contains("iguana")
-        || clean.contains("monitor")
-        || clean.contains("komodo")
-        || clean.contains("snake")
-        || clean.contains("viper")
-        || clean.contains("cobra")
-        || clean.contains("python")
-        || clean.contains("boa")
-        || clean.contains("krait")
-        || clean.contains("turtle")
-        || clean.contains("tortoise")
-        || clean.contains("terrapin")
-        || clean.contains("reptile")
-        || clean.contains("reptilia")
-    {
+    } else if clean.starts_with("reptilia") || clean.starts_with("reptile") {
         Some(AssetCategory::Reptilia)
-    } else if clean.contains("frog")
-        || clean.contains("toad")
-        || clean.contains("salamander")
-        || clean.contains("newt")
-        || clean.contains("caecilian")
-        || clean.contains("amphibian")
-        || clean.contains("amphibia")
-    {
+    } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
         Some(AssetCategory::Amphibia)
-    } else if clean.contains("botanical")
-        || clean.contains("plant")
-        || clean.contains("flora")
-        || clean.contains("flower")
-        || clean.contains("tree")
-        || clean.contains("rhododendron")
-        || clean.contains("lotus")
-        || clean.contains("orchid")
-        || clean.contains("fungus")
-        || clean.contains("mushroom")
-        || clean.contains("lichen")
+    } else if clean.starts_with("botanical")
+        || clean.starts_with("plant")
+        || clean.starts_with("flora")
     {
         Some(AssetCategory::Botanical)
-    } else if clean.contains("aurora")
-        || clean.contains("mountain")
-        || clean.contains("waterfall")
-        || clean.contains("forest")
-        || clean.contains("sunset")
-        || clean.contains("sunrise")
-        || clean.contains("desert")
-        || clean.contains("coastline")
-        || clean.contains("night_sky")
-        || clean.contains("landscape")
-        || clean.contains("scenery")
-    {
+    } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
         Some(AssetCategory::Scenery)
-    } else if clean.contains("architecture")
-        || clean.contains("building")
-        || clean.contains("tower")
-        || clean.contains("bridge")
-        || clean.contains("temple")
-        || clean.contains("church")
-        || clean.contains("mosque")
-        || clean.contains("monument")
-        || clean.contains("palace")
-        || clean.contains("castle")
-        || clean.contains("skyscraper")
-    {
+    } else if clean.starts_with("architecture") || clean.starts_with("building") {
         Some(AssetCategory::Architecture)
-    } else if clean.contains("portrait")
-        || clean.contains("headshot")
-        || clean.contains("person")
-        || clean.contains("people")
-        || clean.contains("human")
-    {
+    } else if clean.starts_with("portrait") {
         Some(AssetCategory::Portrait)
-    } else if clean.contains("abstract")
-        || clean.contains("texture")
-        || clean.contains("pattern")
-        || clean.contains("minimalist")
-    {
+    } else if clean.starts_with("abstract") {
         Some(AssetCategory::Abstract)
     } else {
         None
