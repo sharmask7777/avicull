@@ -276,6 +276,10 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
 /// The resolved [`AssetCategory`], defaulting to [`AssetCategory::Bird`].
 #[must_use]
 pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory {
+    if decision.routing_tier == crate::types::RoutingTier::NoBirdDetected {
+        return AssetCategory::NoSubjectDetected;
+    }
+
     let from_slug = AssetCategory::from_slug(&decision.assigned_species_slug);
     if from_slug != AssetCategory::Bird {
         return from_slug;

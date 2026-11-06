@@ -20,6 +20,7 @@ use std::path::PathBuf;
 /// - Reptiles: [`AssetCategory::Reptilia`]
 /// - Amphibians: [`AssetCategory::Amphibia`]
 /// - Scenery and landscapes: [`AssetCategory::Scenery`]
+/// - Unclassified or empty frames: [`AssetCategory::NoSubjectDetected`]
 /// - Extensible genres (e.g. Portrait, Abstract, Architecture): [`AssetCategory::Other`]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum AssetCategory {
@@ -36,11 +37,17 @@ pub enum AssetCategory {
     Amphibia,
     /// Scenery, landscape, and environmental motifs.
     Scenery,
+    /// Unclassified or zero-detection empty frames (`_No_Bird_Detected` / `_No_Subject_Detected`).
+    NoSubjectDetected,
     /// Extensible photographic genres (e.g., `"Portrait"`, `"Abstract"`).
     Other(String),
 }
 
 impl AssetCategory {
+    /// Backward-compatible alias for [`AssetCategory::NoSubjectDetected`].
+    #[allow(non_upper_case_globals)]
+    pub const NoBirdDetected: Self = Self::NoSubjectDetected;
+
     /// Returns the canonical singular string representation of this category.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -51,6 +58,7 @@ impl AssetCategory {
             Self::Reptilia => "Reptilia",
             Self::Amphibia => "Amphibia",
             Self::Scenery => "Scenery",
+            Self::NoSubjectDetected => "No_Subject_Detected",
             Self::Other(s) => s.as_str(),
         }
     }
@@ -65,19 +73,26 @@ impl AssetCategory {
     #[must_use]
     pub fn from_slug(slug: &str) -> Self {
         let lower = slug.to_lowercase();
-        if lower.starts_with("mammalia") || lower.starts_with("mammal") {
+        let clean = lower.trim_start_matches('_');
+        if clean.starts_with("no_bird_detected")
+            || clean.starts_with("no_subject_detected")
+            || clean.starts_with("nobirddetected")
+            || clean.starts_with("nosubjectdetected")
+        {
+            Self::NoSubjectDetected
+        } else if clean.starts_with("mammalia") || clean.starts_with("mammal") {
             Self::Mammalia
-        } else if lower.starts_with("insecta") || lower.starts_with("insect") {
+        } else if clean.starts_with("insecta") || clean.starts_with("insect") {
             Self::Insecta
-        } else if lower.starts_with("reptilia") || lower.starts_with("reptile") {
+        } else if clean.starts_with("reptilia") || clean.starts_with("reptile") {
             Self::Reptilia
-        } else if lower.starts_with("amphibia") || lower.starts_with("amphibian") {
+        } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
             Self::Amphibia
-        } else if lower.starts_with("scenery") || lower.starts_with("landscape") {
+        } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
             Self::Scenery
-        } else if lower.starts_with("portrait") {
+        } else if clean.starts_with("portrait") {
             Self::Other("Portrait".to_string())
-        } else if lower.starts_with("abstract") {
+        } else if clean.starts_with("abstract") {
             Self::Other("Abstract".to_string())
         } else {
             Self::Bird
@@ -120,6 +135,14 @@ impl std::str::FromStr for AssetCategory {
             Ok(Self::Amphibia)
         } else if trimmed.eq_ignore_ascii_case("scenery") {
             Ok(Self::Scenery)
+        } else if trimmed.eq_ignore_ascii_case("no_subject_detected")
+            || trimmed.eq_ignore_ascii_case("_no_subject_detected")
+            || trimmed.eq_ignore_ascii_case("no subject detected")
+            || trimmed.eq_ignore_ascii_case("no_bird_detected")
+            || trimmed.eq_ignore_ascii_case("_no_bird_detected")
+            || trimmed.eq_ignore_ascii_case("no bird detected")
+        {
+            Ok(Self::NoSubjectDetected)
         } else {
             Ok(Self::Other(trimmed.to_string()))
         }

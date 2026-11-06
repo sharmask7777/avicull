@@ -1043,6 +1043,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">{reptilia_count}</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">{amphibia_count}</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
+        <button class="pill category-pill" data-category="No_Subject_Detected" onclick="setCategoryFilter('No_Subject_Detected', this)">No Subject (<span id="catCountNoSubject">{no_subject_count}</span>)</button>
       </div>
     </div>
   </div>
@@ -1676,7 +1677,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Scenery: 0 }};
+    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {{
@@ -1693,8 +1694,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (elMam) elMam.textContent = counts.Mammalia;
     const elIns = document.getElementById('catCountInsecta');
     if (elIns) elIns.textContent = counts.Insecta;
+    const elRep = document.getElementById('catCountReptilia');
+    if (elRep) elRep.textContent = counts.Reptilia;
+    const elAmp = document.getElementById('catCountAmphibia');
+    if (elAmp) elAmp.textContent = counts.Amphibia;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
+    const elNoSub = document.getElementById('catCountNoSubject');
+    if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
   }}
 
   function handleSearch() {{
@@ -1915,6 +1922,20 @@ fi
 `;
   }}
 
+  function resolveTargetCategory(species, fallbackCategory) {{
+    if (!species) return fallbackCategory || 'Bird';
+    const s = species.toLowerCase().trim().replace(/^_+/, '');
+    if (s.startsWith('mammalia') || s.includes('squirrel') || s.includes('langur') || s.includes('macaque') || s.includes('monkey') || s.includes('tiger') || s.includes('lion') || s.includes('leopard') || s.includes('elephant') || s.includes('chital') || s.includes('sambar') || s.includes('deer') || s.includes('panda') || s.includes('rhino') || s.includes('bear') || s.includes('yak') || s.includes('hare') || s.includes('marmot') || s.includes('bharal')) return 'Mammalia';
+    if (s.startsWith('insecta') || s.includes('butterfly') || s.includes('moth') || s.includes('dragonfly') || s.includes('damselfly') || s.includes('beetle')) return 'Insecta';
+    if (s.startsWith('reptilia') || s.includes('crocodile') || s.includes('alligator') || s.includes('lizard') || s.includes('gecko') || s.includes('snake') || s.includes('viper') || s.includes('cobra') || s.includes('sea_turtle') || s.includes('tortoise')) return 'Reptilia';
+    if (s.startsWith('amphibia') || s.includes('frog') || s.includes('toad') || s.includes('salamander') || s.includes('newt')) return 'Amphibia';
+    if (s.startsWith('scenery') || s.includes('aurora') || s.includes('mountain') || s.includes('waterfall') || s.includes('sunset') || s.includes('landscape')) return 'Scenery';
+    if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
+    // If user selected a valid species (like Brahminy Kite), it is a Bird!
+    if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
+    return fallbackCategory;
+  }}
+
   function buildMoveCommandsForItem(item, species) {{
     if (!item) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
@@ -1929,7 +1950,8 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
-    const cat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
+    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
+    const cat = resolveTargetCategory(species, itemCat);
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
     commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{activeModalItem ? activeModalItem.original_stem : stem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{stem}}"`);
@@ -3003,6 +3025,7 @@ fi
         reptilia_count = payload.stats.reptilia_count,
         amphibia_count = payload.stats.amphibia_count,
         scenery_count = payload.stats.scenery_count,
+        no_subject_count = payload.stats.no_subject_count,
         trip_location_display = trip_location_display,
         json_data = json_data
     )
@@ -3049,6 +3072,7 @@ mod tests {
             reptilia_count: 0,
             amphibia_count: 0,
             scenery_count: 1,
+            no_subject_count: 0,
         };
 
         let payload_hierarchy = CatalogPayload {
@@ -3108,6 +3132,7 @@ mod tests {
                 reptilia_count: 0,
                 amphibia_count: 0,
                 scenery_count: 0,
+                no_subject_count: 0,
             },
             items: vec![],
             species_list: vec![],
