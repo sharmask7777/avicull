@@ -3027,4 +3027,23 @@ fn test_resolve_category_for_decision_mammals_preservation() {
             "Expected Mammalia for top prediction: {slug}"
         );
     }
+
+    // Verify Portrait resolution for cultural and street portrait slugs
+    let portrait_dec = BundleDecision {
+        bundle_id: "b-portrait-1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        assigned_species_slug: "Cultural_Street_Portrait".to_string(),
+        routing_tier: RoutingTier::NeedsReview,
+        is_user_override: false,
+    };
+    assert_eq!(
+        resolve_category_for_decision(&portrait_dec),
+        AssetCategory::Portrait,
+        "Expected Portrait for Cultural_Street_Portrait"
+    );
 }

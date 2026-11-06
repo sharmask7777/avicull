@@ -107,13 +107,35 @@ impl AssetCategory {
         } else if clean.starts_with("botanical")
             || clean.starts_with("plant")
             || clean.starts_with("flora")
+            || clean.contains("lotus")
+            || clean.contains("rhododendron")
+            || clean.contains("banyan")
+            || clean.contains("mushroom")
         {
             Self::Botanical
-        } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
+        } else if clean.starts_with("scenery")
+            || clean.starts_with("landscape")
+            || clean.contains("mountain")
+            || clean.contains("waterfall")
+            || clean.contains("valley")
+            || clean.contains("aurora")
+            || clean.contains("sunset")
+            || clean.contains("desert")
+            || clean.contains("coastline")
+        {
             Self::Scenery
-        } else if clean.starts_with("architecture") || clean.starts_with("building") {
+        } else if clean.starts_with("architecture")
+            || clean.starts_with("building")
+            || clean.contains("temple")
+            || clean.contains("fortress")
+            || clean.contains("skyscraper")
+            || clean.contains("monument")
+        {
             Self::Architecture
-        } else if clean.starts_with("portrait") {
+        } else if clean.starts_with("portrait")
+            || clean.contains("portrait")
+            || clean.contains("headshot")
+        {
             Self::Portrait
         } else if clean.starts_with("abstract") {
             Self::Abstract

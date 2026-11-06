@@ -136,8 +136,8 @@ def generate_taxonomy_prompt(entry: TaxonomyEntry) -> str:
         - Bird: 'a photo of a Brahminy Kite (Haliastur indus), a type of bird.'
         - Mammalia: 'a photo of a Malabar Giant Squirrel (Ratufa indica), a type of mammal.'
         - Insecta: 'a photo of a Malabar Banded Peacock (Papilio buddha), a type of insect.'
-        - Scenery: 'a photo of a Aurora Borealis (Aurora Borealis), a type of scenery.'
-          or without scientific name: 'a photo of a Mountain Landscape, a type of scenery.'
+        - Scenery: 'a photo of a Mountain Landscape, a type of scenery.'
+        - Architecture: 'a photo of a Modern Urban Skyscraper, a type of building.'
     """
     category_noun = CATEGORY_PROMPT_NOUNS.get(entry.category, entry.category.lower())
     if entry.scientific_name:
@@ -1624,6 +1624,13 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
     },
     {
         "category": "Scenery",
+        "taxon_id": "scen_valley",
+        "common_name": "Arid Mountain Valley",
+        "scientific_name": "Mountain Valley",
+        "aliases": ["Mountain Pass", "Barren Valley", "River Valley", "Canyon"],
+    },
+    {
+        "category": "Scenery",
         "taxon_id": "scen_waterfall",
         "common_name": "Waterfall",
         "scientific_name": "Waterfall",
@@ -1740,15 +1747,15 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
     # --- Architecture (Monuments, Historic Buildings, Urban) ---
     {
         "category": "Architecture",
-        "taxon_id": "arch_taj_mahal",
-        "common_name": "Taj Mahal",
-        "scientific_name": "Monumentum Taj Mahal",
-        "aliases": ["Mausoleum", "Marble Palace"],
+        "taxon_id": "arch_monument",
+        "common_name": "Monumental Architecture",
+        "scientific_name": "Monumentum Architecturae",
+        "aliases": ["Mausoleum", "Monument", "Memorial"],
     },
     {
         "category": "Architecture",
         "taxon_id": "arch_hindu_temple",
-        "common_name": "Historic Hindu Temple",
+        "common_name": "Historic Stone Temple",
         "scientific_name": "Templum Sanctuarium",
         "aliases": ["Mandir", "Gopuram", "Ancient Temple"],
     },

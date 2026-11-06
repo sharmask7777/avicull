@@ -34,10 +34,12 @@ from PIL import Image, ImageOps
 from safetensors.torch import load_file
 from ultralytics import YOLO
 
+COCO_PERSON_CLASS_ID = 0
 COCO_BIRD_CLASS_ID = 14
 COCO_MAMMAL_CLASS_IDS: frozenset[int] = frozenset({15, 16, 17, 18, 19, 20, 21, 22, 23})
 COCO_ANIMAL_CLASS_IDS: frozenset[int] = frozenset(
     {
+        0,  # person (portraits)
         14,  # bird
         15,  # cat
         16,  # dog
@@ -576,16 +578,39 @@ class AvianInferenceEngine:
             # Evaluate natural visual entropy to reject pure black/synthetic uniform images
             visual_entropy = calculate_visual_entropy(img)
 
-            # If full-frame is confident scenery (Scenery is top category,
-            # not ambiguous, natural visual entropy >= 1.0, and score >= 0.20)
-            is_scenery = (
-                anchor_res.category == "Scenery"
-                and not anchor_res.is_ambiguous
+            # Fallback genre candidates: non-avian genres (Scenery, Architecture,
+            # Botanical, Abstract)
+            non_animal_genres = ("Scenery", "Architecture", "Botanical", "Abstract")
+            with torch.no_grad():
+                all_sims = (full_emb @ self.species_embeddings.T)[0]
+
+            # To avoid centroid dilution across diverse scenery scenes (e.g. desert dunes,
+            # mountain passes, canyons vs water/forests), evaluate the top candidate scores
+            # per genre across individual species embeddings
+            genre_top_scores: dict[str, float] = {}
+            for g in non_animal_genres:
+                g_indices = [i for i, sp in enumerate(self.taxonomy) if sp.get("category") == g]
+                if g_indices:
+                    # top-2 average to balance peak specificity with genre consistency
+                    k_top = min(2, len(g_indices))
+                    genre_top_scores[g] = float(
+                        torch.topk(all_sims[g_indices], k_top).values.mean().item()
+                    )
+
+            best_genre = (
+                max(genre_top_scores.items(), key=lambda x: x[1])[0]
+                if genre_top_scores
+                else anchor_res.category
+            )
+            best_genre_score = genre_top_scores.get(best_genre, 0.0)
+
+            is_valid_genre = (
+                best_genre in non_animal_genres
                 and visual_entropy >= 1.0
-                and anchor_res.confidence >= 0.20
+                and best_genre_score >= 0.10
             )
 
-            if not is_scenery:
+            if not is_valid_genre:
                 # Ambiguous blur or no detected subject -> route cleanly to _No_Subject_Detected
                 return {
                     "image_path": image_path,
@@ -599,19 +624,20 @@ class AvianInferenceEngine:
                     "embedding": [round(float(v), 5) for v in full_emb[0].tolist()[:512]],
                 }
 
-            # It is confident scenery!
+            # Confirmed natural genre (Scenery, Architecture, Botanical, or Abstract)
             crop = img
-            det_conf = anchor_res.confidence
+            det_conf = best_genre_score
             img_emb = full_emb
             is_fallback_crop = False
-            target_category = "Scenery"
+            target_category = best_genre
         else:
             crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
             with torch.no_grad():
                 img_emb = self.vision_model(crop_tensor)
                 img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
 
-            # Detect whether YOLO specifically localized a mammal or bird
+            # Detect whether YOLO specifically localized a person, mammal or bird
+            detected_person = any(det.get("class_id") == COCO_PERSON_CLASS_ID for det in detections)
             detected_mammal = any(
                 det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections
             )
@@ -643,7 +669,9 @@ class AvianInferenceEngine:
                 float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
             )
 
-            if detected_mammal and not detected_bird:
+            if detected_person and not detected_bird and not detected_mammal:
+                target_category = "Portrait"
+            elif detected_mammal and not detected_bird:
                 # If YOLO detected a mammal with high confidence and no bird, route
                 # target_category = "Mammalia" unless a bird candidate has overwhelming
                 # visual similarity margin exceeding the top mammal prediction by >= 0.15.
