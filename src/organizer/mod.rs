@@ -233,7 +233,7 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         || clean.contains("python")
         || clean.contains("boa")
         || clean.contains("krait")
-        || clean.contains("turtle")
+        || clean.contains("sea_turtle")
         || clean.contains("tortoise")
         || clean.contains("terrapin")
         || clean.contains("reptile")
