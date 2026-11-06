@@ -251,7 +251,11 @@ fn create_payload() -> CatalogPayload {
         insecta_count: 0,
         reptilia_count: 0,
         amphibia_count: 0,
+        botanical_count: 0,
         scenery_count: 0,
+        architecture_count: 0,
+        portrait_count: 0,
+        abstract_count: 0,
         no_subject_count: 0,
     };
 

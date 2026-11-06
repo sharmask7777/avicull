@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.build_taxonomy_embeddings import (
+    CANONICAL_CATEGORIES,
     TaxonomyEntry,
     fetch_multi_taxa_taxonomy,
     format_prompt,
@@ -243,18 +244,24 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         )
 
     def test_curated_non_avian_taxa(self):
-        """Verify curated non-avian taxonomy contains Mammalia, Insecta, and Scenery."""
+        """Verify curated non-avian taxonomy contains multi-taxa and photographic genres."""
         entries = load_curated_non_avian_taxa()
         self.assertGreaterEqual(len(entries), 10)
 
         categories = {e.category for e in entries}
         self.assertIn("Mammalia", categories)
         self.assertIn("Insecta", categories)
+        self.assertIn("Reptilia", categories)
+        self.assertIn("Amphibia", categories)
+        self.assertIn("Botanical", categories)
         self.assertIn("Scenery", categories)
+        self.assertIn("Architecture", categories)
+        self.assertIn("Portrait", categories)
+        self.assertIn("Abstract", categories)
 
         # Ensure all categories in curated dataset are canonical singular
         for entry in entries:
-            self.assertIn(entry.category, ("Bird", "Mammalia", "Insecta", "Scenery"))
+            self.assertIn(entry.category, CANONICAL_CATEGORIES)
 
     def test_normalize_category(self):
         """Verify normalize_category handles canonical and informal variations."""
@@ -264,8 +271,15 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         self.assertEqual(normalize_category("mammals"), "Mammalia")
         self.assertEqual(normalize_category("insect"), "Insecta")
         self.assertEqual(normalize_category("insects"), "Insecta")
+        self.assertEqual(normalize_category("reptile"), "Reptilia")
+        self.assertEqual(normalize_category("amphibian"), "Amphibia")
+        self.assertEqual(normalize_category("plant"), "Botanical")
+        self.assertEqual(normalize_category("botanical"), "Botanical")
         self.assertEqual(normalize_category("scenery"), "Scenery")
         self.assertEqual(normalize_category("landscape"), "Scenery")
+        self.assertEqual(normalize_category("building"), "Architecture")
+        self.assertEqual(normalize_category("portrait"), "Portrait")
+        self.assertEqual(normalize_category("abstract"), "Abstract")
         self.assertEqual(normalize_category("Unknown"), "Unknown")
 
     def test_prompt_aliases(self):

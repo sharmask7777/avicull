@@ -57,7 +57,11 @@ CANONICAL_CATEGORIES: tuple[str, ...] = (
     "Insecta",
     "Reptilia",
     "Amphibia",
+    "Botanical",
     "Scenery",
+    "Architecture",
+    "Portrait",
+    "Abstract",
 )
 
 

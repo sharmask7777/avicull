@@ -249,6 +249,19 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         || clean.contains("amphibia")
     {
         Some(AssetCategory::Amphibia)
+    } else if clean.contains("botanical")
+        || clean.contains("plant")
+        || clean.contains("flora")
+        || clean.contains("flower")
+        || clean.contains("tree")
+        || clean.contains("rhododendron")
+        || clean.contains("lotus")
+        || clean.contains("orchid")
+        || clean.contains("fungus")
+        || clean.contains("mushroom")
+        || clean.contains("lichen")
+    {
+        Some(AssetCategory::Botanical)
     } else if clean.contains("aurora")
         || clean.contains("mountain")
         || clean.contains("waterfall")
@@ -262,6 +275,32 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         || clean.contains("scenery")
     {
         Some(AssetCategory::Scenery)
+    } else if clean.contains("architecture")
+        || clean.contains("building")
+        || clean.contains("tower")
+        || clean.contains("bridge")
+        || clean.contains("temple")
+        || clean.contains("church")
+        || clean.contains("mosque")
+        || clean.contains("monument")
+        || clean.contains("palace")
+        || clean.contains("castle")
+        || clean.contains("skyscraper")
+    {
+        Some(AssetCategory::Architecture)
+    } else if clean.contains("portrait")
+        || clean.contains("headshot")
+        || clean.contains("person")
+        || clean.contains("people")
+        || clean.contains("human")
+    {
+        Some(AssetCategory::Portrait)
+    } else if clean.contains("abstract")
+        || clean.contains("texture")
+        || clean.contains("pattern")
+        || clean.contains("minimalist")
+    {
+        Some(AssetCategory::Abstract)
     } else {
         None
     }

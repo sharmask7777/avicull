@@ -574,7 +574,41 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     assert_eq!(parsed_amphibia.3.as_deref(), Some("20261102"));
     assert_eq!(parsed_amphibia.4.as_deref(), Some("Everglades"));
 
-    // Portrait (Other category) round-trip
+    // Botanical round-trip
+    let botanical_file = format_inplace_filename(
+        "DSC_0305",
+        "Botanical",
+        "rhododendron_arboreum",
+        Some("20261102"),
+        Some("Sikkim"),
+        "CR2",
+    );
+    let parsed_botanical =
+        parse_inplace_filename(&botanical_file, "DSC_0305").expect("should parse botanical file");
+    assert_eq!(parsed_botanical.0, AssetCategory::Botanical);
+    assert_eq!(parsed_botanical.1, "rhododendron_arboreum");
+    assert_eq!(parsed_botanical.2, RoutingTier::ConfirmedSpecies);
+    assert_eq!(parsed_botanical.3.as_deref(), Some("20261102"));
+    assert_eq!(parsed_botanical.4.as_deref(), Some("Sikkim"));
+
+    // Architecture round-trip
+    let architecture_file = format_inplace_filename(
+        "DSC_0308",
+        "Architecture",
+        "taj_mahal",
+        Some("20261102"),
+        Some("Agra"),
+        "JPG",
+    );
+    let parsed_architecture = parse_inplace_filename(&architecture_file, "DSC_0308")
+        .expect("should parse architecture file");
+    assert_eq!(parsed_architecture.0, AssetCategory::Architecture);
+    assert_eq!(parsed_architecture.1, "taj_mahal");
+    assert_eq!(parsed_architecture.2, RoutingTier::ConfirmedSpecies);
+    assert_eq!(parsed_architecture.3.as_deref(), Some("20261102"));
+    assert_eq!(parsed_architecture.4.as_deref(), Some("Agra"));
+
+    // Portrait round-trip
     let portrait_file = format_inplace_filename(
         "IMG_5012",
         "Portrait",
@@ -585,16 +619,13 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     );
     let parsed_portrait =
         parse_inplace_filename(&portrait_file, "IMG_5012").expect("should parse portrait file");
-    assert_eq!(
-        parsed_portrait.0,
-        AssetCategory::Other("Portrait".to_string())
-    );
+    assert_eq!(parsed_portrait.0, AssetCategory::Portrait);
     assert_eq!(parsed_portrait.1, "headshot");
     assert_eq!(parsed_portrait.2, RoutingTier::ConfirmedSpecies);
     assert_eq!(parsed_portrait.3.as_deref(), Some("20261102"));
     assert_eq!(parsed_portrait.4.as_deref(), Some("Studio"));
 
-    // Abstract (Other category) round-trip
+    // Abstract round-trip
     let abstract_file = format_inplace_filename(
         "IMG_5020",
         "Abstract",
@@ -605,10 +636,7 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     );
     let parsed_abstract =
         parse_inplace_filename(&abstract_file, "IMG_5020").expect("should parse abstract file");
-    assert_eq!(
-        parsed_abstract.0,
-        AssetCategory::Other("Abstract".to_string())
-    );
+    assert_eq!(parsed_abstract.0, AssetCategory::Abstract);
     assert_eq!(parsed_abstract.1, "glass_refraction");
     assert_eq!(parsed_abstract.2, RoutingTier::ConfirmedSpecies);
     assert_eq!(parsed_abstract.3.as_deref(), Some("20261102"));

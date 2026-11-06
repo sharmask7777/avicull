@@ -161,7 +161,15 @@ pub struct CatalogStats {
     #[serde(default)]
     pub amphibia_count: usize,
     #[serde(default)]
+    pub botanical_count: usize,
+    #[serde(default)]
     pub scenery_count: usize,
+    #[serde(default)]
+    pub architecture_count: usize,
+    #[serde(default)]
+    pub portrait_count: usize,
+    #[serde(default)]
+    pub abstract_count: usize,
     #[serde(default)]
     pub no_subject_count: usize,
 }
@@ -389,7 +397,11 @@ pub fn generate_html_catalog(
     let mut insecta_count = 0;
     let mut reptilia_count = 0;
     let mut amphibia_count = 0;
+    let mut botanical_count = 0;
     let mut scenery_count = 0;
+    let mut architecture_count = 0;
+    let mut portrait_count = 0;
+    let mut abstract_count = 0;
     let mut no_subject_count = 0;
     for item in items {
         match item.category {
@@ -398,7 +410,11 @@ pub fn generate_html_catalog(
             AssetCategory::Insecta => insecta_count += 1,
             AssetCategory::Reptilia => reptilia_count += 1,
             AssetCategory::Amphibia => amphibia_count += 1,
+            AssetCategory::Botanical => botanical_count += 1,
             AssetCategory::Scenery => scenery_count += 1,
+            AssetCategory::Architecture => architecture_count += 1,
+            AssetCategory::Portrait => portrait_count += 1,
+            AssetCategory::Abstract => abstract_count += 1,
             AssetCategory::NoSubjectDetected => no_subject_count += 1,
             AssetCategory::Other(_) => {}
         }
@@ -415,7 +431,11 @@ pub fn generate_html_catalog(
         insecta_count,
         reptilia_count,
         amphibia_count,
+        botanical_count,
         scenery_count,
+        architecture_count,
+        portrait_count,
+        abstract_count,
         no_subject_count,
     };
 

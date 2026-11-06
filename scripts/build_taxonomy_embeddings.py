@@ -33,7 +33,11 @@ CANONICAL_CATEGORIES: tuple[str, ...] = (
     "Insecta",
     "Reptilia",
     "Amphibia",
+    "Botanical",
     "Scenery",
+    "Architecture",
+    "Portrait",
+    "Abstract",
 )
 
 CATEGORY_MAPPING: dict[str, str] = {
@@ -51,8 +55,18 @@ CATEGORY_MAPPING: dict[str, str] = {
     "amphibian": "Amphibia",
     "amphibians": "Amphibia",
     "amphibia": "Amphibia",
+    "botanical": "Botanical",
+    "plant": "Botanical",
+    "plants": "Botanical",
+    "flora": "Botanical",
     "scenery": "Scenery",
     "landscape": "Scenery",
+    "architecture": "Architecture",
+    "building": "Architecture",
+    "buildings": "Architecture",
+    "portrait": "Portrait",
+    "portraits": "Portrait",
+    "abstract": "Abstract",
 }
 
 CATEGORY_PROMPT_NOUNS: dict[str, str] = {
@@ -61,7 +75,11 @@ CATEGORY_PROMPT_NOUNS: dict[str, str] = {
     "Insecta": "insect",
     "Reptilia": "reptile",
     "Amphibia": "amphibian",
+    "Botanical": "plant",
     "Scenery": "scenery",
+    "Architecture": "building",
+    "Portrait": "portrait",
+    "Abstract": "abstract texture",
 }
 
 
@@ -1652,6 +1670,131 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
         "common_name": "Rainbow over Landscape",
         "scientific_name": "Rainbow",
         "aliases": ["Rainbow", "Rainbow Sky"],
+    },
+    # --- Reptilia (Reptiles: crocodilians, lizards, snakes, turtles) ---
+    {
+        "category": "Reptilia",
+        "taxon_id": "rept_mugger_croc",
+        "common_name": "Mugger Crocodile",
+        "scientific_name": "Crocodylus palustris",
+        "aliases": ["Marsh Crocodile", "Broad-snouted Crocodile"],
+    },
+    {
+        "category": "Reptilia",
+        "taxon_id": "rept_bengal_monitor",
+        "common_name": "Bengal Monitor",
+        "scientific_name": "Varanus bengalensis",
+        "aliases": ["Common Indian Monitor", "Monitor Lizard"],
+    },
+    {
+        "category": "Reptilia",
+        "taxon_id": "rept_indian_rock_python",
+        "common_name": "Indian Rock Python",
+        "scientific_name": "Python molurus",
+        "aliases": ["Black-tailed Python", "Indian Python"],
+    },
+    # --- Amphibia (Amphibians: frogs, toads, salamanders) ---
+    {
+        "category": "Amphibia",
+        "taxon_id": "amph_indian_bullfrog",
+        "common_name": "Indian Bullfrog",
+        "scientific_name": "Hoplobatrachus tigerinus",
+        "aliases": ["Indus Valley Bullfrog", "Bullfrog"],
+    },
+    {
+        "category": "Amphibia",
+        "taxon_id": "amph_common_indian_toad",
+        "common_name": "Common Indian Toad",
+        "scientific_name": "Duttaphrynus melanostictus",
+        "aliases": ["Asian Common Toad", "Black-spined Toad"],
+    },
+    # --- Botanical (Plants, Flowers, Trees, Fungi) ---
+    {
+        "category": "Botanical",
+        "taxon_id": "plnt_rhododendron",
+        "common_name": "Rhododendron",
+        "scientific_name": "Rhododendron arboreum",
+        "aliases": ["Burans", "Tree Rhododendron"],
+    },
+    {
+        "category": "Botanical",
+        "taxon_id": "plnt_lotus",
+        "common_name": "Sacred Lotus",
+        "scientific_name": "Nelumbo nucifera",
+        "aliases": ["Indian Lotus", "Water Lily"],
+    },
+    {
+        "category": "Botanical",
+        "taxon_id": "plnt_banyan",
+        "common_name": "Banyan Tree",
+        "scientific_name": "Ficus benghalensis",
+        "aliases": ["Indian Banyan", "Vada Tree"],
+    },
+    {
+        "category": "Botanical",
+        "taxon_id": "plnt_mushroom",
+        "common_name": "Wild Mushroom",
+        "scientific_name": "Agaricus campestris",
+        "aliases": ["Fungus", "Field Mushroom"],
+    },
+    # --- Architecture (Monuments, Historic Buildings, Urban) ---
+    {
+        "category": "Architecture",
+        "taxon_id": "arch_taj_mahal",
+        "common_name": "Taj Mahal",
+        "scientific_name": "Monumentum Taj Mahal",
+        "aliases": ["Mausoleum", "Marble Palace"],
+    },
+    {
+        "category": "Architecture",
+        "taxon_id": "arch_hindu_temple",
+        "common_name": "Historic Hindu Temple",
+        "scientific_name": "Templum Sanctuarium",
+        "aliases": ["Mandir", "Gopuram", "Ancient Temple"],
+    },
+    {
+        "category": "Architecture",
+        "taxon_id": "arch_fort_palace",
+        "common_name": "Historic Fort and Palace",
+        "scientific_name": "Castellum Fortalitia",
+        "aliases": ["Fortress", "Ancient Fort", "Citadel"],
+    },
+    {
+        "category": "Architecture",
+        "taxon_id": "arch_modern_building",
+        "common_name": "Modern Urban Skyscraper",
+        "scientific_name": "Architectura Urbana",
+        "aliases": ["Tower", "Skyscraper", "Contemporary Architecture"],
+    },
+    # --- Portrait (People, Human Subjects, Portraits) ---
+    {
+        "category": "Portrait",
+        "taxon_id": "port_close_up",
+        "common_name": "Close-up Human Portrait",
+        "scientific_name": "Homo sapiens faciei",
+        "aliases": ["Headshot", "Facial Portrait"],
+    },
+    {
+        "category": "Portrait",
+        "taxon_id": "port_cultural",
+        "common_name": "Cultural Street Portrait",
+        "scientific_name": "Homo sapiens cultus",
+        "aliases": ["Street Portrait", "Environmental Portrait"],
+    },
+    # --- Abstract (Textures, Minimalist Patterns, Geometry) ---
+    {
+        "category": "Abstract",
+        "taxon_id": "abst_water_ripples",
+        "common_name": "Water Ripples and Refraction Texture",
+        "scientific_name": "Textura Aquae",
+        "aliases": ["Water Texture", "Fluid Reflection"],
+    },
+    {
+        "category": "Abstract",
+        "taxon_id": "abst_minimal_geometry",
+        "common_name": "Minimalist Geometric Pattern",
+        "scientific_name": "Pattern Geometria",
+        "aliases": ["Abstract Geometry", "Architectural Shadow Pattern"],
     },
 )
 
