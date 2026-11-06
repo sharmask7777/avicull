@@ -116,6 +116,8 @@ const KNOWN_NOISE_WORDS: &[&str] = &[
     "eos_digital",
     "untitled",
     "macintosh hd",
+    "lightroom",
+    "captureone",
 ];
 
 const NOISE_WORDS_TO_STRIP: &[&str] = &[
@@ -162,6 +164,13 @@ fn is_camera_folder(s: &str) -> bool {
         "lumix",
         "hasselblad",
         "pentax",
+        "om system",
+        "sigma",
+        "phase one",
+        "ricoh",
+        "gopro",
+        "dji",
+        "insta360",
     ];
 
     let s = s.trim();

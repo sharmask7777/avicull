@@ -743,10 +743,12 @@ fn main() -> Result<()> {
                             bundle_regions.insert(bundle.bundle_id.clone(), loc.region_code);
                         }
                     } else if let Some(coords) = bundle.gps_coords {
-                        // Infer nearest granular region from raw GPS coordinates (e.g. camera EXIF)
-                        if let Some((nearest_entry, _dist_km)) =
-                            gazetteer_engine.find_nearest(coords.latitude, coords.longitude, None)
-                        {
+                        // Infer nearest granular region from raw GPS coordinates within 300km territorial cutoff
+                        if let Some((nearest_entry, _dist_km)) = gazetteer_engine.find_nearest(
+                            coords.latitude,
+                            coords.longitude,
+                            Some(300.0),
+                        ) {
                             if !nearest_entry.region_code.is_empty() {
                                 bundle_regions.insert(
                                     bundle.bundle_id.clone(),

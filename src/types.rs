@@ -17,6 +17,8 @@ use std::path::PathBuf;
 /// - Avian fauna: [`AssetCategory::Bird`]
 /// - Mammals: [`AssetCategory::Mammalia`]
 /// - Insects: [`AssetCategory::Insecta`]
+/// - Reptiles: [`AssetCategory::Reptilia`]
+/// - Amphibians: [`AssetCategory::Amphibia`]
 /// - Scenery and landscapes: [`AssetCategory::Scenery`]
 /// - Extensible genres (e.g. Portrait, Abstract, Architecture): [`AssetCategory::Other`]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -28,6 +30,10 @@ pub enum AssetCategory {
     Mammalia,
     /// Class Insecta (insects, butterflies, dragonflies).
     Insecta,
+    /// Class Reptilia (reptiles: snakes, lizards, turtles, crocodilians).
+    Reptilia,
+    /// Class Amphibia (amphibians: frogs, toads, salamanders).
+    Amphibia,
     /// Scenery, landscape, and environmental motifs.
     Scenery,
     /// Extensible photographic genres (e.g., `"Portrait"`, `"Abstract"`).
@@ -42,6 +48,8 @@ impl AssetCategory {
             Self::Bird => "Bird",
             Self::Mammalia => "Mammalia",
             Self::Insecta => "Insecta",
+            Self::Reptilia => "Reptilia",
+            Self::Amphibia => "Amphibia",
             Self::Scenery => "Scenery",
             Self::Other(s) => s.as_str(),
         }
@@ -61,6 +69,10 @@ impl AssetCategory {
             Self::Mammalia
         } else if lower.starts_with("insecta") || lower.starts_with("insect") {
             Self::Insecta
+        } else if lower.starts_with("reptilia") || lower.starts_with("reptile") {
+            Self::Reptilia
+        } else if lower.starts_with("amphibia") || lower.starts_with("amphibian") {
+            Self::Amphibia
         } else if lower.starts_with("scenery") || lower.starts_with("landscape") {
             Self::Scenery
         } else if lower.starts_with("portrait") {
@@ -96,6 +108,16 @@ impl std::str::FromStr for AssetCategory {
             || trimmed.eq_ignore_ascii_case("insects")
         {
             Ok(Self::Insecta)
+        } else if trimmed.eq_ignore_ascii_case("reptilia")
+            || trimmed.eq_ignore_ascii_case("reptile")
+            || trimmed.eq_ignore_ascii_case("reptiles")
+        {
+            Ok(Self::Reptilia)
+        } else if trimmed.eq_ignore_ascii_case("amphibia")
+            || trimmed.eq_ignore_ascii_case("amphibian")
+            || trimmed.eq_ignore_ascii_case("amphibians")
+        {
+            Ok(Self::Amphibia)
         } else if trimmed.eq_ignore_ascii_case("scenery") {
             Ok(Self::Scenery)
         } else {

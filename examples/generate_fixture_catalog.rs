@@ -249,6 +249,8 @@ fn create_payload() -> CatalogPayload {
         bird_count: 8,
         mammalia_count: 0,
         insecta_count: 0,
+        reptilia_count: 0,
+        amphibia_count: 0,
         scenery_count: 0,
     };
 

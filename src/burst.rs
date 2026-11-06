@@ -206,6 +206,8 @@ pub fn smooth_burst_consensus(
                         || match burst[0].category() {
                             AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
                             AssetCategory::Insecta => "Unknown_Insecta".to_string(),
+                            AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
+                            AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
                             AssetCategory::Scenery => "Scenery".to_string(),
                             AssetCategory::Other(ref g) => format!("Unknown_{g}"),
                             AssetCategory::Bird => "Unknown_Bird".to_string(),

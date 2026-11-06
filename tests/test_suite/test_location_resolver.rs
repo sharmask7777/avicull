@@ -7,6 +7,22 @@ use std::io::Cursor;
 use tempfile::TempDir;
 
 #[test]
+fn test_resolve_from_override_distant_coordinates_cutoff() {
+    let engine = GazetteerEngine::load_embedded().unwrap();
+
+    // Coordinates in the middle of the Pacific ocean (0.0, -160.0)
+    // Should NOT latch onto a continental entry thousands of km away
+    let loc = avicull::location::resolver::resolve_from_override("0.0, -160.0", &engine).unwrap();
+    assert_eq!(loc.region_code, "");
+    assert_eq!(loc.name, "0.0000, -160.0000");
+
+    // Coordinates within 15 km of Leh (34.152, 77.577) should resolve region
+    let loc_leh =
+        avicull::location::resolver::resolve_from_override("34.152, 77.577", &engine).unwrap();
+    assert_eq!(loc_leh.region_code, "IN-LA");
+}
+
+#[test]
 fn test_resolver_with_interactive_input() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("manifest.sqlite");

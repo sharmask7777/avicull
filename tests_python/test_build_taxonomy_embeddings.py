@@ -81,6 +81,26 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         self.assertEqual(scenery.folder_slug, "Aurora_Borealis")
         self.assertEqual(scenery.to_dict()["category"], "Scenery")
 
+        reptile = TaxonomyEntry(
+            species_code="rept_mugger1",
+            scientific_name="Crocodylus palustris",
+            common_name="Mugger Crocodile",
+            category="Reptilia",
+        )
+        self.assertEqual(reptile.category, "Reptilia")
+        self.assertEqual(reptile.folder_slug, "Mugger_Crocodile")
+        self.assertEqual(reptile.to_dict()["category"], "Reptilia")
+
+        amphibian = TaxonomyEntry(
+            species_code="amph_bullfrog1",
+            scientific_name="Lithobates catesbeianus",
+            common_name="American Bullfrog",
+            category="Amphibia",
+        )
+        self.assertEqual(amphibian.category, "Amphibia")
+        self.assertEqual(amphibian.folder_slug, "American_Bullfrog")
+        self.assertEqual(amphibian.to_dict()["category"], "Amphibia")
+
     def test_parse_multi_taxa_records(self):
         """Verify parse_taxonomy_records ingests Bird, Mammalia, Insecta, and Scenery."""
         raw_records = [
@@ -153,7 +173,14 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         self.assertEqual(by_code["scen_aurora"].category, "Scenery")
         self.assertEqual(by_code["whiwag12"].category, "Bird")
 
-    def test_prompt_generation_per_category(self):
+    def test_normalize_category_all_types(self):
+        """Verify normalize_category supports Reptilia and Amphibia."""
+        self.assertEqual(normalize_category("Reptilia"), "Reptilia")
+        self.assertEqual(normalize_category("reptile"), "Reptilia")
+        self.assertEqual(normalize_category("reptiles"), "Reptilia")
+        self.assertEqual(normalize_category("Amphibia"), "Amphibia")
+        self.assertEqual(normalize_category("amphibian"), "Amphibia")
+        self.assertEqual(normalize_category("amphibians"), "Amphibia")
         """Verify prompt generation produces category-specific BioCLIP text prompts."""
         # Bird
         bird = TaxonomyEntry(
