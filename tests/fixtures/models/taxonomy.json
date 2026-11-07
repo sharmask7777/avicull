@@ -52,5 +52,33 @@
     "common_name": "Tibetan Snowcock",
     "folder_slug": "Tibetan_Snowcock",
     "scientific_name": "Tetraogallus tibetanus"
+  },
+  {
+    "taxon_id": "rorpar",
+    "category": "Bird",
+    "common_name": "Rose-ringed Parakeet",
+    "folder_slug": "Rose-ringed_Parakeet",
+    "scientific_name": "Psittacula krameri"
+  },
+  {
+    "taxon_id": "gbbgul",
+    "category": "Bird",
+    "common_name": "Great Black-backed Gull",
+    "folder_slug": "Great_Black-backed_Gull",
+    "scientific_name": "Larus marinus"
+  },
+  {
+    "taxon_id": "purfin",
+    "category": "Bird",
+    "common_name": "Purple Finch",
+    "folder_slug": "Purple_Finch",
+    "scientific_name": "Haemorhous purpureus"
+  },
+  {
+    "taxon_id": "revbul",
+    "category": "Bird",
+    "common_name": "Red-vented Bulbul",
+    "folder_slug": "Red-vented_Bulbul",
+    "scientific_name": "Pycnonotus cafer"
   }
 ]

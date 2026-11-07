@@ -1,12 +1,31 @@
-# avicull — Local AI Bird Photo Organizer (macOS Apple Silicon)
+# avicull — Local AI Photo Organizer for Birding & Wildlife Expeditions (macOS Apple Silicon)
 
-`avicull` is a local-first, deterministic command-line system written in Rust for macOS (Apple Silicon M-series) that organizes bird photography archives using local neural network detection (YOLO11) and classification (BioCLIP + Bayesian spatial-temporal priors across 11,167 species).
+`avicull` is a high-performance, local-first command-line system written in Rust for macOS (Apple Silicon M-series) that organizes birding and expedition wildlife photography archives using local neural network detection (YOLO11) and multi-taxa visual classification (BioCLIP + Bayesian spatial-temporal priors across 11,167 avian species and curated non-avian biodiversity).
 
 It supports two high-performance organization modes:
-1. **In-Place Descriptive Renaming (Default)**: Renames image files and their associated sidecars (.xmp, .dop) directly in place to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>` with zero file copying, zero data deletion, and generates a rich, standalone offline HTML photo catalog (`bird_catalog.html`).
-2. **Hard-Linked Species Hierarchy (`--mode hierarchy`)**: Projects photos into a species-headed directory tree (`birds_hierarchy`) using POSIX zero-byte hard links (`std::fs::hard_link`), pointing to identical underlying inodes without consuming additional storage.
+1. **In-Place Descriptive Renaming (Default)**: Renames image files and their associated companion files and sidecars (`.xmp`, `.dop`) directly in place to `<OriginalStem>_<Category>_<Subject>[_<YYYYMMDD>][_<Location_Slug>].<ext>` with zero file copying, zero data deletion, and generates a rich, standalone offline HTML photo catalog (`catalog.html`).
+2. **Hard-Linked Species Hierarchy (`--mode hierarchy`)**: Projects photos into a taxonomic and category directory tree (`birds_hierarchy/`) using POSIX zero-byte hard links (`std::fs::hard_link`), pointing to identical underlying inodes without consuming additional storage.
 
 The architecture combines the multi-stage detection and transactional manifest design of [SuperPicky](https://github.com/superpickyapp/Superpicky) with the visual + spatio-temporal prior scoring pipeline of [Cornell Merlin Bird ID](https://www.merlinbirds.org/about/).
+
+---
+
+## Photographic Categories & Extensible Taxa
+
+While tailored for avian photographers handling high-volume bursts, field expeditions frequently encounter diverse wildlife, landscapes, architecture, and environmental motifs. `avicull` categorizes captures into singular, standardized domains:
+
+| Category | Domain Scope | Example In-Place Filename | Example Hierarchy Path |
+|---|---|---|---|
+| **`Bird`** (Default) | Avian species across 11,167 Cornell eBird taxa | `IMG_1001_Bird_House_Sparrow_20261025_Leh.CR2` | `birds_hierarchy/Bird/House_Sparrow/` |
+| **`Mammalia`** | Mammals (big cats, primates, ungulates, rodents) | `IMG_1002_Mammalia_Snow_Leopard_20261025_Leh.CR2` | `birds_hierarchy/Mammalia/Snow_Leopard/` |
+| **`Insecta`** | Insects, butterflies, dragonflies | `IMG_1003_Insecta_Monarch_Butterfly_20261025_Leh.CR2` | `birds_hierarchy/Insecta/Monarch_Butterfly/` |
+| **`Reptilia`** | Reptiles (crocodiles, lizards, snakes, turtles) | `IMG_1004_Reptilia_Mugger_Crocodile_20261025_Ranthambore.CR2` | `birds_hierarchy/Reptilia/Mugger_Crocodile/` |
+| **`Amphibia`** | Amphibians (frogs, toads, salamanders) | `IMG_1005_Amphibia_Common_Indian_Toad_20261025_Coorg.CR2` | `birds_hierarchy/Amphibia/Common_Indian_Toad/` |
+| **`Scenery`** | Landscapes, mountain passes, valleys, aurora, skies | `IMG_1006_Scenery_Arid_Mountain_Valley_20261025_Leh.CR2` | `birds_hierarchy/Scenery/Arid_Mountain_Valley/` |
+| **`Architecture`**| Built structures, monuments, historic stone temples | `IMG_1007_Architecture_Monumental_Architecture_20261025_Delhi.CR2`| `birds_hierarchy/Architecture/Monumental_Architecture/`|
+| **`Portrait`** | People, cultural street and field portraits | `IMG_1008_Portrait_Cultural_Street_Portrait_20261025_Leh.CR2` | `birds_hierarchy/Portrait/Cultural_Street_Portrait/` |
+| **`Abstract`** | Textures, minimalist geometry, water reflections | `IMG_1009_Abstract_Water_Ripples_Texture_20261025_Leh.CR2` | `birds_hierarchy/Abstract/Water_Ripples_Texture/` |
+| **`_No_Subject_Detected`** | Zero-detection or empty frames | `IMG_1010_No_Subject_Detected_20261025_Leh.CR2` | `birds_hierarchy/_No_Subject_Detected/` |
 
 ---
 
@@ -43,7 +62,7 @@ On first run, `avicull` will offer to automatically download and initialize the 
 ## Non-Negotiable Filesystem Invariants
 
 1. **In-Place Descriptive Renaming (`--mode in-place`, Default)**:
-   - Primary images, companion files, and sidecars (`.xmp`, `.dop`) are renamed in lockstep to `<OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>`.
+   - Primary images, companion files, and sidecars (`.xmp`, `.dop`) are renamed in lockstep to `<OriginalStem>_<Category>_<Subject>[_<YYYYMMDD>][_<Location_Slug>].<ext>`.
    - Zero file copying and zero data deletion.
    - All renaming operations are transactionally journaled in `.avicull/manifest.sqlite`, guaranteeing lossless rollback via `avicull clean`.
    - Automatic collision resolution preserves unique filenames when bursts or duplicate names occur.
@@ -51,6 +70,7 @@ On first run, `avicull` will offer to automatically download and initialize the 
 2. **Strict Source Immutability in Hierarchy Mode (`--mode hierarchy`)**:
    - The input trip directory (`--input`) is strictly read-only. `avicull` never moves, renames, modifies, or unlinks any file inside `--input`.
    - Files are projected into `<input>/birds_hierarchy` (or `--output`) using zero-byte POSIX hard links (`std::fs::hard_link`), pointing to identical underlying APFS inodes (`src_ino == dst_ino`) without consuming additional disk bytes.
+   - Root hierarchy structure groups subjects into standardized singular categories: `<output>/<Category>/<SubjectSlug>/...`, `<output>/_Needs_Review/<SubjectSlug>/...`, and `<output>/_No_Subject_Detected/...`.
 3. **Multi-Level Coexistence (Hierarchy Mode)**:
    - You can create a `birds_hierarchy` in an individual trip folder (e.g. `Leh/birds_hierarchy`), and also in its parent directory (e.g. `Pictures/birds_hierarchy`). Both hierarchies co-exist seamlessly via hard links to the same underlying inodes (incrementing `st_nlink` to 2, 3, etc.) without duplicating storage.
 4. **Auto-Detection & Incremental Updates**:
@@ -60,9 +80,9 @@ On first run, `avicull` will offer to automatically download and initialize the 
 6. **Cross-Machine Portable Manifest & Durable User Overrides**:
    - The SQLite manifest—located at `<input>/.avicull/manifest.sqlite` (in-place mode) or `<output>/.avicull/manifest.sqlite` (hierarchy mode)—serves as a durable, self-contained record that travels with the archive.
    - When a photo directory or hierarchy tree is copied, rsynced, or mounted on another machine where inodes and absolute paths differ, `avicull organize` matches existing bundles by portable relative path and `(trip_folder, original_stem)` with 100% cache hits and zero redundant AI inferences.
-   - User classification corrections—made via `avicull correct` (supporting burst propagation `--burst` / `-b`, query disambiguation, and fuzzy species autocorrect), manual Finder folder moves in hierarchy mode, manual in-place filename renames reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
-7. **Self-Contained Offline HTML Photo Catalog**:
-   - Both modes automatically produce a standalone offline `bird_catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter, and one-click mislabel correction script generation.
+   - User classification corrections—made via `avicull correct` (supporting burst propagation `--burst` / `-b`, query disambiguation, and fuzzy species autocorrect), manual Finder folder moves in hierarchy mode, manual in-place filename renames reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected` / `NoSubjectDetected`).
+7. **Self-Contained Offline HTML Photo Catalog (`catalog.html`)**:
+   - Both modes automatically produce a standalone offline `catalog.html` dashboard with zero external network dependencies, featuring embedded RAW previews, responsive search/filter across categories, multi-select, and one-click mislabel correction script generation. (For backward compatibility, `bird_catalog.html` is maintained as a symlink).
 
 ---
 
@@ -211,37 +231,46 @@ POSIX hard links (`std::fs::hard_link`) cannot span network boundaries or FilePr
 ```
 
 ### Transformation Option A: In-Place Descriptive Renaming (Default Mode)
-In-place renaming updates file and sidecar stems directly in the source directory with zero byte copies and generates `bird_catalog.html`:
+In-place renaming updates file and sidecar stems directly in the source directory with zero byte copies and generates `catalog.html`:
 ```
 /Volumes/Photos/Trips/2025-11_Bharatpur_Keoladeo/
-├── DSC_4011_Painted_Stork_20251115_Bharatpur.JPG
-├── DSC_4011_Painted_Stork_20251115_Bharatpur.xmp
-├── DSC_4012_Painted_Stork_20251115_Bharatpur.JPG
-├── DSC_4015_Streak-throated_Swallow_20251115_Bharatpur.ARW
-├── bird_catalog.html
+├── DSC_4011_Bird_Painted_Stork_20251115_Bharatpur.JPG
+├── DSC_4011_Bird_Painted_Stork_20251115_Bharatpur.xmp
+├── DSC_4012_Bird_Painted_Stork_20251115_Bharatpur.JPG
+├── DSC_4015_Bird_Streak-throated_Swallow_20251115_Bharatpur.ARW
+├── DSC_4020_Mammalia_Bengal_Tiger_20251115_Bharatpur.JPG
+├── DSC_4030_Scenery_Sunset_Sky_20251115_Bharatpur.JPG
+├── catalog.html
 └── .avicull/
     ├── manifest.sqlite
     └── previews/
         └── DSC_4015.jpg
 ```
 
-### Transformation Option B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
-Creates a separate species-headed tree using zero-byte POSIX hard links:
+### Transformation Option B: Hard-Linked Taxonomic & Category Directory Tree (`--mode hierarchy`)
+Creates a separate category-headed tree using zero-byte POSIX hard links:
 ```
 /Volumes/Photos/Trips/birds_hierarchy/
-├── Painted_Stork/
-│   ├── DSC_4011_2025-11-15_Bharatpur_0.96.JPG       # Hard link -> .../DSC_4011.JPG (same inode)
-│   ├── DSC_4011_2025-11-15_Bharatpur_0.96.xmp       # Hard link -> .../DSC_4011.xmp (same inode)
-│   └── DSC_4012_2025-11-15_Bharatpur_0.94.JPG       # Hard link -> .../DSC_4012.JPG (same inode)
-├── Streak-throated_Swallow/
-│   └── DSC_4015_2025-11-15_Bharatpur_0.91.ARW       # Hard link -> .../DSC_4015.ARW (same inode)
+├── Bird/
+│   ├── Painted_Stork/
+│   │   ├── DSC_4011_2025-11-15_Bharatpur_0.96.JPG       # Hard link -> .../DSC_4011.JPG (same inode)
+│   │   ├── DSC_4011_2025-11-15_Bharatpur_0.96.xmp       # Hard link -> .../DSC_4011.xmp (same inode)
+│   │   └── DSC_4012_2025-11-15_Bharatpur_0.94.JPG       # Hard link -> .../DSC_4012.JPG (same inode)
+│   └── Streak-throated_Swallow/
+│       └── DSC_4015_2025-11-15_Bharatpur_0.91.ARW       # Hard link -> .../DSC_4015.ARW (same inode)
+├── Mammalia/
+│   └── Bengal_Tiger/
+│       └── DSC_4020_2025-11-15_Bharatpur_0.98.JPG       # Hard link -> .../DSC_4020.JPG (same inode)
+├── Scenery/
+│   └── Sunset_Sky/
+│       └── DSC_4030_2025-11-15_Bharatpur_0.95.JPG       # Hard link -> .../DSC_4030.JPG (same inode)
 ├── _Needs_Review/
 │   └── Blyths_Reed_Warbler/
 │       ├── IMG_9001_2026-01-10_Ranganathittu_0.54.JPG   # Hard link -> .../IMG_9001.JPG
 │       └── IMG_9001_2026-01-10_Ranganathittu_0.54.XMP   # Hard link -> .../IMG_9001.XMP
-├── _No_Bird_Detected/
+├── _No_Subject_Detected/
 │   └── 2026-01_Ranganathittu__IMG_9002_2026-01-10_Ranganathittu_0.11.JPG
-├── bird_catalog.html
+├── catalog.html
 └── .avicull/
     ├── manifest.sqlite
     └── previews/
@@ -263,19 +292,19 @@ Stage 1: Preflight Validation, Recursive Discovery & Sidecar Bundling
 Stage 2: EXIF & Sibling Location Resolution (GPS / Trip Gazetteer)
         │
         ▼
-Stage 3: Ultralytics YOLO11 Bird Detection & Clutter Crop (15% Context Pad)
+Stage 3: Ultralytics YOLO11 Subject Detection & Clutter Crop (15% Context Pad)
         │
         ▼
-Stage 4: BioCLIP 2 Visual Embedding + SINR Spatio-Temporal Prior Scoring
+Stage 4: BioCLIP 2 Multi-Taxa Visual Embedding + SINR Spatio-Temporal Prior Scoring
         │
         ▼
 Stage 5: Burst Consensus Smoothing (Cosine Similarity Clustering)
         │
         ▼
-Stage 6: SQLite Transactional State Tracking & Zero-Copy Hard Link Projection
+Stage 6: SQLite Transactional State Tracking & In-Place Rename / Zero-Copy Hard Link Projection
         │
         ▼
-Hard-Linked Species Tree (<input>/birds_hierarchy or --output)
+Organized Archive (In-Place Stems or <input>/birds_hierarchy Tree)
 ```
 
 1. **One-Time Model Exporter (`scripts/export_models.py`)**:
@@ -321,19 +350,19 @@ python3 scripts/export_models.py --output-dir models/ --mock
 Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog. Automatically detects and reconciles previous manual user adjustments (Finder moves in hierarchy mode or manual filename renames in in-place mode) into permanent SQLite overrides before processing new files.
 
 #### Mode A: In-Place Descriptive File Renaming (Default)
-By default, `avicull organize` renames files in place within `--input` and generates `<input>/bird_catalog.html`:
+By default, `avicull organize` renames files in place within `--input` and generates `<input>/catalog.html`:
 ```bash
 avicull organize --input /Volumes/Photos/Leh
-# Renames files in-place: DSC_0042_House_Sparrow_20261025_Leh.CR2 + DSC_0042_...xmp
-# Generates /Volumes/Photos/Leh/bird_catalog.html
+# Renames files in-place: DSC_0042_Bird_House_Sparrow_20261025_Leh.CR2 + DSC_0042_...xmp
+# Generates /Volumes/Photos/Leh/catalog.html
 ```
 
 #### Mode B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
 Organize files into `<input>/birds_hierarchy` using zero-byte POSIX hard links:
 ```bash
 avicull organize --input /Volumes/Photos/Leh --mode hierarchy
-# Creates /Volumes/Photos/Leh/birds_hierarchy/<Species_Common_Name>/...
-# Generates /Volumes/Photos/Leh/birds_hierarchy/bird_catalog.html
+# Creates /Volumes/Photos/Leh/birds_hierarchy/<Category>/<Species_Common_Name>/...
+# Generates /Volumes/Photos/Leh/birds_hierarchy/catalog.html
 ```
 
 You can also specify a custom output directory in hierarchy mode:
@@ -358,22 +387,26 @@ Use `--force` to re-run neural network detection and classification on all photo
 avicull organize --input /Volumes/Photos/Leh --force
 ```
 
-### 2. Standalone Offline HTML Photo Catalog (`bird_catalog.html`)
+### 2. Standalone Offline HTML Photo Catalog (`catalog.html`)
 
-Both in-place and hierarchy organization automatically produce a standalone offline `bird_catalog.html` dashboard located at `<input>/bird_catalog.html` (in in-place mode) or `<output>/bird_catalog.html` (in hierarchy mode).
+Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` dashboard located at `<input>/catalog.html` (in in-place mode) or `<output>/catalog.html` (in hierarchy mode). (A `bird_catalog.html` symlink is maintained for backward compatibility).
 
 Key capabilities include:
 - **Zero External Dependencies**: Self-contained HTML, CSS, and vanilla JavaScript without any external CDNs or network calls. Functions seamlessly offline or in airplane mode in any modern browser.
 - **Embedded RAW Thumbnail Extraction**: Automatically extracts high-resolution embedded preview JPEGs from camera RAW formats (`.CR2`, `.CR3`, `.ARW`, `.NEF`, `.DNG`) into `.avicull/previews/`, allowing instant browsing without loading multi-megabyte RAW payloads.
-- **Dynamic Search & Tier Filtering**:
-  - Filter by routing tier: **Confirmed Species** (green), **Needs Review** (amber), or **No Bird Detected** (slate).
-  - Search photos in real time by common species name, scientific name, original filename, location, or capture date.
+- **Dynamic Category & Tier Filtering**:
+  - Filter by high-level category pills: **All**, **Bird**, **Mammalia**, **Insecta**, **Reptilia**, **Amphibia**, **Scenery**, **Architecture**, **Portrait**, **Abstract**.
+  - Filter by routing status: **Confirmed Species** (green), **Needs Review** (amber), or **No Subject** (slate).
+  - Search photos in real time by common species name, scientific name, original filename, location, category, or capture date.
   - Interactive confidence threshold slider to visually preview routing tier boundaries.
+- **Finder-Style Multi-Selection & Bulk Operations**:
+  - Multi-select photos using `Cmd+Click` (macOS), `Ctrl+Click` (Windows/Linux), `Shift+Click` range selection, or `Cmd+A` / `Ctrl+A`.
+  - Batch edit or reclassify dozens of selected photos simultaneously with synchronized sidecar tracking.
 - **Interactive Lightbox Modal**: Click any photo card to open a full-resolution lightbox view displaying camera EXIF exposure settings (shutter speed, aperture, ISO, focal length), hardware GPS coordinates, and top-5 ranked species predictions with confidence percentages.
 - **Space-Efficient Hybrid Rendering**: Renders full-resolution images directly if files are locally resident on disk; seamlessly falls back to persistent thumbnails extracted into `.avicull/previews/` with an informative cloud status badge if files are evicted or offline.
 - **Mislabel Correction & Batch Script Export**:
   - Click **Correct Species** on any photo card or within the lightbox.
-  - Search the complete 11,167-species Cornell eBird taxonomy with instant keyboard autocomplete or enter a custom name.
+  - Search the complete 11,167-species Cornell eBird taxonomy and 224+ curated non-avian wildlife/genre records with instant keyboard autocomplete or enter a custom name.
   - The modal automatically displays the target filename update and synchronizes all companion files and sidecars (`.xmp`, `.dop`).
   - Click **Add to Batch Script** to queue correction commands.
   - Click **Download apply_corrections.sh** in the header to download a POSIX-compliant bash script powered by `avicull correct` that atomically renames your photo files, sidecars, and syncs the SQLite manifest.

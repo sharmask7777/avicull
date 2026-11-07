@@ -56,11 +56,10 @@ impl ClassifiedBundleItem {
     /// Resolves the taxonomic or photographic category of this classified item.
     #[must_use]
     pub fn category(&self) -> AssetCategory {
-        self.top_predictions
-            .first()
-            .map_or(AssetCategory::Bird, |p| {
-                AssetCategory::from_slug(&p.folder_slug)
-            })
+        self.top_predictions.first().map_or(
+            AssetCategory::NoSubjectDetected,
+            SpeciesPrediction::category,
+        )
     }
 }
 
@@ -214,7 +213,9 @@ pub fn smooth_burst_consensus(
                             AssetCategory::Abstract => "Abstract".to_string(),
                             AssetCategory::Other(ref g) => format!("Unknown_{g}"),
                             AssetCategory::Bird => "Unknown_Bird".to_string(),
-                            AssetCategory::NoSubjectDetected => "_No_Subject_Detected".to_string(),
+                            AssetCategory::NoSubjectDetected => {
+                                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+                            }
                         },
                         |p| p.folder_slug.clone(),
                     )
