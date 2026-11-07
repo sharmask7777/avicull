@@ -1706,7 +1706,7 @@ fn table_exists(conn: &Connection, table: &str) -> Result<bool> {
 ///
 /// Idempotently executes:
 /// ```sql
-/// ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird';
+/// ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'No_Subject_Detected';
 /// ALTER TABLE bundle_decisions ADD COLUMN visual_embedding BLOB;
 /// ```
 /// and ensures both `bundle_decisions` and `bundles` tables are up-to-date without data loss.

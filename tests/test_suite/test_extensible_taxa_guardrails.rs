@@ -747,3 +747,163 @@ fn test_guardrail_never_fallback_to_bird_on_unknown_or_botanical_slugs() {
         AssetCategory::NoSubjectDetected
     );
 }
+
+#[test]
+fn test_guardrail_sqlite_schema_no_default_bird() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let db_src =
+        std::fs::read_to_string(manifest_dir.join("src/db.rs")).expect("src/db.rs must exist");
+
+    // Guardrail: No SQLite table definition or ALTER TABLE in src/db.rs should default category to 'Bird'
+    for (line_idx, line) in db_src.lines().enumerate() {
+        let upper = line.to_uppercase();
+        if upper.contains("DEFAULT 'BIRD'") || upper.contains("DEFAULT \"BIRD\"") {
+            panic!(
+                "src/db.rs line {} violates architectural invariant by specifying DEFAULT 'Bird' in SQL:\n{}",
+                line_idx + 1,
+                line.trim()
+            );
+        }
+    }
+
+    // Verify runtime SQLite schema defaults via PRAGMA
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let db_path = temp_dir.path().join("guardrail.sqlite");
+    let db = avicull::db::ManifestDb::open(&db_path).expect("open database");
+    let raw = std::sync::Arc::clone(db.raw_conn());
+    let conn = raw.lock().expect("lock conn");
+
+    for table in ["bundles", "bundle_decisions"] {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({})", table))
+            .expect("prepare pragma");
+        let rows = stmt
+            .query_map([], |row| {
+                let name: String = row.get(1)?;
+                let dflt_val: Option<String> = row.get(4)?;
+                Ok((name, dflt_val))
+            })
+            .expect("query map");
+
+        let mut found_cat = false;
+        for r in rows {
+            let (name, dflt) = r.expect("row");
+            if name == "category" {
+                found_cat = true;
+                let val = dflt.unwrap_or_default();
+                assert!(
+                    !val.contains("Bird"),
+                    "Table '{}' category column default must not be 'Bird', found: '{}'",
+                    table,
+                    val
+                );
+                assert!(
+                    val.contains("No_Subject_Detected"),
+                    "Table '{}' category column default must be 'No_Subject_Detected', found: '{}'",
+                    table,
+                    val
+                );
+            }
+        }
+        assert!(found_cat, "Table '{}' must have a category column", table);
+    }
+}
+
+#[test]
+fn test_guardrail_catalog_template_no_bird_fallback() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let template_src = std::fs::read_to_string(manifest_dir.join("src/catalog/template.rs"))
+        .expect("src/catalog/template.rs must exist");
+
+    // Guardrail: Client-side JS templates must never fall back to 'Bird'
+    for (line_idx, line) in template_src.lines().enumerate() {
+        if line.contains("|| 'Bird'") || line.contains("|| \"Bird\"") {
+            panic!(
+                "src/catalog/template.rs line {} violates architectural invariant by falling back to 'Bird':\n{}",
+                line_idx + 1,
+                line.trim()
+            );
+        }
+    }
+}
+
+#[test]
+fn test_guardrail_non_avian_entities_never_recognized_as_birds() {
+    use avicull::types::is_known_bird_slug;
+
+    let non_avian_test_corpus = [
+        "car",
+        "automobile",
+        "sedan",
+        "truck",
+        "bicycle",
+        "camera",
+        "tripod",
+        "lens",
+        "banyan_tree",
+        "ficus_benghalensis",
+        "sacred_lotus",
+        "nelumbo_nucifera",
+        "rhododendron",
+        "wild_mushroom",
+        "desert_dunes",
+        "arid_mountain_valley",
+        "waterfall",
+        "ocean_coastline",
+        "sunset_sky",
+        "aurora_borealis",
+        "historic_fort_and_palace",
+        "historic_stone_temple",
+        "close-up_human_portrait",
+        "cultural_street_portrait",
+        "himalayan_marmot",
+        "woolly_hare",
+        "wild_yak",
+        "canada_lynx",
+        "cougar",
+        "red_fox",
+        "black-tailed_prairie_dog",
+        "gaur",
+        "unknown",
+        "unknown_object",
+        "random_noise",
+    ];
+
+    for entity in non_avian_test_corpus {
+        assert!(
+            !is_known_bird_slug(entity),
+            "Non-avian entity '{}' must NEVER be recognized by is_known_bird_slug",
+            entity
+        );
+        assert_ne!(
+            AssetCategory::from_slug(entity),
+            AssetCategory::Bird,
+            "Non-avian entity '{}' must NEVER resolve to AssetCategory::Bird",
+            entity
+        );
+    }
+}
+
+#[test]
+fn test_guardrail_infer_prediction_from_stem_rejects_sentinels_and_botanical() {
+    use avicull::organizer::infer_prediction_from_stem;
+
+    let invalid_stems = [
+        "IMG_1001__No_Bird_Detected_20260501",
+        "IMG_1002__No_Subject_Detected_20260501",
+        "IMG_1003_NoBirdDetected_20260501",
+        "IMG_1004_NoSubjectDetected_20260501",
+        "IMG_3079_Banyan_Tree_20260801_Leh",
+        "IMG_3080_Sacred_Lotus_20260801",
+    ];
+
+    for stem in invalid_stems {
+        let pred = infer_prediction_from_stem(stem);
+        assert!(
+            pred.is_none(),
+            "Stem '{}' must NOT produce a synthesized prediction, got: {:?}",
+            stem,
+            pred
+        );
+    }
+}
