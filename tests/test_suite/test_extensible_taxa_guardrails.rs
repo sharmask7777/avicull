@@ -686,3 +686,64 @@ fn test_guardrail_curated_multi_taxa_full_dataset_coverage() {
         }
     }
 }
+
+#[test]
+fn test_guardrail_never_fallback_to_bird_on_unknown_or_botanical_slugs() {
+    // 1. AssetCategory::default() MUST NOT be Bird
+    assert_ne!(
+        AssetCategory::default(),
+        AssetCategory::Bird,
+        "AssetCategory::default() must never be Bird; should be NoSubjectDetected"
+    );
+    assert_eq!(
+        AssetCategory::default(),
+        AssetCategory::NoSubjectDetected,
+        "AssetCategory::default() must be NoSubjectDetected"
+    );
+
+    // 2. Unknown or legacy botanical slugs MUST NOT resolve to Bird
+    assert_ne!(
+        AssetCategory::from_slug("Banyan_Tree"),
+        AssetCategory::Bird,
+        "Banyan_Tree must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("Sacred_Lotus"),
+        AssetCategory::Bird,
+        "Sacred_Lotus must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("completely_random_nonexistent_noun"),
+        AssetCategory::Bird,
+        "Unknown slug must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("Unknown"),
+        AssetCategory::Bird,
+        "Unknown sentinel must never resolve to Bird"
+    );
+
+    // 3. Known non-avian categories must resolve properly
+    assert_eq!(
+        AssetCategory::from_slug("Desert_Dunes"),
+        AssetCategory::Scenery
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Close-up_Human_Portrait"),
+        AssetCategory::Portrait
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Historic_Fort_and_Palace"),
+        AssetCategory::Architecture
+    );
+
+    // 4. Zero detection sentinels
+    assert_eq!(
+        AssetCategory::from_slug("_No_Bird_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        AssetCategory::from_slug("_No_Subject_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+}

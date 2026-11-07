@@ -1435,7 +1435,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
 
-      const itemCat = item.category || 'Bird';
+      const itemCat = item.category || 'No_Subject_Detected';
       const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
       if (!matchCategory) return false;
 
@@ -1591,7 +1591,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
 
-      const category = item.category || 'Bird';
+      const category = item.category || 'No_Subject_Detected';
       const catLower = category.toLowerCase();
       const categoryBadgeMarkup = `<span class="badge-category badge-cat-${{catLower}}">${{category}}</span>`;
 
@@ -1696,7 +1696,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
     const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
-      const c = i.category || 'Bird';
+      const c = i.category || 'No_Subject_Detected';
       if (counts[c] !== undefined) {{
         counts[c]++;
       }} else {{
@@ -1946,7 +1946,7 @@ fi
   }}
 
   function resolveTargetCategory(species, fallbackCategory) {{
-    if (!species) return fallbackCategory || 'Bird';
+    if (!species) return fallbackCategory || 'No_Subject_Detected';
     const s = species.toLowerCase().trim().replace(/^_+/, '');
     if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
 
@@ -1987,7 +1987,7 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
-    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'Bird';
+    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'No_Subject_Detected';
     const cat = resolveTargetCategory(species, itemCat);
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
@@ -2922,7 +2922,7 @@ fi
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
         const escStem = escapeShellArg(d.item.original_stem);
         const escSpec = escapeShellArg(d.proposedSpecies);
-        const cat = d.item.category || 'Bird';
+        const cat = d.item.category || 'No_Subject_Detected';
         commands.push(`  avicull correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}"`);
       }}
     }}

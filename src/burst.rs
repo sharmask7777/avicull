@@ -56,9 +56,10 @@ impl ClassifiedBundleItem {
     /// Resolves the taxonomic or photographic category of this classified item.
     #[must_use]
     pub fn category(&self) -> AssetCategory {
-        self.top_predictions
-            .first()
-            .map_or(AssetCategory::Bird, SpeciesPrediction::category)
+        self.top_predictions.first().map_or(
+            AssetCategory::NoSubjectDetected,
+            SpeciesPrediction::category,
+        )
     }
 }
 

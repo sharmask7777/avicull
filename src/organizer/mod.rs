@@ -194,7 +194,8 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
 /// * `decision` - Classification decision for an asset bundle.
 ///
 /// # Returns
-/// The resolved [`AssetCategory`], defaulting to [`AssetCategory::Bird`].
+/// The resolved [`AssetCategory`], returning [`AssetCategory::NoSubjectDetected`]
+/// if the subject cannot be identified or classified.
 #[must_use]
 pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory {
     if decision.routing_tier == crate::types::RoutingTier::NoBirdDetected {
@@ -202,26 +203,26 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
     }
 
     let from_slug = AssetCategory::from_slug(&decision.assigned_species_slug);
-    if from_slug != AssetCategory::Bird {
+    if from_slug != AssetCategory::NoSubjectDetected {
         return from_slug;
     }
 
     if let Some(top) = decision.top_predictions.first() {
         let from_pred = top.category();
-        if from_pred != AssetCategory::Bird {
+        if from_pred != AssetCategory::NoSubjectDetected {
             return from_pred;
         }
         let from_taxon_id = AssetCategory::from_slug(&top.taxon_id);
-        if from_taxon_id != AssetCategory::Bird {
+        if from_taxon_id != AssetCategory::NoSubjectDetected {
             return from_taxon_id;
         }
         let from_common = AssetCategory::from_slug(&top.common_name);
-        if from_common != AssetCategory::Bird {
+        if from_common != AssetCategory::NoSubjectDetected {
             return from_common;
         }
     }
 
-    AssetCategory::Bird
+    AssetCategory::NoSubjectDetected
 }
 
 /// Computes the target destination directory inside output_root based on routing tier and category.
