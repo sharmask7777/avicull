@@ -208,7 +208,6 @@ pub fn smooth_burst_consensus(
                             AssetCategory::Insecta => "Unknown_Insecta".to_string(),
                             AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
                             AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
-                            AssetCategory::Botanical => "Unknown_Botanical".to_string(),
                             AssetCategory::Scenery => "Scenery".to_string(),
                             AssetCategory::Architecture => "Unknown_Architecture".to_string(),
                             AssetCategory::Portrait => "Portrait".to_string(),

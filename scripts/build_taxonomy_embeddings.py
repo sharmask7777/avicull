@@ -33,7 +33,6 @@ CANONICAL_CATEGORIES: tuple[str, ...] = (
     "Insecta",
     "Reptilia",
     "Amphibia",
-    "Botanical",
     "Scenery",
     "Architecture",
     "Portrait",
@@ -55,10 +54,6 @@ CATEGORY_MAPPING: dict[str, str] = {
     "amphibian": "Amphibia",
     "amphibians": "Amphibia",
     "amphibia": "Amphibia",
-    "botanical": "Botanical",
-    "plant": "Botanical",
-    "plants": "Botanical",
-    "flora": "Botanical",
     "scenery": "Scenery",
     "landscape": "Scenery",
     "architecture": "Architecture",
@@ -75,7 +70,6 @@ CATEGORY_PROMPT_NOUNS: dict[str, str] = {
     "Insecta": "insect",
     "Reptilia": "reptile",
     "Amphibia": "amphibian",
-    "Botanical": "plant",
     "Scenery": "scenery",
     "Architecture": "building",
     "Portrait": "portrait",
@@ -136,8 +130,8 @@ def generate_taxonomy_prompt(entry: TaxonomyEntry) -> str:
         - Bird: 'a photo of a Brahminy Kite (Haliastur indus), a type of bird.'
         - Mammalia: 'a photo of a Malabar Giant Squirrel (Ratufa indica), a type of mammal.'
         - Insecta: 'a photo of a Malabar Banded Peacock (Papilio buddha), a type of insect.'
-        - Scenery: 'a photo of a Aurora Borealis (Aurora Borealis), a type of scenery.'
-          or without scientific name: 'a photo of a Mountain Landscape, a type of scenery.'
+        - Scenery: 'a photo of a Mountain Landscape, a type of scenery.'
+        - Architecture: 'a photo of a Modern Urban Skyscraper, a type of building.'
     """
     category_noun = CATEGORY_PROMPT_NOUNS.get(entry.category, entry.category.lower())
     if entry.scientific_name:
@@ -1624,6 +1618,13 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
     },
     {
         "category": "Scenery",
+        "taxon_id": "scen_valley",
+        "common_name": "Arid Mountain Valley",
+        "scientific_name": "Mountain Valley",
+        "aliases": ["Mountain Pass", "Barren Valley", "River Valley", "Canyon"],
+    },
+    {
+        "category": "Scenery",
         "taxon_id": "scen_waterfall",
         "common_name": "Waterfall",
         "scientific_name": "Waterfall",
@@ -1708,47 +1709,18 @@ CURATED_MULTI_TAXA_RECORDS: tuple[dict[str, Any], ...] = (
         "scientific_name": "Duttaphrynus melanostictus",
         "aliases": ["Asian Common Toad", "Black-spined Toad"],
     },
-    # --- Botanical (Plants, Flowers, Trees, Fungi) ---
-    {
-        "category": "Botanical",
-        "taxon_id": "plnt_rhododendron",
-        "common_name": "Rhododendron",
-        "scientific_name": "Rhododendron arboreum",
-        "aliases": ["Burans", "Tree Rhododendron"],
-    },
-    {
-        "category": "Botanical",
-        "taxon_id": "plnt_lotus",
-        "common_name": "Sacred Lotus",
-        "scientific_name": "Nelumbo nucifera",
-        "aliases": ["Indian Lotus", "Water Lily"],
-    },
-    {
-        "category": "Botanical",
-        "taxon_id": "plnt_banyan",
-        "common_name": "Banyan Tree",
-        "scientific_name": "Ficus benghalensis",
-        "aliases": ["Indian Banyan", "Vada Tree"],
-    },
-    {
-        "category": "Botanical",
-        "taxon_id": "plnt_mushroom",
-        "common_name": "Wild Mushroom",
-        "scientific_name": "Agaricus campestris",
-        "aliases": ["Fungus", "Field Mushroom"],
-    },
     # --- Architecture (Monuments, Historic Buildings, Urban) ---
     {
         "category": "Architecture",
-        "taxon_id": "arch_taj_mahal",
-        "common_name": "Taj Mahal",
-        "scientific_name": "Monumentum Taj Mahal",
-        "aliases": ["Mausoleum", "Marble Palace"],
+        "taxon_id": "arch_monument",
+        "common_name": "Monumental Architecture",
+        "scientific_name": "Monumentum Architecturae",
+        "aliases": ["Mausoleum", "Monument", "Memorial"],
     },
     {
         "category": "Architecture",
         "taxon_id": "arch_hindu_temple",
-        "common_name": "Historic Hindu Temple",
+        "common_name": "Historic Stone Temple",
         "scientific_name": "Templum Sanctuarium",
         "aliases": ["Mandir", "Gopuram", "Ancient Temple"],
     },

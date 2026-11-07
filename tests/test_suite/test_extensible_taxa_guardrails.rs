@@ -142,25 +142,6 @@ fn test_taxon_classifier_extensibility_non_avian_domains() {
         AssetCategory::Amphibia
     );
 
-    // Test Botanical classification
-    let botanical_pred = SpeciesPrediction {
-        taxon_id: "plnt_rhododendron1".to_string(),
-        common_name: "Rhododendron arboreum".to_string(),
-        folder_slug: "Botanical/Rhododendron_arboreum".to_string(),
-        scientific_name: "Rhododendron arboreum".to_string(),
-        visual_prob: 0.93,
-        geo_prior: 1.0,
-        combined_score: 0.93,
-    };
-    let botanical_classifier = MockTaxonClassifier::new(vec![botanical_pred]);
-    let (_emb_b, preds_b) = botanical_classifier
-        .classify(&dummy_img, None, 0.0)
-        .expect("Botanical classification must succeed");
-    assert_eq!(
-        AssetCategory::from_slug(&preds_b[0].folder_slug),
-        AssetCategory::Botanical
-    );
-
     // Test Architecture classification
     let architecture_pred = SpeciesPrediction {
         taxon_id: "arch_taj_mahal1".to_string(),

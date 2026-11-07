@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.infer import (
     COCO_ANIMAL_CLASS_IDS,
     COCO_BIRD_CLASS_ID,
+    COCO_PERSON_CLASS_ID,
     AvianInferenceEngine,
     CategoryAnchorResult,
     DetectionBox,
@@ -577,16 +578,24 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
                 "scientific_name": "",
                 "category": "Scenery",
             },
+            {
+                "taxon_id": "port_close_up1",
+                "common_name": "Close-up Human Portrait",
+                "folder_slug": "Portrait/Close-up_Human_Portrait",
+                "scientific_name": "Homo sapiens faciei",
+                "category": "Portrait",
+            },
         ]
         with open(os.path.join(self.models_dir, "taxonomy.json"), "w", encoding="utf-8") as f:
             json.dump(self.taxonomy, f)
 
-        # 4 distinct orthogonal vectors for each species
+        # 5 distinct orthogonal vectors for each species
         emb = torch.zeros(len(self.taxonomy), 512, dtype=torch.float32)
         emb[0, 0] = 1.0  # Bird on dim 0
         emb[1, 1] = 1.0  # Mammalia on dim 1
         emb[2, 2] = 1.0  # Insecta on dim 2
         emb[3, 3] = 1.0  # Scenery on dim 3
+        emb[4, 4] = 1.0  # Portrait on dim 4
         safetensors_path = os.path.join(self.models_dir, "species_embeddings.safetensors")
         save_file({"embeddings": emb}, safetensors_path)
 
@@ -776,6 +785,51 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         self.assertIn("Mammalia", centroids)
         self.assertNotIn("intergrade", centroids)
         self.assertNotIn("unknown_cat", centroids)
+
+    def test_person_detection_routes_to_portrait(self):
+        """Verify YOLO person detection (class_id=0) routes to Portrait category."""
+        portrait_vec = torch.zeros(512, dtype=torch.float32)
+        portrait_vec[4] = 1.0  # high match for portrait
+
+        engine = self._create_mock_engine(portrait_vec)
+
+        mock_box = MagicMock()
+        mock_box.cls = [torch.tensor(COCO_PERSON_CLASS_ID)]
+        mock_box.conf = [torch.tensor(0.88)]
+        mock_box.xyxy = [torch.tensor([10.0, 10.0, 90.0, 90.0])]
+        mock_res = MagicMock()
+        mock_res.boxes = [mock_box]
+        engine.detector.return_value = [mock_res]
+
+        img_path = os.path.join(self.models_dir, "person_sample.jpg")
+        Image.new("RGB", (100, 100), color="pink").save(img_path)
+
+        res = engine.process_image(img_path)
+        self.assertEqual(res["category"], "Portrait")
+        self.assertTrue(res["detected"])
+        self.assertIn("Portrait", res["assigned_species_slug"])
+
+    def test_detector_fallback_natural_landscape_routes_to_scenery(self):
+        """Verify detector fallback with high scenery anchor similarity routes to Scenery."""
+        # Scenery embedding
+        scenery_vec = torch.zeros(512, dtype=torch.float32)
+        scenery_vec[3] = 1.0
+
+        engine = self._create_mock_engine(scenery_vec)
+        engine.detector.return_value = []
+
+        # Natural textured image (non-zero entropy)
+        img = Image.new("RGB", (100, 100))
+        for x in range(100):
+            for y in range(100):
+                img.putpixel((x, y), ((x * 7) % 256, (y * 11) % 256, (x + y) % 256))
+        img_path = os.path.join(self.models_dir, "natural_landscape.jpg")
+        img.save(img_path)
+
+        res = engine.process_image(img_path)
+        self.assertIn(res["category"], ("Scenery", "Architecture", "Portrait", "Abstract"))
+        self.assertTrue(res["detected"])
+        self.assertNotEqual(res["assigned_species_slug"], "_No_Subject_Detected")
 
 
 if __name__ == "__main__":

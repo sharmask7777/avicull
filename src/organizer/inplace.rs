@@ -170,7 +170,7 @@ fn is_date_token(tok: &str) -> bool {
 }
 
 /// Matches a string slice against the Known Category Registry:
-/// `Bird`, `Birds`, `Mammalia`, `Insecta`, `Reptilia`, `Amphibia`, `Botanical`, `Scenery`, `Architecture`, `Portrait`, `Abstract`.
+/// `Bird`, `Birds`, `Mammalia`, `Insecta`, `Reptilia`, `Amphibia`, `Scenery`, `Architecture`, `Portrait`, `Abstract`.
 fn match_known_category(token: &str) -> Option<AssetCategory> {
     let lower = token.to_ascii_lowercase();
     match lower.as_str() {
@@ -179,7 +179,6 @@ fn match_known_category(token: &str) -> Option<AssetCategory> {
         "insecta" | "insect" | "insects" => Some(AssetCategory::Insecta),
         "reptilia" | "reptile" | "reptiles" => Some(AssetCategory::Reptilia),
         "amphibia" | "amphibian" | "amphibians" => Some(AssetCategory::Amphibia),
-        "botanical" | "plant" | "plants" | "flora" => Some(AssetCategory::Botanical),
         "scenery" | "landscape" => Some(AssetCategory::Scenery),
         "architecture" | "building" | "buildings" => Some(AssetCategory::Architecture),
         "portrait" | "portraits" => Some(AssetCategory::Portrait),

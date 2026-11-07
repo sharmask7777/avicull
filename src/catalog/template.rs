@@ -1042,7 +1042,6 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">{reptilia_count}</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">{amphibia_count}</span>)</button>
-        <button class="pill category-pill" data-category="Botanical" onclick="setCategoryFilter('Botanical', this)">Botanical (<span id="catCountBotanical">{botanical_count}</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
         <button class="pill category-pill" data-category="Architecture" onclick="setCategoryFilter('Architecture', this)">Architecture (<span id="catCountArchitecture">{architecture_count}</span>)</button>
         <button class="pill category-pill" data-category="Portrait" onclick="setCategoryFilter('Portrait', this)">Portrait (<span id="catCountPortrait">{portrait_count}</span>)</button>
@@ -1681,7 +1680,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Botanical: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
+    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {{
@@ -1702,8 +1701,6 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (elRep) elRep.textContent = counts.Reptilia;
     const elAmp = document.getElementById('catCountAmphibia');
     if (elAmp) elAmp.textContent = counts.Amphibia;
-    const elBot = document.getElementById('catCountBotanical');
-    if (elBot) elBot.textContent = counts.Botanical;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
     const elArch = document.getElementById('catCountArchitecture');
@@ -1937,17 +1934,73 @@ fi
   function resolveTargetCategory(species, fallbackCategory) {{
     if (!species) return fallbackCategory || 'Bird';
     const s = species.toLowerCase().trim().replace(/^_+/, '');
-    if (s.startsWith('mammalia') || s.includes('squirrel') || s.includes('langur') || s.includes('macaque') || s.includes('monkey') || s.includes('tiger') || s.includes('lion') || s.includes('leopard') || s.includes('elephant') || s.includes('chital') || s.includes('sambar') || s.includes('deer') || s.includes('panda') || s.includes('rhino') || s.includes('bear') || s.includes('yak') || s.includes('hare') || s.includes('marmot') || s.includes('bharal')) return 'Mammalia';
-    if (s.startsWith('insecta') || s.includes('butterfly') || s.includes('moth') || s.includes('dragonfly') || s.includes('damselfly') || s.includes('beetle')) return 'Insecta';
-    if (s.startsWith('reptilia') || s.includes('crocodile') || s.includes('alligator') || s.includes('lizard') || s.includes('gecko') || s.includes('snake') || s.includes('viper') || s.includes('cobra') || s.includes('sea_turtle') || s.includes('tortoise')) return 'Reptilia';
-    if (s.startsWith('amphibia') || s.includes('frog') || s.includes('toad') || s.includes('salamander') || s.includes('newt')) return 'Amphibia';
-    if (s.startsWith('botanical') || s.startsWith('plant') || s.includes('flower') || s.includes('tree') || s.includes('fungus') || s.includes('mushroom') || s.includes('orchid')) return 'Botanical';
-    if (s.startsWith('scenery') || s.includes('aurora') || s.includes('mountain') || s.includes('waterfall') || s.includes('sunset') || s.includes('landscape')) return 'Scenery';
-    if (s.startsWith('architecture') || s.startsWith('building') || s.includes('temple') || s.includes('palace') || s.includes('monument') || s.includes('fort') || s.includes('skyscraper')) return 'Architecture';
-    if (s.startsWith('portrait') || s.includes('person') || s.includes('face') || s.includes('headshot')) return 'Portrait';
-    if (s.startsWith('abstract') || s.includes('texture') || s.includes('pattern') || s.includes('minimalist')) return 'Abstract';
     if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
-    // If user selected a valid species (like Brahminy Kite), it is a Bird!
+
+    // Direct match against known category prefixes
+    if (s.startsWith('mammalia') || s.startsWith('mammal')) return 'Mammalia';
+    if (s.startsWith('insecta') || s.startsWith('insect')) return 'Insecta';
+    if (s.startsWith('reptilia') || s.startsWith('reptile')) return 'Reptilia';
+    if (s.startsWith('amphibia') || s.startsWith('amphibian')) return 'Amphibia';
+    if (s.startsWith('scenery') || s.startsWith('landscape')) return 'Scenery';
+    if (s.startsWith('architecture') || s.startsWith('building')) return 'Architecture';
+    if (s.startsWith('portrait')) return 'Portrait';
+    if (s.startsWith('abstract')) return 'Abstract';
+
+    // Exact matches in non-avian curated categories
+    const exactMultiTaxa = {{
+      // Mammals
+      'malabar giant squirrel': 'Mammalia', 'malabar_giant_squirrel': 'Mammalia',
+      'bengal tiger': 'Mammalia', 'bengal_tiger': 'Mammalia',
+      'asiatic lion': 'Mammalia', 'asiatic_lion': 'Mammalia',
+      'indian leopard': 'Mammalia', 'indian_leopard': 'Mammalia',
+      'snow leopard': 'Mammalia', 'snow_leopard': 'Mammalia',
+      'asian elephant': 'Mammalia', 'asian_elephant': 'Mammalia',
+      'chital': 'Mammalia', 'sambar': 'Mammalia', 'red panda': 'Mammalia', 'red_panda': 'Mammalia',
+      'rhesus macaque': 'Mammalia', 'rhesus_macaque': 'Mammalia',
+      'gray langur': 'Mammalia', 'gray_langur': 'Mammalia',
+      'wild yak': 'Mammalia', 'wild_yak': 'Mammalia',
+      'domestic yak': 'Mammalia', 'domestic_yak': 'Mammalia',
+      'himalayan marmot': 'Mammalia', 'himalayan_marmot': 'Mammalia',
+      'woolly hare': 'Mammalia', 'woolly_hare': 'Mammalia',
+      'bharal': 'Mammalia', 'blue sheep': 'Mammalia', 'blue_sheep': 'Mammalia',
+      'kiang': 'Mammalia', 'tibetan wild ass': 'Mammalia', 'tibetan_wild_ass': 'Mammalia',
+      // Insects
+      'malabar banded peacock': 'Insecta', 'malabar_banded_peacock': 'Insecta',
+      'monarch butterfly': 'Insecta', 'monarch_butterfly': 'Insecta',
+      'common mormon': 'Insecta', 'common_mormon': 'Insecta',
+      'blue mormon': 'Insecta', 'blue_mormon': 'Insecta',
+      'crimson rose': 'Insecta', 'crimson_rose': 'Insecta',
+      // Reptiles
+      'mugger crocodile': 'Reptilia', 'mugger_crocodile': 'Reptilia',
+      'bengal monitor': 'Reptilia', 'bengal_monitor': 'Reptilia',
+      'indian rock python': 'Reptilia', 'indian_rock_python': 'Reptilia',
+      // Amphibians
+      'indian bullfrog': 'Amphibia', 'indian_bullfrog': 'Amphibia',
+      'common indian toad': 'Amphibia', 'common_indian_toad': 'Amphibia',
+      // Scenery
+      'aurora borealis': 'Scenery', 'aurora_borealis': 'Scenery',
+      'mountain landscape': 'Scenery', 'mountain_landscape': 'Scenery',
+      'arid mountain valley': 'Scenery', 'arid_mountain_valley': 'Scenery',
+      'waterfall': 'Scenery', 'forest canopy': 'Scenery', 'forest_canopy': 'Scenery',
+      'sunset sky': 'Scenery', 'sunset_sky': 'Scenery',
+      'desert dunes': 'Scenery', 'desert_dunes': 'Scenery',
+      'ocean coastline': 'Scenery', 'ocean_coastline': 'Scenery',
+      'starry night sky': 'Scenery', 'starry_night_sky': 'Scenery',
+      // Architecture
+      'monumental architecture': 'Architecture', 'monumental_architecture': 'Architecture',
+      'historic stone temple': 'Architecture', 'historic_stone_temple': 'Architecture',
+      'historic fort and palace': 'Architecture', 'historic_fort_and_palace': 'Architecture',
+      'modern urban skyscraper': 'Architecture', 'modern_urban_skyscraper': 'Architecture',
+      // Portrait
+      'close-up human portrait': 'Portrait', 'close_up_human_portrait': 'Portrait',
+      'cultural street portrait': 'Portrait', 'cultural_street_portrait': 'Portrait',
+      // Abstract
+      'water ripples and refraction texture': 'Abstract', 'water_ripples_and_refraction_texture': 'Abstract',
+      'minimalist geometric pattern': 'Abstract', 'minimalist_geometric_pattern': 'Abstract'
+    }};
+    if (exactMultiTaxa[s]) return exactMultiTaxa[s];
+
+    // If user selected a valid species (like Brahminy Kite, European Turtle-Dove), it is a Bird!
     if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
     return fallbackCategory;
   }}
@@ -3040,7 +3093,6 @@ fi
         insecta_count = payload.stats.insecta_count,
         reptilia_count = payload.stats.reptilia_count,
         amphibia_count = payload.stats.amphibia_count,
-        botanical_count = payload.stats.botanical_count,
         scenery_count = payload.stats.scenery_count,
         architecture_count = payload.stats.architecture_count,
         portrait_count = payload.stats.portrait_count,
@@ -3091,7 +3143,6 @@ mod tests {
             insecta_count: 1,
             reptilia_count: 0,
             amphibia_count: 0,
-            botanical_count: 0,
             scenery_count: 1,
             architecture_count: 0,
             portrait_count: 0,
@@ -3155,7 +3206,6 @@ mod tests {
                 insecta_count: 0,
                 reptilia_count: 0,
                 amphibia_count: 0,
-                botanical_count: 0,
                 scenery_count: 0,
                 architecture_count: 0,
                 portrait_count: 0,
