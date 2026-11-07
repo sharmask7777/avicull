@@ -22,7 +22,11 @@ Every contributor and AI agent must adhere strictly to these core invariants:
    Trip subdirectory hierarchies and parent output directories must coexist simultaneously without collision.
 5. **Dataless File Protection**:
    Files marked with Darwin `SF_DATALESS` (`0x40000000`) in macOS FileProvider / iCloud Drive must never be opened eagerly during pre-scans.
-6. **No Agent Meta-Artifacts**:
+6. **Two-Level Taxonomic & Category Nomenclature**:
+   In-place filenames strictly follow `<OriginalStem>_<Category>_<Subject>[_<YYYYMMDD>][_<Location_Slug>].<ext>`. Categories are strictly singular (`Bird`, `Mammalia`, `Insecta`, `Reptilia`, `Amphibia`, `Scenery`, `Architecture`, `Portrait`, `Abstract`, `No_Subject_Detected`). Hierarchy paths follow `<output>/<Category>/<SubjectSlug>/`.
+7. **Generic Code & Zero Context Leaks**:
+   Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
+8. **No Agent Meta-Artifacts**:
    Never check in procedural AI planning comments (e.g. `// Step 1: ...`, `// Phase X`). All code comments must instruct the human reader on domain logic, invariants, and algorithms.
 
 ---

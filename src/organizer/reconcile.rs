@@ -9,10 +9,10 @@
 //! - Subsequent runs preserve the user's manual sorting and propagate it to all companion files and sidecars.
 
 use crate::db::{ExistingBundleMap, ManifestDb};
-use crate::organizer::inplace::parse_inplace_filename;
+use crate::organizer::inplace::{match_known_category, parse_inplace_filename};
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
-use crate::types::RoutingTier;
+use crate::types::{AssetCategory, RoutingTier};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -98,25 +98,37 @@ pub fn reconcile_manual_disk_moves(
             continue;
         }
 
-        let (target_tier, target_slug) = if dir_components[0] == "_Needs_Review" {
+        let (target_tier, target_slug, target_category) = if dir_components[0] == "_Needs_Review" {
             if dir_components.len() > 1 {
-                (
-                    RoutingTier::NeedsReview,
-                    sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1])),
-                )
+                let slug =
+                    sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1]));
+                let cat = if dir_components.len() > 2 {
+                    match_known_category(dir_components[1])
+                        .unwrap_or_else(|| AssetCategory::from_slug(&slug))
+                } else {
+                    AssetCategory::from_slug(&slug)
+                };
+                (RoutingTier::NeedsReview, slug, cat)
             } else {
                 continue;
             }
         } else if dir_components[0] == "_No_Bird_Detected"
             || dir_components[0] == "_No_Subject_Detected"
         {
-            (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
-        } else if let Some(species_dir) = dir_components.last() {
-            // Direct species directory under output root (or nested hierarchy)
             (
-                RoutingTier::ConfirmedSpecies,
-                sanitize_species_slug(species_dir),
+                RoutingTier::NoBirdDetected,
+                "_No_Bird_Detected".to_string(),
+                AssetCategory::NoSubjectDetected,
             )
+        } else if let Some(species_dir) = dir_components.last() {
+            let slug = sanitize_species_slug(species_dir);
+            let cat = if dir_components.len() > 1 {
+                match_known_category(dir_components[0])
+                    .unwrap_or_else(|| AssetCategory::from_slug(&slug))
+            } else {
+                AssetCategory::from_slug(&slug)
+            };
+            (RoutingTier::ConfirmedSpecies, slug, cat)
         } else {
             continue;
         };
@@ -191,7 +203,13 @@ pub fn reconcile_manual_disk_moves(
             };
 
             if is_override {
-                db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
+                db.update_bundle_override_with_category(
+                    &bundle_id,
+                    target_category.as_str(),
+                    &target_slug,
+                    target_tier,
+                    1.0,
+                )?;
 
                 let mut updated_dec = existing_decision.clone();
                 updated_dec.assigned_species_slug.clone_from(&target_slug);
@@ -262,12 +280,15 @@ pub(crate) fn parse_inplace_slug_and_tier(
     file_stem: &str,
     original_stem: &str,
     known_location: Option<&str>,
-) -> Option<(String, RoutingTier)> {
-    if let Some((_cat, subject, tier, _date, loc)) =
-        parse_inplace_filename(file_stem, original_stem)
+) -> Option<(AssetCategory, String, RoutingTier)> {
+    if let Some((cat, subject, tier, _date, loc)) = parse_inplace_filename(file_stem, original_stem)
     {
         if tier == RoutingTier::NoBirdDetected {
-            return Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected));
+            return Some((
+                AssetCategory::NoSubjectDetected,
+                "_No_Bird_Detected".to_string(),
+                RoutingTier::NoBirdDetected,
+            ));
         }
 
         let mut final_subject = subject;
@@ -285,9 +306,18 @@ pub(crate) fn parse_inplace_slug_and_tier(
 
         let slug = sanitize_species_slug(&final_subject);
         if slug.is_empty() {
-            Some(("_No_Bird_Detected".to_string(), RoutingTier::NoBirdDetected))
+            Some((
+                AssetCategory::NoSubjectDetected,
+                "_No_Bird_Detected".to_string(),
+                RoutingTier::NoBirdDetected,
+            ))
         } else {
-            Some((slug, tier))
+            let effective_cat = if cat == AssetCategory::NoSubjectDetected {
+                AssetCategory::from_slug(&slug)
+            } else {
+                cat
+            };
+            Some((effective_cat, slug, tier))
         }
     } else {
         None
@@ -405,7 +435,7 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         };
 
-        let Some((target_slug, target_tier)) = parse_inplace_slug_and_tier(
+        let Some((target_cat, target_slug, target_tier)) = parse_inplace_slug_and_tier(
             &file_stem,
             &bundle.original_stem,
             bundle.resolved_location_name.as_deref(),
@@ -424,7 +454,13 @@ pub fn reconcile_inplace_manual_renames(
         };
 
         if is_override {
-            db.update_bundle_override(&bundle_id, &target_slug, target_tier, 1.0)?;
+            db.update_bundle_override_with_category(
+                &bundle_id,
+                target_cat.as_str(),
+                &target_slug,
+                target_tier,
+                1.0,
+            )?;
 
             let mut updated_dec = existing_decision.clone();
             updated_dec.assigned_species_slug.clone_from(&target_slug);
@@ -512,46 +548,51 @@ mod tests {
 
     #[test]
     fn test_parse_inplace_slug_and_tier_confirmed() {
-        let (slug, tier) =
+        let (cat, slug, tier) =
             parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail", "DSC_0001", None).unwrap();
+        assert_eq!(cat, AssetCategory::Bird);
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
 
     #[test]
     fn test_parse_inplace_slug_and_tier_with_date_and_location() {
-        let (slug, tier) = parse_inplace_slug_and_tier(
+        let (cat, slug, tier) = parse_inplace_slug_and_tier(
             "DSC_0001_Northern_Pintail_20261025_Leh",
             "DSC_0001",
             Some("Leh"),
         )
         .unwrap();
+        assert_eq!(cat, AssetCategory::Bird);
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
 
     #[test]
     fn test_parse_inplace_slug_and_tier_with_year() {
-        let (slug, tier) =
+        let (cat, slug, tier) =
             parse_inplace_slug_and_tier("DSC_0001_Northern_Pintail_2024", "DSC_0001", None)
                 .unwrap();
+        assert_eq!(cat, AssetCategory::Bird);
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::ConfirmedSpecies);
     }
 
     #[test]
     fn test_parse_inplace_slug_and_tier_needs_review() {
-        let (slug, tier) =
+        let (cat, slug, tier) =
             parse_inplace_slug_and_tier("DSC_0001_Needs_Review_Northern_Pintail", "DSC_0001", None)
                 .unwrap();
+        assert_eq!(cat, AssetCategory::Bird);
         assert_eq!(slug, "Northern_Pintail");
         assert_eq!(tier, RoutingTier::NeedsReview);
     }
 
     #[test]
     fn test_parse_inplace_slug_and_tier_no_bird_detected() {
-        let (slug, tier) =
+        let (cat, slug, tier) =
             parse_inplace_slug_and_tier("DSC_0001__No_Bird_Detected", "DSC_0001", None).unwrap();
+        assert_eq!(cat, AssetCategory::NoSubjectDetected);
         assert_eq!(slug, "_No_Bird_Detected");
         assert_eq!(tier, RoutingTier::NoBirdDetected);
 

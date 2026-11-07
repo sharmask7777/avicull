@@ -9,7 +9,226 @@
 //! - [`OrganizationMode`]: The file organization strategy (`HierarchicalHardlinkHierarchy` vs `InPlaceFileRenameToDescriptiveNames`).
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::LazyLock;
+
+static CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
+
+static PROMINENT_FALLBACK_BIRDS: &[&str] = &[
+    "house_sparrow",
+    "eurasian_tree_sparrow",
+    "black_redstart",
+    "common_redstart",
+    "tibetan_snowcock",
+    "himalayan_snowcock",
+    "lammergeier",
+    "golden_eagle",
+    "steppe_eagle",
+    "painted_stork",
+    "asian_openbill",
+    "black-necked_crane",
+    "common_crane",
+    "bar-headed_goose",
+    "ruddy_shelduck",
+    "mallard",
+    "northern_pintail",
+    "common_kingfisher",
+    "white-throated_kingfisher",
+    "pied_kingfisher",
+    "little_egret",
+    "great_egret",
+    "grey_heron",
+    "peregrine_falcon",
+    "common_kestrel",
+    "barn_owl",
+    "spotted_owlet",
+    "eurasian_eagle-owl",
+    "blue_rock_thrush",
+    "great_tit",
+    "coal_tit",
+    "eurasian_magpie",
+    "red-billed_chough",
+    "yellow-billed_chough",
+    "brown-headed_gull",
+    "common_sandpiper",
+    "red-wattled_lapwing",
+    "little_ringed_plover",
+    "brahminy_kite",
+    "bald_eagle",
+    "red-tailed_hawk",
+    "canada_goose",
+    "wood_duck",
+    "great_blue_heron",
+    "osprey",
+    "ruby-throated_hummingbird",
+    "downy_woodpecker",
+    "blue_jay",
+    "american_crow",
+    "black-capped_chickadee",
+    "tufted_titmouse",
+    "white-breasted_nuthatch",
+    "carolina_wren",
+    "american_robin",
+    "cedar_waxwing",
+    "european_starling",
+    "song_sparrow",
+    "northern_cardinal",
+    "red-winged_blackbird",
+    "common_grackle",
+    "house_finch",
+    "american_goldfinch",
+    "european_turtle-dove",
+];
+
+static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| {
+    let mut set = std::collections::HashSet::new();
+
+    // 1. Seed prominent fallback bird species
+    for name in PROMINENT_FALLBACK_BIRDS {
+        let lower = name.to_lowercase();
+        set.insert(lower.clone());
+        set.insert(lower.replace('-', "_"));
+        set.insert(lower.replace('_', " "));
+        set.insert(lower.replace('-', " "));
+    }
+
+    // 2. Discover and ingest local or cached eBird taxonomy (11,000+ species)
+    let mut candidate_paths = vec![
+        PathBuf::from("models/taxonomy.json"),
+        PathBuf::from("../models/taxonomy.json"),
+        PathBuf::from("tests/fixtures/models/taxonomy.json"),
+    ];
+
+    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        candidate_paths.push(PathBuf::from(manifest).join("models/taxonomy.json"));
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        candidate_paths.push(PathBuf::from(home).join(".cache/avicull/models/taxonomy.json"));
+    }
+
+    for p in &candidate_paths {
+        if let Ok(content) = std::fs::read_to_string(p) {
+            if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
+                for r in records {
+                    let cat = r.get("category").and_then(|v| v.as_str()).unwrap_or("Bird");
+                    if cat == "Bird" {
+                        if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
+                            set.insert(tid.to_lowercase());
+                        }
+                        if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                            let lower = cname.to_lowercase();
+                            set.insert(lower.clone());
+                            let slug = lower.replace(' ', "_");
+                            set.insert(slug.clone());
+                            set.insert(slug.replace('-', "_"));
+                            set.insert(lower.replace('-', " "));
+                        }
+                        if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
+                            let lower = slug.to_lowercase();
+                            set.insert(lower.clone());
+                            set.insert(lower.replace('-', "_"));
+                            set.insert(lower.replace('_', " "));
+                        }
+                        if let Some(sci) = r.get("scientific_name").and_then(|v| v.as_str()) {
+                            let lower = sci.to_lowercase();
+                            set.insert(lower.clone());
+                            set.insert(lower.replace(' ', "_"));
+                        }
+                    }
+                }
+                if set.len() > PROMINENT_FALLBACK_BIRDS.len() {
+                    break;
+                }
+            }
+        }
+    }
+    set
+});
+
+/// Checks whether an entity slug or species name belongs to authoritative eBird taxonomy.
+#[must_use]
+pub fn is_known_bird_slug(slug: &str) -> bool {
+    let lower = slug.to_lowercase();
+    let clean = lower.trim_start_matches('_');
+    if clean.is_empty() {
+        return false;
+    }
+    if KNOWN_BIRD_SET.contains(clean) {
+        return true;
+    }
+    let hyph = clean.replace('-', "_");
+    if KNOWN_BIRD_SET.contains(&hyph) {
+        return true;
+    }
+    let spaces = clean.replace('_', " ");
+    if KNOWN_BIRD_SET.contains(&spaces) {
+        return true;
+    }
+    let spaces_hyph = clean.replace('-', " ");
+    KNOWN_BIRD_SET.contains(&spaces_hyph)
+}
+
+static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(CURATED_MULTI_TAXA_JSON) {
+        for r in records {
+            if let Some(cat_str) = r.get("category").and_then(|v| v.as_str()) {
+                let cat = match cat_str {
+                    "Mammalia" => AssetCategory::Mammalia,
+                    "Insecta" => AssetCategory::Insecta,
+                    "Reptilia" => AssetCategory::Reptilia,
+                    "Amphibia" => AssetCategory::Amphibia,
+                    "Scenery" => AssetCategory::Scenery,
+                    "Architecture" => AssetCategory::Architecture,
+                    "Portrait" => AssetCategory::Portrait,
+                    "Abstract" => AssetCategory::Abstract,
+                    _ => AssetCategory::NoSubjectDetected,
+                };
+                if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
+                    let lower = tid.to_lowercase();
+                    map.insert(lower.clone(), cat.clone());
+                    map.insert(lower.replace('-', "_"), cat.clone());
+                }
+                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                    let lower = cname.to_lowercase();
+                    map.insert(lower.clone(), cat.clone());
+                    map.insert(lower.replace('-', "_"), cat.clone());
+                    map.insert(lower.replace('_', " "), cat.clone());
+                    let slug = lower.replace(' ', "_");
+                    map.insert(slug.clone(), cat.clone());
+                    map.insert(slug.replace('-', "_"), cat.clone());
+                }
+                if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
+                    let lower = slug.to_lowercase();
+                    map.insert(lower.clone(), cat.clone());
+                    map.insert(lower.replace('-', "_"), cat.clone());
+                    map.insert(lower.replace('_', " "), cat.clone());
+                }
+                if let Some(aliases) = r.get("aliases").and_then(|v| v.as_array()) {
+                    for a in aliases {
+                        if let Some(s) = a.as_str() {
+                            let lower = s.to_lowercase();
+                            map.insert(lower.clone(), cat.clone());
+                            map.insert(lower.replace('-', "_"), cat.clone());
+                            map.insert(lower.replace('_', " "), cat.clone());
+                            let slug = lower.replace(' ', "_");
+                            map.insert(slug.clone(), cat.clone());
+                            map.insert(slug.replace('-', "_"), cat.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    map
+});
+
+/// Returns a reference to the shared curated multi-taxa category map.
+#[must_use]
+pub fn curated_multi_taxa_map() -> &'static HashMap<String, AssetCategory> {
+    &CURATED_MULTI_TAXA_MAP
+}
 
 /// High-level taxonomic domain or photographic genre category.
 ///
@@ -27,8 +246,10 @@ use std::path::PathBuf;
 /// - Extensible custom genres: [`AssetCategory::Other`]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum AssetCategory {
-    /// Avian species (default taxonomic domain).
+    /// Unclassified or zero-detection empty frames (`_No_Bird_Detected` / `_No_Subject_Detected`).
     #[default]
+    NoSubjectDetected,
+    /// Avian species.
     Bird,
     /// Class Mammalia (mammals).
     Mammalia,
@@ -46,8 +267,6 @@ pub enum AssetCategory {
     Portrait,
     /// Abstract, textures, patterns, and minimalist geometry.
     Abstract,
-    /// Unclassified or zero-detection empty frames (`_No_Bird_Detected` / `_No_Subject_Detected`).
-    NoSubjectDetected,
     /// Extensible photographic genres.
     Other(String),
 }
@@ -81,7 +300,9 @@ impl AssetCategory {
     /// * `slug` - Assigned taxon or motif directory slug.
     ///
     /// # Returns
-    /// The resolved [`AssetCategory`], defaulting to [`AssetCategory::Bird`].
+    /// The resolved [`AssetCategory`], returning [`AssetCategory::NoSubjectDetected`]
+    /// for unknown or unclassified entities. Under no circumstance does this method
+    /// assume that unknown slugs are birds.
     #[must_use]
     pub fn from_slug(slug: &str) -> Self {
         let lower = slug.to_lowercase();
@@ -90,27 +311,65 @@ impl AssetCategory {
             || clean.starts_with("no_subject_detected")
             || clean.starts_with("nobirddetected")
             || clean.starts_with("nosubjectdetected")
+            || clean.is_empty()
+            || clean == "unknown"
         {
-            Self::NoSubjectDetected
-        } else if clean.starts_with("mammalia") || clean.starts_with("mammal") {
-            Self::Mammalia
-        } else if clean.starts_with("insecta") || clean.starts_with("insect") {
-            Self::Insecta
-        } else if clean.starts_with("reptilia") || clean.starts_with("reptile") {
-            Self::Reptilia
-        } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
-            Self::Amphibia
-        } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
-            Self::Scenery
-        } else if clean.starts_with("architecture") || clean.starts_with("building") {
-            Self::Architecture
-        } else if clean.starts_with("portrait") {
-            Self::Portrait
-        } else if clean.starts_with("abstract") {
-            Self::Abstract
-        } else {
-            Self::Bird
+            return Self::NoSubjectDetected;
         }
+
+        // 1. Explicit Category Prefixes (e.g. "Bird/...", "Bird_...", "Mammalia_...")
+        if clean.starts_with("bird/") || clean.starts_with("bird_") {
+            return Self::Bird;
+        } else if clean.starts_with("mammalia") || clean.starts_with("mammal") {
+            return Self::Mammalia;
+        } else if clean.starts_with("insecta") || clean.starts_with("insect") {
+            return Self::Insecta;
+        } else if clean.starts_with("reptilia") || clean.starts_with("reptile") {
+            return Self::Reptilia;
+        } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
+            return Self::Amphibia;
+        } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
+            return Self::Scenery;
+        } else if clean.starts_with("architecture") || clean.starts_with("building") {
+            return Self::Architecture;
+        } else if clean.starts_with("portrait") {
+            return Self::Portrait;
+        } else if clean.starts_with("abstract") {
+            return Self::Abstract;
+        }
+
+        // 2. Direct match in curated non-avian registry (exact taxon_id, common_name, or folder_slug)
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(clean) {
+            return cat.clone();
+        }
+        let clean_hyph = clean.replace('-', "_");
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(&clean_hyph) {
+            return cat.clone();
+        }
+        let with_spaces = clean.replace('_', " ");
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(&with_spaces) {
+            return cat.clone();
+        }
+
+        // 3. Exact match against folder slug suffix (e.g. "portrait/cultural_street_portrait" -> "cultural_street_portrait")
+        if let Some(pos) = clean.rfind('/') {
+            let suffix = &clean[pos + 1..];
+            if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(suffix) {
+                return cat.clone();
+            }
+        }
+
+        // 4. Known bird taxonomy validation
+        if is_known_bird_slug(clean)
+            || is_known_bird_slug(&clean_hyph)
+            || is_known_bird_slug(&with_spaces)
+        {
+            return Self::Bird;
+        }
+
+        // 5. Unrecognized, ambiguous, or unclassified slug:
+        // Invariant: NEVER assume unknown entities are birds!
+        Self::NoSubjectDetected
     }
 }
 
@@ -257,6 +516,22 @@ pub struct SpeciesPrediction {
     pub geo_prior: f32,
     /// Bayesian posterior combination score in `[0.0, 1.0]`.
     pub combined_score: f32,
+}
+
+impl SpeciesPrediction {
+    /// Resolves the taxonomic or photographic category of this prediction.
+    #[must_use]
+    pub fn category(&self) -> AssetCategory {
+        let from_slug = AssetCategory::from_slug(&self.folder_slug);
+        if from_slug != AssetCategory::Bird {
+            return from_slug;
+        }
+        let from_tid = AssetCategory::from_slug(&self.taxon_id);
+        if from_tid != AssetCategory::Bird {
+            return from_tid;
+        }
+        AssetCategory::from_slug(&self.common_name)
+    }
 }
 
 /// Domain-extensible alias for [`SpeciesPrediction`].

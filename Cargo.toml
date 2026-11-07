@@ -44,6 +44,7 @@ pedantic = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 panic = "deny"
 todo = "deny"
+dbg_macro = "deny"
 redundant_clone = "deny"
 
 # Sensible pedantic overrides to avoid counter-productive noise:

@@ -621,7 +621,7 @@ class AvianInferenceEngine:
                 # Ambiguous or no confident subject -> fallback to _No_Subject_Detected
                 return {
                     "image_path": image_path,
-                    "category": "Unknown",
+                    "category": "No_Subject_Detected",
                     "detected": False,
                     "detection_confidence": 0.0,
                     "assigned_species_slug": "_No_Subject_Detected",
@@ -690,16 +690,22 @@ class AvianInferenceEngine:
                 target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
             else:
                 # If YOLO detected an animal (cat, dog, etc.) or open-set entity:
-                # If top candidate species across all categories is Bird, target_category is Bird.
-                # Otherwise, consult centroid anchor or winning candidate species.
-                if top_sp_cat == "Bird":
+                # Never blindly default to Bird. If top candidate is not Bird, honor it.
+                # If ambiguous, use category centroids.
+                if any(det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections):
+                    target_category = "Mammalia"
+                elif any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections):
                     target_category = "Bird"
+                elif top_sp_cat != "Bird":
+                    target_category = top_sp_cat
                 else:
                     anchor_res = classify_category_anchors(
                         img_emb[0], self.category_centroids, margin=0.02
                     )
                     target_category = (
-                        anchor_res.category if not anchor_res.is_ambiguous else top_sp_cat
+                        anchor_res.category
+                        if not anchor_res.is_ambiguous
+                        else "No_Subject_Detected"
                     )
 
             is_fallback_crop = False

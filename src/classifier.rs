@@ -251,7 +251,7 @@ impl TaxonClassifier for MockSpeciesClassifier {
         if let Some(region) = region_code {
             let mut adjusted = self.predictions.clone();
             for pred in &mut adjusted {
-                let category = AssetCategory::from_slug(&pred.folder_slug);
+                let category = pred.category();
                 let mult = if category == AssetCategory::Bird {
                     get_regional_prior_multiplier(Some(region), &pred.taxon_id, &self.checklists)
                         as f32

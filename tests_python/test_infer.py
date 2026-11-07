@@ -766,7 +766,7 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
 
         res = engine.process_image(img_path)
         self.assertEqual(res["assigned_species_slug"], "_No_Subject_Detected")
-        self.assertEqual(res["category"], "Unknown")
+        self.assertEqual(res["category"], "No_Subject_Detected")
         self.assertFalse(res["detected"])
 
     def test_compute_category_centroids_normalizes_missing_or_invalid_category(self):

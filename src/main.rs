@@ -15,14 +15,15 @@ use avicull::location::gazetteer::GazetteerEngine;
 use avicull::location::path_parser::extract_candidate_location_tokens;
 use avicull::location::resolver::resolve_trip_locations;
 use avicull::organizer::{
-    clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename,
+    clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename_with_category,
     infer_prediction_from_stem, materialize_bundle_hardlinks, resolve_category_for_decision,
 };
 use avicull::scanner::{
     extract_embedded_jpeg_preview, scan_input_tree_with_skip, validate_volume_and_disjointness,
 };
 use avicull::types::{
-    AssetBundle, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode, RoutingTier,
+    AssetBundle, AssetCategory, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode,
+    RoutingTier,
 };
 use clap::Parser;
 use image::DynamicImage;
@@ -135,6 +136,12 @@ struct InferResultItem {
     detection_confidence: f32,
     top_predictions: Vec<avicull::types::SpeciesPrediction>,
     embedding: Vec<f32>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    category: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    assigned_species_slug: Option<String>,
 }
 
 fn run_batch_inference(
@@ -217,17 +224,8 @@ fn run_batch_inference(
 
     for item in parsed {
         if let Some(bundle) = bundle_map.get(&item.bundle_id) {
-            let (top_predictions, detection_confidence) = if item.top_predictions.is_empty() {
-                if let Some((_cat, pred, _tier)) =
-                    avicull::organizer::infer_prediction_from_stem(&bundle.original_stem)
-                {
-                    (vec![pred], 0.90)
-                } else {
-                    (item.top_predictions, item.detection_confidence)
-                }
-            } else {
-                (item.top_predictions, item.detection_confidence)
-            };
+            let top_predictions = item.top_predictions;
+            let detection_confidence = item.detection_confidence;
 
             let posteriors: Vec<(String, f32)> = top_predictions
                 .iter()
@@ -1146,7 +1144,19 @@ fn main() -> Result<()> {
                             }
                             RoutingTier::NoBirdDetected => unreachable!(),
                         };
-                        execute_inplace_bundle_rename(bundle, &species_name, None, None)?
+                        let category_val = resolve_category_for_decision(decision);
+                        let category_str = if category_val == AssetCategory::NoSubjectDetected {
+                            ""
+                        } else {
+                            category_val.as_str()
+                        };
+                        execute_inplace_bundle_rename_with_category(
+                            bundle,
+                            category_str,
+                            &species_name,
+                            None,
+                            None,
+                        )?
                     } else {
                         Vec::new()
                     };

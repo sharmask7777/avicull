@@ -16,7 +16,9 @@
 
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
-use crate::types::{AssetBundle, AssetCategory, RoutingTier, SpeciesPrediction};
+use crate::types::{
+    is_known_bird_slug, AssetBundle, AssetCategory, RoutingTier, SpeciesPrediction,
+};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -171,7 +173,7 @@ fn is_date_token(tok: &str) -> bool {
 
 /// Matches a string slice against the Known Category Registry:
 /// `Bird`, `Birds`, `Mammalia`, `Insecta`, `Reptilia`, `Amphibia`, `Scenery`, `Architecture`, `Portrait`, `Abstract`.
-fn match_known_category(token: &str) -> Option<AssetCategory> {
+pub(crate) fn match_known_category(token: &str) -> Option<AssetCategory> {
     let lower = token.to_ascii_lowercase();
     match lower.as_str() {
         "bird" | "birds" => Some(AssetCategory::Bird),
@@ -299,7 +301,7 @@ pub fn parse_inplace_filename(filename: &str, original_stem: &str) -> Option<Inp
         }
 
         return Some((
-            AssetCategory::Bird,
+            AssetCategory::NoSubjectDetected,
             subject_name,
             RoutingTier::NoBirdDetected,
             date,
@@ -325,7 +327,13 @@ pub fn parse_inplace_filename(filename: &str, original_stem: &str) -> Option<Inp
     };
 
     if entity_tokens.is_empty() {
-        return Some((AssetCategory::Bird, String::new(), tier, date, location));
+        return Some((
+            AssetCategory::NoSubjectDetected,
+            String::new(),
+            tier,
+            date,
+            location,
+        ));
     }
 
     let first = entity_tokens[0];
@@ -338,10 +346,24 @@ pub fn parse_inplace_filename(filename: &str, original_stem: &str) -> Option<Inp
         }
         Some(category) => Some((category, String::new(), tier, date, location)),
         None => {
-            // Legacy v1 single-level nomenclature (e.g. DSC_0042_Painted_Stork)
-            // Promoted to Bird category without splintering!
-            let subject = entity_tokens.join("_");
-            Some((AssetCategory::Bird, subject, tier, date, location))
+            // Check if full subject resolves to a recognized non-avian category
+            let full_subject = entity_tokens.join("_");
+            let resolved_category = AssetCategory::from_slug(&full_subject);
+            if resolved_category != AssetCategory::NoSubjectDetected {
+                Some((resolved_category, full_subject, tier, date, location))
+            } else if is_known_bird_slug(&full_subject) {
+                Some((AssetCategory::Bird, full_subject, tier, date, location))
+            } else {
+                // Unknown or unclassified subject (e.g. Banyan_Tree, noise, or unclassified frame)
+                // Invariant: NEVER default unknown entities to Bird!
+                Some((
+                    AssetCategory::NoSubjectDetected,
+                    full_subject,
+                    RoutingTier::NoBirdDetected,
+                    date,
+                    location,
+                ))
+            }
         }
     }
 }
@@ -386,6 +408,8 @@ pub fn infer_prediction_from_stem(
     if clean_subj.is_empty()
         || clean_subj.eq_ignore_ascii_case("no_subject_detected")
         || clean_subj.eq_ignore_ascii_case("no_bird_detected")
+        || category == AssetCategory::NoSubjectDetected
+        || tier == RoutingTier::NoBirdDetected
         || !clean_subj.chars().any(|c| c.is_ascii_alphabetic())
     {
         return None;

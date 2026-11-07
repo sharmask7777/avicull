@@ -432,3 +432,478 @@ fn test_non_confident_items_route_to_no_subject_detected_alias() {
         AssetCategory::NoSubjectDetected
     );
 }
+
+#[test]
+fn test_curated_species_slug_without_prefix_resolves_category() {
+    // 1. Slugs without "Mammalia_" prefix must resolve to Mammalia directly via curated registry
+    assert_eq!(
+        AssetCategory::from_slug("Snow_Leopard"),
+        AssetCategory::Mammalia
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Bengal_Tiger"),
+        AssetCategory::Mammalia
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Asian_Elephant"),
+        AssetCategory::Mammalia
+    );
+
+    // 2. Insecta without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Monarch_Butterfly"),
+        AssetCategory::Insecta
+    );
+
+    // 3. Amphibia without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Common_Indian_Toad"),
+        AssetCategory::Amphibia
+    );
+
+    // 4. Architecture without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Monumental_Architecture"),
+        AssetCategory::Architecture
+    );
+
+    // 5. Portrait without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Cultural_Street_Portrait"),
+        AssetCategory::Portrait
+    );
+
+    // 6. SpeciesPrediction method .category()
+    let snow_leopard_pred = SpeciesPrediction {
+        taxon_id: "mamm_snow_leop1".to_string(),
+        common_name: "Snow Leopard".to_string(),
+        folder_slug: "Snow_Leopard".to_string(),
+        scientific_name: "Panthera uncia".to_string(),
+        visual_prob: 0.96,
+        geo_prior: 1.0,
+        combined_score: 0.96,
+    };
+    assert_eq!(snow_leopard_pred.category(), AssetCategory::Mammalia);
+
+    // 7. ClassifiedBundleItem category resolution in burst consensus
+    let item = ClassifiedBundleItem {
+        bundle_id: "snow_leop_burst_1".to_string(),
+        trip_folder: "Ladakh".to_string(),
+        capture_timestamp_ms: Some(2000),
+        detection_confidence: 0.95,
+        bbox_norm: None,
+        embedding: vec![0.0; 512],
+        top_predictions: vec![snow_leopard_pred],
+        posteriors: vec![("mamm_snow_leop1".to_string(), 0.96)],
+    };
+    assert_eq!(item.category(), AssetCategory::Mammalia);
+}
+
+#[test]
+fn test_guardrail_zero_personal_context_leaks_in_source_code() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = manifest_dir.join("src");
+    let scripts_dir = manifest_dir.join("scripts");
+
+    let mut violations = Vec::new();
+
+    let check_dir = |dir: &std::path::Path, violations: &mut Vec<String>| {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let path = entry.path();
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext != "rs" && ext != "py" {
+                continue;
+            }
+
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            for (line_num, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                // Permit illustrative comments in path_parser.rs explaining stripped prefix patterns
+                if path.ends_with("src/location/path_parser.rs")
+                    && (trimmed.starts_with("//") || trimmed.contains("strip"))
+                {
+                    continue;
+                }
+
+                // Deny hardcoded personal paths
+                if line.contains("/Users/") || line.contains("/home/") {
+                    violations.push(format!(
+                        "{}:{}: {}",
+                        path.strip_prefix(manifest_dir).unwrap_or(path).display(),
+                        line_num + 1,
+                        trimmed
+                    ));
+                }
+            }
+        }
+    };
+
+    check_dir(&src_dir, &mut violations);
+    check_dir(&scripts_dir, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Detected personal context leaks in production source code:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn test_guardrail_zero_procedural_agent_meta_artifacts() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = manifest_dir.join("src");
+    let scripts_dir = manifest_dir.join("scripts");
+
+    let patterns = [
+        "// step ",
+        "// phase ",
+        "# step ",
+        "# phase ",
+        "// step:",
+        "// phase:",
+    ];
+    let mut violations = Vec::new();
+
+    let check_dir = |dir: &std::path::Path, violations: &mut Vec<String>| {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let path = entry.path();
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext != "rs" && ext != "py" {
+                continue;
+            }
+
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            for (line_num, line) in content.lines().enumerate() {
+                let lower = line.to_lowercase();
+                for pat in &patterns {
+                    if lower.contains(pat) {
+                        violations.push(format!(
+                            "{}:{}: {}",
+                            path.strip_prefix(manifest_dir).unwrap_or(path).display(),
+                            line_num + 1,
+                            line.trim()
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    check_dir(&src_dir, &mut violations);
+    check_dir(&scripts_dir, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Detected procedural agent meta-artifacts (// Step X) in production source code:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn test_guardrail_curated_multi_taxa_full_dataset_coverage() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let json_path = manifest_dir.join("data/curated_multi_taxa.json");
+    let content = std::fs::read_to_string(json_path).expect("curated_multi_taxa.json must exist");
+
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        taxon_id: String,
+        category: String,
+        common_name: String,
+        #[allow(dead_code)]
+        scientific_name: String,
+        aliases: Option<Vec<String>>,
+    }
+
+    let entries: Vec<Entry> = serde_json::from_str(&content).expect("Valid JSON");
+    assert!(
+        entries.len() >= 200,
+        "Curated multi-taxa dataset must contain at least 200 entries, found {}",
+        entries.len()
+    );
+
+    for entry in &entries {
+        let expected_cat: AssetCategory = entry.category.parse().unwrap();
+        assert_ne!(
+            expected_cat,
+            AssetCategory::Bird,
+            "Curated entry {} should be non-avian",
+            entry.common_name
+        );
+
+        // Verify folder_slug derived from common name
+        let folder_slug = entry.common_name.replace(' ', "_");
+        let resolved_by_slug = AssetCategory::from_slug(&folder_slug);
+        assert_eq!(
+            resolved_by_slug, expected_cat,
+            "folder_slug '{}' must resolve to {:?}",
+            folder_slug, expected_cat
+        );
+
+        // Verify common_name resolution
+        let resolved_by_name = AssetCategory::from_slug(&entry.common_name);
+        assert_eq!(
+            resolved_by_name, expected_cat,
+            "common_name '{}' must resolve to {:?}",
+            entry.common_name, expected_cat
+        );
+
+        // Verify taxon_id resolution
+        let resolved_by_id = AssetCategory::from_slug(&entry.taxon_id);
+        assert_eq!(
+            resolved_by_id, expected_cat,
+            "taxon_id '{}' must resolve to {:?}",
+            entry.taxon_id, expected_cat
+        );
+
+        // Verify aliases resolution
+        if let Some(ref aliases) = entry.aliases {
+            for alias in aliases {
+                let resolved_alias = AssetCategory::from_slug(alias);
+                assert_eq!(
+                    resolved_alias, expected_cat,
+                    "alias '{}' must resolve to {:?}",
+                    alias, expected_cat
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_guardrail_never_fallback_to_bird_on_unknown_or_botanical_slugs() {
+    // 1. AssetCategory::default() MUST NOT be Bird
+    assert_ne!(
+        AssetCategory::default(),
+        AssetCategory::Bird,
+        "AssetCategory::default() must never be Bird; should be NoSubjectDetected"
+    );
+    assert_eq!(
+        AssetCategory::default(),
+        AssetCategory::NoSubjectDetected,
+        "AssetCategory::default() must be NoSubjectDetected"
+    );
+
+    // 2. Unknown or legacy botanical slugs MUST NOT resolve to Bird
+    assert_ne!(
+        AssetCategory::from_slug("Banyan_Tree"),
+        AssetCategory::Bird,
+        "Banyan_Tree must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("Sacred_Lotus"),
+        AssetCategory::Bird,
+        "Sacred_Lotus must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("completely_random_nonexistent_noun"),
+        AssetCategory::Bird,
+        "Unknown slug must never resolve to Bird"
+    );
+    assert_ne!(
+        AssetCategory::from_slug("Unknown"),
+        AssetCategory::Bird,
+        "Unknown sentinel must never resolve to Bird"
+    );
+
+    // 3. Known non-avian categories must resolve properly
+    assert_eq!(
+        AssetCategory::from_slug("Desert_Dunes"),
+        AssetCategory::Scenery
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Close-up_Human_Portrait"),
+        AssetCategory::Portrait
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Historic_Fort_and_Palace"),
+        AssetCategory::Architecture
+    );
+
+    // 4. Zero detection sentinels
+    assert_eq!(
+        AssetCategory::from_slug("_No_Bird_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+    assert_eq!(
+        AssetCategory::from_slug("_No_Subject_Detected"),
+        AssetCategory::NoSubjectDetected
+    );
+}
+
+#[test]
+fn test_guardrail_sqlite_schema_no_default_bird() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let db_src =
+        std::fs::read_to_string(manifest_dir.join("src/db.rs")).expect("src/db.rs must exist");
+
+    // Guardrail: No SQLite table definition or ALTER TABLE in src/db.rs should default category to 'Bird'
+    for (line_idx, line) in db_src.lines().enumerate() {
+        let upper = line.to_uppercase();
+        if upper.contains("DEFAULT 'BIRD'") || upper.contains("DEFAULT \"BIRD\"") {
+            panic!(
+                "src/db.rs line {} violates architectural invariant by specifying DEFAULT 'Bird' in SQL:\n{}",
+                line_idx + 1,
+                line.trim()
+            );
+        }
+    }
+
+    // Verify runtime SQLite schema defaults via PRAGMA
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let db_path = temp_dir.path().join("guardrail.sqlite");
+    let db = avicull::db::ManifestDb::open(&db_path).expect("open database");
+    let raw = std::sync::Arc::clone(db.raw_conn());
+    let conn = raw.lock().expect("lock conn");
+
+    for table in ["bundles", "bundle_decisions"] {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({})", table))
+            .expect("prepare pragma");
+        let rows = stmt
+            .query_map([], |row| {
+                let name: String = row.get(1)?;
+                let dflt_val: Option<String> = row.get(4)?;
+                Ok((name, dflt_val))
+            })
+            .expect("query map");
+
+        let mut found_cat = false;
+        for r in rows {
+            let (name, dflt) = r.expect("row");
+            if name == "category" {
+                found_cat = true;
+                let val = dflt.unwrap_or_default();
+                assert!(
+                    !val.contains("Bird"),
+                    "Table '{}' category column default must not be 'Bird', found: '{}'",
+                    table,
+                    val
+                );
+                assert!(
+                    val.contains("No_Subject_Detected"),
+                    "Table '{}' category column default must be 'No_Subject_Detected', found: '{}'",
+                    table,
+                    val
+                );
+            }
+        }
+        assert!(found_cat, "Table '{}' must have a category column", table);
+    }
+}
+
+#[test]
+fn test_guardrail_catalog_template_no_bird_fallback() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let template_src = std::fs::read_to_string(manifest_dir.join("src/catalog/template.rs"))
+        .expect("src/catalog/template.rs must exist");
+
+    // Guardrail: Client-side JS templates must never fall back to 'Bird'
+    for (line_idx, line) in template_src.lines().enumerate() {
+        if line.contains("|| 'Bird'") || line.contains("|| \"Bird\"") {
+            panic!(
+                "src/catalog/template.rs line {} violates architectural invariant by falling back to 'Bird':\n{}",
+                line_idx + 1,
+                line.trim()
+            );
+        }
+    }
+}
+
+#[test]
+fn test_guardrail_non_avian_entities_never_recognized_as_birds() {
+    use avicull::types::is_known_bird_slug;
+
+    let non_avian_test_corpus = [
+        "car",
+        "automobile",
+        "sedan",
+        "truck",
+        "bicycle",
+        "camera",
+        "tripod",
+        "lens",
+        "banyan_tree",
+        "ficus_benghalensis",
+        "sacred_lotus",
+        "nelumbo_nucifera",
+        "rhododendron",
+        "wild_mushroom",
+        "desert_dunes",
+        "arid_mountain_valley",
+        "waterfall",
+        "ocean_coastline",
+        "sunset_sky",
+        "aurora_borealis",
+        "historic_fort_and_palace",
+        "historic_stone_temple",
+        "close-up_human_portrait",
+        "cultural_street_portrait",
+        "himalayan_marmot",
+        "woolly_hare",
+        "wild_yak",
+        "canada_lynx",
+        "cougar",
+        "red_fox",
+        "black-tailed_prairie_dog",
+        "gaur",
+        "unknown",
+        "unknown_object",
+        "random_noise",
+    ];
+
+    for entity in non_avian_test_corpus {
+        assert!(
+            !is_known_bird_slug(entity),
+            "Non-avian entity '{}' must NEVER be recognized by is_known_bird_slug",
+            entity
+        );
+        assert_ne!(
+            AssetCategory::from_slug(entity),
+            AssetCategory::Bird,
+            "Non-avian entity '{}' must NEVER resolve to AssetCategory::Bird",
+            entity
+        );
+    }
+}
+
+#[test]
+fn test_guardrail_infer_prediction_from_stem_rejects_sentinels_and_botanical() {
+    use avicull::organizer::infer_prediction_from_stem;
+
+    let invalid_stems = [
+        "IMG_1001__No_Bird_Detected_20260501",
+        "IMG_1002__No_Subject_Detected_20260501",
+        "IMG_1003_NoBirdDetected_20260501",
+        "IMG_1004_NoSubjectDetected_20260501",
+        "IMG_3079_Banyan_Tree_20260801_Leh",
+        "IMG_3080_Sacred_Lotus_20260801",
+    ];
+
+    for stem in invalid_stems {
+        let pred = infer_prediction_from_stem(stem);
+        assert!(
+            pred.is_none(),
+            "Stem '{}' must NOT produce a synthesized prediction, got: {:?}",
+            stem,
+            pred
+        );
+    }
+}
