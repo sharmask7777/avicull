@@ -432,3 +432,257 @@ fn test_non_confident_items_route_to_no_subject_detected_alias() {
         AssetCategory::NoSubjectDetected
     );
 }
+
+#[test]
+fn test_curated_species_slug_without_prefix_resolves_category() {
+    // 1. Slugs without "Mammalia_" prefix must resolve to Mammalia directly via curated registry
+    assert_eq!(
+        AssetCategory::from_slug("Snow_Leopard"),
+        AssetCategory::Mammalia
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Bengal_Tiger"),
+        AssetCategory::Mammalia
+    );
+    assert_eq!(
+        AssetCategory::from_slug("Asian_Elephant"),
+        AssetCategory::Mammalia
+    );
+
+    // 2. Insecta without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Monarch_Butterfly"),
+        AssetCategory::Insecta
+    );
+
+    // 3. Amphibia without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Common_Indian_Toad"),
+        AssetCategory::Amphibia
+    );
+
+    // 4. Architecture without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Monumental_Architecture"),
+        AssetCategory::Architecture
+    );
+
+    // 5. Portrait without prefix
+    assert_eq!(
+        AssetCategory::from_slug("Cultural_Street_Portrait"),
+        AssetCategory::Portrait
+    );
+
+    // 6. SpeciesPrediction method .category()
+    let snow_leopard_pred = SpeciesPrediction {
+        taxon_id: "mamm_snow_leop1".to_string(),
+        common_name: "Snow Leopard".to_string(),
+        folder_slug: "Snow_Leopard".to_string(),
+        scientific_name: "Panthera uncia".to_string(),
+        visual_prob: 0.96,
+        geo_prior: 1.0,
+        combined_score: 0.96,
+    };
+    assert_eq!(snow_leopard_pred.category(), AssetCategory::Mammalia);
+
+    // 7. ClassifiedBundleItem category resolution in burst consensus
+    let item = ClassifiedBundleItem {
+        bundle_id: "snow_leop_burst_1".to_string(),
+        trip_folder: "Ladakh".to_string(),
+        capture_timestamp_ms: Some(2000),
+        detection_confidence: 0.95,
+        bbox_norm: None,
+        embedding: vec![0.0; 512],
+        top_predictions: vec![snow_leopard_pred],
+        posteriors: vec![("mamm_snow_leop1".to_string(), 0.96)],
+    };
+    assert_eq!(item.category(), AssetCategory::Mammalia);
+}
+
+#[test]
+fn test_guardrail_zero_personal_context_leaks_in_source_code() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = manifest_dir.join("src");
+    let scripts_dir = manifest_dir.join("scripts");
+
+    let mut violations = Vec::new();
+
+    let check_dir = |dir: &std::path::Path, violations: &mut Vec<String>| {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let path = entry.path();
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext != "rs" && ext != "py" {
+                continue;
+            }
+
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            for (line_num, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                // Permit illustrative comments in path_parser.rs explaining stripped prefix patterns
+                if path.ends_with("src/location/path_parser.rs")
+                    && (trimmed.starts_with("//") || trimmed.contains("strip"))
+                {
+                    continue;
+                }
+
+                // Deny hardcoded personal paths
+                if line.contains("/Users/") || line.contains("/home/") {
+                    violations.push(format!(
+                        "{}:{}: {}",
+                        path.strip_prefix(manifest_dir).unwrap_or(path).display(),
+                        line_num + 1,
+                        trimmed
+                    ));
+                }
+            }
+        }
+    };
+
+    check_dir(&src_dir, &mut violations);
+    check_dir(&scripts_dir, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Detected personal context leaks in production source code:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn test_guardrail_zero_procedural_agent_meta_artifacts() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = manifest_dir.join("src");
+    let scripts_dir = manifest_dir.join("scripts");
+
+    let patterns = [
+        "// step ",
+        "// phase ",
+        "# step ",
+        "# phase ",
+        "// step:",
+        "// phase:",
+    ];
+    let mut violations = Vec::new();
+
+    let check_dir = |dir: &std::path::Path, violations: &mut Vec<String>| {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+        {
+            let path = entry.path();
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            if ext != "rs" && ext != "py" {
+                continue;
+            }
+
+            let content = match std::fs::read_to_string(path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            for (line_num, line) in content.lines().enumerate() {
+                let lower = line.to_lowercase();
+                for pat in &patterns {
+                    if lower.contains(pat) {
+                        violations.push(format!(
+                            "{}:{}: {}",
+                            path.strip_prefix(manifest_dir).unwrap_or(path).display(),
+                            line_num + 1,
+                            line.trim()
+                        ));
+                        break;
+                    }
+                }
+            }
+        }
+    };
+
+    check_dir(&src_dir, &mut violations);
+    check_dir(&scripts_dir, &mut violations);
+
+    assert!(
+        violations.is_empty(),
+        "Detected procedural agent meta-artifacts (// Step X) in production source code:\n{}",
+        violations.join("\n")
+    );
+}
+
+#[test]
+fn test_guardrail_curated_multi_taxa_full_dataset_coverage() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let json_path = manifest_dir.join("data/curated_multi_taxa.json");
+    let content = std::fs::read_to_string(json_path).expect("curated_multi_taxa.json must exist");
+
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        taxon_id: String,
+        category: String,
+        common_name: String,
+        #[allow(dead_code)]
+        scientific_name: String,
+        aliases: Option<Vec<String>>,
+    }
+
+    let entries: Vec<Entry> = serde_json::from_str(&content).expect("Valid JSON");
+    assert!(
+        entries.len() >= 200,
+        "Curated multi-taxa dataset must contain at least 200 entries, found {}",
+        entries.len()
+    );
+
+    for entry in &entries {
+        let expected_cat: AssetCategory = entry.category.parse().unwrap();
+        assert_ne!(
+            expected_cat,
+            AssetCategory::Bird,
+            "Curated entry {} should be non-avian",
+            entry.common_name
+        );
+
+        // Verify folder_slug derived from common name
+        let folder_slug = entry.common_name.replace(' ', "_");
+        let resolved_by_slug = AssetCategory::from_slug(&folder_slug);
+        assert_eq!(
+            resolved_by_slug, expected_cat,
+            "folder_slug '{}' must resolve to {:?}",
+            folder_slug, expected_cat
+        );
+
+        // Verify common_name resolution
+        let resolved_by_name = AssetCategory::from_slug(&entry.common_name);
+        assert_eq!(
+            resolved_by_name, expected_cat,
+            "common_name '{}' must resolve to {:?}",
+            entry.common_name, expected_cat
+        );
+
+        // Verify taxon_id resolution
+        let resolved_by_id = AssetCategory::from_slug(&entry.taxon_id);
+        assert_eq!(
+            resolved_by_id, expected_cat,
+            "taxon_id '{}' must resolve to {:?}",
+            entry.taxon_id, expected_cat
+        );
+
+        // Verify aliases resolution
+        if let Some(ref aliases) = entry.aliases {
+            for alias in aliases {
+                let resolved_alias = AssetCategory::from_slug(alias);
+                assert_eq!(
+                    resolved_alias, expected_cat,
+                    "alias '{}' must resolve to {:?}",
+                    alias, expected_cat
+                );
+            }
+        }
+    }
+}

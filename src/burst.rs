@@ -58,9 +58,7 @@ impl ClassifiedBundleItem {
     pub fn category(&self) -> AssetCategory {
         self.top_predictions
             .first()
-            .map_or(AssetCategory::Bird, |p| {
-                AssetCategory::from_slug(&p.folder_slug)
-            })
+            .map_or(AssetCategory::Bird, SpeciesPrediction::category)
     }
 }
 

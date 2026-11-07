@@ -24,48 +24,9 @@ use crate::types::{
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
-use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
-
-static CURATED_MULTI_TAXA_JSON: &str = include_str!("../../data/curated_multi_taxa.json");
-
-static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
-    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(CURATED_MULTI_TAXA_JSON) {
-        for r in records {
-            if let Some(cat_str) = r.get("category").and_then(|v| v.as_str()) {
-                let cat = match cat_str {
-                    "Mammalia" => AssetCategory::Mammalia,
-                    "Insecta" => AssetCategory::Insecta,
-                    "Reptilia" => AssetCategory::Reptilia,
-                    "Amphibia" => AssetCategory::Amphibia,
-                    "Scenery" => AssetCategory::Scenery,
-                    "Architecture" => AssetCategory::Architecture,
-                    "Portrait" => AssetCategory::Portrait,
-                    "Abstract" => AssetCategory::Abstract,
-                    _ => AssetCategory::Bird,
-                };
-                if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
-                    map.insert(tid.to_lowercase(), cat.clone());
-                }
-                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
-                    map.insert(cname.to_lowercase(), cat.clone());
-                    let slug = cname.replace(' ', "_").to_lowercase();
-                    map.insert(slug.clone(), cat.clone());
-                    map.insert(slug.replace('_', " "), cat.clone());
-                }
-                if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
-                    map.insert(slug.to_lowercase(), cat.clone());
-                    map.insert(slug.replace('_', " ").to_lowercase(), cat);
-                }
-            }
-        }
-    }
-    map
-});
 
 /// Validates that the requested organization mode is supported by the storage backend.
 /// Rejects `--mode hierarchy` on non-local storage backends (CloudStorage / NetworkShare).
@@ -219,45 +180,11 @@ pub fn build_output_destination_path(
 /// Matches a species or subject slug against known multi-taxa categories.
 #[must_use]
 pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
-    let lower = slug.to_lowercase();
-    let clean = lower.trim_matches('_');
-
-    // 1. Exact match against curated multi-taxa registry
-    if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(clean) {
-        return Some(cat.clone());
-    }
-    let with_spaces = clean.replace('_', " ");
-    if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(&with_spaces) {
-        return Some(cat.clone());
-    }
-
-    // 2. Exact match against folder slug suffix (e.g. "portrait/cultural_street_portrait" -> "cultural_street_portrait")
-    if let Some(pos) = clean.rfind('/') {
-        let suffix = &clean[pos + 1..];
-        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(suffix) {
-            return Some(cat.clone());
-        }
-    }
-
-    // 3. Category path prefixes (e.g. "mammalia/...", "scenery/...")
-    if clean.starts_with("mammalia") || clean.starts_with("mammal") {
-        Some(AssetCategory::Mammalia)
-    } else if clean.starts_with("insecta") || clean.starts_with("insect") {
-        Some(AssetCategory::Insecta)
-    } else if clean.starts_with("reptilia") || clean.starts_with("reptile") {
-        Some(AssetCategory::Reptilia)
-    } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
-        Some(AssetCategory::Amphibia)
-    } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
-        Some(AssetCategory::Scenery)
-    } else if clean.starts_with("architecture") || clean.starts_with("building") {
-        Some(AssetCategory::Architecture)
-    } else if clean.starts_with("portrait") {
-        Some(AssetCategory::Portrait)
-    } else if clean.starts_with("abstract") {
-        Some(AssetCategory::Abstract)
-    } else {
+    let cat = AssetCategory::from_slug(slug);
+    if cat == AssetCategory::Bird {
         None
+    } else {
+        Some(cat)
     }
 }
 
@@ -279,12 +206,8 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         return from_slug;
     }
 
-    if let Some(cat) = lookup_curated_category(&decision.assigned_species_slug) {
-        return cat;
-    }
-
     if let Some(top) = decision.top_predictions.first() {
-        let from_pred = AssetCategory::from_slug(&top.folder_slug);
+        let from_pred = top.category();
         if from_pred != AssetCategory::Bird {
             return from_pred;
         }
@@ -292,11 +215,9 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         if from_taxon_id != AssetCategory::Bird {
             return from_taxon_id;
         }
-        if let Some(cat) = lookup_curated_category(&top.folder_slug) {
-            return cat;
-        }
-        if let Some(cat) = lookup_curated_category(&top.common_name) {
-            return cat;
+        let from_common = AssetCategory::from_slug(&top.common_name);
+        if from_common != AssetCategory::Bird {
+            return from_common;
         }
     }
 

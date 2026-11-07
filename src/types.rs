@@ -9,7 +9,62 @@
 //! - [`OrganizationMode`]: The file organization strategy (`HierarchicalHardlinkHierarchy` vs `InPlaceFileRenameToDescriptiveNames`).
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::LazyLock;
+
+static CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
+
+static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(CURATED_MULTI_TAXA_JSON) {
+        for r in records {
+            if let Some(cat_str) = r.get("category").and_then(|v| v.as_str()) {
+                let cat = match cat_str {
+                    "Mammalia" => AssetCategory::Mammalia,
+                    "Insecta" => AssetCategory::Insecta,
+                    "Reptilia" => AssetCategory::Reptilia,
+                    "Amphibia" => AssetCategory::Amphibia,
+                    "Scenery" => AssetCategory::Scenery,
+                    "Architecture" => AssetCategory::Architecture,
+                    "Portrait" => AssetCategory::Portrait,
+                    "Abstract" => AssetCategory::Abstract,
+                    _ => AssetCategory::Bird,
+                };
+                if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
+                    map.insert(tid.to_lowercase(), cat.clone());
+                }
+                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                    map.insert(cname.to_lowercase(), cat.clone());
+                    let slug = cname.replace(' ', "_").to_lowercase();
+                    map.insert(slug.clone(), cat.clone());
+                    map.insert(slug.replace('_', " "), cat.clone());
+                }
+                if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
+                    map.insert(slug.to_lowercase(), cat.clone());
+                    map.insert(slug.replace('_', " ").to_lowercase(), cat.clone());
+                }
+                if let Some(aliases) = r.get("aliases").and_then(|v| v.as_array()) {
+                    for a in aliases {
+                        if let Some(s) = a.as_str() {
+                            map.insert(s.to_lowercase(), cat.clone());
+                            let slug = s.replace(' ', "_").to_lowercase();
+                            map.insert(slug.clone(), cat.clone());
+                            map.insert(slug.replace('_', " "), cat.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    map
+});
+
+/// Returns a reference to the shared curated multi-taxa category map.
+#[must_use]
+pub fn curated_multi_taxa_map() -> &'static HashMap<String, AssetCategory> {
+    &CURATED_MULTI_TAXA_MAP
+}
 
 /// High-level taxonomic domain or photographic genre category.
 ///
@@ -91,8 +146,28 @@ impl AssetCategory {
             || clean.starts_with("nobirddetected")
             || clean.starts_with("nosubjectdetected")
         {
-            Self::NoSubjectDetected
-        } else if clean.starts_with("mammalia") || clean.starts_with("mammal") {
+            return Self::NoSubjectDetected;
+        }
+
+        // 1. Direct match in curated non-avian registry (exact taxon_id, common_name, or folder_slug)
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(clean) {
+            return cat.clone();
+        }
+        let with_spaces = clean.replace('_', " ");
+        if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(&with_spaces) {
+            return cat.clone();
+        }
+
+        // 2. Exact match against folder slug suffix (e.g. "portrait/cultural_street_portrait" -> "cultural_street_portrait")
+        if let Some(pos) = clean.rfind('/') {
+            let suffix = &clean[pos + 1..];
+            if let Some(cat) = CURATED_MULTI_TAXA_MAP.get(suffix) {
+                return cat.clone();
+            }
+        }
+
+        // 3. Category path prefixes (e.g. "mammalia/...", "scenery/...")
+        if clean.starts_with("mammalia") || clean.starts_with("mammal") {
             Self::Mammalia
         } else if clean.starts_with("insecta") || clean.starts_with("insect") {
             Self::Insecta
@@ -257,6 +332,22 @@ pub struct SpeciesPrediction {
     pub geo_prior: f32,
     /// Bayesian posterior combination score in `[0.0, 1.0]`.
     pub combined_score: f32,
+}
+
+impl SpeciesPrediction {
+    /// Resolves the taxonomic or photographic category of this prediction.
+    #[must_use]
+    pub fn category(&self) -> AssetCategory {
+        let from_slug = AssetCategory::from_slug(&self.folder_slug);
+        if from_slug != AssetCategory::Bird {
+            return from_slug;
+        }
+        let from_tid = AssetCategory::from_slug(&self.taxon_id);
+        if from_tid != AssetCategory::Bird {
+            return from_tid;
+        }
+        AssetCategory::from_slug(&self.common_name)
+    }
 }
 
 /// Domain-extensible alias for [`SpeciesPrediction`].

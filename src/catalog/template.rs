@@ -3,6 +3,20 @@
 //! Generates the self-contained HTML5 single-page application for reviewing avian photo archives.
 
 use super::CatalogPayload;
+use std::sync::LazyLock;
+
+static CURATED_MULTI_TAXA_JS_OBJ: LazyLock<String> = LazyLock::new(|| {
+    let map = crate::types::curated_multi_taxa_map();
+    let mut non_avian = std::collections::BTreeMap::new();
+    for (k, v) in map {
+        if *v != crate::types::AssetCategory::Bird
+            && *v != crate::types::AssetCategory::NoSubjectDetected
+        {
+            non_avian.insert(k.as_str(), v.as_str());
+        }
+    }
+    serde_json::to_string(&non_avian).unwrap_or_else(|_| "{}".to_string())
+});
 
 /// Renders the complete, self-contained standalone HTML catalog document.
 pub fn render_catalog_html(payload: &CatalogPayload) -> String {
@@ -1947,58 +1961,12 @@ fi
     if (s.startsWith('abstract')) return 'Abstract';
 
     // Exact matches in non-avian curated categories
-    const exactMultiTaxa = {{
-      // Mammals
-      'malabar giant squirrel': 'Mammalia', 'malabar_giant_squirrel': 'Mammalia',
-      'bengal tiger': 'Mammalia', 'bengal_tiger': 'Mammalia',
-      'asiatic lion': 'Mammalia', 'asiatic_lion': 'Mammalia',
-      'indian leopard': 'Mammalia', 'indian_leopard': 'Mammalia',
-      'snow leopard': 'Mammalia', 'snow_leopard': 'Mammalia',
-      'asian elephant': 'Mammalia', 'asian_elephant': 'Mammalia',
-      'chital': 'Mammalia', 'sambar': 'Mammalia', 'red panda': 'Mammalia', 'red_panda': 'Mammalia',
-      'rhesus macaque': 'Mammalia', 'rhesus_macaque': 'Mammalia',
-      'gray langur': 'Mammalia', 'gray_langur': 'Mammalia',
-      'wild yak': 'Mammalia', 'wild_yak': 'Mammalia',
-      'domestic yak': 'Mammalia', 'domestic_yak': 'Mammalia',
-      'himalayan marmot': 'Mammalia', 'himalayan_marmot': 'Mammalia',
-      'woolly hare': 'Mammalia', 'woolly_hare': 'Mammalia',
-      'bharal': 'Mammalia', 'blue sheep': 'Mammalia', 'blue_sheep': 'Mammalia',
-      'kiang': 'Mammalia', 'tibetan wild ass': 'Mammalia', 'tibetan_wild_ass': 'Mammalia',
-      // Insects
-      'malabar banded peacock': 'Insecta', 'malabar_banded_peacock': 'Insecta',
-      'monarch butterfly': 'Insecta', 'monarch_butterfly': 'Insecta',
-      'common mormon': 'Insecta', 'common_mormon': 'Insecta',
-      'blue mormon': 'Insecta', 'blue_mormon': 'Insecta',
-      'crimson rose': 'Insecta', 'crimson_rose': 'Insecta',
-      // Reptiles
-      'mugger crocodile': 'Reptilia', 'mugger_crocodile': 'Reptilia',
-      'bengal monitor': 'Reptilia', 'bengal_monitor': 'Reptilia',
-      'indian rock python': 'Reptilia', 'indian_rock_python': 'Reptilia',
-      // Amphibians
-      'indian bullfrog': 'Amphibia', 'indian_bullfrog': 'Amphibia',
-      'common indian toad': 'Amphibia', 'common_indian_toad': 'Amphibia',
-      // Scenery
-      'aurora borealis': 'Scenery', 'aurora_borealis': 'Scenery',
-      'mountain landscape': 'Scenery', 'mountain_landscape': 'Scenery',
-      'arid mountain valley': 'Scenery', 'arid_mountain_valley': 'Scenery',
-      'waterfall': 'Scenery', 'forest canopy': 'Scenery', 'forest_canopy': 'Scenery',
-      'sunset sky': 'Scenery', 'sunset_sky': 'Scenery',
-      'desert dunes': 'Scenery', 'desert_dunes': 'Scenery',
-      'ocean coastline': 'Scenery', 'ocean_coastline': 'Scenery',
-      'starry night sky': 'Scenery', 'starry_night_sky': 'Scenery',
-      // Architecture
-      'monumental architecture': 'Architecture', 'monumental_architecture': 'Architecture',
-      'historic stone temple': 'Architecture', 'historic_stone_temple': 'Architecture',
-      'historic fort and palace': 'Architecture', 'historic_fort_and_palace': 'Architecture',
-      'modern urban skyscraper': 'Architecture', 'modern_urban_skyscraper': 'Architecture',
-      // Portrait
-      'close-up human portrait': 'Portrait', 'close_up_human_portrait': 'Portrait',
-      'cultural street portrait': 'Portrait', 'cultural_street_portrait': 'Portrait',
-      // Abstract
-      'water ripples and refraction texture': 'Abstract', 'water_ripples_and_refraction_texture': 'Abstract',
-      'minimalist geometric pattern': 'Abstract', 'minimalist_geometric_pattern': 'Abstract'
-    }};
+    const exactMultiTaxa = {curated_multi_taxa_json};
     if (exactMultiTaxa[s]) return exactMultiTaxa[s];
+    const withSpaces = s.replace(/_/g, ' ');
+    if (exactMultiTaxa[withSpaces]) return exactMultiTaxa[withSpaces];
+    const withUnderscores = s.replace(/ /g, '_');
+    if (exactMultiTaxa[withUnderscores]) return exactMultiTaxa[withUnderscores];
 
     // If user selected a valid species (like Brahminy Kite, European Turtle-Dove), it is a Bird!
     if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
@@ -3099,7 +3067,8 @@ fi
         abstract_count = payload.stats.abstract_count,
         no_subject_count = payload.stats.no_subject_count,
         trip_location_display = trip_location_display,
-        json_data = json_data
+        json_data = json_data,
+        curated_multi_taxa_json = CURATED_MULTI_TAXA_JS_OBJ.as_str()
     )
 }
 
