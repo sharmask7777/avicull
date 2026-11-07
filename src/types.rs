@@ -19,9 +19,13 @@ use std::path::PathBuf;
 /// - Insects: [`AssetCategory::Insecta`]
 /// - Reptiles: [`AssetCategory::Reptilia`]
 /// - Amphibians: [`AssetCategory::Amphibia`]
+/// - Botanical (flora, trees, fungi): [`AssetCategory::Botanical`]
 /// - Scenery and landscapes: [`AssetCategory::Scenery`]
+/// - Architecture (buildings, monuments): [`AssetCategory::Architecture`]
+/// - Portrait (people, portraits): [`AssetCategory::Portrait`]
+/// - Abstract (patterns, textures): [`AssetCategory::Abstract`]
 /// - Unclassified or empty frames: [`AssetCategory::NoSubjectDetected`]
-/// - Extensible genres (e.g. Portrait, Abstract, Architecture): [`AssetCategory::Other`]
+/// - Extensible custom genres: [`AssetCategory::Other`]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum AssetCategory {
     /// Avian species (default taxonomic domain).
@@ -35,11 +39,19 @@ pub enum AssetCategory {
     Reptilia,
     /// Class Amphibia (amphibians: frogs, toads, salamanders).
     Amphibia,
+    /// Botanical (plants, flowers, trees, fungi, lichen).
+    Botanical,
     /// Scenery, landscape, and environmental motifs.
     Scenery,
+    /// Built architecture, monuments, buildings, and structures.
+    Architecture,
+    /// Portraits and human figures.
+    Portrait,
+    /// Abstract, textures, patterns, and minimalist geometry.
+    Abstract,
     /// Unclassified or zero-detection empty frames (`_No_Bird_Detected` / `_No_Subject_Detected`).
     NoSubjectDetected,
-    /// Extensible photographic genres (e.g., `"Portrait"`, `"Abstract"`).
+    /// Extensible photographic genres.
     Other(String),
 }
 
@@ -57,7 +69,11 @@ impl AssetCategory {
             Self::Insecta => "Insecta",
             Self::Reptilia => "Reptilia",
             Self::Amphibia => "Amphibia",
+            Self::Botanical => "Botanical",
             Self::Scenery => "Scenery",
+            Self::Architecture => "Architecture",
+            Self::Portrait => "Portrait",
+            Self::Abstract => "Abstract",
             Self::NoSubjectDetected => "No_Subject_Detected",
             Self::Other(s) => s.as_str(),
         }
@@ -88,12 +104,19 @@ impl AssetCategory {
             Self::Reptilia
         } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
             Self::Amphibia
+        } else if clean.starts_with("botanical")
+            || clean.starts_with("plant")
+            || clean.starts_with("flora")
+        {
+            Self::Botanical
         } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
             Self::Scenery
+        } else if clean.starts_with("architecture") || clean.starts_with("building") {
+            Self::Architecture
         } else if clean.starts_with("portrait") {
-            Self::Other("Portrait".to_string())
+            Self::Portrait
         } else if clean.starts_with("abstract") {
-            Self::Other("Abstract".to_string())
+            Self::Abstract
         } else {
             Self::Bird
         }
@@ -133,8 +156,27 @@ impl std::str::FromStr for AssetCategory {
             || trimmed.eq_ignore_ascii_case("amphibians")
         {
             Ok(Self::Amphibia)
-        } else if trimmed.eq_ignore_ascii_case("scenery") {
+        } else if trimmed.eq_ignore_ascii_case("botanical")
+            || trimmed.eq_ignore_ascii_case("plant")
+            || trimmed.eq_ignore_ascii_case("plants")
+            || trimmed.eq_ignore_ascii_case("flora")
+        {
+            Ok(Self::Botanical)
+        } else if trimmed.eq_ignore_ascii_case("scenery")
+            || trimmed.eq_ignore_ascii_case("landscape")
+        {
             Ok(Self::Scenery)
+        } else if trimmed.eq_ignore_ascii_case("architecture")
+            || trimmed.eq_ignore_ascii_case("building")
+            || trimmed.eq_ignore_ascii_case("buildings")
+        {
+            Ok(Self::Architecture)
+        } else if trimmed.eq_ignore_ascii_case("portrait")
+            || trimmed.eq_ignore_ascii_case("portraits")
+        {
+            Ok(Self::Portrait)
+        } else if trimmed.eq_ignore_ascii_case("abstract") {
+            Ok(Self::Abstract)
         } else if trimmed.eq_ignore_ascii_case("no_subject_detected")
             || trimmed.eq_ignore_ascii_case("_no_subject_detected")
             || trimmed.eq_ignore_ascii_case("no subject detected")

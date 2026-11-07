@@ -142,14 +142,71 @@ fn test_taxon_classifier_extensibility_non_avian_domains() {
         AssetCategory::Amphibia
     );
 
-    // Test Portrait (Other) classification
+    // Test Botanical classification
+    let botanical_pred = SpeciesPrediction {
+        taxon_id: "plnt_rhododendron1".to_string(),
+        common_name: "Rhododendron arboreum".to_string(),
+        folder_slug: "Botanical/Rhododendron_arboreum".to_string(),
+        scientific_name: "Rhododendron arboreum".to_string(),
+        visual_prob: 0.93,
+        geo_prior: 1.0,
+        combined_score: 0.93,
+    };
+    let botanical_classifier = MockTaxonClassifier::new(vec![botanical_pred]);
+    let (_emb_b, preds_b) = botanical_classifier
+        .classify(&dummy_img, None, 0.0)
+        .expect("Botanical classification must succeed");
+    assert_eq!(
+        AssetCategory::from_slug(&preds_b[0].folder_slug),
+        AssetCategory::Botanical
+    );
+
+    // Test Architecture classification
+    let architecture_pred = SpeciesPrediction {
+        taxon_id: "arch_taj_mahal1".to_string(),
+        common_name: "Taj Mahal".to_string(),
+        folder_slug: "Architecture/Taj_Mahal".to_string(),
+        scientific_name: "Monumentum Taj Mahal".to_string(),
+        visual_prob: 0.96,
+        geo_prior: 1.0,
+        combined_score: 0.96,
+    };
+    let architecture_classifier = MockTaxonClassifier::new(vec![architecture_pred]);
+    let (_emb_arch, preds_arch) = architecture_classifier
+        .classify(&dummy_img, None, 0.0)
+        .expect("Architecture classification must succeed");
+    assert_eq!(
+        AssetCategory::from_slug(&preds_arch[0].folder_slug),
+        AssetCategory::Architecture
+    );
+
+    // Test Portrait classification
     let portrait_classifier = MockTaxonClassifier::new(vec![portrait_pred]);
     let (_emb_p, preds_p) = portrait_classifier
         .classify(&dummy_img, None, 0.0)
         .expect("Portrait classification must succeed");
     assert_eq!(
         AssetCategory::from_slug(&preds_p[0].folder_slug),
-        AssetCategory::Other("Portrait".to_string())
+        AssetCategory::Portrait
+    );
+
+    // Test Abstract classification
+    let abstract_pred = SpeciesPrediction {
+        taxon_id: "abst_minimal_wave1".to_string(),
+        common_name: "Water Ripples Pattern".to_string(),
+        folder_slug: "Abstract/Water_Ripples_Pattern".to_string(),
+        scientific_name: "Pattern Abstract".to_string(),
+        visual_prob: 0.89,
+        geo_prior: 1.0,
+        combined_score: 0.89,
+    };
+    let abstract_classifier = MockTaxonClassifier::new(vec![abstract_pred]);
+    let (_emb_abs, preds_abs) = abstract_classifier
+        .classify(&dummy_img, None, 0.0)
+        .expect("Abstract classification must succeed");
+    assert_eq!(
+        AssetCategory::from_slug(&preds_abs[0].folder_slug),
+        AssetCategory::Abstract
     );
 }
 

@@ -1042,7 +1042,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">{reptilia_count}</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">{amphibia_count}</span>)</button>
+        <button class="pill category-pill" data-category="Botanical" onclick="setCategoryFilter('Botanical', this)">Botanical (<span id="catCountBotanical">{botanical_count}</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
+        <button class="pill category-pill" data-category="Architecture" onclick="setCategoryFilter('Architecture', this)">Architecture (<span id="catCountArchitecture">{architecture_count}</span>)</button>
+        <button class="pill category-pill" data-category="Portrait" onclick="setCategoryFilter('Portrait', this)">Portrait (<span id="catCountPortrait">{portrait_count}</span>)</button>
+        <button class="pill category-pill" data-category="Abstract" onclick="setCategoryFilter('Abstract', this)">Abstract (<span id="catCountAbstract">{abstract_count}</span>)</button>
         <button class="pill category-pill" data-category="No_Subject_Detected" onclick="setCategoryFilter('No_Subject_Detected', this)">No Subject (<span id="catCountNoSubject">{no_subject_count}</span>)</button>
       </div>
     </div>
@@ -1677,7 +1681,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, No_Subject_Detected: 0 }};
+    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Botanical: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {{
@@ -1698,8 +1702,16 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (elRep) elRep.textContent = counts.Reptilia;
     const elAmp = document.getElementById('catCountAmphibia');
     if (elAmp) elAmp.textContent = counts.Amphibia;
+    const elBot = document.getElementById('catCountBotanical');
+    if (elBot) elBot.textContent = counts.Botanical;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
+    const elArch = document.getElementById('catCountArchitecture');
+    if (elArch) elArch.textContent = counts.Architecture;
+    const elPort = document.getElementById('catCountPortrait');
+    if (elPort) elPort.textContent = counts.Portrait;
+    const elAbst = document.getElementById('catCountAbstract');
+    if (elAbst) elAbst.textContent = counts.Abstract;
     const elNoSub = document.getElementById('catCountNoSubject');
     if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
   }}
@@ -1929,7 +1941,11 @@ fi
     if (s.startsWith('insecta') || s.includes('butterfly') || s.includes('moth') || s.includes('dragonfly') || s.includes('damselfly') || s.includes('beetle')) return 'Insecta';
     if (s.startsWith('reptilia') || s.includes('crocodile') || s.includes('alligator') || s.includes('lizard') || s.includes('gecko') || s.includes('snake') || s.includes('viper') || s.includes('cobra') || s.includes('sea_turtle') || s.includes('tortoise')) return 'Reptilia';
     if (s.startsWith('amphibia') || s.includes('frog') || s.includes('toad') || s.includes('salamander') || s.includes('newt')) return 'Amphibia';
+    if (s.startsWith('botanical') || s.startsWith('plant') || s.includes('flower') || s.includes('tree') || s.includes('fungus') || s.includes('mushroom') || s.includes('orchid')) return 'Botanical';
     if (s.startsWith('scenery') || s.includes('aurora') || s.includes('mountain') || s.includes('waterfall') || s.includes('sunset') || s.includes('landscape')) return 'Scenery';
+    if (s.startsWith('architecture') || s.startsWith('building') || s.includes('temple') || s.includes('palace') || s.includes('monument') || s.includes('fort') || s.includes('skyscraper')) return 'Architecture';
+    if (s.startsWith('portrait') || s.includes('person') || s.includes('face') || s.includes('headshot')) return 'Portrait';
+    if (s.startsWith('abstract') || s.includes('texture') || s.includes('pattern') || s.includes('minimalist')) return 'Abstract';
     if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
     // If user selected a valid species (like Brahminy Kite), it is a Bird!
     if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
@@ -3024,7 +3040,11 @@ fi
         insecta_count = payload.stats.insecta_count,
         reptilia_count = payload.stats.reptilia_count,
         amphibia_count = payload.stats.amphibia_count,
+        botanical_count = payload.stats.botanical_count,
         scenery_count = payload.stats.scenery_count,
+        architecture_count = payload.stats.architecture_count,
+        portrait_count = payload.stats.portrait_count,
+        abstract_count = payload.stats.abstract_count,
         no_subject_count = payload.stats.no_subject_count,
         trip_location_display = trip_location_display,
         json_data = json_data
@@ -3071,7 +3091,11 @@ mod tests {
             insecta_count: 1,
             reptilia_count: 0,
             amphibia_count: 0,
+            botanical_count: 0,
             scenery_count: 1,
+            architecture_count: 0,
+            portrait_count: 0,
+            abstract_count: 0,
             no_subject_count: 0,
         };
 
@@ -3131,7 +3155,11 @@ mod tests {
                 insecta_count: 0,
                 reptilia_count: 0,
                 amphibia_count: 0,
+                botanical_count: 0,
                 scenery_count: 0,
+                architecture_count: 0,
+                portrait_count: 0,
+                abstract_count: 0,
                 no_subject_count: 0,
             },
             items: vec![],
