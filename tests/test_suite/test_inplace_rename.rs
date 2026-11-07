@@ -574,23 +574,6 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     assert_eq!(parsed_amphibia.3.as_deref(), Some("20261102"));
     assert_eq!(parsed_amphibia.4.as_deref(), Some("Everglades"));
 
-    // Botanical round-trip
-    let botanical_file = format_inplace_filename(
-        "DSC_0305",
-        "Botanical",
-        "rhododendron_arboreum",
-        Some("20261102"),
-        Some("Sikkim"),
-        "CR2",
-    );
-    let parsed_botanical =
-        parse_inplace_filename(&botanical_file, "DSC_0305").expect("should parse botanical file");
-    assert_eq!(parsed_botanical.0, AssetCategory::Botanical);
-    assert_eq!(parsed_botanical.1, "rhododendron_arboreum");
-    assert_eq!(parsed_botanical.2, RoutingTier::ConfirmedSpecies);
-    assert_eq!(parsed_botanical.3.as_deref(), Some("20261102"));
-    assert_eq!(parsed_botanical.4.as_deref(), Some("Sikkim"));
-
     // Architecture round-trip
     let architecture_file = format_inplace_filename(
         "DSC_0308",

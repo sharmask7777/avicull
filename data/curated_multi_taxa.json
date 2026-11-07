@@ -1874,46 +1874,6 @@
     ]
   },
   {
-    "taxon_id": "plnt_rhododendron",
-    "category": "Botanical",
-    "common_name": "Rhododendron",
-    "scientific_name": "Rhododendron arboreum",
-    "aliases": [
-      "Burans",
-      "Tree Rhododendron"
-    ]
-  },
-  {
-    "taxon_id": "plnt_lotus",
-    "category": "Botanical",
-    "common_name": "Sacred Lotus",
-    "scientific_name": "Nelumbo nucifera",
-    "aliases": [
-      "Indian Lotus",
-      "Water Lily"
-    ]
-  },
-  {
-    "taxon_id": "plnt_banyan",
-    "category": "Botanical",
-    "common_name": "Banyan Tree",
-    "scientific_name": "Ficus benghalensis",
-    "aliases": [
-      "Indian Banyan",
-      "Vada Tree"
-    ]
-  },
-  {
-    "taxon_id": "plnt_mushroom",
-    "category": "Botanical",
-    "common_name": "Wild Mushroom",
-    "scientific_name": "Agaricus campestris",
-    "aliases": [
-      "Fungus",
-      "Field Mushroom"
-    ]
-  },
-  {
     "taxon_id": "arch_monument",
     "category": "Architecture",
     "common_name": "Monumental Architecture",

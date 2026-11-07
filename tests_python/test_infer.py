@@ -827,7 +827,7 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         img.save(img_path)
 
         res = engine.process_image(img_path)
-        self.assertIn(res["category"], ("Scenery", "Architecture", "Botanical", "Abstract"))
+        self.assertIn(res["category"], ("Scenery", "Architecture", "Portrait", "Abstract"))
         self.assertTrue(res["detected"])
         self.assertNotEqual(res["assigned_species_slug"], "_No_Subject_Detected")
 

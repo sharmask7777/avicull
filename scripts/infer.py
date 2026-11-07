@@ -59,7 +59,6 @@ CANONICAL_CATEGORIES: tuple[str, ...] = (
     "Insecta",
     "Reptilia",
     "Amphibia",
-    "Botanical",
     "Scenery",
     "Architecture",
     "Portrait",
@@ -580,8 +579,8 @@ class AvianInferenceEngine:
 
             # Robust non-animal genre fallback:
             # Require higher threshold and peak confidence so unlabeled frames or low-confidence
-            # noise do not falsely classify into Botanical or other genres. Fall back to No Subject.
-            non_animal_genres = ("Scenery", "Architecture", "Botanical", "Abstract")
+            # noise do not falsely classify into other genres. Fall back to No Subject.
+            non_animal_genres = ("Scenery", "Architecture", "Abstract")
             with torch.no_grad():
                 all_sims = (full_emb @ self.species_embeddings.T)[0]
 
@@ -605,11 +604,9 @@ class AvianInferenceEngine:
             best_genre_peak = genre_peak_scores.get(best_genre, 0.0)
 
             # Robust classification gate:
-            # - For Scenery (e.g. mountain valleys, waterfalls): top-2 mean >= 0.16 and peak >= 0.18
-            # - For Botanical, Architecture, Abstract: top-2 mean >= 0.18 and peak >= 0.22,
-            #   preventing generic outdoor foliage/textures from falsely claiming flower
-            #   classification. Frames below these gates cleanly fall back to _No_Subject_Detected
-            #   rather than a bad classification.
+            # - For Scenery (e.g. mountain valleys, waterfalls): top-2 mean >= 0.16, peak >= 0.18
+            # - For Architecture, Abstract: top-2 mean >= 0.18 and peak >= 0.22.
+            # Frames below these gates cleanly fall back to _No_Subject_Detected.
             min_mean_thresh = 0.16 if best_genre == "Scenery" else 0.18
             min_peak_thresh = 0.18 if best_genre == "Scenery" else 0.22
 
@@ -634,7 +631,7 @@ class AvianInferenceEngine:
                     "embedding": [round(float(v), 5) for v in full_emb[0].tolist()[:512]],
                 }
 
-            # Confirmed natural genre (Scenery, Architecture, Botanical, or Abstract)
+            # Confirmed natural genre (Scenery, Architecture, or Abstract)
             crop = img
             det_conf = best_genre_score
             img_emb = full_emb

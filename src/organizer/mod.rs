@@ -42,7 +42,6 @@ static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLo
                     "Insecta" => AssetCategory::Insecta,
                     "Reptilia" => AssetCategory::Reptilia,
                     "Amphibia" => AssetCategory::Amphibia,
-                    "Botanical" => AssetCategory::Botanical,
                     "Scenery" => AssetCategory::Scenery,
                     "Architecture" => AssetCategory::Architecture,
                     "Portrait" => AssetCategory::Portrait,
@@ -240,7 +239,7 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         }
     }
 
-    // 3. Category path prefixes (e.g. "mammalia/...", "botanical/...")
+    // 3. Category path prefixes (e.g. "mammalia/...", "scenery/...")
     if clean.starts_with("mammalia") || clean.starts_with("mammal") {
         Some(AssetCategory::Mammalia)
     } else if clean.starts_with("insecta") || clean.starts_with("insect") {
@@ -249,11 +248,6 @@ pub fn lookup_curated_category(slug: &str) -> Option<AssetCategory> {
         Some(AssetCategory::Reptilia)
     } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
         Some(AssetCategory::Amphibia)
-    } else if clean.starts_with("botanical")
-        || clean.starts_with("plant")
-        || clean.starts_with("flora")
-    {
-        Some(AssetCategory::Botanical)
     } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
         Some(AssetCategory::Scenery)
     } else if clean.starts_with("architecture") || clean.starts_with("building") {

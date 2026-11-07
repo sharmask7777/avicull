@@ -19,7 +19,6 @@ use std::path::PathBuf;
 /// - Insects: [`AssetCategory::Insecta`]
 /// - Reptiles: [`AssetCategory::Reptilia`]
 /// - Amphibians: [`AssetCategory::Amphibia`]
-/// - Botanical (flora, trees, fungi): [`AssetCategory::Botanical`]
 /// - Scenery and landscapes: [`AssetCategory::Scenery`]
 /// - Architecture (buildings, monuments): [`AssetCategory::Architecture`]
 /// - Portrait (people, portraits): [`AssetCategory::Portrait`]
@@ -39,8 +38,6 @@ pub enum AssetCategory {
     Reptilia,
     /// Class Amphibia (amphibians: frogs, toads, salamanders).
     Amphibia,
-    /// Botanical (plants, flowers, trees, fungi, lichen).
-    Botanical,
     /// Scenery, landscape, and environmental motifs.
     Scenery,
     /// Built architecture, monuments, buildings, and structures.
@@ -69,7 +66,6 @@ impl AssetCategory {
             Self::Insecta => "Insecta",
             Self::Reptilia => "Reptilia",
             Self::Amphibia => "Amphibia",
-            Self::Botanical => "Botanical",
             Self::Scenery => "Scenery",
             Self::Architecture => "Architecture",
             Self::Portrait => "Portrait",
@@ -104,11 +100,6 @@ impl AssetCategory {
             Self::Reptilia
         } else if clean.starts_with("amphibia") || clean.starts_with("amphibian") {
             Self::Amphibia
-        } else if clean.starts_with("botanical")
-            || clean.starts_with("plant")
-            || clean.starts_with("flora")
-        {
-            Self::Botanical
         } else if clean.starts_with("scenery") || clean.starts_with("landscape") {
             Self::Scenery
         } else if clean.starts_with("architecture") || clean.starts_with("building") {
@@ -156,12 +147,6 @@ impl std::str::FromStr for AssetCategory {
             || trimmed.eq_ignore_ascii_case("amphibians")
         {
             Ok(Self::Amphibia)
-        } else if trimmed.eq_ignore_ascii_case("botanical")
-            || trimmed.eq_ignore_ascii_case("plant")
-            || trimmed.eq_ignore_ascii_case("plants")
-            || trimmed.eq_ignore_ascii_case("flora")
-        {
-            Ok(Self::Botanical)
         } else if trimmed.eq_ignore_ascii_case("scenery")
             || trimmed.eq_ignore_ascii_case("landscape")
         {

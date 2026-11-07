@@ -1042,7 +1042,6 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">{insecta_count}</span>)</button>
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">{reptilia_count}</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">{amphibia_count}</span>)</button>
-        <button class="pill category-pill" data-category="Botanical" onclick="setCategoryFilter('Botanical', this)">Botanical (<span id="catCountBotanical">{botanical_count}</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">{scenery_count}</span>)</button>
         <button class="pill category-pill" data-category="Architecture" onclick="setCategoryFilter('Architecture', this)">Architecture (<span id="catCountArchitecture">{architecture_count}</span>)</button>
         <button class="pill category-pill" data-category="Portrait" onclick="setCategoryFilter('Portrait', this)">Portrait (<span id="catCountPortrait">{portrait_count}</span>)</button>
@@ -1681,7 +1680,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Botanical: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
+    const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {{
@@ -1702,8 +1701,6 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (elRep) elRep.textContent = counts.Reptilia;
     const elAmp = document.getElementById('catCountAmphibia');
     if (elAmp) elAmp.textContent = counts.Amphibia;
-    const elBot = document.getElementById('catCountBotanical');
-    if (elBot) elBot.textContent = counts.Botanical;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
     const elArch = document.getElementById('catCountArchitecture');
@@ -1944,7 +1941,6 @@ fi
     if (s.startsWith('insecta') || s.startsWith('insect')) return 'Insecta';
     if (s.startsWith('reptilia') || s.startsWith('reptile')) return 'Reptilia';
     if (s.startsWith('amphibia') || s.startsWith('amphibian')) return 'Amphibia';
-    if (s.startsWith('botanical') || s.startsWith('plant') || s.startsWith('flora')) return 'Botanical';
     if (s.startsWith('scenery') || s.startsWith('landscape')) return 'Scenery';
     if (s.startsWith('architecture') || s.startsWith('building')) return 'Architecture';
     if (s.startsWith('portrait')) return 'Portrait';
@@ -1981,11 +1977,6 @@ fi
       // Amphibians
       'indian bullfrog': 'Amphibia', 'indian_bullfrog': 'Amphibia',
       'common indian toad': 'Amphibia', 'common_indian_toad': 'Amphibia',
-      // Botanical
-      'rhododendron': 'Botanical',
-      'sacred lotus': 'Botanical', 'sacred_lotus': 'Botanical',
-      'banyan tree': 'Botanical', 'banyan_tree': 'Botanical',
-      'wild mushroom': 'Botanical', 'wild_mushroom': 'Botanical',
       // Scenery
       'aurora borealis': 'Scenery', 'aurora_borealis': 'Scenery',
       'mountain landscape': 'Scenery', 'mountain_landscape': 'Scenery',
@@ -3102,7 +3093,6 @@ fi
         insecta_count = payload.stats.insecta_count,
         reptilia_count = payload.stats.reptilia_count,
         amphibia_count = payload.stats.amphibia_count,
-        botanical_count = payload.stats.botanical_count,
         scenery_count = payload.stats.scenery_count,
         architecture_count = payload.stats.architecture_count,
         portrait_count = payload.stats.portrait_count,
@@ -3153,7 +3143,6 @@ mod tests {
             insecta_count: 1,
             reptilia_count: 0,
             amphibia_count: 0,
-            botanical_count: 0,
             scenery_count: 1,
             architecture_count: 0,
             portrait_count: 0,
@@ -3217,7 +3206,6 @@ mod tests {
                 insecta_count: 0,
                 reptilia_count: 0,
                 amphibia_count: 0,
-                botanical_count: 0,
                 scenery_count: 0,
                 architecture_count: 0,
                 portrait_count: 0,

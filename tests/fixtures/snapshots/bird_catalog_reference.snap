@@ -1021,7 +1021,6 @@
         <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">0</span>)</button>
         <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">0</span>)</button>
         <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">0</span>)</button>
-        <button class="pill category-pill" data-category="Botanical" onclick="setCategoryFilter('Botanical', this)">Botanical (<span id="catCountBotanical">0</span>)</button>
         <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">0</span>)</button>
         <button class="pill category-pill" data-category="Architecture" onclick="setCategoryFilter('Architecture', this)">Architecture (<span id="catCountArchitecture">0</span>)</button>
         <button class="pill category-pill" data-category="Portrait" onclick="setCategoryFilter('Portrait', this)">Portrait (<span id="catCountPortrait">0</span>)</button>
@@ -1251,7 +1250,7 @@
 
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
-{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"botanical_count":0,"scenery_count":0,"architecture_count":0,"portrait_count":0,"abstract_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
+{"trip_name":"Avicull Snapshot Test Suite","mode":"hierarchy","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0,"architecture_count":0,"portrait_count":0,"abstract_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
 </script>
 
 <script>
@@ -1660,7 +1659,7 @@
       ? items
       : items.filter(i => i.routing_tier === currentFilter);
 
-    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Botanical: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 };
+    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 };
     scopeItems.forEach(i => {
       const c = i.category || 'Bird';
       if (counts[c] !== undefined) {
@@ -1681,8 +1680,6 @@
     if (elRep) elRep.textContent = counts.Reptilia;
     const elAmp = document.getElementById('catCountAmphibia');
     if (elAmp) elAmp.textContent = counts.Amphibia;
-    const elBot = document.getElementById('catCountBotanical');
-    if (elBot) elBot.textContent = counts.Botanical;
     const elScn = document.getElementById('catCountScenery');
     if (elScn) elScn.textContent = counts.Scenery;
     const elArch = document.getElementById('catCountArchitecture');
@@ -1923,7 +1920,6 @@ fi
     if (s.startsWith('insecta') || s.startsWith('insect')) return 'Insecta';
     if (s.startsWith('reptilia') || s.startsWith('reptile')) return 'Reptilia';
     if (s.startsWith('amphibia') || s.startsWith('amphibian')) return 'Amphibia';
-    if (s.startsWith('botanical') || s.startsWith('plant') || s.startsWith('flora')) return 'Botanical';
     if (s.startsWith('scenery') || s.startsWith('landscape')) return 'Scenery';
     if (s.startsWith('architecture') || s.startsWith('building')) return 'Architecture';
     if (s.startsWith('portrait')) return 'Portrait';
@@ -1960,11 +1956,6 @@ fi
       // Amphibians
       'indian bullfrog': 'Amphibia', 'indian_bullfrog': 'Amphibia',
       'common indian toad': 'Amphibia', 'common_indian_toad': 'Amphibia',
-      // Botanical
-      'rhododendron': 'Botanical',
-      'sacred lotus': 'Botanical', 'sacred_lotus': 'Botanical',
-      'banyan tree': 'Botanical', 'banyan_tree': 'Botanical',
-      'wild mushroom': 'Botanical', 'wild_mushroom': 'Botanical',
       // Scenery
       'aurora borealis': 'Scenery', 'aurora_borealis': 'Scenery',
       'mountain landscape': 'Scenery', 'mountain_landscape': 'Scenery',
