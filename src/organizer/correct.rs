@@ -44,19 +44,23 @@ fn is_interactive_session() -> bool {
             .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
-/// Loads eBird taxonomy records from cached or local models, falling back to a curated global list.
+/// Loads eBird taxonomy records from cached or local models, falling back to the canonical embedded taxonomy.
 pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
     let mut candidate_paths = vec![
         PathBuf::from("models/taxonomy.json"),
         PathBuf::from("../models/taxonomy.json"),
-        PathBuf::from("tests/fixtures/models/taxonomy.json"),
+        PathBuf::from("data/taxonomy.json"),
+        PathBuf::from("../data/taxonomy.json"),
     ];
 
     if let Ok(cargo_manifest) = std::env::var("CARGO_MANIFEST_DIR") {
         candidate_paths.push(
-            PathBuf::from(cargo_manifest)
-                .join("tests")
-                .join("fixtures")
+            PathBuf::from(&cargo_manifest)
+                .join("data")
+                .join("taxonomy.json"),
+        );
+        candidate_paths.push(
+            PathBuf::from(&cargo_manifest)
                 .join("models")
                 .join("taxonomy.json"),
         );
@@ -79,128 +83,47 @@ pub fn load_taxonomy_records() -> Vec<TaxonomyEntry> {
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
+    let mut content_opt = None;
     for path in candidate_paths {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
-                    for obj in parsed {
-                        if let Some(common_name) = obj.get("common_name").and_then(|v| v.as_str()) {
-                            let category = obj
-                                .get("category")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Bird")
-                                .to_string();
-                            let folder_slug =
-                                obj.get("folder_slug").and_then(|v| v.as_str()).map_or_else(
-                                    || sanitize_species_slug(common_name),
-                                    std::string::ToString::to_string,
-                                );
-                            let scientific_name = obj
-                                .get("scientific_name")
-                                .and_then(|v| v.as_str())
-                                .map(std::string::ToString::to_string);
-                            if seen.insert(common_name.to_lowercase()) {
-                                entries.push(TaxonomyEntry {
-                                    category,
-                                    common_name: common_name.to_string(),
-                                    folder_slug,
-                                    scientific_name,
-                                });
-                            }
-                        }
-                    }
-                    if !entries.is_empty() {
-                        break;
-                    }
-                }
+                content_opt = Some(content);
+                break;
             }
         }
     }
 
-    for fallback in curated_taxonomy_fallback() {
-        if seen.insert(fallback.common_name.to_lowercase()) {
-            entries.push(fallback);
+    let raw_content: &str = match &content_opt {
+        Some(s) => s.as_str(),
+        None => crate::types::raw_taxonomy_json(),
+    };
+
+    if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(raw_content) {
+        for obj in parsed {
+            if let Some(common_name) = obj.get("common_name").and_then(|v| v.as_str()) {
+                let category = obj
+                    .get("category")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Bird")
+                    .to_string();
+                let folder_slug = obj.get("folder_slug").and_then(|v| v.as_str()).map_or_else(
+                    || sanitize_species_slug(common_name),
+                    std::string::ToString::to_string,
+                );
+                let scientific_name = obj
+                    .get("scientific_name")
+                    .and_then(|v| v.as_str())
+                    .map(std::string::ToString::to_string);
+                if seen.insert(common_name.to_lowercase()) {
+                    entries.push(TaxonomyEntry {
+                        category,
+                        common_name: common_name.to_string(),
+                        folder_slug,
+                        scientific_name,
+                    });
+                }
+            }
         }
-    }
-
-    entries
-}
-
-/// Fallback list of prominent bird and multi-taxa species across world families when taxonomy.json is unavailable.
-fn curated_taxonomy_fallback() -> Vec<TaxonomyEntry> {
-    let birds = vec![
-        "House Sparrow",
-        "Eurasian Tree Sparrow",
-        "Black Redstart",
-        "Common Redstart",
-        "Tibetan Snowcock",
-        "Himalayan Snowcock",
-        "Lammergeier",
-        "Golden Eagle",
-        "Steppe Eagle",
-        "Painted Stork",
-        "Asian Openbill",
-        "Black-necked Crane",
-        "Common Crane",
-        "Bar-headed Goose",
-        "Ruddy Shelduck",
-        "Mallard",
-        "Common Kingfisher",
-        "White-throated Kingfisher",
-        "Pied Kingfisher",
-        "Little Egret",
-        "Great Egret",
-        "Grey Heron",
-        "Peregrine Falcon",
-        "Common Kestrel",
-        "Barn Owl",
-        "Spotted Owlet",
-        "Eurasian Eagle-Owl",
-        "Blue Rock Thrush",
-        "Great Tit",
-        "Coal Tit",
-        "Eurasian Magpie",
-        "Red-billed Chough",
-        "Yellow-billed Chough",
-        "Brown-headed Gull",
-        "Common Sandpiper",
-        "Red-wattled Lapwing",
-        "Little Ringed Plover",
-    ];
-
-    let mut entries: Vec<TaxonomyEntry> = birds
-        .into_iter()
-        .map(|name| TaxonomyEntry {
-            category: "Bird".to_string(),
-            common_name: name.to_string(),
-            folder_slug: sanitize_species_slug(name),
-            scientific_name: None,
-        })
-        .collect();
-
-    // Multi-taxa non-avian fallback entries
-    let non_avian = vec![
-        ("Mammalia", "Malabar Giant Squirrel", "Ratufa indica"),
-        ("Mammalia", "Tiger", "Panthera tigris"),
-        ("Mammalia", "Lion", "Panthera leo"),
-        ("Mammalia", "Indian Leopard", "Panthera pardus"),
-        ("Mammalia", "Asian Elephant", "Elephas maximus"),
-        ("Mammalia", "Gray Langur", "Semnopithecus entellus"),
-        ("Insecta", "Malabar Banded Peacock", "Papilio buddha"),
-        ("Insecta", "Monarch Butterfly", "Danaus plexippus"),
-        ("Insecta", "Common Mormon", "Papilio polytes"),
-        ("Scenery", "Aurora Borealis", "Aurora Borealis"),
-        ("Scenery", "Mountain Landscape", "Mountain Landscape"),
-        ("Scenery", "Waterfall", "Waterfall"),
-    ];
-
-    for (cat, common, sci) in non_avian {
-        entries.push(TaxonomyEntry {
-            category: cat.to_string(),
-            common_name: common.to_string(),
-            folder_slug: sanitize_species_slug(common),
-            scientific_name: Some(sci.to_string()),
-        });
     }
 
     entries
@@ -215,10 +138,14 @@ pub fn find_species_typo_suggestion(
 ) -> Option<SpeciesTypoSuggestion> {
     let trimmed = input.trim();
     if trimmed.is_empty()
-        || trimmed == "_No_Bird_Detected"
+        || trimmed == RoutingTier::SENTINEL_NO_BIRD_DETECTED
+        || trimmed == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
         || trimmed == "NoBirdDetected"
+        || trimmed == "NoSubjectDetected"
         || trimmed.eq_ignore_ascii_case("No Bird Detected")
         || trimmed.eq_ignore_ascii_case("No_Bird_Detected")
+        || trimmed.eq_ignore_ascii_case("No Subject Detected")
+        || trimmed.eq_ignore_ascii_case("No_Subject_Detected")
     {
         return None;
     }
@@ -548,17 +475,17 @@ pub fn apply_bundle_correction_with_category(
 
     let mut resolved_species = new_species.to_string();
     let (has_needs_review, species_to_check) =
-        if let Some(stripped) = new_species.strip_prefix("_Needs_Review/") {
+        if let Some(stripped) = new_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
             (true, stripped)
         } else {
             (false, new_species)
         };
 
-    let is_no_bird = species_to_check == "_No_Bird_Detected"
+    let is_no_bird = species_to_check == RoutingTier::SENTINEL_NO_BIRD_DETECTED
         || species_to_check == "NoBirdDetected"
         || species_to_check.eq_ignore_ascii_case("No Bird Detected")
         || species_to_check.eq_ignore_ascii_case("No_Bird_Detected")
-        || species_to_check == "_No_Subject_Detected"
+        || species_to_check == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
         || species_to_check == "NoSubjectDetected"
         || species_to_check.eq_ignore_ascii_case("No Subject Detected")
         || species_to_check.eq_ignore_ascii_case("No_Subject_Detected");
@@ -598,12 +525,15 @@ pub fn apply_bundle_correction_with_category(
         if species_to_check.to_ascii_lowercase().contains("subject") {
             (
                 RoutingTier::NoBirdDetected,
-                "_No_Subject_Detected".to_string(),
+                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
             )
         } else {
-            (RoutingTier::NoBirdDetected, "_No_Bird_Detected".to_string())
+            (
+                RoutingTier::NoBirdDetected,
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+            )
         }
-    } else if let Some(stripped) = resolved_species.strip_prefix("_Needs_Review/") {
+    } else if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
         (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
     } else {
         (
@@ -627,9 +557,12 @@ pub fn apply_bundle_correction_with_category(
             )
         })?;
         if routing_tier == RoutingTier::NoBirdDetected {
-            let legacy_symlink = operating_root.join("_No_Bird_Detected");
+            let legacy_symlink = operating_root.join(RoutingTier::DIR_NO_BIRD_DETECTED);
             if !legacy_symlink.exists() && fs::symlink_metadata(&legacy_symlink).is_err() {
-                let _ = std::os::unix::fs::symlink("_No_Subject_Detected", &legacy_symlink);
+                let _ = std::os::unix::fs::symlink(
+                    RoutingTier::DIR_NO_SUBJECT_DETECTED,
+                    &legacy_symlink,
+                );
             }
         }
     }

@@ -14,159 +14,42 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 
 static CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
-
-static PROMINENT_FALLBACK_BIRDS: &[&str] = &[
-    "house_sparrow",
-    "eurasian_tree_sparrow",
-    "black_redstart",
-    "common_redstart",
-    "tibetan_snowcock",
-    "himalayan_snowcock",
-    "lammergeier",
-    "golden_eagle",
-    "steppe_eagle",
-    "painted_stork",
-    "asian_openbill",
-    "black-necked_crane",
-    "common_crane",
-    "bar-headed_goose",
-    "ruddy_shelduck",
-    "mallard",
-    "northern_pintail",
-    "common_kingfisher",
-    "white-throated_kingfisher",
-    "pied_kingfisher",
-    "little_egret",
-    "great_egret",
-    "grey_heron",
-    "peregrine_falcon",
-    "common_kestrel",
-    "barn_owl",
-    "spotted_owlet",
-    "eurasian_eagle-owl",
-    "blue_rock_thrush",
-    "great_tit",
-    "coal_tit",
-    "eurasian_magpie",
-    "red-billed_chough",
-    "yellow-billed_chough",
-    "brown-headed_gull",
-    "common_sandpiper",
-    "red-wattled_lapwing",
-    "little_ringed_plover",
-    "brahminy_kite",
-    "bald_eagle",
-    "red-tailed_hawk",
-    "canada_goose",
-    "wood_duck",
-    "great_blue_heron",
-    "osprey",
-    "ruby-throated_hummingbird",
-    "downy_woodpecker",
-    "blue_jay",
-    "american_crow",
-    "black-capped_chickadee",
-    "tufted_titmouse",
-    "white-breasted_nuthatch",
-    "carolina_wren",
-    "american_robin",
-    "cedar_waxwing",
-    "european_starling",
-    "song_sparrow",
-    "northern_cardinal",
-    "red-winged_blackbird",
-    "common_grackle",
-    "house_finch",
-    "american_goldfinch",
-    "european_turtle-dove",
-    "european_turtle_dove",
-    "rose-ringed_parakeet",
-    "great_black-backed_gull",
-    "purple_finch",
-    "red-vented_bulbul",
-    "chukar",
-    "desert_wheatear",
-    "bearded_vulture",
-    "oriental_turtle_dove",
-    "oriental_turtle-dove",
-    "killdeer",
-    "western_banded_snake_eagle",
-    "jamaican_lizard_cuckoo",
-    "tawny_frogmouth",
-    "mexican_squirrel_cuckoo",
-    "bearded_guan",
-    "butterfly_coquette",
-    "crested_treeswift",
-    "mountain_quail",
-    "desert_lark",
-    "flame_templed_babbler",
-    "flame-templed_babbler",
-    "cinereous_tit",
-];
+static TAXONOMY_JSON: &str = include_str!("../data/taxonomy.json");
 
 static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| {
     let mut set = std::collections::HashSet::new();
 
-    // 1. Seed prominent fallback bird species
-    for name in PROMINENT_FALLBACK_BIRDS {
-        let lower = name.to_lowercase();
-        set.insert(lower.clone());
-        set.insert(lower.replace('-', "_"));
-        set.insert(lower.replace('_', " "));
-        set.insert(lower.replace('-', " "));
-    }
-
-    // 2. Discover and ingest local or cached eBird taxonomy (11,000+ species)
-    let mut candidate_paths = vec![
-        PathBuf::from("models/taxonomy.json"),
-        PathBuf::from("../models/taxonomy.json"),
-        PathBuf::from("tests/fixtures/models/taxonomy.json"),
-    ];
-
-    if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        candidate_paths.push(PathBuf::from(&manifest).join("models/taxonomy.json"));
-        candidate_paths.push(PathBuf::from(&manifest).join("tests/fixtures/models/taxonomy.json"));
-    }
-    if let Ok(home) = std::env::var("HOME") {
-        candidate_paths.push(PathBuf::from(home).join(".cache/avicull/models/taxonomy.json"));
-    }
-
-    for p in &candidate_paths {
-        if let Ok(content) = std::fs::read_to_string(p) {
-            if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
-                for r in records {
-                    let cat = r.get("category").and_then(|v| v.as_str()).unwrap_or("Bird");
-                    if cat == "Bird" {
-                        if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
-                            set.insert(tid.to_lowercase());
-                        }
-                        if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
-                            let lower = cname.to_lowercase();
-                            set.insert(lower.clone());
-                            let slug = lower.replace(' ', "_");
-                            set.insert(slug.clone());
-                            set.insert(slug.replace('-', "_"));
-                            set.insert(lower.replace('-', " "));
-                        }
-                        if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
-                            let lower = slug.to_lowercase();
-                            set.insert(lower.clone());
-                            set.insert(lower.replace('-', "_"));
-                            set.insert(lower.replace('_', " "));
-                        }
-                        if let Some(sci) = r.get("scientific_name").and_then(|v| v.as_str()) {
-                            let lower = sci.to_lowercase();
-                            set.insert(lower.clone());
-                            set.insert(lower.replace(' ', "_"));
-                        }
-                    }
+    // Ingest authoritative eBird taxonomy (11,240+ species) from canonical dataset
+    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(TAXONOMY_JSON) {
+        for r in records {
+            let cat = r.get("category").and_then(|v| v.as_str()).unwrap_or("Bird");
+            if cat == "Bird" {
+                if let Some(tid) = r.get("taxon_id").and_then(|v| v.as_str()) {
+                    set.insert(tid.to_lowercase());
                 }
-                if set.len() > PROMINENT_FALLBACK_BIRDS.len() {
-                    break;
+                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                    let lower = cname.to_lowercase();
+                    set.insert(lower.clone());
+                    let slug = lower.replace(' ', "_");
+                    set.insert(slug.clone());
+                    set.insert(slug.replace('-', "_"));
+                    set.insert(lower.replace('-', " "));
+                }
+                if let Some(slug) = r.get("folder_slug").and_then(|v| v.as_str()) {
+                    let lower = slug.to_lowercase();
+                    set.insert(lower.clone());
+                    set.insert(lower.replace('-', "_"));
+                    set.insert(lower.replace('_', " "));
+                }
+                if let Some(sci) = r.get("scientific_name").and_then(|v| v.as_str()) {
+                    let lower = sci.to_lowercase();
+                    set.insert(lower.clone());
+                    set.insert(lower.replace(' ', "_"));
                 }
             }
         }
     }
+
     set
 });
 
@@ -252,6 +135,12 @@ static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLo
 #[must_use]
 pub fn curated_multi_taxa_map() -> &'static HashMap<String, AssetCategory> {
     &CURATED_MULTI_TAXA_MAP
+}
+
+/// Returns the canonical embedded eBird and multi-taxa taxonomy JSON content.
+#[must_use]
+pub fn raw_taxonomy_json() -> &'static str {
+    TAXONOMY_JSON
 }
 
 /// High-level taxonomic domain or photographic genre category.
@@ -602,6 +491,50 @@ impl RoutingTier {
     /// Domain-extensible alias for [`RoutingTier::NoBirdDetected`].
     #[allow(non_upper_case_globals)]
     pub const NoSubjectDetected: Self = Self::NoBirdDetected;
+
+    /// Directory name for assets requiring human review.
+    pub const DIR_NEEDS_REVIEW: &'static str = "_Needs_Review";
+
+    /// Path prefix for items in the Needs Review hierarchy (`_Needs_Review/`).
+    pub const PREFIX_NEEDS_REVIEW: &'static str = "_Needs_Review/";
+
+    /// Directory name for assets where no focal subject was detected.
+    pub const DIR_NO_SUBJECT_DETECTED: &'static str = "_No_Subject_Detected";
+
+    /// Legacy directory name for backward compatibility with older archives.
+    pub const DIR_NO_BIRD_DETECTED: &'static str = "_No_Bird_Detected";
+
+    /// Directory name for corrupted or unreadable images.
+    pub const DIR_CORRUPTED: &'static str = "_Corrupted_Images";
+
+    /// Default output hierarchy root directory name.
+    pub const DEFAULT_OUTPUT_DIR: &'static str = "birds_hierarchy";
+
+    /// Sentinel species slug for assets where no bird or focal subject was detected.
+    pub const SENTINEL_NO_BIRD_DETECTED: &'static str = "_No_Bird_Detected";
+
+    /// Sentinel species slug for generic non-avian or unclassified subjects.
+    pub const SENTINEL_NO_SUBJECT_DETECTED: &'static str = "_No_Subject_Detected";
+
+    /// Descriptive in-place filename token for items needing human review.
+    pub const TOKEN_NEEDS_REVIEW: &'static str = "Needs_Review";
+
+    /// Descriptive in-place filename token for unclassified assets without a focal subject.
+    pub const TOKEN_NO_SUBJECT_DETECTED: &'static str = "No_Subject_Detected";
+
+    /// Descriptive in-place filename token for legacy avian zero-detection frames.
+    pub const TOKEN_NO_BIRD_DETECTED: &'static str = "No_Bird_Detected";
+
+    /// Returns the canonical directory name within the organized hierarchy for this routing tier,
+    /// or `None` if the asset is routed directly under its confirmed species/category directory.
+    #[must_use]
+    pub const fn dir_name(&self) -> Option<&'static str> {
+        match self {
+            Self::ConfirmedSpecies => None,
+            Self::NeedsReview => Some(Self::DIR_NEEDS_REVIEW),
+            Self::NoBirdDetected => Some(Self::DIR_NO_SUBJECT_DETECTED),
+        }
+    }
 }
 
 /// Mode governing how confidence scores are calculated across photo bursts.

@@ -90,16 +90,16 @@ pub fn format_inplace_filename(
     let mut parts = Vec::new();
 
     if is_needs_review {
-        parts.push("Needs_Review".to_string());
+        parts.push(RoutingTier::TOKEN_NEEDS_REVIEW.to_string());
     }
 
     if is_unclassified {
         let unclass_token = if subj_without_nr.to_ascii_lowercase().contains("bird")
             || cat_without_nr.to_ascii_lowercase().contains("bird")
         {
-            "No_Bird_Detected".to_string()
+            RoutingTier::TOKEN_NO_BIRD_DETECTED.to_string()
         } else {
-            "No_Subject_Detected".to_string()
+            RoutingTier::TOKEN_NO_SUBJECT_DETECTED.to_string()
         };
         parts.push(unclass_token);
     } else {
@@ -263,14 +263,14 @@ pub fn parse_inplace_filename(filename: &str, original_stem: &str) -> Option<Inp
         let is_bird = after_tier.contains("Bird");
         let subject_name = if is_bird {
             if after_tier.starts_with('_') {
-                "_No_Bird_Detected".to_string()
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
             } else {
-                "No_Bird_Detected".to_string()
+                RoutingTier::TOKEN_NO_BIRD_DETECTED.to_string()
             }
         } else if after_tier.starts_with('_') {
-            "_No_Subject_Detected".to_string()
+            RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
         } else {
-            "No_Subject_Detected".to_string()
+            RoutingTier::TOKEN_NO_SUBJECT_DETECTED.to_string()
         };
 
         let remainder = if let Some(stripped) = after_tier.strip_prefix("_No_Subject_Detected_") {

@@ -17,6 +17,7 @@ import sys
 import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, NamedTuple
 
 # Suppress noisy logs & warnings
@@ -53,23 +54,31 @@ COCO_ANIMAL_CLASS_IDS: frozenset[int] = frozenset(
     }
 )
 
-CANONICAL_CATEGORIES: tuple[str, ...] = (
-    "Bird",
-    "Mammalia",
-    "Insecta",
-    "Reptilia",
-    "Amphibia",
-    "Scenery",
-    "Architecture",
-    "Portrait",
-    "Abstract",
-)
+
+class AssetCategory(str, Enum):
+    """High-level taxonomic domain or photographic genre category."""
+
+    BIRD = "Bird"
+    MAMMALIA = "Mammalia"
+    INSECTA = "Insecta"
+    HERPETOFAUNA = "Herpetofauna"
+    REPTILIA = "Reptilia"
+    AMPHIBIA = "Amphibia"
+    SCENERY = "Scenery"
+    PORTRAIT = "Portrait"
+    ARCHITECTURE = "Architecture"
+    ABSTRACT = "Abstract"
+    NO_SUBJECT_DETECTED = "No_Subject_Detected"
+    UNKNOWN = "Unknown"
+
+
+CANONICAL_CATEGORIES: tuple[str, ...] = tuple(c.value for c in AssetCategory)
 
 
 class CategoryAnchorResult(NamedTuple):
     """Immutable result from Stage 1 category anchor gating."""
 
-    category: str
+    category: AssetCategory
     confidence: float
     scores: dict[str, float]
     is_ambiguous: bool = False
@@ -127,7 +136,7 @@ class InferencePrediction:
     common_name: str
     scientific_name: str
     confidence: float
-    category: str = "Bird"
+    category: AssetCategory | str = AssetCategory.BIRD
     embedding: list[float] | None = None
     raw_logit: float = 0.0
     regional_prior_applied: bool = False
@@ -143,7 +152,7 @@ class InferencePrediction:
         common_name: str = "",
         scientific_name: str = "",
         confidence: float = 0.0,
-        category: str = "Bird",
+        category: AssetCategory | str = AssetCategory.BIRD,
         embedding: list[float] | None = None,
         raw_logit: float = 0.0,
         regional_prior_applied: bool = False,
@@ -154,7 +163,7 @@ class InferencePrediction:
     ) -> None:
         if args:
             if len(args) >= 1 and args[0] in CANONICAL_CATEGORIES:
-                cat = str(args[0])
+                cat = args[0]
                 sp_code = str(args[1]) if len(args) > 1 else species_code
                 c_name = str(args[2]) if len(args) > 2 else common_name
                 sc_name = str(args[3]) if len(args) > 3 else scientific_name
@@ -165,7 +174,7 @@ class InferencePrediction:
                 c_name = str(args[1]) if len(args) > 1 else common_name
                 sc_name = str(args[2]) if len(args) > 2 else scientific_name
                 conf = float(args[3]) if len(args) > 3 else confidence
-                cat = str(args[4]) if len(args) > 4 else category
+                cat = args[4] if len(args) > 4 else category
                 emb = args[5] if len(args) > 5 else embedding
         else:
             sp_code = species_code
@@ -175,11 +184,21 @@ class InferencePrediction:
             cat = category
             emb = embedding
 
+        cat_val = (
+            cat
+            if isinstance(cat, AssetCategory)
+            else (
+                AssetCategory(cat)
+                if isinstance(cat, str) and cat in AssetCategory._value2member_map_
+                else AssetCategory.UNKNOWN
+            )
+        )
+
         object.__setattr__(self, "species_code", sp_code)
         object.__setattr__(self, "common_name", c_name)
         object.__setattr__(self, "scientific_name", sc_name)
         object.__setattr__(self, "confidence", conf)
-        object.__setattr__(self, "category", cat)
+        object.__setattr__(self, "category", cat_val)
         object.__setattr__(self, "embedding", emb)
         object.__setattr__(self, "raw_logit", raw_logit)
         object.__setattr__(self, "regional_prior_applied", regional_prior_applied)
@@ -191,9 +210,12 @@ class InferencePrediction:
     def to_dict(self) -> dict[str, Any]:
         """Exports prediction record to serialized dictionary structure expected by avicull."""
         slug = self.folder_slug or self.common_name.replace(" ", "_")
+        cat_str = (
+            self.category.value if isinstance(self.category, AssetCategory) else str(self.category)
+        )
         d: dict[str, Any] = {
             "taxon_id": self.species_code,
-            "category": self.category,
+            "category": cat_str,
             "common_name": self.common_name,
             "folder_slug": slug,
             "scientific_name": self.scientific_name,
@@ -337,7 +359,9 @@ def classify_category_anchors(
         and is_ambiguous flag.
     """
     if not category_centroids:
-        return CategoryAnchorResult(category="Bird", confidence=1.0, scores={}, is_ambiguous=False)
+        return CategoryAnchorResult(
+            category=AssetCategory.BIRD, confidence=1.0, scores={}, is_ambiguous=False
+        )
 
     if not isinstance(embedding, torch.Tensor):
         z = torch.tensor(embedding, dtype=torch.float32)
@@ -377,8 +401,13 @@ def classify_category_anchors(
                 top_cat = "Bird"
                 top_score = bird_score
 
+    cat_enum = (
+        AssetCategory(top_cat)
+        if top_cat in AssetCategory._value2member_map_
+        else AssetCategory.UNKNOWN
+    )
     return CategoryAnchorResult(
-        category=top_cat,
+        category=cat_enum,
         confidence=top_score,
         scores=scores,
         is_ambiguous=is_ambiguous,
@@ -530,7 +559,7 @@ class AvianInferenceEngine:
         if not os.path.exists(image_path):
             return {
                 "error": f"File not found: {image_path}",
-                "category": "Unknown",
+                "category": AssetCategory.UNKNOWN.value,
                 "detected": False,
                 "detection_confidence": 0.0,
                 "assigned_species_slug": "Unknown",
@@ -550,7 +579,7 @@ class AvianInferenceEngine:
         except Exception as e:
             return {
                 "error": f"Failed to open image: {e}",
-                "category": "Unknown",
+                "category": AssetCategory.UNKNOWN.value,
                 "detected": False,
                 "detection_confidence": 0.0,
                 "assigned_species_slug": "Unknown",
@@ -621,7 +650,7 @@ class AvianInferenceEngine:
                 # Ambiguous or no confident subject -> fallback to _No_Subject_Detected
                 return {
                     "image_path": image_path,
-                    "category": "No_Subject_Detected",
+                    "category": AssetCategory.NO_SUBJECT_DETECTED.value,
                     "detected": False,
                     "detection_confidence": 0.0,
                     "assigned_species_slug": "_No_Subject_Detected",
@@ -636,7 +665,14 @@ class AvianInferenceEngine:
             det_conf = best_genre_score
             img_emb = full_emb
             is_fallback_crop = False
-            target_category = best_genre
+            best_cat_name = (
+                best_genre.value if isinstance(best_genre, AssetCategory) else str(best_genre)
+            )
+            target_category = (
+                AssetCategory(best_cat_name)
+                if best_cat_name in AssetCategory._value2member_map_
+                else AssetCategory(anchor_res.category)
+            )
         else:
             crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
             with torch.no_grad():
@@ -677,27 +713,45 @@ class AvianInferenceEngine:
             )
 
             if detected_person and not detected_bird and not detected_mammal:
-                target_category = "Portrait"
+                target_category = AssetCategory.PORTRAIT
             elif detected_mammal and not detected_bird:
                 # If YOLO detected a mammal with high confidence and no bird, route
                 # target_category = "Mammalia" unless a bird candidate has overwhelming
                 # visual similarity margin exceeding the top mammal prediction by >= 0.15.
-                target_category = "Bird" if max_bird_sim - max_mammal_sim >= 0.15 else "Mammalia"
+                target_category = (
+                    AssetCategory.BIRD
+                    if max_bird_sim - max_mammal_sim >= 0.15
+                    else AssetCategory.MAMMALIA
+                )
             elif detected_bird and not detected_mammal:
                 # Default target_category = "Bird" unless non-bird has margin >= 0.05.
-                target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
+                top_cat_enum = (
+                    AssetCategory(top_sp_cat)
+                    if top_sp_cat in AssetCategory._value2member_map_
+                    else AssetCategory.BIRD
+                )
+                target_category = (
+                    top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
+                )
             elif detected_bird and detected_mammal:
-                target_category = top_sp_cat if max_non_bird_sim - max_bird_sim >= 0.05 else "Bird"
+                top_cat_enum = (
+                    AssetCategory(top_sp_cat)
+                    if top_sp_cat in AssetCategory._value2member_map_
+                    else AssetCategory.BIRD
+                )
+                target_category = (
+                    top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
+                )
             else:
                 # If YOLO detected an animal (cat, dog, etc.) or open-set entity:
                 # Never blindly default to Bird. If top candidate is not Bird, honor it.
                 # If ambiguous, use category centroids.
                 if any(det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections):
-                    target_category = "Mammalia"
+                    target_category = AssetCategory.MAMMALIA
                 elif any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections):
-                    target_category = "Bird"
-                elif top_sp_cat != "Bird":
-                    target_category = top_sp_cat
+                    target_category = AssetCategory.BIRD
+                elif top_sp_cat != "Bird" and top_sp_cat in AssetCategory._value2member_map_:
+                    target_category = AssetCategory(top_sp_cat)
                 else:
                     anchor_res = classify_category_anchors(
                         img_emb[0], self.category_centroids, margin=0.02
@@ -705,14 +759,19 @@ class AvianInferenceEngine:
                     target_category = (
                         anchor_res.category
                         if not anchor_res.is_ambiguous
-                        else "No_Subject_Detected"
+                        else AssetCategory.NO_SUBJECT_DETECTED
                     )
 
             is_fallback_crop = False
 
         # Stage 2: Fine-grained ranking within target_category
+        target_cat_str = (
+            target_category.value
+            if isinstance(target_category, AssetCategory)
+            else str(target_category)
+        )
         cat_indices = [
-            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == target_category
+            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == target_cat_str
         ]
 
         if not cat_indices:
@@ -806,7 +865,7 @@ class AvianInferenceEngine:
 
         return {
             "image_path": image_path,
-            "category": target_category,
+            "category": target_cat_str,
             "detected": not is_fallback_crop and det_conf >= min_detect,
             "detection_confidence": round(det_conf, 4),
             "assigned_species_slug": top1_slug,

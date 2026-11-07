@@ -98,40 +98,41 @@ pub fn reconcile_manual_disk_moves(
             continue;
         }
 
-        let (target_tier, target_slug, target_category) = if dir_components[0] == "_Needs_Review" {
-            if dir_components.len() > 1 {
-                let slug =
-                    sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1]));
-                let cat = if dir_components.len() > 2 {
-                    match_known_category(dir_components[1])
+        let (target_tier, target_slug, target_category) =
+            if dir_components[0] == RoutingTier::DIR_NEEDS_REVIEW {
+                if dir_components.len() > 1 {
+                    let slug =
+                        sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1]));
+                    let cat = if dir_components.len() > 2 {
+                        match_known_category(dir_components[1])
+                            .unwrap_or_else(|| AssetCategory::from_slug(&slug))
+                    } else {
+                        AssetCategory::from_slug(&slug)
+                    };
+                    (RoutingTier::NeedsReview, slug, cat)
+                } else {
+                    continue;
+                }
+            } else if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED
+                || dir_components[0] == RoutingTier::DIR_NO_SUBJECT_DETECTED
+            {
+                (
+                    RoutingTier::NoBirdDetected,
+                    RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+                    AssetCategory::NoSubjectDetected,
+                )
+            } else if let Some(species_dir) = dir_components.last() {
+                let slug = sanitize_species_slug(species_dir);
+                let cat = if dir_components.len() > 1 {
+                    match_known_category(dir_components[0])
                         .unwrap_or_else(|| AssetCategory::from_slug(&slug))
                 } else {
                     AssetCategory::from_slug(&slug)
                 };
-                (RoutingTier::NeedsReview, slug, cat)
+                (RoutingTier::ConfirmedSpecies, slug, cat)
             } else {
                 continue;
-            }
-        } else if dir_components[0] == "_No_Bird_Detected"
-            || dir_components[0] == "_No_Subject_Detected"
-        {
-            (
-                RoutingTier::NoBirdDetected,
-                "_No_Bird_Detected".to_string(),
-                AssetCategory::NoSubjectDetected,
-            )
-        } else if let Some(species_dir) = dir_components.last() {
-            let slug = sanitize_species_slug(species_dir);
-            let cat = if dir_components.len() > 1 {
-                match_known_category(dir_components[0])
-                    .unwrap_or_else(|| AssetCategory::from_slug(&slug))
-            } else {
-                AssetCategory::from_slug(&slug)
             };
-            (RoutingTier::ConfirmedSpecies, slug, cat)
-        } else {
-            continue;
-        };
 
         // Match the file to a known bundle
         let mut matched_bundle_id: Option<String> = None;
@@ -286,7 +287,7 @@ pub(crate) fn parse_inplace_slug_and_tier(
         if tier == RoutingTier::NoBirdDetected {
             return Some((
                 AssetCategory::NoSubjectDetected,
-                "_No_Bird_Detected".to_string(),
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
                 RoutingTier::NoBirdDetected,
             ));
         }
@@ -308,7 +309,7 @@ pub(crate) fn parse_inplace_slug_and_tier(
         if slug.is_empty() {
             Some((
                 AssetCategory::NoSubjectDetected,
-                "_No_Bird_Detected".to_string(),
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
                 RoutingTier::NoBirdDetected,
             ))
         } else {

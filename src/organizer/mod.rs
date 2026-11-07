@@ -172,8 +172,10 @@ pub fn build_output_destination_path(
 
     match routing_tier {
         RoutingTier::ConfirmedSpecies => output_root.join(cat).join(effective_subject),
-        RoutingTier::NeedsReview => output_root.join("_Needs_Review").join(effective_subject),
-        RoutingTier::NoBirdDetected => output_root.join("_No_Subject_Detected"),
+        RoutingTier::NeedsReview => output_root
+            .join(RoutingTier::DIR_NEEDS_REVIEW)
+            .join(effective_subject),
+        RoutingTier::NoBirdDetected => output_root.join(RoutingTier::DIR_NO_SUBJECT_DETECTED),
     }
 }
 
@@ -312,9 +314,12 @@ pub fn materialize_bundle_hardlinks_with_category(
         }
         // Backward compatibility: symlink _No_Bird_Detected -> _No_Subject_Detected
         if decision.routing_tier == RoutingTier::NoBirdDetected {
-            let legacy_symlink = output_root.join("_No_Bird_Detected");
+            let legacy_symlink = output_root.join(RoutingTier::DIR_NO_BIRD_DETECTED);
             if !legacy_symlink.exists() && fs::symlink_metadata(&legacy_symlink).is_err() {
-                let _ = std::os::unix::fs::symlink("_No_Subject_Detected", &legacy_symlink);
+                let _ = std::os::unix::fs::symlink(
+                    RoutingTier::DIR_NO_SUBJECT_DETECTED,
+                    &legacy_symlink,
+                );
             }
         }
     }
@@ -518,7 +523,7 @@ pub fn clean_run_operations(db: &ManifestDb, run_id: &str) -> Result<usize> {
             let _ = fs::remove_dir(&d);
         }
         if let Some(parent) = d.parent() {
-            let legacy_symlink = parent.join("_No_Bird_Detected");
+            let legacy_symlink = parent.join(RoutingTier::DIR_NO_BIRD_DETECTED);
             if fs::symlink_metadata(&legacy_symlink).is_ok() && !legacy_symlink.exists() {
                 let _ = fs::remove_file(&legacy_symlink);
             }

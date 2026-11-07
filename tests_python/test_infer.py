@@ -19,6 +19,7 @@ from scripts.infer import (
     COCO_ANIMAL_CLASS_IDS,
     COCO_BIRD_CLASS_ID,
     COCO_PERSON_CLASS_ID,
+    AssetCategory,
     AvianInferenceEngine,
     CategoryAnchorResult,
     DetectionBox,
@@ -830,6 +831,35 @@ class TestMultiTaxaHierarchicalInferenceFlow(unittest.TestCase):
         self.assertIn(res["category"], ("Scenery", "Architecture", "Portrait", "Abstract"))
         self.assertTrue(res["detected"])
         self.assertNotEqual(res["assigned_species_slug"], "_No_Subject_Detected")
+
+
+class TestAssetCategory(unittest.TestCase):
+    def test_enum_variants_and_values(self):
+        self.assertEqual(AssetCategory.BIRD, "Bird")
+        self.assertEqual(AssetCategory.MAMMALIA, "Mammalia")
+        self.assertEqual(AssetCategory.INSECTA, "Insecta")
+        self.assertEqual(AssetCategory.HERPETOFAUNA, "Herpetofauna")
+        self.assertEqual(AssetCategory.REPTILIA, "Reptilia")
+        self.assertEqual(AssetCategory.AMPHIBIA, "Amphibia")
+        self.assertEqual(AssetCategory.SCENERY, "Scenery")
+        self.assertEqual(AssetCategory.PORTRAIT, "Portrait")
+        self.assertEqual(AssetCategory.ARCHITECTURE, "Architecture")
+        self.assertEqual(AssetCategory.ABSTRACT, "Abstract")
+        self.assertEqual(AssetCategory.NO_SUBJECT_DETECTED, "No_Subject_Detected")
+        self.assertEqual(AssetCategory.UNKNOWN, "Unknown")
+
+    def test_prediction_uses_asset_category(self):
+        pred = InferencePrediction(
+            species_code="paisto1",
+            common_name="Painted Stork",
+            folder_slug="Painted_Stork",
+            scientific_name="Mycteria leucocephala",
+            confidence=0.98,
+            category=AssetCategory.BIRD,
+        )
+        self.assertIsInstance(pred.category, AssetCategory)
+        self.assertEqual(pred.category, AssetCategory.BIRD)
+        self.assertEqual(pred.to_dict()["category"], "Bird")
 
 
 if __name__ == "__main__":

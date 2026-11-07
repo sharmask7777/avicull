@@ -907,3 +907,97 @@ fn test_guardrail_infer_prediction_from_stem_rejects_sentinels_and_botanical() {
         );
     }
 }
+
+#[test]
+fn test_routing_tier_associated_constants_and_dir_name() {
+    assert_eq!(RoutingTier::DIR_NEEDS_REVIEW, "_Needs_Review");
+    assert_eq!(RoutingTier::PREFIX_NEEDS_REVIEW, "_Needs_Review/");
+    assert_eq!(RoutingTier::DIR_NO_SUBJECT_DETECTED, "_No_Subject_Detected");
+    assert_eq!(RoutingTier::DIR_NO_BIRD_DETECTED, "_No_Bird_Detected");
+    assert_eq!(RoutingTier::DIR_CORRUPTED, "_Corrupted_Images");
+    assert_eq!(RoutingTier::DEFAULT_OUTPUT_DIR, "birds_hierarchy");
+    assert_eq!(RoutingTier::SENTINEL_NO_BIRD_DETECTED, "_No_Bird_Detected");
+    assert_eq!(
+        RoutingTier::SENTINEL_NO_SUBJECT_DETECTED,
+        "_No_Subject_Detected"
+    );
+
+    assert_eq!(RoutingTier::ConfirmedSpecies.dir_name(), None);
+    assert_eq!(
+        RoutingTier::NeedsReview.dir_name(),
+        Some(RoutingTier::DIR_NEEDS_REVIEW)
+    );
+    assert_eq!(
+        RoutingTier::NoBirdDetected.dir_name(),
+        Some(RoutingTier::DIR_NO_SUBJECT_DETECTED)
+    );
+}
+
+#[test]
+fn test_guardrail_zero_hardcoded_prominent_fallback_birds_slice() {
+    let types_src = std::fs::read_to_string("src/types.rs")
+        .or_else(|_| std::fs::read_to_string("../src/types.rs"))
+        .expect("Must read src/types.rs");
+
+    assert!(
+        !types_src.contains("PROMINENT_FALLBACK_BIRDS"),
+        "src/types.rs must not contain ad-hoc PROMINENT_FALLBACK_BIRDS; all birds must be handled by authoritative taxonomy"
+    );
+}
+
+#[test]
+fn test_ebird_taxonomy_comprehensive_global_coverage() {
+    use avicull::types::is_known_bird_slug;
+
+    let global_ebird_species = [
+        "painted_stork",
+        "downy_woodpecker",
+        "bald_eagle",
+        "jamaican_lizard_cuckoo",
+        "tawny_frogmouth",
+        "mountain_quail",
+        "desert_lark",
+        "bearded_vulture",
+        "chukar",
+        "desert_wheatear",
+        "oriental_turtle_dove",
+        "eurasian_kestrel",
+        "peregrine_falcon",
+        "mallard",
+        "ruddy_shelduck",
+    ];
+
+    for slug in global_ebird_species {
+        assert!(
+            is_known_bird_slug(slug),
+            "Authoritative taxonomy must recognize global eBird species '{}'",
+            slug
+        );
+        assert_eq!(
+            AssetCategory::from_slug(slug),
+            AssetCategory::Bird,
+            "Global eBird species '{}' must resolve to AssetCategory::Bird",
+            slug
+        );
+    }
+}
+
+#[test]
+fn test_guardrail_catalog_template_defines_frozen_enums() {
+    let template_src = std::fs::read_to_string("src/catalog/template.rs")
+        .or_else(|_| std::fs::read_to_string("../src/catalog/template.rs"))
+        .expect("Must read src/catalog/template.rs");
+
+    assert!(
+        template_src.contains("const AssetCategory = Object.freeze"),
+        "Catalog template must define frozen AssetCategory enum"
+    );
+    assert!(
+        template_src.contains("const RoutingTier = Object.freeze"),
+        "Catalog template must define frozen RoutingTier enum"
+    );
+    assert!(
+        template_src.contains("AssetCategory.NO_SUBJECT_DETECTED"),
+        "Catalog template must reference AssetCategory.NO_SUBJECT_DETECTED enum instead of magic string"
+    );
+}

@@ -1290,6 +1290,27 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
 <script>
   let CATALOG_DATA = {{}};
+
+  const AssetCategory = Object.freeze({{
+    BIRD: 'Bird',
+    MAMMALIA: 'Mammalia',
+    INSECTA: 'Insecta',
+    HERPETOFAUNA: 'Herpetofauna',
+    REPTILIA: 'Reptilia',
+    AMPHIBIA: 'Amphibia',
+    SCENERY: 'Scenery',
+    PORTRAIT: 'Portrait',
+    ARCHITECTURE: 'Architecture',
+    ABSTRACT: 'Abstract',
+    NO_SUBJECT_DETECTED: 'No_Subject_Detected',
+    UNKNOWN: 'Unknown'
+  }});
+
+  const RoutingTier = Object.freeze({{
+    CONFIRMED_SPECIES: 'ConfirmedSpecies',
+    NEEDS_REVIEW: 'NeedsReview',
+    NO_BIRD_DETECTED: 'NoBirdDetected'
+  }});
   try {{
     const el = document.getElementById('catalog-data');
     if (el) {{
@@ -1435,7 +1456,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
 
-      const itemCat = item.category || 'No_Subject_Detected';
+      const itemCat = item.category || AssetCategory.NO_SUBJECT_DETECTED;
       const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
       if (!matchCategory) return false;
 
@@ -1555,10 +1576,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       let tierBadgeClass = "badge-confirmed";
       let tierLabel = `${{confPct}}%`;
 
-      if (item.routing_tier === 'NeedsReview') {{
+      if (item.routing_tier === RoutingTier.NEEDS_REVIEW) {{
         tierBadgeClass = "badge-review";
         tierLabel = `Review (${{confPct}}%)`;
-      }} else if (item.routing_tier === 'NoBirdDetected') {{
+      }} else if (item.routing_tier === RoutingTier.NO_BIRD_DETECTED) {{
         tierBadgeClass = "badge-nobird";
         tierLabel = "No Subject";
       }}
@@ -1591,7 +1612,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const isSelected = selectedIds.has(item.id);
       const selectedClass = isSelected ? ' selected' : '';
 
-      const category = item.category || 'No_Subject_Detected';
+      const category = item.category || AssetCategory.NO_SUBJECT_DETECTED;
       const catLower = category.toLowerCase();
       const categoryBadgeMarkup = `<span class="badge-category badge-cat-${{catLower}}">${{category}}</span>`;
 
@@ -1677,7 +1698,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     // Toggle category sub-pills row visibility for No Subject tier
     const subPillsRow = document.getElementById('categorySubPillsRow');
     if (subPillsRow) {{
-      if (tier === 'NoBirdDetected') {{
+      if (tier === RoutingTier.NO_BIRD_DETECTED) {{
         subPillsRow.classList.add('hidden');
       }} else {{
         subPillsRow.classList.remove('hidden');
@@ -1696,7 +1717,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
     const counts = {{ all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 }};
     scopeItems.forEach(i => {{
-      const c = i.category || 'No_Subject_Detected';
+      const c = i.category || AssetCategory.NO_SUBJECT_DETECTED;
       if (counts[c] !== undefined) {{
         counts[c]++;
       }} else {{
@@ -1946,19 +1967,19 @@ fi
   }}
 
   function resolveTargetCategory(species, fallbackCategory) {{
-    if (!species) return fallbackCategory || 'No_Subject_Detected';
+    if (!species) return fallbackCategory || AssetCategory.NO_SUBJECT_DETECTED;
     const s = species.toLowerCase().trim().replace(/^_+/, '');
-    if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return 'No_Subject_Detected';
+    if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return AssetCategory.NO_SUBJECT_DETECTED;
 
     // Direct match against known category prefixes
-    if (s.startsWith('mammalia') || s.startsWith('mammal')) return 'Mammalia';
-    if (s.startsWith('insecta') || s.startsWith('insect')) return 'Insecta';
-    if (s.startsWith('reptilia') || s.startsWith('reptile')) return 'Reptilia';
-    if (s.startsWith('amphibia') || s.startsWith('amphibian')) return 'Amphibia';
-    if (s.startsWith('scenery') || s.startsWith('landscape')) return 'Scenery';
-    if (s.startsWith('architecture') || s.startsWith('building')) return 'Architecture';
-    if (s.startsWith('portrait')) return 'Portrait';
-    if (s.startsWith('abstract')) return 'Abstract';
+    if (s.startsWith('mammalia') || s.startsWith('mammal')) return AssetCategory.MAMMALIA;
+    if (s.startsWith('insecta') || s.startsWith('insect')) return AssetCategory.INSECTA;
+    if (s.startsWith('reptilia') || s.startsWith('reptile')) return AssetCategory.REPTILIA;
+    if (s.startsWith('amphibia') || s.startsWith('amphibian')) return AssetCategory.AMPHIBIA;
+    if (s.startsWith('scenery') || s.startsWith('landscape')) return AssetCategory.SCENERY;
+    if (s.startsWith('architecture') || s.startsWith('building')) return AssetCategory.ARCHITECTURE;
+    if (s.startsWith('portrait')) return AssetCategory.PORTRAIT;
+    if (s.startsWith('abstract')) return AssetCategory.ABSTRACT;
 
     // Exact matches in non-avian curated categories
     const exactMultiTaxa = {curated_multi_taxa_json};
@@ -1969,7 +1990,7 @@ fi
     if (exactMultiTaxa[withUnderscores]) return exactMultiTaxa[withUnderscores];
 
     // If user selected a valid species (like Brahminy Kite, European Turtle-Dove), it is a Bird!
-    if (fallbackCategory === 'No_Subject_Detected' || !fallbackCategory) return 'Bird';
+    if (fallbackCategory === AssetCategory.NO_SUBJECT_DETECTED || !fallbackCategory) return AssetCategory.BIRD;
     return fallbackCategory;
   }}
 
@@ -1987,7 +2008,7 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
-    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || 'No_Subject_Detected';
+    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || AssetCategory.NO_SUBJECT_DETECTED;
     const cat = resolveTargetCategory(species, itemCat);
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
@@ -2727,7 +2748,7 @@ fi
           altSpecies = (item.assigned_species === firstPred.common_name) ? secondPred.common_name : firstPred.common_name;
           altConf = secondScore;
         }}
-      }} else if (item.routing_tier === 'NeedsReview') {{
+      }} else if (item.routing_tier === RoutingTier.NEEDS_REVIEW) {{
         altSpecies = item.assigned_species;
       }}
 
@@ -2922,7 +2943,7 @@ fi
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
         const escStem = escapeShellArg(d.item.original_stem);
         const escSpec = escapeShellArg(d.proposedSpecies);
-        const cat = d.item.category || 'No_Subject_Detected';
+        const cat = d.item.category || AssetCategory.NO_SUBJECT_DETECTED;
         commands.push(`  avicull correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}"`);
       }}
     }}

@@ -87,7 +87,9 @@ impl CatalogItem {
         sidecar_paths: Option<Vec<PathBuf>>,
     ) -> Self {
         let (assigned_species, scientific_name) = match decision.routing_tier {
-            RoutingTier::NoBirdDetected => ("_No_Bird_Detected".to_string(), None),
+            RoutingTier::NoBirdDetected => {
+                (RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(), None)
+            }
             _ => {
                 if decision.is_user_override {
                     let cleaned = decision.assigned_species_slug.replace('_', " ");
