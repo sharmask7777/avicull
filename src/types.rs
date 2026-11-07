@@ -79,6 +79,10 @@ static PROMINENT_FALLBACK_BIRDS: &[&str] = &[
     "house_finch",
     "american_goldfinch",
     "european_turtle-dove",
+    "rose-ringed_parakeet",
+    "great_black-backed_gull",
+    "purple_finch",
+    "red-vented_bulbul",
 ];
 
 static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| {
@@ -101,7 +105,8 @@ static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::n
     ];
 
     if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        candidate_paths.push(PathBuf::from(manifest).join("models/taxonomy.json"));
+        candidate_paths.push(PathBuf::from(&manifest).join("models/taxonomy.json"));
+        candidate_paths.push(PathBuf::from(&manifest).join("tests/fixtures/models/taxonomy.json"));
     }
     if let Ok(home) = std::env::var("HOME") {
         candidate_paths.push(PathBuf::from(home).join(".cache/avicull/models/taxonomy.json"));

@@ -281,7 +281,7 @@ fn run_fallback_parallel_classification(
                     .map(std::string::String::as_str);
                 let (emb, preds) = classifier
                     .classify_with_region(&cropped, bundle.gps_coords, region, geo_prior_weight)
-                    .unwrap_or_else(|_| (vec![0.0; 512], vec![]));
+                    .unwrap_or_else(|_| (Vec::new(), vec![]));
 
                 if preds.is_empty() {
                     if let Some((_cat, pred, _tier)) =
@@ -350,7 +350,7 @@ fn run_fallback_parallel_classification(
                     capture_timestamp_ms: bundle.capture_timestamp_ms,
                     detection_confidence: 0.0,
                     bbox_norm: None,
-                    embedding: vec![0.0; 512],
+                    embedding: Vec::new(),
                     top_predictions: vec![],
                     posteriors: vec![],
                 }
@@ -802,7 +802,7 @@ fn main() -> Result<()> {
                             capture_timestamp_ms: bundle.capture_timestamp_ms,
                             detection_confidence: existing_decision.detection_confidence,
                             bbox_norm: existing_decision.bbox_xyxy_norm,
-                            embedding: vec![0.0; 512],
+                            embedding: Vec::new(),
                             top_predictions: existing_decision.top_predictions.clone(),
                             posteriors,
                         },
@@ -1104,7 +1104,9 @@ fn main() -> Result<()> {
             // Persist bundle decisions with 512-dim visual embeddings and resolved taxonomic categories
             let embeddings_by_id: std::collections::HashMap<&str, &[f32]> = all_classified_items
                 .iter()
-                .filter(|item| item.embedding.len() == 512)
+                .filter(|item| {
+                    item.embedding.len() == 512 && item.embedding.iter().any(|&v| v != 0.0)
+                })
                 .map(|item| (item.bundle_id.as_str(), item.embedding.as_slice()))
                 .collect();
 

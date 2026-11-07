@@ -1767,8 +1767,9 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
 
     // Generic, data-driven reconciliation to fix legacy deprecated categories and slugs in SQLite
     if table_exists(conn, "bundle_decisions")? {
-        let mut stmt =
-            conn.prepare("SELECT DISTINCT assigned_species_slug, category FROM bundle_decisions")?;
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT assigned_species_slug, category FROM bundle_decisions WHERE is_user_override = 0",
+        )?;
         let rows: Vec<(String, String)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .filter_map(std::result::Result::ok)
@@ -1789,7 +1790,7 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
             };
             if target_cat.as_str() != cat_str {
                 let _ = conn.execute(
-                    "UPDATE bundle_decisions SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3",
+                    "UPDATE bundle_decisions SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3 AND is_user_override = 0",
                     rusqlite::params![target_cat.as_str(), slug, cat_str],
                 );
             }
@@ -1811,8 +1812,13 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
     }
 
     if table_exists(conn, "bundles")? {
-        let mut stmt =
-            conn.prepare("SELECT DISTINCT assigned_species_slug, category FROM bundles")?;
+        let has_override = has_column(conn, "bundles", "is_user_override")?;
+        let select_sql = if has_override {
+            "SELECT DISTINCT assigned_species_slug, category FROM bundles WHERE is_user_override = 0"
+        } else {
+            "SELECT DISTINCT assigned_species_slug, category FROM bundles"
+        };
+        let mut stmt = conn.prepare(select_sql)?;
         let rows: Vec<(String, String)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
             .filter_map(std::result::Result::ok)
@@ -1832,15 +1838,20 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                 slug_cat
             };
             if target_cat.as_str() != cat_str {
+                let update_sql = if has_override {
+                    "UPDATE bundles SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3 AND is_user_override = 0"
+                } else {
+                    "UPDATE bundles SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3"
+                };
                 let _ = conn.execute(
-                    "UPDATE bundles SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3",
+                    update_sql,
                     rusqlite::params![target_cat.as_str(), slug, cat_str],
                 );
             }
         }
 
         // Remap deprecated Botanical or non-biological subjects to neutral sentinel
-        let _ = conn.execute(
+        let botanical_sql = if has_override {
             "UPDATE bundles
              SET category = 'No_Subject_Detected',
                  assigned_species_slug = '_No_Subject_Detected',
@@ -1849,9 +1860,19 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                  detection_conf = 0.0,
                  frame_conf = 0.0,
                  final_conf = 0.0
-             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')",
-            [],
-        );
+             WHERE (category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')) AND is_user_override = 0"
+        } else {
+            "UPDATE bundles
+             SET category = 'No_Subject_Detected',
+                 assigned_species_slug = '_No_Subject_Detected',
+                 routing_tier = 'NoBirdDetected',
+                 top5_predictions_json = '[]',
+                 detection_conf = 0.0,
+                 frame_conf = 0.0,
+                 final_conf = 0.0
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')"
+        };
+        let _ = conn.execute(botanical_sql, []);
     }
 
     Ok(())
@@ -1895,8 +1916,10 @@ pub fn insert_bundle_decision(
     };
 
     let blob_bytes = match embedding {
-        Some(emb) => Some(serialize_embedding_512(emb)?),
-        None => None,
+        Some(emb) if emb.len() == 512 && emb.iter().any(|&v| v != 0.0) => {
+            Some(serialize_embedding_512(emb)?)
+        }
+        _ => None,
     };
 
     conn.execute(
@@ -1979,8 +2002,13 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             _ => RoutingTier::NoBirdDetected,
         };
 
+        let is_override_bool = is_user_override != 0;
         let slug_cat = AssetCategory::from_slug(&assigned_species_slug);
-        let category = if slug_cat == AssetCategory::NoSubjectDetected {
+        let category = if is_override_bool {
+            category_str
+                .parse()
+                .unwrap_or(AssetCategory::NoSubjectDetected)
+        } else if slug_cat == AssetCategory::NoSubjectDetected {
             let parsed_category: AssetCategory = category_str
                 .parse()
                 .unwrap_or(AssetCategory::NoSubjectDetected);
@@ -2017,7 +2045,7 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             final_confidence,
             assigned_species_slug,
             routing_tier,
-            is_user_override: is_user_override != 0,
+            is_user_override: is_override_bool,
         };
 
         Ok((decision, category, embedding))
