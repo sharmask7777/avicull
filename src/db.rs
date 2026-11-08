@@ -233,7 +233,7 @@ impl ManifestDb {
                 is_user_override INTEGER NOT NULL DEFAULT 0,
                 relative_path TEXT,
                 was_dataless INTEGER DEFAULT 0,
-                category TEXT NOT NULL DEFAULT 'Bird',
+                category TEXT NOT NULL DEFAULT 'No_Subject_Detected',
                 visual_embedding BLOB,
                 FOREIGN KEY(run_id) REFERENCES runs(run_id)
             );
@@ -485,14 +485,27 @@ impl ManifestDb {
                 let was_dataless_val =
                     i32::from(was_dataless_flags.get(idx).copied().unwrap_or(false));
 
+                let category = if dec.routing_tier == RoutingTier::NoBirdDetected {
+                    AssetCategory::NoSubjectDetected
+                } else {
+                    let from_slug = AssetCategory::from_slug(&dec.assigned_species_slug);
+                    if from_slug != AssetCategory::NoSubjectDetected {
+                        from_slug
+                    } else if let Some(top) = dec.top_predictions.first() {
+                        top.category()
+                    } else {
+                        AssetCategory::NoSubjectDetected
+                    }
+                };
+
                 tx.execute(
                     "INSERT OR REPLACE INTO bundles (
                         bundle_id, run_id, source_inode, trip_folder, original_stem,
                         capture_timestamp_ms, lat, lon, location_source, burst_id,
                         detection_conf, bbox_json, assigned_species_slug, frame_conf,
                         final_conf, routing_tier, top5_predictions_json, bundle_json,
-                        is_user_override, relative_path, was_dataless
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+                        is_user_override, relative_path, was_dataless, category
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
                     params![
                         dec.bundle_id,
                         run_id,
@@ -515,6 +528,7 @@ impl ManifestDb {
                         i32::from(dec.is_user_override),
                         bundle.relative_path.as_ref().map(|p| p.to_string_lossy().to_string()),
                         was_dataless_val,
+                        category.as_str(),
                     ],
                 )?;
             }
@@ -604,9 +618,10 @@ impl ManifestDb {
         routing_tier: RoutingTier,
         final_conf: f32,
     ) -> Result<()> {
+        let category = AssetCategory::from_slug(new_species_slug);
         self.update_bundle_override_with_category(
             bundle_id,
-            "Bird",
+            category.as_str(),
             new_species_slug,
             routing_tier,
             final_conf,
@@ -1691,7 +1706,7 @@ fn table_exists(conn: &Connection, table: &str) -> Result<bool> {
 ///
 /// Idempotently executes:
 /// ```sql
-/// ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird';
+/// ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'No_Subject_Detected';
 /// ALTER TABLE bundle_decisions ADD COLUMN visual_embedding BLOB;
 /// ```
 /// and ensures both `bundle_decisions` and `bundles` tables are up-to-date without data loss.
@@ -1705,7 +1720,7 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
     if table_exists(conn, "bundle_decisions")? {
         if !has_column(conn, "bundle_decisions", "category")? {
             conn.execute(
-                "ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird'",
+                "ALTER TABLE bundle_decisions ADD COLUMN category TEXT NOT NULL DEFAULT 'No_Subject_Detected'",
                 [],
             )?;
         }
@@ -1729,7 +1744,7 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                 routing_tier TEXT NOT NULL,
                 top5_predictions_json TEXT NOT NULL,
                 is_user_override INTEGER NOT NULL DEFAULT 0,
-                category TEXT NOT NULL DEFAULT 'Bird',
+                category TEXT NOT NULL DEFAULT 'No_Subject_Detected',
                 visual_embedding BLOB
             );
             CREATE INDEX IF NOT EXISTS idx_bundle_decisions_cat ON bundle_decisions(category);
@@ -1741,13 +1756,123 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
     if table_exists(conn, "bundles")? {
         if !has_column(conn, "bundles", "category")? {
             conn.execute(
-                "ALTER TABLE bundles ADD COLUMN category TEXT NOT NULL DEFAULT 'Bird'",
+                "ALTER TABLE bundles ADD COLUMN category TEXT NOT NULL DEFAULT 'No_Subject_Detected'",
                 [],
             )?;
         }
         if !has_column(conn, "bundles", "visual_embedding")? {
             conn.execute("ALTER TABLE bundles ADD COLUMN visual_embedding BLOB", [])?;
         }
+    }
+
+    // Generic, data-driven reconciliation to fix legacy deprecated categories and slugs in SQLite
+    if table_exists(conn, "bundle_decisions")? {
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT assigned_species_slug, category FROM bundle_decisions WHERE is_user_override = 0",
+        )?;
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .filter_map(std::result::Result::ok)
+            .collect();
+
+        for (slug, cat_str) in rows {
+            let slug_cat = AssetCategory::from_slug(&slug);
+            let target_cat = if slug_cat == AssetCategory::NoSubjectDetected {
+                let parsed: AssetCategory =
+                    cat_str.parse().unwrap_or(AssetCategory::NoSubjectDetected);
+                if parsed == AssetCategory::Bird {
+                    AssetCategory::NoSubjectDetected
+                } else {
+                    parsed
+                }
+            } else {
+                slug_cat
+            };
+            if target_cat.as_str() != cat_str {
+                let _ = conn.execute(
+                    "UPDATE bundle_decisions SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3 AND is_user_override = 0",
+                    rusqlite::params![target_cat.as_str(), slug, cat_str],
+                );
+            }
+        }
+
+        // Remap deprecated Botanical or non-biological subjects to neutral sentinel
+        let _ = conn.execute(
+            "UPDATE bundle_decisions
+             SET category = 'No_Subject_Detected',
+                 assigned_species_slug = '_No_Subject_Detected',
+                 routing_tier = 'NoBirdDetected',
+                 top5_predictions_json = '[]',
+                 detection_conf = 0.0,
+                 frame_conf = 0.0,
+                 final_conf = 0.0
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')",
+            [],
+        );
+    }
+
+    if table_exists(conn, "bundles")? {
+        let has_override = has_column(conn, "bundles", "is_user_override")?;
+        let select_sql = if has_override {
+            "SELECT DISTINCT assigned_species_slug, category FROM bundles WHERE is_user_override = 0"
+        } else {
+            "SELECT DISTINCT assigned_species_slug, category FROM bundles"
+        };
+        let mut stmt = conn.prepare(select_sql)?;
+        let rows: Vec<(String, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .filter_map(std::result::Result::ok)
+            .collect();
+
+        for (slug, cat_str) in rows {
+            let slug_cat = AssetCategory::from_slug(&slug);
+            let target_cat = if slug_cat == AssetCategory::NoSubjectDetected {
+                let parsed: AssetCategory =
+                    cat_str.parse().unwrap_or(AssetCategory::NoSubjectDetected);
+                if parsed == AssetCategory::Bird {
+                    AssetCategory::NoSubjectDetected
+                } else {
+                    parsed
+                }
+            } else {
+                slug_cat
+            };
+            if target_cat.as_str() != cat_str {
+                let update_sql = if has_override {
+                    "UPDATE bundles SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3 AND is_user_override = 0"
+                } else {
+                    "UPDATE bundles SET category = ?1 WHERE assigned_species_slug = ?2 AND category = ?3"
+                };
+                let _ = conn.execute(
+                    update_sql,
+                    rusqlite::params![target_cat.as_str(), slug, cat_str],
+                );
+            }
+        }
+
+        // Remap deprecated Botanical or non-biological subjects to neutral sentinel
+        let botanical_sql = if has_override {
+            "UPDATE bundles
+             SET category = 'No_Subject_Detected',
+                 assigned_species_slug = '_No_Subject_Detected',
+                 routing_tier = 'NoBirdDetected',
+                 top5_predictions_json = '[]',
+                 detection_conf = 0.0,
+                 frame_conf = 0.0,
+                 final_conf = 0.0
+             WHERE (category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')) AND is_user_override = 0"
+        } else {
+            "UPDATE bundles
+             SET category = 'No_Subject_Detected',
+                 assigned_species_slug = '_No_Subject_Detected',
+                 routing_tier = 'NoBirdDetected',
+                 top5_predictions_json = '[]',
+                 detection_conf = 0.0,
+                 frame_conf = 0.0,
+                 final_conf = 0.0
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')"
+        };
+        let _ = conn.execute(botanical_sql, []);
     }
 
     Ok(())
@@ -1791,8 +1916,10 @@ pub fn insert_bundle_decision(
     };
 
     let blob_bytes = match embedding {
-        Some(emb) => Some(serialize_embedding_512(emb)?),
-        None => None,
+        Some(emb) if emb.len() == 512 && emb.iter().any(|&v| v != 0.0) => {
+            Some(serialize_embedding_512(emb)?)
+        }
+        _ => None,
     };
 
     conn.execute(
@@ -1859,7 +1986,9 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
         let routing_tier_str: String = row.get(7)?;
         let top5_json: String = row.get(8)?;
         let is_user_override: i64 = row.get(9).unwrap_or(0);
-        let category_str: String = row.get(10).unwrap_or_else(|_| "Bird".to_string());
+        let category_str: String = row
+            .get(10)
+            .unwrap_or_else(|_| "No_Subject_Detected".to_string());
         let blob_opt: Option<Vec<u8>> = row.get(11)?;
 
         let bbox_xyxy_norm: Option<[f32; 4]> =
@@ -1873,7 +2002,24 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             _ => RoutingTier::NoBirdDetected,
         };
 
-        let category: AssetCategory = category_str.parse().unwrap_or(AssetCategory::Bird);
+        let is_override_bool = is_user_override != 0;
+        let slug_cat = AssetCategory::from_slug(&assigned_species_slug);
+        let category = if is_override_bool {
+            category_str
+                .parse()
+                .unwrap_or(AssetCategory::NoSubjectDetected)
+        } else if slug_cat == AssetCategory::NoSubjectDetected {
+            let parsed_category: AssetCategory = category_str
+                .parse()
+                .unwrap_or(AssetCategory::NoSubjectDetected);
+            if parsed_category == AssetCategory::Bird {
+                AssetCategory::NoSubjectDetected
+            } else {
+                parsed_category
+            }
+        } else {
+            slug_cat
+        };
 
         let embedding = match blob_opt {
             Some(bytes) => match deserialize_embedding_512(&bytes) {
@@ -1899,7 +2045,7 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             final_confidence,
             assigned_species_slug,
             routing_tier,
-            is_user_override: is_user_override != 0,
+            is_user_override: is_override_bool,
         };
 
         Ok((decision, category, embedding))

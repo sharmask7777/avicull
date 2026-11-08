@@ -412,3 +412,250 @@ fn test_embedding_serialization_roundtrip_and_errors() {
         "2049 bytes must fail deserialization"
     );
 }
+
+#[test]
+fn test_legacy_schema_migration_and_query_decisions_reconciles_all_non_avian_categories() {
+    let conn = rusqlite::Connection::open_in_memory().expect("open in-memory db");
+
+    conn.execute(
+        "CREATE TABLE bundle_decisions (
+            bundle_id TEXT PRIMARY KEY,
+            burst_id TEXT,
+            detection_conf REAL NOT NULL,
+            bbox_json TEXT,
+            assigned_species_slug TEXT NOT NULL,
+            frame_conf REAL NOT NULL,
+            final_conf REAL NOT NULL,
+            routing_tier TEXT NOT NULL,
+            top5_predictions_json TEXT NOT NULL,
+            is_user_override INTEGER NOT NULL DEFAULT 0,
+            category TEXT NOT NULL DEFAULT 'Bird'
+        )",
+        [],
+    )
+    .expect("create legacy table");
+
+    // Seed rows with legacy erroneous categories
+    let sample_cases = [
+        ("bd_marmot", "Himalayan_Marmot", "Bird", "ConfirmedSpecies"),
+        (
+            "bd_portrait",
+            "Close-up_Human_Portrait",
+            "Bird",
+            "ConfirmedSpecies",
+        ),
+        ("bd_dunes", "Desert_Dunes", "Bird", "ConfirmedSpecies"),
+        ("bd_banyan", "Banyan_Tree", "Botanical", "ConfirmedSpecies"),
+        ("bd_stork", "Painted_Stork", "Bird", "ConfirmedSpecies"),
+        (
+            "bd_wheatear",
+            "Desert_Wheatear",
+            "Scenery",
+            "ConfirmedSpecies",
+        ),
+        (
+            "bd_vulture",
+            "Bearded_Vulture",
+            "Mammalia",
+            "ConfirmedSpecies",
+        ),
+    ];
+
+    for (bid, slug, cat, tier) in sample_cases {
+        conn.execute(
+            "INSERT INTO bundle_decisions (
+                bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug,
+                frame_conf, final_conf, routing_tier, top5_predictions_json, is_user_override, category
+            ) VALUES (?1, NULL, 0.9, '[]', ?2, 0.9, 0.9, ?3, '[]', 0, ?4)",
+            rusqlite::params![bid, slug, tier, cat],
+        )
+        .expect("insert test row");
+    }
+
+    // Run migration
+    migrate_bundle_decisions(&conn).expect("migration failed");
+
+    // Query decisions to verify categories and slugs are reconciled
+    let results = query_decisions(&conn).expect("query_decisions failed");
+    let lookup: std::collections::HashMap<String, (AssetCategory, String)> = results
+        .into_iter()
+        .map(|(dec, cat, _)| (dec.bundle_id, (cat, dec.assigned_species_slug)))
+        .collect();
+
+    // 1. Himalayan Marmot must be Mammalia, not Bird
+    let (marmot_cat, _) = lookup.get("bd_marmot").expect("found marmot");
+    assert_eq!(*marmot_cat, AssetCategory::Mammalia);
+
+    // 2. Human Portrait must be Portrait, not Bird
+    let (portrait_cat, _) = lookup.get("bd_portrait").expect("found portrait");
+    assert_eq!(*portrait_cat, AssetCategory::Portrait);
+
+    // 3. Desert Dunes must be Scenery, not Bird
+    let (dunes_cat, _) = lookup.get("bd_dunes").expect("found dunes");
+    assert_eq!(*dunes_cat, AssetCategory::Scenery);
+
+    // 4. Banyan Tree must be NoSubjectDetected, slug _No_Subject_Detected
+    let (banyan_cat, banyan_slug) = lookup.get("bd_banyan").expect("found banyan");
+    assert_eq!(*banyan_cat, AssetCategory::NoSubjectDetected);
+    assert_eq!(banyan_slug, "_No_Subject_Detected");
+
+    // 5. Painted Stork must remain Bird
+    let (stork_cat, _) = lookup.get("bd_stork").expect("found stork");
+    assert_eq!(*stork_cat, AssetCategory::Bird);
+
+    // 6. Desert Wheatear must be restored to Bird, not Scenery
+    let (wheatear_cat, _) = lookup.get("bd_wheatear").expect("found wheatear");
+    assert_eq!(*wheatear_cat, AssetCategory::Bird);
+
+    // 7. Bearded Vulture must be restored to Bird, not Mammalia
+    let (vulture_cat, _) = lookup.get("bd_vulture").expect("found vulture");
+    assert_eq!(*vulture_cat, AssetCategory::Bird);
+}
+
+#[test]
+fn test_insert_bundle_decision_zero_embedding_stored_as_null() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_zero_emb".to_string(),
+        burst_id: Some("burst_1".to_string()),
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 0.0,
+        assigned_species_slug: "_No_Subject_Detected".to_string(),
+        routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
+    };
+
+    let zero_emb = vec![0.0f32; 512];
+    db.insert_bundle_decision(
+        &decision,
+        &AssetCategory::NoSubjectDetected,
+        Some(&zero_emb),
+    )
+    .expect("insert decision with zero embedding");
+
+    let conn = rusqlite::Connection::open(&db_path).expect("open raw sqlite");
+    let not_null_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM bundle_decisions WHERE visual_embedding IS NOT NULL",
+            [],
+            |r| r.get(0),
+        )
+        .expect("query not null count");
+
+    assert_eq!(
+        not_null_count, 0,
+        "Zero-magnitude embedding vector must be stored as SQL NULL, never as a 2048-byte BLOB of zeros"
+    );
+}
+
+#[test]
+fn test_query_decisions_preserves_user_override_bird_category() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_override_bird".to_string(),
+        burst_id: Some("burst_1".to_string()),
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "Unlisted_Rare_Finch".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
+    };
+
+    db.insert_bundle_decision(&decision, &AssetCategory::Bird, None)
+        .expect("insert user override decision");
+
+    let conn = rusqlite::Connection::open(&db_path).expect("open raw sqlite");
+    let results = query_decisions(&conn).expect("query decisions");
+    assert_eq!(results.len(), 1);
+    let (dec, cat, _) = &results[0];
+    assert_eq!(dec.bundle_id, "bundle_override_bird");
+    assert_eq!(
+        *cat,
+        AssetCategory::Bird,
+        "User override to Bird must be preserved, never clobbered to NoSubjectDetected"
+    );
+}
+
+#[test]
+fn test_migrate_preserves_user_override_in_bundles_table() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let run_id = "run_override_test";
+    db.record_run(
+        run_id,
+        Path::new("/photos/input"),
+        Path::new("/photos/output"),
+        false,
+        "{}",
+    )
+    .expect("record run");
+
+    let bundle = AssetBundle {
+        bundle_id: "b_override_1".to_string(),
+        source_inode: 555,
+        trip_folder_name: "Trip1".to_string(),
+        original_stem: "IMG_5555".to_string(),
+        primary_image: PathBuf::from("/photos/input/IMG_5555.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: None,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_override_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        assigned_species_slug: "Unlisted_Rare_Finch".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle])
+        .expect("record bundle");
+
+    db.update_bundle_override_with_category(
+        "b_override_1",
+        "Bird",
+        "Unlisted_Rare_Finch",
+        RoutingTier::ConfirmedSpecies,
+        1.0,
+    )
+    .expect("update override with category");
+
+    let conn = rusqlite::Connection::open(&db_path).expect("open raw sqlite");
+    migrate_bundle_decisions(&conn).expect("run migration");
+
+    let cat_in_bundles: String = conn
+        .query_row(
+            "SELECT category FROM bundles WHERE bundle_id = 'b_override_1'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("query category from bundles");
+
+    assert_eq!(
+        cat_in_bundles, "Bird",
+        "Migration must preserve user override category in bundles table"
+    );
+}

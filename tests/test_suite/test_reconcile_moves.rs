@@ -859,10 +859,14 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         .unwrap();
     db.record_bundles(
         run_id,
-        &[dec_bird, dec_mammal],
+        &[dec_bird.clone(), dec_mammal.clone()],
         &[bundle_bird, bundle_mammal],
     )
     .unwrap();
+    db.insert_bundle_decision(&dec_bird, &AssetCategory::Bird, None)
+        .unwrap();
+    db.insert_bundle_decision(&dec_mammal, &AssetCategory::Mammalia, None)
+        .unwrap();
 
     // 1. User renames DSC_0042 to 2-level Bird name with date & location
     let renamed_bird =
@@ -896,4 +900,30 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
     );
     assert_eq!(mem_dec_mammal.routing_tier, RoutingTier::ConfirmedSpecies);
     assert!(mem_dec_mammal.is_user_override);
+
+    // Verify SQLite database has category = 'Mammalia', NOT 'Bird'!
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let cat: String = conn
+        .query_row(
+            "SELECT category FROM bundles WHERE bundle_id = 'bundle_mammal_0105'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        cat, "Mammalia",
+        "SQLite bundles category must be Mammalia, never Bird"
+    );
+
+    let dec_cat: String = conn
+        .query_row(
+            "SELECT category FROM bundle_decisions WHERE bundle_id = 'bundle_mammal_0105'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        dec_cat, "Mammalia",
+        "SQLite bundle_decisions category must be Mammalia, never Bird"
+    );
 }

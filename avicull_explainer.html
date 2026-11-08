@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>avicull — Local AI Bird Photo Organizer | Interactive Animated Explainer & Audio Guide</title>
+  <title>avicull — Local AI Bird & Multi-Taxa Photo Organizer | In-Place Renaming & Zero-Byte Hard Links | Interactive Animated Explainer & Audio Guide</title>
   <style>
     :root {
       --bg-base: #0a0e17;
@@ -961,6 +961,61 @@
     .pill-yellow { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
     .pill-purple { background: rgba(139, 92, 246, 0.2); color: #c084fc; }
 
+    /* Interactive Catalog Mockup Styles */
+    .catalog-pill-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+    .catalog-pill {
+      font-size: 0.72rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .catalog-pill.active {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: #10b981;
+      color: #34d399;
+      font-weight: 600;
+    }
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.85rem;
+    }
+    .catalog-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.2s ease;
+    }
+    .catalog-card.selected {
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+    }
+    .catalog-card-img {
+      height: 105px;
+      background: #0b1220;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .catalog-card-body {
+      padding: 0.6rem;
+      font-size: 0.75rem;
+    }
+
     /* Responsive adjustments */
     @media (max-width: 900px) {
       .perspective-grid { grid-template-columns: 1fr; }
@@ -984,8 +1039,8 @@
         </svg>
       </div>
       <div class="brand-text">
-        <h1>avicull <span class="badge">Apple Silicon • Rust</span> <span class="badge badge-ebird">11,167 eBird Species</span></h1>
-        <p>Local AI Bird Photo Organizer, Decoupled Cache & APFS Hard-Link Engine</p>
+        <h1>avicull <span class="badge">Apple Silicon • Rust</span> <span class="badge badge-ebird">11,167 Species + Multi-Taxa</span></h1>
+        <p>Local AI Bird & Multi-Taxa Photo Organizer • In-Place Renaming & Zero-Byte Hard Links</p>
       </div>
     </div>
 
@@ -1047,37 +1102,42 @@
             <span class="scene-tag">Scene 1 of 9 • Overview</span>
             <span class="scene-duration">⏱ ~65 sec audio</span>
           </div>
-          <h2 class="scene-title">The Avian Photo Crisis & The Zero-Byte Solution</h2>
-          <p class="scene-desc">Why bird photographers are trapped between chronological trip archives and taxonomic species catalogs—and how avicull solves it without duplicating a single megabyte.</p>
+          <h2 class="scene-title">The Expedition Photo Crisis & The Two Zero-Byte Solutions</h2>
+          <p class="scene-desc">Why wildlife photographers are trapped between chronological expedition archives and taxonomic species catalogs—and how avicull solves it through universal in-place renaming and zero-byte hard links across 11,167 birds and multi-taxa biodiversity.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> The Bird Photographer's Reality</h3>
+            <h3><span>🔭</span> The Photographer's Reality</h3>
             <span class="pill pill-green">Field Workflow</span>
           </div>
           <div class="perspective-card-body">
-            You return from Keoladeo, Costa Rica, or Leh with 10,000 photos. You shot at 20–30 frames per second on continuous burst mode. You have massive RAW files (.CR3, .ARW, .NEF) paired with Lightroom .XMP sidecar edits.
+            You return from Keoladeo, Costa Rica, or Leh with 10,000 photos. You shot at 20–30 frames per second on continuous burst mode. You have massive RAW files (.CR3, .ARW, .NEF) paired with Lightroom .XMP and DxO .DOP sidecar edits.
             <ul>
-              <li><strong>The Catch-22:</strong> You want to browse <em>by trip</em> ("What did I see in Leh?") AND <em>by species</em> ("Show me all my Painted Stork shots!").</li>
-              <li><strong>The Old Painful Way:</strong> Either manually tag every single frame (hours of tedious work), or copy files into species folders (instantly doubling disk usage and wasting 500GB+).</li>
+              <li><strong>The Catch-22:</strong> You want to browse <em>by trip</em> ("What did I see in Leh?") AND <em>by species</em> ("Show me all my Snow Leopards and Bar-headed Geese!").</li>
+              <li><strong>The Two Zero-Byte Solutions:</strong>
+                <ul>
+                  <li><strong>In-Place Renaming (Default):</strong> Standardizes filenames directly where they live (<code>&lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;...</code>) while keeping companion sidecars synchronized. Works everywhere, including exFAT travel SSDs!</li>
+                  <li><strong>Hierarchy Tree (Optional):</strong> Projects photos into taxonomic species folders via APFS hard links, consuming 0 extra bytes.</li>
+                </ul>
+              </li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> The Systems & AI Architecture</h3>
+            <h3><span>⚡</span> Systems & AI Architecture</h3>
             <span class="pill pill-blue">Design Invariants</span>
           </div>
           <div class="perspective-card-body">
             <code>avicull</code> is a local-first, deterministic command-line system written in Rust specifically targeting macOS on Apple Silicon (M1/M2/M3/M4).
             <ul>
-              <li><strong>Strict Source Immutability:</strong> The input trip directory (<code>--input</code>) is strictly read-only. Source files are never moved, renamed, or modified.</li>
-              <li><strong>APFS Zero-Byte Hard Links:</strong> Projects files into species folders using POSIX hard links (<code>std::fs::hard_link</code>), pointing to the identical disk inode.</li>
-              <li><strong>Decoupled Neural Pipeline:</strong> Multi-stage YOLO11m detector + BioCLIP 2 vision embeddings + SINR spatio-temporal prior against 11,167 eBird species.</li>
+              <li><strong>Comprehensive Multi-Taxa Classification:</strong> Covers 11,167 eBird avian species plus 224+ curated global species across 9 singular categories: <code>Bird</code>, <code>Mammalia</code>, <code>Insecta</code>, <code>Reptilia</code>, <code>Amphibia</code>, <code>Scenery</code>, <code>Architecture</code>, <code>Portrait</code>, <code>Abstract</code>.</li>
+              <li><strong>Universal In-Place or Zero-Byte APFS Links:</strong> Reorganizes files with zero data bloat using POSIX hard links (<code>std::fs::hard_link</code>) or deterministic in-place renames.</li>
+              <li><strong>Decoupled Neural Pipeline:</strong> Multi-stage YOLO11 subject detector + BioCLIP 2 vision embeddings + Bayesian spatial-temporal priors.</li>
             </ul>
           </div>
         </div>
@@ -1089,53 +1149,53 @@
         <div class="pipeline-flow">
           <div class="pipeline-node active-stage">
             <div class="node-icon">📁</div>
-            <div class="node-title">Immutable Trips</div>
+            <div class="node-title">Trip Archive</div>
             <div class="node-subtitle">RAW + XMP sidecars</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node">
             <div class="node-icon">📍</div>
-            <div class="node-title">Location Engine</div>
+            <div class="node-title">Geo Cascade</div>
             <div class="node-subtitle">EXIF + Sibling + Gazetteer</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node">
             <div class="node-icon">🎯</div>
             <div class="node-title">YOLO11 Crop</div>
-            <div class="node-subtitle">Apple Neural Engine</div>
+            <div class="node-subtitle">15% Context Padding</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node">
             <div class="node-icon">🧬</div>
-            <div class="node-title">BioCLIP + SINR</div>
-            <div class="node-subtitle">11,167 eBird Species</div>
+            <div class="node-title">BioCLIP + Prior</div>
+            <div class="node-subtitle">11,167 Birds + Multi-Taxa</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node">
             <div class="node-icon">🌊</div>
             <div class="node-title">Burst Smooth</div>
-            <div class="node-subtitle">Cosine Clustering</div>
+            <div class="node-subtitle">Cosine Pooling</div>
           </div>
           <div class="pipeline-arrow">➔</div>
           <div class="pipeline-node active-stage">
-            <div class="node-icon">🦅</div>
-            <div class="node-title">Species Tree</div>
-            <div class="node-subtitle">0 Extra Bytes!</div>
+            <div class="node-icon">✨</div>
+            <div class="node-title">In-Place / Tree</div>
+            <div class="node-subtitle">0 Extra Disk Bytes!</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 2: Inode Magic, UNIX Extensibility & The exFAT Trap -->
+    <!-- SCENE 2: Inode Magic, In-Place vs Hierarchy & The exFAT Trap -->
     <section class="scene-slide" id="scene-1" data-index="1">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 2 of 9 • Core Invariant & Portability</span>
+            <span class="scene-tag">Scene 2 of 9 • Filesystem Strategies & Portability</span>
             <span class="scene-duration">⏱ ~85 sec audio</span>
           </div>
-          <h2 class="scene-title">The Inode Magic: Zero-Byte Projections, UNIX & The exFAT Trap</h2>
-          <p class="scene-desc">How POSIX hard links extend across UNIX filesystems and Windows NTFS—and the critical storage trap every photographer must know before copying to external drives.</p>
+          <h2 class="scene-title">In-Place Universal Renaming vs APFS Hard Links & The exFAT Trap</h2>
+          <p class="scene-desc">Why in-place renaming works universally on any travel drive (exFAT, FAT32, APFS, NTFS), how POSIX hard links enable zero-byte hierarchy trees, and how to avoid disk duplication traps.</p>
         </div>
       </div>
 
@@ -1146,19 +1206,19 @@
             <span class="pill pill-green">Storage & Portability</span>
           </div>
           <div class="perspective-card-body">
-            Normally, duplicating a 50MB Sony or Canon RAW file into another folder costs another 50MB.
-            With <code>avicull</code>, opening the photo from <code>Trips/Bharatpur/DSC_4011.CR2</code> or from <code>birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2</code> opens the <em>exact same physical bits</em> on your Mac's SSD!
+            Normally, copying a 50MB Sony or Canon RAW file into species folders costs another 50MB.
+            <code>avicull</code> offers two distinct, storage-safe strategies:
             <ul>
-              <li>Edits in your original .XMP sidecar stay automatically connected across both locations.</li>
-              <li>You can organize an individual trip folder and your entire photo archive simultaneously!</li>
-              <li><strong>⚠️ The exFAT Danger:</strong> Most portable SSDs (SanDisk, Samsung T7) come formatted as <strong>exFAT</strong> for Mac/PC plug-and-play. But exFAT does <em>not</em> support hard links! Drag-and-drop copying to exFAT doubles your storage footprint. Keep external Mac drives formatted as <strong>APFS</strong>, or format as <strong>NTFS</strong> and use <code>rsync -avH</code>!</li>
+              <li><strong>In-Place Renaming (Universal Default):</strong> Renames files directly where they live (<code>&lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;...</code>) while keeping .XMP and .DOP edits synchronized. Works on <em>any</em> portable SSD or SD card, including exFAT!</li>
+              <li><strong>Zero-Byte Hierarchy Tree:</strong> On APFS or NTFS drives, projects files into <code>birds_hierarchy/</code> via POSIX hard links. Opening the file from either folder opens the <em>exact same physical bits</em>!</li>
+              <li><strong>⚠️ The exFAT Trap:</strong> Portable SSDs (SanDisk Extreme, Samsung T7) are typically pre-formatted as <strong>exFAT</strong>, which does <em>not</em> support hard links. Drag-and-drop copying hardlink trees to exFAT duplicates all payloads. Use <strong>in-place mode</strong> on exFAT, or format the drive as <strong>APFS</strong> or <strong>NTFS</strong> (with <code>rsync -avH</code>)!</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> Under The Hood: POSIX Inodes & NTFS</h3>
+            <h3><span>⚡</span> Under The Hood: Inodes, VFS & NTFS</h3>
             <span class="pill pill-blue">VFS & Filesystem Internals</span>
           </div>
           <div class="perspective-card-body">
@@ -1166,8 +1226,8 @@
             <ul>
               <li><strong>UNIX Extensibility:</strong> ext4, Btrfs, XFS, ZFS, F2FS, and UFS all implement directory entries as mappings to an inode number (<code>st_ino</code>), incrementing <code>st_nlink</code> with <strong>0 additional disk payload</strong>.</li>
               <li><strong>NTFS Support:</strong> Windows NTFS natively supports hard links via Master File Table (MFT) record reference counts (up to 1,024 links per file).</li>
-              <li><strong>The Copy Trap:</strong> Standard <code>cp -r</code> or macOS Finder reads each dentry as a new file, inflating links into duplicates. To preserve zero-byte links across drives, use <code>rsync -avH</code> (which maintains an in-memory inode map to hard-link on destination) or pipe <code>tar</code>.</li>
-              <li><strong>The `EXDEV` Boundary:</strong> Hard links can never cross filesystem devices (<code>st_dev</code> mismatch).</li>
+              <li><strong>In-Place Mode (Filesystem Agnostic):</strong> Renames parent and sidecar dentries atomically via <code>std::fs::rename</code>, bypassing hard link limitations on non-POSIX filesystems.</li>
+              <li><strong>The Copy Trap:</strong> Standard <code>cp -r</code> or macOS Finder reads each dentry as a new file, inflating links into duplicates. To preserve zero-byte links across drives, use <code>rsync -avH</code> or pipe <code>tar</code>.</li>
             </ul>
           </div>
         </div>
@@ -1284,40 +1344,41 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 3 of 9 • Discovery & Geo</span>
+            <span class="scene-tag">Scene 3 of 9 • Discovery, Bundling & Geo</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
-          <h2 class="scene-title">Stage 1 & 2: Discovery, RAW Previews & Location Fallbacks</h2>
-          <p class="scene-desc">Scanning large photo trees in milliseconds, bundling sidecars, extracting embedded previews, and inferring coordinates without manual tagging.</p>
+          <h2 class="scene-title">Stage 1 & 2: Discovery, Sidecar Bundling, Dataless Protection & Geo Cascade</h2>
+          <p class="scene-desc">Scanning large photo trees in milliseconds, bundling RAWs with XMP/DOP sidecars, safeguarding Darwin dataless files from cloud hydration, extracting embedded previews, and inferring GPS coordinates.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> Camera Bodies & Forgotten GPS</h3>
+            <h3><span>🔭</span> Camera Bodies, Sidecars & GPS</h3>
             <span class="pill pill-green">Real Fieldwork</span>
           </div>
           <div class="perspective-card-body">
-            Professional birding cameras (Canon EOS R5, Sony A1, Nikon Z9) often have GPS turned off to preserve battery, or lose signal under dense canopy.
+            Professional wildlife cameras (Canon EOS R5, Sony A1, Nikon Z9, Fuji X-T5) often have GPS disabled to conserve battery, or lose signal under dense canopy.
             <ul>
-              <li><strong>Sibling Propagation:</strong> If only <em>one</em> photo in your entire trip folder has GPS (like a quick phone snap), <code>avicull</code> automatically propagates those coordinates to all other photos in that trip!</li>
-              <li><strong>Folder Gazetteer:</strong> If your folder is named <code>2025-11_Keoladeo_Bharatpur</code>, avicull recognizes the bird sanctuary name and applies its coordinates automatically!</li>
+              <li><strong>Zero Lost Edits:</strong> RAW files are bundled with companion JPEGs, Lightroom <code>.xmp</code>, DxO PhotoLab <code>.dop</code>, and companion live burst videos (<code>.mov</code>). Edits and metadata always stay synchronized!</li>
+              <li><strong>Sibling Propagation:</strong> If only <em>one</em> photo in your entire trip folder has GPS (like a quick iPhone shot), <code>avicull</code> automatically propagates those coordinates to every shot in that trip folder!</li>
+              <li><strong>Folder Gazetteer:</strong> If your folder is named <code>2025-11_Keoladeo_Bharatpur</code>, avicull recognizes the sanctuary name and applies its coordinates automatically.</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> Low-Level Parsing & BLAKE3 Bundling</h3>
+            <h3><span>⚡</span> High-Throughput I/O & Cloud Safety</h3>
             <span class="pill pill-blue">High Performance I/O</span>
           </div>
           <div class="perspective-card-body">
-            <code>src/scanner.rs</code> and <code>src/geo.rs</code> prioritize high-throughput parallel execution:
+            <code>src/scanner.rs</code> and <code>src/geo.rs</code> prioritize safety and high-throughput execution:
             <ul>
-              <li><strong>Recursive Scanner:</strong> Uses <code>walkdir</code> while skipping <code>birds_hierarchy</code>, <code>.avicull</code>, and Apple Photos <code>.photoslibrary</code> packages to avoid infinite recursion.</li>
-              <li><strong>In-Memory RAW Preview:</strong> Scans the raw binary for embedded JPEG markers (<code>0xFFD8..0xFFD9</code>). This extracts 4K JPEG previews in 15ms—10x faster than dcraw or full raw demosaicing.</li>
-              <li><strong>AssetBundle Contract:</strong> Bundles primary RAW, companion JPEG, and sidecars (<code>.xmp</code>, <code>.dop</code>, <code>.pp3</code>) under a deterministic BLAKE3 hash.</li>
+              <li><strong>Darwin `SF_DATALESS` Protection:</strong> Detects macOS FileProvider flags (<code>0x40000000</code>). Eager opening of dataless cloud files is strictly blocked, preventing unwanted on-demand cloud hydration from iCloud Drive or Dropbox!</li>
+              <li><strong>In-Memory RAW Preview:</strong> Scans raw bytes for embedded JPEG markers (<code>0xFFD8..0xFFD9</code>). This extracts 4K JPEG previews in 15ms—10x faster than dcraw or full raw demosaicing.</li>
+              <li><strong>AssetBundle Contract:</strong> Bundles primary RAW, companion JPEG, sidecars (<code>.xmp</code>, <code>.dop</code>), and companion videos under a deterministic BLAKE3 hash.</li>
             </ul>
           </div>
         </div>
@@ -1357,11 +1418,11 @@
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 4 of 9 • Detection</span>
+            <span class="scene-tag">Scene 4 of 9 • Detection & Padding</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
-          <h2 class="scene-title">Stage 3: Ultralytics YOLO11 & 15% Context Padding</h2>
-          <p class="scene-desc">Why background clutter confuses species classifiers, and how hardware-accelerated detection isolates the bird before taxonomic identification.</p>
+          <h2 class="scene-title">Stage 3: Ultralytics YOLO11 Subject Localization & 15% Padding</h2>
+          <p class="scene-desc">Why background clutter confuses species classifiers, and how hardware-accelerated localization isolates birds, mammals, and insects while preserving diagnostic field marks.</p>
         </div>
       </div>
 
@@ -1369,14 +1430,14 @@
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
             <h3><span>🔭</span> Field Marks & Heavy Foliage</h3>
-            <span class="pill pill-green">Birding Nuance</span>
+            <span class="pill pill-green">Wildlife Nuance</span>
           </div>
           <div class="perspective-card-body">
-            Birds rarely pose in clean open skies. They lurk behind reed beds, perch on messy branches, or occupy only 5% of your frame.
+            Animals rarely pose in clean open skies. Birds lurk behind reed beds; snow leopards camouflage against scree; insects perch on flower petals.
             <ul>
-              <li>If you feed the whole image to an AI, it might classify the <em>tree or lake</em> instead of the bird!</li>
-              <li><strong>The 15% Context Padding:</strong> Tight bounding boxes often cut off the bird's beak tip, crest feathers, or tail shape—critical diagnostic field marks. avicull intelligently expands the crop by 15% on all four sides.</li>
-              <li>If no bird is present (empty branch / missed flight shot), it routes to <code>_No_Bird_Detected</code>.</li>
+              <li>If you feed the whole image to an AI, it might classify the <em>tree or rock</em> instead of the subject!</li>
+              <li><strong>The 15% Context Padding:</strong> Tight bounding boxes often cut off beak tips, crest feathers, horn curves, or tail shapes—critical diagnostic field marks. avicull intelligently expands the crop by 15% on all four sides.</li>
+              <li>If no subject is present (missed flight shot or landscape), it routes cleanly to <code>No_Subject_Detected</code> (preserving <code>_No_Bird_Detected</code> compatibility).</li>
             </ul>
           </div>
         </div>
@@ -1387,9 +1448,9 @@
             <span class="pill pill-blue">ONNX on Apple Neural Engine</span>
           </div>
           <div class="perspective-card-body">
-            <code>src/detector.rs</code> executes Ultralytics YOLO11m (COCO class 14) via <code>ort</code> on Apple Silicon Metal/ANE:
+            <code>src/detector.rs</code> executes Ultralytics YOLO11m via <code>ort</code> on Apple Silicon Metal/ANE:
             <ul>
-              <li><strong>Target Selection Policy:</strong> When multiple birds are detected, it chooses the box maximizing:
+              <li><strong>Multi-Subject Targeting:</strong> When multiple candidates appear, it chooses the box maximizing:
                 <div class="formula-box">Score = Confidence × Area</div>
                 This reliably locks onto the foreground subject rather than background flocks.
               </li>
@@ -1444,7 +1505,7 @@
       </div>
     </section>
 
-    <!-- SCENE 5: Stage 4 - BioCLIP 2 & SINR Bayesian Prior across 11,167 Species -->
+    <!-- SCENE 5: Stage 4 - BioCLIP 2 & Bayesian Prior across 11,167 Species + Multi-Taxa -->
     <section class="scene-slide" id="scene-4" data-index="4">
       <div class="scene-head">
         <div>
@@ -1452,15 +1513,15 @@
             <span class="scene-tag">Scene 5 of 9 • AI & Bayesian Math</span>
             <span class="scene-duration">⏱ ~85 sec audio</span>
           </div>
-          <h2 class="scene-title">Stage 4: BioCLIP 2 + SINR Prior Across 11,167 Species</h2>
-          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors eliminate out-of-range false positives across global eBird taxonomy.</p>
+          <h2 class="scene-title">Stage 4: BioCLIP 2, Curated Multi-Taxa & Bayesian Spatial-Temporal Priors</h2>
+          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors and eBird/iNaturalist checklists eliminate out-of-range false positives across 11,167 birds and curated wildlife.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> The "Lookalike" Dilemma</h3>
+            <h3><span>🔭</span> Lookalikes & Global Multi-Taxa</h3>
             <span class="pill pill-green">Merlin AI Parallel</span>
           </div>
           <div class="perspective-card-body">
@@ -1468,25 +1529,27 @@
             <ul>
               <li>A Blyth's Reed Warbler in India looks almost indistinguishable from a European Reed Warbler in Germany.</li>
               <li>Without location, a pure vision model might guess 50/50 and assign your Indian photo to a European species!</li>
-              <li>With <code>avicull</code>, the AI knows that European Reed Warblers are statistically non-existent in Keoladeo in November. The lookalike is suppressed, and the native bird surges to 98% confidence!</li>
+              <li>With <code>avicull</code>, the AI checks eBird regional checklists: European Reed Warblers are statistically non-existent in Keoladeo in November. The lookalike is suppressed, and the native bird surges to 98% confidence!</li>
+              <li><strong>Multi-Taxa Biodiversity:</strong> Mammals (Snow Leopard, Bengal Tiger, Asian Elephant), insects, reptiles, and scenery are recognized via curated global taxonomy without inappropriate bird checklist penalties.</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> The Bayesian Math: BioCLIP + SINR</h3>
+            <h3><span>⚡</span> The Bayesian Math: BioCLIP + Checklist Prior</h3>
             <span class="pill pill-blue">Probabilistic Formulation</span>
           </div>
           <div class="perspective-card-body">
-            We fuse multimodal embeddings with neural range estimation (ICML 2023) across 11,167 precomputed species embeddings:
+            We fuse multimodal vision embeddings with neural range maps and administrative checklists across 11,167 avian species and 224+ curated multi-taxa species:
             <ul>
               <li><strong>BioCLIP 2:</strong> Computes $L_2$-normalized image vector $v \in \mathbb{R}^d$ and temperature-scaled logits over precomputed taxonomic text matrix $T$:
                 <div class="formula-box">P_vis(s | I) = softmax(τ · v T^T)_s</div>
               </li>
-              <li><strong>SINR Range Prior:</strong> Evaluates $P_geo(s | lat, lon)$. Rare vagrants are kept possible via floor $\epsilon = 0.01$:
+              <li><strong>Bayesian Geo & Checklist Prior:</strong> Evaluates $P_geo(s | lat, lon, week)$. Rare vagrants are kept possible via floor $\epsilon = 0.001$:
                 <div class="formula-box">P_post(s) ∝ P_vis(s) · max(P_geo(s), ε)^α</div>
               </li>
+              <li>Non-avian species bypass avian checklist multipliers, ensuring accurate classification across all 9 photographic categories.</li>
             </ul>
           </div>
         </div>
@@ -1663,56 +1726,60 @@
       </div>
     </section>
 
-    <!-- SCENE 7: Stage 6 - Routing Tiers & SQLite Manifest -->
+    <!-- SCENE 7: Stage 6 - In-Place Renaming & SQLite Manifest -->
     <section class="scene-slide" id="scene-6" data-index="6">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 7 of 9 • Storage & DB</span>
+            <span class="scene-tag">Scene 7 of 9 • Execution & Manifest</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
-          <h2 class="scene-title">Stage 6: Routing Tiers, Collisions & Instant Relink</h2>
-          <p class="scene-desc">Deterministic naming, review tiers, cross-trip collision resolution, and sub-second threshold relinking without re-running AI.</p>
+          <h2 class="scene-title">Stage 6: In-Place Renaming, SQLite Two-Phase Manifest & Cache Eviction</h2>
+          <p class="scene-desc">Deterministic in-place naming standards, synchronized companion sidecars, transactional SQLite safety, and automatic cloud cache eviction.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> Three Dedicated Folders</h3>
+            <h3><span>🔭</span> Rich In-Place Stems & Sidecars</h3>
             <span class="pill pill-green">Curator's Dream</span>
           </div>
           <div class="perspective-card-body">
-            Your photos are cleanly organized into 3 transparent tiers:
+            Your photos are cleanly organized according to your chosen mode:
             <ul>
-              <li><strong>Confirmed Species:</strong> (Score $\ge 0.65$): e.g. <code>birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2</code>. High confidence keepers.</li>
-              <li><strong>_Needs_Review:</strong> (Score $< 0.65$): Tucked inside <code>_Needs_Review/</code> for your manual review so your main species folders stay clean.</li>
-              <li><strong>_No_Bird_Detected:</strong> Empty shots, scenery, or accidental clicks.</li>
-              <li><strong>Instant Relink:</strong> Decide you only want $\ge 0.80$ keepers? Run <code>relink</code> and your tree reorganizes instantly!</li>
+              <li><strong>In-Place Standard (Default):</strong> Renames your files directly in place with rich, readable stems:
+                <div style="font-family:var(--font-mono); font-size:0.75rem; background:#0b1120; padding:0.4rem 0.6rem; border-radius:4px; margin:0.4rem 0; color:#38bdf8;">
+                  &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;YYYYMMDD&gt;][_&lt;Location_Slug&gt;].&lt;ext&gt;
+                </div>
+                Example: <code>DSC_4011_Bird_Painted_Stork_20251114_Bharatpur.CR2</code>
+              </li>
+              <li><strong>Sidecar Parity:</strong> Companion JPEGs, Lightroom <code>.CR2.xmp</code>, DxO <code>.dop</code>, and live videos <code>.mov</code> receive identical stems!</li>
+              <li><strong>Hierarchy Tiers (Optional):</strong> If <code>--mode hierarchy</code> is selected, files link to <code>birds_hierarchy/</code> under Confirmed, Needs Review, or No Subject Detected.</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> SQLite State & Collision Safety</h3>
+            <h3><span>⚡</span> SQLite Transactions & Cache Eviction</h3>
             <span class="pill pill-blue">Transactional DB</span>
           </div>
           <div class="perspective-card-body">
             All operations are backed by <code>.avicull/manifest.sqlite</code>:
             <ul>
-              <li><strong>Cross-Trip Collision Handling:</strong> If two different cameras or trips named a file <code>DSC_4011.JPG</code>, avicull detects differing inodes and prefixes the trip: <code>Leh__DSC_4011_0.94.JPG</code>.</li>
-              <li><strong>Idempotency & Force:</strong> Re-running <code>organize</code> reuses cached predictions. Pass <code>--force</code> to bypass SQLite cache and recompute predictions completely.</li>
-              <li><strong>Instant Relink:</strong> Reads cached predictions from SQLite and executes filesystem <code>unlink()</code> and <code>hard_link()</code> in milliseconds without loading neural nets.</li>
+              <li><strong>Two-Phase Commit Safety:</strong> SQLite WAL mode records bundle hashes, GPS coordinates, bounding boxes, predictions, and filesystem operations before committing. Crashes cannot corrupt state!</li>
+              <li><strong>Automated Cache Eviction:</strong> Passing <code>--max-cache-size 5GB</code> automatically monitors disk usage and purges oldest cached preview tiles while safely retaining prediction records.</li>
+              <li><strong>Sub-Second Relink:</strong> Reads cached predictions from SQLite and executes filesystem <code>unlink()</code> and <code>hard_link()</code> in milliseconds without loading neural nets.</li>
             </ul>
           </div>
         </div>
       </div>
 
-      <!-- SQLite Schema & CLI Preview -->
+      <!-- SQLite Schema & In-Place Specification -->
       <div class="interactive-stage">
         <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
-          SQLite Manifest State Schema (.avicull/manifest.sqlite)
+          SQLite Manifest State Schema & In-Place Standard (.avicull/manifest.sqlite)
         </h4>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem;">
           <div class="code-term">
@@ -1732,95 +1799,145 @@
 
           <div style="background:var(--bg-card); border-radius:8px; padding:1rem; border:1px solid var(--border);">
             <div style="font-size:0.8rem; font-weight:700; color:#38bdf8; margin-bottom:0.5rem;">
-              Destination File Naming Standard
+              Universal File Naming Standards
             </div>
-            <div style="font-family:var(--font-mono); font-size:0.8rem; color:#fff; background:#0b1120; padding:0.5rem 0.75rem; border-radius:4px; margin-bottom:0.75rem;">
-              &lt;OriginalStem&gt;_&lt;Confidence:0.2&gt;.&lt;ext&gt;
+            <div style="font-family:var(--font-mono); font-size:0.75rem; color:#fff; background:#0b1120; padding:0.5rem 0.75rem; border-radius:4px; margin-bottom:0.75rem;">
+              In-Place: &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;Date&gt;][_&lt;Loc&gt;].&lt;ext&gt;<br>
+              Hierarchy: &lt;Output&gt;/&lt;Category&gt;/&lt;Subject&gt;/&lt;Stem&gt;.&lt;ext&gt;
             </div>
             <ul style="font-size:0.78rem; color:var(--text-muted); margin-left:1.2rem; line-height:1.6;">
               <li>Preserves original casing: <code>.CR2</code> and <code>.xmp</code> stay exact.</li>
-              <li>Sidecars mirror confidence: <code>DSC_4011_0.96.xmp</code></li>
-              <li>Multi-extension supported: <code>DSC_4011_0.96.CR2.xmp</code></li>
-              <li><code>avicull clean</code> safely unlinks without touching RAW files.</li>
+              <li>Sidecars mirror stems: <code>DSC_4011_Bird_Painted_Stork.xmp</code></li>
+              <li>Multi-extension supported: <code>DSC_4011_Bird_Painted_Stork.CR2.xmp</code></li>
+              <li><code>avicull clean</code> safely rolls back operations using the manifest.</li>
             </ul>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 8: Decoupled AI Models & 11,167-Species eBird Taxonomy -->
+    <!-- SCENE 8: Interactive HTML5 Photo Catalog (catalog.html) & Decoupled Models -->
     <section class="scene-slide" id="scene-7" data-index="7">
       <div class="scene-head">
         <div>
           <div class="scene-meta">
-            <span class="scene-tag">Scene 8 of 9 • Models & Taxonomy</span>
+            <span class="scene-tag">Scene 8 of 9 • HTML5 Photo Catalog</span>
             <span class="scene-duration">⏱ ~75 sec audio</span>
           </div>
-          <h2 class="scene-title">`avicull models`: Decoupled System Cache & eBird Taxonomy</h2>
-          <p class="scene-desc">Separating heavy neural weights and the 11,167-species global eBird taxonomy from the binary into a shared, auto-updating cache.</p>
+          <h2 class="scene-title">Stage 7: Interactive Standalone HTML5 Photo Catalog (catalog.html)</h2>
+          <p class="scene-desc">Zero-dependency, offline visual catalog with 9 singular category filter pills, fast multi-selection, interactive reclassification modal, and bulk subdirectory location overrides.</p>
         </div>
       </div>
 
       <div class="perspective-grid">
         <div class="perspective-card birding" data-audience="bird">
           <div class="perspective-card-head">
-            <h3><span>🔭</span> Global eBird Coverage (11,167 Birds)</h3>
-            <span class="pill pill-green">Official Cornell Data</span>
+            <h3><span>🔭</span> Visual Curation in the Browser</h3>
+            <span class="pill pill-green">Zero-Dependency</span>
           </div>
           <div class="perspective-card-body">
-            You are never locked into outdated bird names or limited regional species lists:
+            Every run of <code>avicull organize</code> writes a standalone <code>catalog.html</code> directly into your trip folder:
             <ul>
-              <li><strong>Official Cornell eBird API:</strong> Includes 11,167 species worldwide—from Keoladeo to Costa Rica, Antarctica to Alaska.</li>
-              <li><strong>One-Command Updates:</strong> Run <code>avicull models update</code> anytime ornithologists split or lump species to refresh your database in seconds.</li>
-              <li><strong>Shared Machine Cache:</strong> Downloaded weights live in <code>~/.cache/avicull/models</code>, shared by all photo folders without re-downloading.</li>
+              <li><strong>100% Offline & Private:</strong> Zero server or internet connection required. Open in Safari or Chrome anytime.</li>
+              <li><strong>9 Category Filter Pills:</strong> Instant toggle across <code>All</code>, <code>Bird</code>, <code>Mammalia</code>, <code>Insecta</code>, <code>Reptilia</code>, <code>Amphibia</code>, <code>Scenery</code>, <code>Architecture</code>, <code>Portrait</code>, <code>Abstract</code>.</li>
+              <li><strong>Multi-Select Power:</strong> <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+Click to pick individuals, <kbd>Shift</kbd>+Click for ranges, or <kbd>Cmd</kbd>+<kbd>A</kbd> to select all.</li>
+              <li><strong>Interactive Reclassification:</strong> Autocomplete search across 11,167 bird species + 224+ curated wildlife species, with instant <code>avicull correct</code> commands!</li>
+              <li><strong>Subdirectory GPS Overrides:</strong> Bulk update coordinates for mislocated folders and trigger Bayesian prior recalculation with one click.</li>
             </ul>
           </div>
         </div>
 
         <div class="perspective-card engineering" data-audience="tech">
           <div class="perspective-card-head">
-            <h3><span>⚡</span> SafeTensors & 3-Tier Cache Resolver</h3>
-            <span class="pill pill-blue">Zero-Shot Text Projection</span>
+            <h3><span>⚡</span> Decoupled Cache & Web Architecture</h3>
+            <span class="pill pill-blue">SafeTensors & Single-File HTML</span>
           </div>
           <div class="perspective-card-body">
-            <code>src/main.rs</code> and <code>scripts/build_taxonomy_embeddings.py</code> decouple weights cleanly:
+            Clean decoupling between client catalog and underlying system models:
             <ul>
-              <li><strong>BioCLIP Text Embeddings:</strong> Encodes prompts (<code>"a photo of a {common} ({scientific}), a type of bird."</code>) into $L_2$-normalized 512-dim vectors on Apple Silicon Metal (<code>mps</code>), stored in a compact 23MB <code>species_embeddings.safetensors</code>.</li>
-              <li><strong>3-Tier Resolution:</strong> <code>--models-dir &lt;PATH&gt;</code> ➔ <code>./models/</code> ➔ <code>~/.cache/avicull/models/</code>.</li>
-              <li><strong>Automatic Maintenance:</strong> <code>avicull models status</code> inspects cache sizes, and alerts you if the cache is older than 30 days.</li>
+              <li><strong>Decoupled Model Cache:</strong> Neural weights and eBird taxonomy live in <code>~/.cache/avicull/models/</code>. Precomputed 512-dim BioCLIP text embeddings for 11,167 species are stored in a 23MB SafeTensors file on Apple Silicon Metal MPS.</li>
+              <li><strong>Dynamic Multi-Taxa Dictionary:</strong> The catalog embeds the complete 224+ curated multi-taxa dataset, automatically resolving categories for mammals, insects, reptiles, and amphibians without hardcoding.</li>
+              <li><strong>Safe Command Generation:</strong> The web UI generates copyable, non-destructive CLI commands (<code>avicull correct</code>) that update the SQLite manifest and rename files transactionally.</li>
             </ul>
           </div>
         </div>
       </div>
 
-      <!-- Cache Hierarchy Diagram -->
+      <!-- Interactive Catalog Visualizer -->
       <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
-          Decoupled Model Cache Architecture & Resolution Cascade
-        </h4>
-        <div class="cache-hierarchy">
-          <div class="cache-card">
-            <div class="cache-card-priority">Priority 1</div>
-            <div class="cache-card-title">--models-dir &lt;PATH&gt;</div>
-            <div class="cache-card-desc">Explicit command-line override for air-gapped or customized models.</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
+            Interactive Standalone Catalog Simulator (catalog.html Preview)
+          </h4>
+          <span class="pill pill-green">Generated in Trip Folder</span>
+        </div>
+
+        <!-- Filter Pill Bar -->
+        <div class="catalog-pill-bar" id="catalogPillBar">
+          <button class="catalog-pill active" onclick="filterCatalogPill('all')">All (4)</button>
+          <button class="catalog-pill" onclick="filterCatalogPill('Bird')">Bird (1)</button>
+          <button class="catalog-pill" onclick="filterCatalogPill('Mammalia')">Mammalia (1)</button>
+          <button class="catalog-pill" onclick="filterCatalogPill('Insecta')">Insecta (1)</button>
+          <button class="catalog-pill" onclick="filterCatalogPill('Scenery')">Scenery (1)</button>
+        </div>
+
+        <!-- Sample Cards Grid -->
+        <div class="catalog-grid" id="catalogSampleGrid">
+          <div class="catalog-card selected" data-cat="Bird" id="cardBird1">
+            <div class="catalog-card-img">
+              <span style="font-size:2.5rem;">🦩</span>
+              <span class="pill pill-green" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">96%</span>
+            </div>
+            <div class="catalog-card-body">
+              <strong style="color:#fff; display:block; font-size:0.8rem;">Painted Stork</strong>
+              <span style="color:#34d399; font-size:0.7rem; font-weight:600;">Category: Bird</span>
+              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">DSC_4011_Bird_Painted_Stork.CR2</div>
+            </div>
           </div>
-          <div class="cache-card">
-            <div class="cache-card-priority">Priority 2</div>
-            <div class="cache-card-title">./models/</div>
-            <div class="cache-card-desc">Local project models folder for development or offline testing.</div>
+
+          <div class="catalog-card" data-cat="Mammalia" id="cardMammal1">
+            <div class="catalog-card-img">
+              <span style="font-size:2.5rem;">🐆</span>
+              <span class="pill pill-green" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">94%</span>
+            </div>
+            <div class="catalog-card-body">
+              <strong style="color:#fff; display:block; font-size:0.8rem;">Snow Leopard</strong>
+              <span style="color:#38bdf8; font-size:0.7rem; font-weight:600;">Category: Mammalia</span>
+              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">IMG_0924_Mammalia_Snow_Leopard.CR2</div>
+            </div>
           </div>
-          <div class="cache-card primary">
-            <div class="cache-card-priority">Priority 3 (Default)</div>
-            <div class="cache-card-title">~/.cache/avicull/models/</div>
-            <div class="cache-card-desc">Persistent macOS user cache, shared across all photo trips with zero duplication.</div>
+
+          <div class="catalog-card" data-cat="Insecta" id="cardInsect1">
+            <div class="catalog-card-img">
+              <span style="font-size:2.5rem;">🦋</span>
+              <span class="pill pill-yellow" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">89%</span>
+            </div>
+            <div class="catalog-card-body">
+              <strong style="color:#fff; display:block; font-size:0.8rem;">Blue Pansy</strong>
+              <span style="color:#fbbf24; font-size:0.7rem; font-weight:600;">Category: Insecta</span>
+              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">DSC_4102_Insecta_Blue_Pansy.JPG</div>
+            </div>
+          </div>
+
+          <div class="catalog-card" data-cat="Scenery" id="cardScenery1">
+            <div class="catalog-card-img">
+              <span style="font-size:2.5rem;">🏔️</span>
+              <span class="pill pill-purple" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">98%</span>
+            </div>
+            <div class="catalog-card-body">
+              <strong style="color:#fff; display:block; font-size:0.8rem;">Pangong Tso</strong>
+              <span style="color:#c084fc; font-size:0.7rem; font-weight:600;">Category: Scenery</span>
+              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">IMG_1020_Scenery_Pangong_Tso.CR2</div>
+            </div>
           </div>
         </div>
 
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1.25rem; background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); border-radius:8px; padding:0.75rem 1.25rem;">
-          <div style="font-size:0.85rem; color:#e2e8f0;">
-            <strong>Cache Assets:</strong> <code>taxonomy.json</code> (11,167 species, 1.8MB) + <code>species_embeddings.safetensors</code> (22.8MB) + <code>manifest.json</code>.
+        <!-- Interactive Correction Output -->
+        <div style="margin-top:1rem; background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div style="font-size:0.82rem; color:#e2e8f0;">
+            <strong>Reclassify Modal CLI Generator:</strong> <code>avicull correct --input /Volumes/Photos/Leh --bundle b3a8f9 --species "Snow_Leopard"</code>
           </div>
-          <span class="pill pill-blue">Apple Silicon Metal MPS</span>
+          <span class="pill pill-blue">Zero-Risk Web Corrections</span>
         </div>
       </div>
     </section>
@@ -1834,7 +1951,7 @@
             <span class="scene-duration">⏱ ~80 sec audio</span>
           </div>
           <h2 class="scene-title">How to Use avicull: CLI & Complete Workflow</h2>
-          <p class="scene-desc">Building the binary, managing the model cache, organizing trips, instant relinking, and safe rollback.</p>
+          <p class="scene-desc">Building the binary, managing model weights, in-place organizing, hard-link hierarchies, catalog corrections, and safe rollback.</p>
         </div>
       </div>
 
@@ -1847,11 +1964,13 @@
           <div class="perspective-card-body">
             You don't need to be a developer to run <code>avicull</code>:
             <ol style="margin-left:1.2rem; margin-top:0.4rem; line-height:1.6;">
-              <li><strong>Models:</strong> <code>avicull models status</code> (verify your 11,167-species cache)</li>
               <li><strong>Scan:</strong> <code>avicull scan -i /Volumes/Photos/Leh</code> (dry run inspection)</li>
-              <li><strong>Organize:</strong> <code>avicull organize -i /Volumes/Photos/Leh</code> (creates <code>birds_hierarchy</code>)</li>
+              <li><strong>Organize (In-Place):</strong> <code>avicull organize -i /Volumes/Photos/Leh</code> (renames in-place &amp; generates <code>catalog.html</code>)</li>
+              <li><strong>Hierarchy Tree:</strong> <code>avicull organize -i /Volumes/Photos/Leh --mode hierarchy</code> (creates zero-byte tree)</li>
               <li><strong>Force Recompute:</strong> <code>avicull organize -i /Volumes/Photos/Leh --force</code> (re-run all photos)</li>
-              <li><strong>Report:</strong> <code>avicull report -i /Volumes/Photos/Leh</code> (see your species checklist!)</li>
+              <li><strong>Apply Corrections:</strong> <code>avicull correct -i /Volumes/Photos/Leh --bundle &lt;ID&gt; --species "Snow_Leopard"</code></li>
+              <li><strong>Report:</strong> <code>avicull report -i /Volumes/Photos/Leh</code> (checklist across all 9 categories!)</li>
+              <li><strong>Safe Clean:</strong> <code>avicull clean -i /Volumes/Photos/Leh</code> (reverts changes safely)</li>
             </ol>
           </div>
         </div>
@@ -1862,12 +1981,13 @@
             <span class="pill pill-blue">High Customizability</span>
           </div>
           <div class="perspective-card-body">
-            Fine-tune every parameter to match your workflow and hardware:
+            Fine-tune every parameter to match your workflow and storage:
             <ul>
-              <li><code>avicull models [status | update]</code> (manage decoupled cache)</li>
+              <li><code>--mode [in-place | hierarchy]</code> (default: in-place)</li>
+              <li><code>--max-cache-size &lt;SIZE&gt;</code> (e.g. 5GB cloud cache eviction)</li>
+              <li><code>avicull correct --bundle &lt;ID&gt; --species &lt;NAME&gt;</code></li>
               <li><code>avicull organize --force</code> (bypass SQLite cache and recompute)</li>
               <li><code>--min-confidence &lt;FLOAT&gt;</code> (default: 0.65)</li>
-              <li><code>--burst-window-ms &lt;INT&gt;</code> (default: 3000 ms)</li>
               <li><code>--geo-prior-weight &lt;0.0..2.0&gt;</code> (default: 1.0)</li>
               <li><code>--threads &lt;INT&gt;</code> (Rayon thread pool allocation)</li>
             </ul>
@@ -1885,8 +2005,10 @@
             <button class="btn" onclick="runSimCommand('status')">models status</button>
             <button class="btn" onclick="runSimCommand('update')">models update</button>
             <button class="btn" onclick="runSimCommand('scan')">scan</button>
-            <button class="btn" onclick="runSimCommand('organize')">organize</button>
+            <button class="btn" onclick="runSimCommand('organize')">organize (in-place)</button>
+            <button class="btn" onclick="runSimCommand('hierarchy')">organize --mode hierarchy</button>
             <button class="btn" onclick="runSimCommand('force')">organize --force</button>
+            <button class="btn" onclick="runSimCommand('correct')">correct</button>
             <button class="btn" onclick="runSimCommand('relink')">relink</button>
             <button class="btn" onclick="runSimCommand('report')">report</button>
             <button class="btn" onclick="runSimCommand('clean')">clean</button>
@@ -1954,65 +2076,61 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
       {
         id: "scene-0",
         tag: "Scene 1 • Overview",
-        title: "The Avian Photo Crisis & The Zero-Byte Solution",
+        title: "The Expedition Photo Crisis & The Two Zero-Byte Solutions",
         narration: [
-          "Welcome to avicull, a local-first, deterministic AI bird photo organizer built in Rust for Apple Silicon macOS.",
-          "Every bird photographer knows the fundamental archive dilemma: you return from a trip with thousands of high-speed burst shots and huge RAW files.",
-          "You want to keep your trip chronology intact, but you also want a clean species catalog showing all your Painted Storks or Hornbills in one place.",
-          "Traditionally, copying these files doubles your storage and wastes hundreds of gigabytes.",
-          "avicull solves this with zero additional disk bytes using APFS POSIX hard links, keeping your source photo archive completely immutable while organizing your birds through cutting-edge neural networks across eleven thousand species."
+          "Welcome to avicull, a local-first, deterministic AI photo organizer built in Rust for Apple Silicon macOS, supporting over eleven thousand bird species and comprehensive multi-taxa biodiversity.",
+          "Every wildlife photographer knows the archive dilemma: returning from expeditions with thousands of high-speed burst shots, massive RAW files, and Lightroom sidecars.",
+          "You want to browse your photos chronologically by trip, but also taxonomically by species across birds, mammals, insects, reptiles, and scenery.",
+          "Traditionally, copying files doubles your storage and wastes hundreds of gigabytes.",
+          "avicull solves this with two complementary modes: universal in-place descriptive renaming that works on any storage including exFAT, and zero-byte APFS hard links that project multi-trip hierarchies without consuming a single extra byte."
         ]
       },
       {
         id: "scene-1",
-        tag: "Scene 2 • Inodes & Portability",
-        title: "The Inode Magic: Zero-Byte Projections, UNIX & The exFAT Trap",
+        tag: "Scene 2 • Filesystem Invariants & Portability",
+        title: "In-Place Universal Renaming vs APFS Hard Links & The exFAT Trap",
         narration: [
-          "Let's look at the core filesystem invariant that makes avicull truly zero-byte.",
-          "In modern UNIX filesystems, a file is defined by its inode on disk, not its directory path.",
-          "Instead of duplicating multi-megabyte RAW files, avicull creates POSIX hard links pointing to the exact same physical inode.",
-          "The link count increments, but zero additional storage bytes are consumed.",
-          "Importantly, this mechanism extends across all UNIX storage: ext4, Btrfs, XFS, and ZFS natively support hard links.",
-          "Even Windows NTFS natively supports hard links through its Master File Table reference counts.",
-          "However, photographers must beware the exFAT trap: exFAT portable SSDs do not support hard links, and naive drag-and-drop copies will inflate and duplicate your files.",
-          "To copy to an external NTFS drive while preserving zero-byte links, always use rsync with the hyphen H flag."
+          "avicull gives you two distinct architectural strategies for organizing your photo archive.",
+          "In-place renaming is the universal default. It enriches your original files and companion sidecars with rich taxonomic stems directly within your existing folder structure, working seamlessly across exFAT portable SSDs, FAT32, APFS, and network drives.",
+          "Alternatively, hierarchy mode creates a taxonomic species tree using POSIX hard links pointing to the identical underlying inode on disk.",
+          "The link count increments, but zero additional storage bytes are consumed on APFS, ext4, Btrfs, and Windows NTFS.",
+          "However, photographers must beware the exFAT trap: exFAT drives lack inode hard links, so drag-and-drop copies will inflate and duplicate your files. For external exFAT SSDs, always rely on in-place renaming or use rsync with the hyphen H flag on NTFS."
         ]
       },
       {
         id: "scene-2",
-        tag: "Scene 3 • Discovery & Geo",
-        title: "Stage 1 & 2: Discovery, RAW Previews & Location Fallbacks",
+        tag: "Scene 3 • Discovery, Bundling & Geo",
+        title: "Stage 1 & 2: Discovery, Sidecar Bundling, Dataless Protection & Geo Cascade",
         narration: [
-          "Stage 1 recursively traverses your photo directory while strictly ignoring hidden folders, Apple Photos libraries, and prior outputs.",
-          "It bundles primary RAW files with companion JPEGs and Lightroom XMP sidecars under a deterministic BLAKE3 hash.",
-          "To achieve maximum speed, it scans for embedded 4K JPEG preview streams in memory rather than running slow RAW demosaicing.",
-          "Next, Stage 2 resolves location using a four-tier cascade: direct camera EXIF GPS, sibling propagation across the trip folder, an offline bird sanctuary gazetteer, and user defaults.",
-          "Even if your DSLR had GPS turned off, avicull ensures your photos are geo-located."
+          "Stage 1 recursively traverses your photo archive in milliseconds, discovering RAW files across all major camera manufacturers including Canon, Nikon, Sony, and Fujifilm.",
+          "It bundles primary RAW files with companion JPEGs, Lightroom XMP sidecars, and DxO PhotoLab DOP files under a deterministic BLAKE3 hash.",
+          "Crucially, avicull respects macOS FileProvider flags: files marked with Darwin dataless attributes are protected from eager opening, preventing unwanted on-demand cloud hydration from iCloud or Dropbox.",
+          "To achieve maximum throughput, avicull extracts embedded 4K JPEG preview streams directly in memory, running ten times faster than full RAW demosaicing.",
+          "Next, Stage 2 resolves geographic coordinates through a four-tier cascade: direct camera EXIF GPS, sibling propagation across the trip folder, an offline sanctuary gazetteer, and user defaults."
         ]
       },
       {
         id: "scene-3",
-        tag: "Scene 4 • Detection",
-        title: "Stage 3: Ultralytics YOLO11 & 15% Context Padding",
+        tag: "Scene 4 • Detection & Padding",
+        title: "Stage 3: Ultralytics YOLO11 Subject Localization & 15% Context Padding",
         narration: [
-          "Stage 3 focuses the AI's attention where it matters: the bird itself.",
-          "Birds often perch in heavy foliage, messy reeds, or distant trees.",
-          "Feeding the entire photo into a classifier causes the model to hallucinate on background branches.",
-          "avicull runs Ultralytics YOLO11m on the Apple Neural Engine to detect bird bounding boxes.",
-          "When multiple birds appear, it selects the box maximizing confidence times area to focus on the primary subject.",
-          "Crucially, avicull adds a fifteen percent context padding on all four sides so bill tips, crest feathers, and diagnostic field marks are never cut off."
+          "Stage 3 focuses the AI's attention directly on the subject, whether it is an avian species, a mammal, an insect, or a person.",
+          "Subjects often hide behind dense foliage, messy branches, or distant backgrounds. Feeding the whole frame into a classifier causes the model to hallucinate on background foliage.",
+          "avicull runs Ultralytics YOLO11 on the Apple Neural Engine to detect subject bounding boxes.",
+          "When multiple subjects appear, it selects the box maximizing confidence multiplied by area to isolate the primary subject.",
+          "Crucially, avicull expands the bounding box with fifteen percent context padding on all four sides so diagnostic field marks like bills, crests, tails, and ears are never clipped off."
         ]
       },
       {
         id: "scene-4",
-        tag: "Scene 5 • AI & Bayesian Math",
-        title: "Stage 4: BioCLIP 2 + SINR Prior Across 11,167 Species",
+        tag: "Scene 5 • AI & Bayesian Priors",
+        title: "Stage 4: BioCLIP 2, Curated Multi-Taxa & Bayesian Spatial-Temporal Priors",
         narration: [
-          "Now comes species classification across the complete global taxonomy.",
-          "Because many species look virtually identical, a Blyth's Reed Warbler in Asia looks just like a European Reed Warbler.",
-          "avicull uses BioCLIP 2 to compute vision transformer embeddings matched against eleven thousand one hundred and sixty-seven global bird species.",
-          "Then, it combines this with SINR, an implicit neural representation network from ICML 2023 that predicts species presence given latitude, longitude, and week.",
-          "Using Bayesian posterior math with a vagrant probability floor, avicull down-ranks out-of-range lookalikes and elevates native species with mathematical rigor."
+          "Stage 4 performs species identification across the complete global taxonomy.",
+          "avicull evaluates BioCLIP 2 vision transformer embeddings against eleven thousand one hundred and sixty-seven bird species, plus hundreds of curated multi-taxa species spanning mammals, insects, reptiles, and amphibians.",
+          "Because visual lookalikes can deceive pure vision models, avicull combines image features with eBird and iNaturalist regional checklists and SINR neural spatial-temporal priors.",
+          "Using Bayesian posterior mathematics with a vagrant probability floor, avicull suppresses statistically impossible out-of-range lookalikes while elevating genuine regional species.",
+          "Non-avian wildlife and scenery are seamlessly resolved without inappropriate bird checklist penalties."
         ]
       },
       {
@@ -2020,51 +2138,48 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
         tag: "Scene 6 • Burst Engine",
         title: "Stage 5: Burst Consensus Smoothing (Anti-Flicker)",
         narration: [
-          "Bird photography relies on continuous high-speed bursts at twenty to thirty frames per second.",
-          "Across a burst of five shots, frame one might be razor sharp, but frame three might suffer brief motion blur or focus breathing.",
-          "Without burst smoothing, that single sequence gets split across different species folders.",
+          "Wildlife photography relies on continuous high-speed bursts at twenty to thirty frames per second.",
+          "Across a burst of five shots, frame one might be razor sharp, but frame three might suffer motion blur or focus breathing.",
+          "Without consensus smoothing, that single sequence could get split across different species folders or confidence tiers.",
           "avicull groups consecutive frames when their time gap is under three seconds and their visual cosine similarity is eighty percent or higher.",
-          "It then performs confidence-weighted posterior pooling across all frames.",
-          "The sharpest frames anchor the blurry ones, ensuring your entire burst stays together under the correct species."
+          "It then performs confidence-weighted posterior pooling across all frames, allowing the sharpest keyframe to anchor the sequence and keep your entire burst unified under the consensus taxon."
         ]
       },
       {
         id: "scene-6",
-        tag: "Scene 7 • Storage & DB",
-        title: "Stage 6: Routing Tiers, Collisions & Instant Relink",
+        tag: "Scene 7 • Execution & Manifest",
+        title: "Stage 6: In-Place Renaming, SQLite Two-Phase Manifest & Cache Eviction",
         narration: [
-          "Stage 6 materializes the hard links into your birds hierarchy.",
-          "Files are named with their stem, an underscore, and two-decimal confidence.",
-          "Photos are routed into three transparent tiers: Confirmed Species for scores sixty-five percent and above, Needs Review for borderline identifications, and No Bird Detected for empty frames.",
-          "If two trips contain identical file stems, avicull automatically prefixes the trip folder name to prevent collisions.",
-          "Everything is logged transactionally in an SQLite manifest.",
-          "This enables instant relinking: you can change your confidence threshold in milliseconds without re-running any neural networks, or pass force to recompute all predictions."
+          "Stage 6 executes your chosen organization strategy.",
+          "In in-place mode, it renames files and sidecars to a descriptive standard including original stem, category, subject, date, and location.",
+          "In hierarchy mode, it links files into Confirmed, Needs Review, or No Subject Detected folders without adding disk bytes.",
+          "Every operation is recorded in an SQLite two-phase transactional manifest, guaranteeing atomic rollbacks and crash resilience.",
+          "Furthermore, avicull features automatic cloud cache eviction: passing max cache size automatically trims oldest cached preview tiles while safely preserving all prediction metadata."
         ]
       },
       {
         id: "scene-7",
-        tag: "Scene 8 • Models & Taxonomy",
-        title: "avicull models: Decoupled System Cache & eBird Taxonomy",
+        tag: "Scene 8 • HTML5 Photo Catalog",
+        title: "Stage 7: Interactive Standalone HTML5 Photo Catalog (catalog.html)",
         narration: [
-          "To keep the binary lightweight and portable, avicull decouples heavy neural weights and the global eBird taxonomy into a shared system cache in ~/.cache/avicull/models.",
-          "With over eleven thousand bird species from Cornell eBird, text embeddings are calculated once on Apple Silicon Metal Performance Shaders and stored in an efficient SafeTensors file.",
-          "Use avicull models status to inspect your model health and cache age.",
-          "And whenever ornithologists update taxonomy, simply run avicull models update to pull fresh data without rebuilding your software.",
-          "On first launch, avicull automatically offers an interactive download so you are up and running in moments."
+          "Stage 7 generates catalog.html, a lightning-fast, offline HTML5 visual explorer written directly into your photo directory.",
+          "It features zero external dependencies, loading instantly in any modern browser with instant search and multi-taxa category filter pills.",
+          "You can multi-select photos using Command-Click, Shift-Click, or Command-A to review and batch-process your keepers.",
+          "The interactive correction modal lets you search across all eleven thousand species, previewing corrections and generating immediate avicull correct commands.",
+          "You can even override GPS coordinates for entire subdirectories and trigger Bayesian recomputation directly from the web interface."
         ]
       },
       {
         id: "scene-8",
         tag: "Scene 9 • Hands-On CLI",
-        title: "How to Use avicull: CLI & Complete Workflow",
+        title: "How to Use avicull: CLI & Everyday Workflow",
         narration: [
-          "Using avicull in your daily workflow is fast and intuitive.",
-          "Run avicull scan to inspect your photo bundles and verify APFS volume compatibility.",
-          "Run avicull organize to execute the full pipeline and populate your species directory tree.",
-          "Use the force flag if you ever want to bypass the SQLite cache and recompute predictions across all photos.",
-          "Use avicull report to view species totals and inspect items needing review.",
-          "And if you ever want to reset, avicull clean safely unlinks the output tree while leaving your precious source RAW archives completely untouched.",
-          "Experience the future of local, private, zero-copy avian photo curation on Apple Silicon!"
+          "Using avicull in your daily photography workflow is simple and intuitive.",
+          "Run avicull scan to inspect photo bundles, verify volume compatibility, and check GPS cascades.",
+          "Run avicull organize to process your photos with in-place renaming by default, or add mode hierarchy to create zero-byte hard link species trees.",
+          "Use the force flag whenever you want to bypass cached SQLite predictions and recompute neural inference from scratch.",
+          "Run avicull report to view checklists across all categories, and avicull clean to safely undo changes while leaving your source RAW archives completely untouched.",
+          "Experience the power of local, private, zero-copy avian and wildlife curation on Apple Silicon!"
         ]
       }
     ];
@@ -2472,6 +2587,20 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
       }
     });
 
+    /* Interactive Catalog Pill Filter Handler */
+    function filterCatalogPill(cat) {
+      document.querySelectorAll('.catalog-pill').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.querySelectorAll('.catalog-card').forEach(card => {
+        if (cat === 'all' || card.dataset.cat === cat) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      playChime(520, 'sine', 0.08);
+    }
+
     /* Interactive Terminal Simulator */
     function runSimCommand(cmd) {
       const term = document.getElementById('termOutput');
@@ -2510,33 +2639,51 @@ Saved embeddings to species_embeddings.safetensors (22.84 MB)
           term.innerHTML = `<span class="term-prompt">$ avicull scan --input /Volumes/Photos/Leh</span>
 <span class="term-comment">[Preflight] Checking filesystem volume compatibility...</span>
 <span class="term-success">✔ Same-volume APFS hardlink compatibility verified (st_dev: 16777220)</span>
-<span class="term-comment">[Discovery] Found 1,420 bundles (primary + companion + sidecar)</span>
+<span class="term-comment">[Discovery] Found 1,420 bundles (primary RAW + sidecars .xmp, .dop, .mov)</span>
 <span class="term-comment">[Geo Engine] 1,380 EXIF GPS parsed, 40 inherited via sibling propagation</span>
 <span class="term-success">✔ Scan complete. Ready to run 'avicull organize'.</span>`;
           break;
 
         case 'organize':
           term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[Models] Resolved cache from '~/.cache/avicull/models' (11,167 species)</span>
-<span class="term-comment">[1/6] Preflight: Verified same APFS volume (st_dev: 16777220)</span>
-<span class="term-comment">[2/6] Scanned 1,420 bundles (skipped .avicull, birds_hierarchy)</span>
-<span class="term-comment">[3/6] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
-<span class="term-comment">[4/6] YOLO11m CoreML: 1,392 birds detected, 28 no-bird-detected</span>
-<span class="term-comment">[5/6] BioCLIP 2 + SINR prior: 84 species identified from 11,167 global taxonomy</span>
-<span class="term-comment">[6/6] Burst consensus: Smoothed across 210 clusters</span>
-<span class="term-success">✔ Hard-linked 1,420 files to /Volumes/Photos/Leh/birds_hierarchy (0 disk bytes added)</span>
-<span class="term-success">  - Confirmed: 1,280 files</span>
-<span class="term-warn">  - _Needs_Review: 112 files</span>
-<span class="term-comment">  - _No_Bird_Detected: 28 files</span>`;
+<span class="term-comment">[Models] Resolved cache from '~/.cache/avicull/models' (11,167 species + multi-taxa)</span>
+<span class="term-comment">[Mode] In-place descriptive renaming (default, non-destructive)</span>
+<span class="term-comment">[1/5] Scanned 1,420 bundles (Darwin SF_DATALESS checks passed)</span>
+<span class="term-comment">[2/5] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
+<span class="term-comment">[3/5] YOLO11m CoreML: 1,392 subjects localized, 28 no-subject</span>
+<span class="term-comment">[4/5] BioCLIP 2 + Prior: 84 bird species + 12 curated multi-taxa (Snow Leopard, Blue Pansy)</span>
+<span class="term-comment">[5/5] In-place renaming & catalog generation complete</span>
+<span class="term-success">✔ Renamed 1,420 bundles in-place: &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;Date&gt;][_&lt;Loc&gt;].&lt;ext&gt;</span>
+<span class="term-success">✔ Sidecars synchronized (.xmp, .dop, .mov)</span>
+<span class="term-success">✔ Generated standalone offline catalog: /Volumes/Photos/Leh/catalog.html</span>`;
+          break;
+
+        case 'hierarchy':
+          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh --mode hierarchy</span>
+<span class="term-comment">[Mode] APFS Zero-Byte Hard Link Tree</span>
+<span class="term-comment">[1/4] Verified same APFS volume: st_dev 16777220</span>
+<span class="term-comment">[2/4] Materializing species folders in /Volumes/Photos/Leh/birds_hierarchy/</span>
+<span class="term-comment">[3/4] POSIX link(2): Confirmed (1,280 files), _Needs_Review (112), _No_Bird_Detected (28)</span>
+<span class="term-success">✔ Hard-linked 1,420 files into birds_hierarchy (0 disk bytes added, st_nlink >= 2)</span>
+<span class="term-success">✔ Source archive /Volumes/Photos/Leh is 100% immutable and untouched.</span>`;
           break;
 
         case 'force':
           term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh --force</span>
 <span class="term-comment">[Cache Bypass] --force specified: Bypassing cached SQLite predictions</span>
-<span class="term-comment">[Inference] Re-running YOLO11m & BioCLIP 2 on all 1,420 bundles...</span>
-<span class="term-comment">[Inference] 100% computed across 11,167 species taxonomy on Apple Silicon Metal</span>
+<span class="term-comment">[Inference] Re-running YOLO11m & BioCLIP 2 across all 1,420 bundles...</span>
+<span class="term-comment">[Inference] 100% computed across 11,167 species + multi-taxa on Apple Silicon Metal</span>
 <span class="term-comment">[Database] Updated .avicull/manifest.sqlite with fresh predictions</span>
-<span class="term-success">✔ Re-materialized 1,420 hard links according to fresh inference results.</span>`;
+<span class="term-success">✔ Recomputed all predictions and refreshed catalog.html.</span>`;
+          break;
+
+        case 'correct':
+          term.innerHTML = `<span class="term-prompt">$ avicull correct --input /Volumes/Photos/Leh --bundle b3a8f9 --species "Snow_Leopard"</span>
+<span class="term-comment">[Manifest] Located bundle b3a8f9 in .avicull/manifest.sqlite</span>
+<span class="term-comment">[Taxonomy] Resolved species: "Snow_Leopard" -> Category: Mammalia</span>
+<span class="term-comment">[Filesystem] Atomic rename: IMG_0924_Bird_Unknown.CR2 ➔ IMG_0924_Mammalia_Snow_Leopard.CR2</span>
+<span class="term-comment">[Sidecar] Synchronized: IMG_0924_Mammalia_Snow_Leopard.xmp</span>
+<span class="term-success">✔ Correction committed to manifest.sqlite and reflected in catalog.html.</span>`;
           break;
 
         case 'relink':
@@ -2551,24 +2698,26 @@ Saved embeddings to species_embeddings.safetensors (22.84 MB)
 
         case 'report':
           term.innerHTML = `<span class="term-prompt">$ avicull report --input /Volumes/Photos/Leh --format table</span>
-┌────────────────────────────┬───────────┬──────────────┬────────────┐
-│ Species Common Name        │ Count     │ Mean Conf    │ Tier       │
-├────────────────────────────┼───────────┼──────────────┼────────────┤
-│ Black-necked Crane         │ 142       │ 0.97         │ Confirmed  │
-│ Bar-headed Goose           │ 320       │ 0.95         │ Confirmed  │
-│ Tibetan Snowcock           │ 84        │ 0.91         │ Confirmed  │
-│ Blyth's Reed Warbler       │ 38        │ 0.62         │ Review     │
-│ [No Bird Detected]         │ 28        │ 0.12         │ No Bird    │
-└────────────────────────────┴───────────┴──────────────┴────────────┘`;
+┌────────────────────────────┬─────────────┬───────────┬──────────────┬────────────┐
+│ Species / Subject          │ Category    │ Count     │ Mean Conf    │ Tier       │
+├────────────────────────────┼─────────────┼───────────┼──────────────┼────────────┤
+│ Black-necked Crane         │ Bird        │ 142       │ 0.97         │ Confirmed  │
+│ Bar-headed Goose           │ Bird        │ 320       │ 0.95         │ Confirmed  │
+│ Snow Leopard               │ Mammalia    │ 18        │ 0.94         │ Confirmed  │
+│ Blue Pansy                 │ Insecta     │ 24        │ 0.89         │ Confirmed  │
+│ Pangong Tso                │ Scenery     │ 85        │ 0.98         │ Confirmed  │
+│ Blyth's Reed Warbler       │ Bird        │ 38        │ 0.62         │ Review     │
+│ [No Subject Detected]      │ No_Subject  │ 28        │ 0.12         │ Review     │
+└────────────────────────────┴─────────────┴───────────┴──────────────┴────────────┘`;
           break;
 
         case 'clean':
           term.innerHTML = `<span class="term-prompt">$ avicull clean --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[Safety] Querying hardlink operations from manifest.sqlite...</span>
-<span class="term-comment">[Filesystem] Safely unlinking 1,420 destination links in birds_hierarchy...</span>
+<span class="term-comment">[Safety] Querying operations from manifest.sqlite...</span>
+<span class="term-comment">[Filesystem] Safely unlinking destination links in birds_hierarchy...</span>
 <span class="term-comment">[Filesystem] Pruned empty species directories</span>
-<span class="term-success">✔ Clean complete. Hierarchy removed.</span>
-<span class="term-success">✔ Source photo archive /Volumes/Photos/Leh is 100% untouched.</span>`;
+<span class="term-success">✔ Clean complete. Operations rolled back.</span>
+<span class="term-success">✔ Source photo archive /Volumes/Photos/Leh is 100% intact.</span>`;
           break;
 
         case 'rsync':
@@ -2585,7 +2734,7 @@ Photos/Leh/birds_hierarchy/Streak-throated_Swallow/
 sent 48.20M bytes  received 1.42K bytes  18.40M bytes/sec
 total size is 96.40G  speedup is 1.99 (<span class="term-success">50% storage saved via native NTFS MFT hard links!</span>)
 <span class="term-success">✔ Successfully preserved zero-byte hard links on target NTFS volume!</span>
-<span class="term-warn">⚠ Note: If target were exFAT, all 48.2 GB would have been duplicated as separate files.</span>`;
+<span class="term-warn">⚠ Note: On exFAT, use 'avicull organize' (in-place mode) to avoid hardlink file inflation.</span>`;
           break;
       }
     }

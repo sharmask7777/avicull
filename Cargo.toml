@@ -1,6 +1,6 @@
 [package]
 name = "avicull"
-version = "0.2.29"
+version = "0.2.30"
 edition = "2021"
 authors = ["avicull contributors"]
 description = "Local AI Bird Photo Organizer for macOS Apple Silicon"
@@ -50,6 +50,7 @@ pedantic = { level = "deny", priority = -1 }
 unwrap_used = "deny"
 panic = "deny"
 todo = "deny"
+dbg_macro = "deny"
 redundant_clone = "deny"
 
 # Sensible pedantic overrides to avoid counter-productive noise:

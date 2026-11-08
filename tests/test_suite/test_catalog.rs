@@ -1159,6 +1159,112 @@ console.log("ALL JS AUTOCOMPLETE TESTS PASSED");
 }
 
 #[test]
+fn test_catalog_reclassify_modal_resolves_all_curated_multi_taxa_species() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "test-bundle-1".to_string(),
+        original_stem: "IMG_5555".to_string(),
+        current_path: PathBuf::from("IMG_5555.JPG"),
+        primary_image: PathBuf::from("IMG_5555.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        is_local: Some(true),
+        assigned_species: "Unknown".to_string(),
+        scientific_name: None,
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: None,
+        location_name: None,
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Multi-Taxa Validation",
+        &[item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+    let marker = r#"<script id="catalog-data" type="application/json">"#;
+    let start_idx = html_content.find(marker).unwrap() + marker.len();
+    let end_idx = html_content[start_idx..].find("</script>").unwrap();
+    let json_str = &html_content[start_idx..start_idx + end_idx];
+
+    let script_start = html_content.find("<script>\n").unwrap() + 9;
+    let script_end = html_content[script_start..].find("</script>").unwrap();
+    let js_code = &html_content[script_start..script_start + script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    return {{ textContent: '', value: '', style: {{}}, dataset: {{}}, classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{ clipboard: {{ writeText: async () => {{}} }} }};
+class MockImage {{ constructor() {{}} }}
+global.Image = MockImage;
+const window = global;
+
+{js_code}
+
+const item = CATALOG_DATA.items[0];
+
+const hyenaCmds = buildMoveCommandsForItem(item, 'Striped Hyena').join('\n');
+const bearCmds = buildMoveCommandsForItem(item, 'Sloth Bear').join('\n');
+const pangolinCmds = buildMoveCommandsForItem(item, 'Indian Pangolin').join('\n');
+
+console.log(JSON.stringify({{
+  hyenaHasMammalia: hyenaCmds.includes('--category "Mammalia"'),
+  bearHasMammalia: bearCmds.includes('--category "Mammalia"'),
+  pangolinHasMammalia: pangolinCmds.includes('--category "Mammalia"'),
+  hyenaCmds,
+  bearCmds,
+  pangolinCmds
+}}));
+"#,
+        raw_json = json_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(node_output.status.success());
+    let stdout = String::from_utf8_lossy(&node_output.stdout);
+    let v: serde_json::Value = serde_json::from_str(stdout.trim()).expect("parse node output");
+    assert!(
+        v["hyenaHasMammalia"].as_bool().unwrap_or(false),
+        "Striped Hyena must resolve to category Mammalia, got: {}",
+        v["hyenaCmds"]
+    );
+    assert!(
+        v["bearHasMammalia"].as_bool().unwrap_or(false),
+        "Sloth Bear must resolve to category Mammalia, got: {}",
+        v["bearCmds"]
+    );
+    assert!(
+        v["pangolinHasMammalia"].as_bool().unwrap_or(false),
+        "Indian Pangolin must resolve to category Mammalia, got: {}",
+        v["pangolinCmds"]
+    );
+}
+
+#[test]
 fn test_catalog_no_bird_detected_support_and_command_generation() {
     let dir = tempdir().expect("tempdir");
     let catalog_path = dir.path().join("bird_catalog.html");

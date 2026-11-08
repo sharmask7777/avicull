@@ -636,7 +636,7 @@ fn test_round_trip_parse_inplace_filename_two_level() {
     );
     let parsed_unclassified = parse_inplace_filename(&unclassified_file, "DSC_0300")
         .expect("should parse unclassified file");
-    assert_eq!(parsed_unclassified.0, AssetCategory::Bird);
+    assert_eq!(parsed_unclassified.0, AssetCategory::NoSubjectDetected);
     assert_eq!(parsed_unclassified.1, "No_Subject_Detected");
     assert_eq!(parsed_unclassified.2, RoutingTier::NoBirdDetected);
     assert_eq!(parsed_unclassified.3.as_deref(), Some("20261102"));
@@ -687,10 +687,50 @@ fn test_parse_inplace_filename_legacy_v1_promotion() {
     let legacy_nobird = "DSC_0300_No_Bird_Detected_20261102.CR2";
     let parsed_nobird = parse_inplace_filename(legacy_nobird, "DSC_0300")
         .expect("should parse legacy no bird detected");
-    assert_eq!(parsed_nobird.0, AssetCategory::Bird);
+    assert_eq!(parsed_nobird.0, AssetCategory::NoSubjectDetected);
     assert_eq!(parsed_nobird.1, "No_Bird_Detected");
     assert_eq!(parsed_nobird.2, RoutingTier::NoBirdDetected);
     assert_eq!(parsed_nobird.3.as_deref(), Some("20261102"));
+}
+
+#[test]
+fn test_parse_inplace_filename_non_avian_and_unknown_never_defaults_to_bird() {
+    // 1. Non-prefixed scenery file should resolve to Scenery, not Bird
+    let scenery_file = "IMG_3181_Desert_Dunes_20260802_Leh.CR2";
+    let parsed_scenery =
+        parse_inplace_filename(scenery_file, "IMG_3181").expect("should parse desert dunes");
+    assert_eq!(
+        parsed_scenery.0,
+        AssetCategory::Scenery,
+        "Desert Dunes without prefix must resolve to Scenery, never Bird"
+    );
+    assert_eq!(parsed_scenery.1, "Desert_Dunes");
+
+    // 2. Non-prefixed mammal file should resolve to Mammalia, not Bird
+    let mammal_file = "IMG_4000_Malabar_Giant_Squirrel_20260802.CR2";
+    let parsed_mammal =
+        parse_inplace_filename(mammal_file, "IMG_4000").expect("should parse mammal");
+    assert_eq!(
+        parsed_mammal.0,
+        AssetCategory::Mammalia,
+        "Malabar Giant Squirrel without prefix must resolve to Mammalia, never Bird"
+    );
+
+    // 3. Unknown or deprecated botanical subject (e.g. Banyan_Tree, Sacred_Lotus)
+    // MUST NOT resolve to Bird!
+    let banyan_file = "IMG_3079_Banyan_Tree_20260801_Leh.jpg";
+    let parsed_banyan =
+        parse_inplace_filename(banyan_file, "IMG_3079").expect("should parse banyan file");
+    assert_ne!(
+        parsed_banyan.0,
+        AssetCategory::Bird,
+        "Banyan Tree must NEVER resolve to Bird"
+    );
+    assert_eq!(
+        parsed_banyan.0,
+        AssetCategory::NoSubjectDetected,
+        "Unknown or botanical subject must resolve to NoSubjectDetected"
+    );
 }
 
 #[test]
