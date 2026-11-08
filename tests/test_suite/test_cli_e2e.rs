@@ -619,6 +619,8 @@ fn test_types_and_error_display_coverage() {
     let err2 = AvicullError::DatabaseError("db_err".to_string());
     assert!(err2.to_string().contains("db_err"));
 
-    let err3 = AvicullError::HierarchyModeUnsupportedOnRemote { storage_type: "NFS" };
+    let err3 = AvicullError::HierarchyModeUnsupportedOnRemote {
+        storage_type: "NFS",
+    };
     assert!(err3.to_string().contains("NFS"));
 }

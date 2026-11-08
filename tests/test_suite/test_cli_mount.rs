@@ -59,7 +59,9 @@ fn test_cli_unmount_args_parsing() {
 #[tokio::test]
 async fn test_mount_service_handler_and_darwin_helpers() {
     let tmp = tempfile::tempdir().unwrap();
-    let backend = std::sync::Arc::new(avicull::storage::opendal_backend::OpenDalBackend::from_fs_path(tmp.path()).unwrap());
+    let backend = std::sync::Arc::new(
+        avicull::storage::opendal_backend::OpenDalBackend::from_fs_path(tmp.path()).unwrap(),
+    );
     let tree = std::sync::Arc::new(avicull::storage::webdav_server::TaxonomicTree::new());
 
     let config = avicull::storage::mount_service::MountServiceConfig {
@@ -76,9 +78,13 @@ async fn test_mount_service_handler_and_darwin_helpers() {
     #[cfg(target_os = "macos")]
     {
         // Unmount non-existent path will return an error or status handled gracefully
-        let _ = avicull::storage::mount_service::MountService::<avicull::storage::opendal_backend::OpenDalBackend>::unmount_darwin(&tmp.path().join("non_existent"));
+        let _ = avicull::storage::mount_service::MountService::<
+            avicull::storage::opendal_backend::OpenDalBackend,
+        >::unmount_darwin(&tmp.path().join("non_existent"));
         // Darwin mount invocation on unreachable port tests failure branch
-        let _ = avicull::storage::mount_service::MountService::<avicull::storage::opendal_backend::OpenDalBackend>::mount_darwin(1, &tmp.path().join("non_existent_mnt"), "bad_token");
+        let _ = avicull::storage::mount_service::MountService::<
+            avicull::storage::opendal_backend::OpenDalBackend,
+        >::mount_darwin(1, &tmp.path().join("non_existent_mnt"), "bad_token");
     }
 }
 
@@ -99,7 +105,9 @@ async fn test_opendal_backend_s3_and_cache_coverage() {
     assert!(path.to_string_lossy().contains(".jpg"));
 
     // Test ThrottledBackend exists method
-    let fs_backend = std::sync::Arc::new(avicull::storage::opendal_backend::OpenDalBackend::from_fs_path(tmp.path()).unwrap());
+    let fs_backend = std::sync::Arc::new(
+        avicull::storage::opendal_backend::OpenDalBackend::from_fs_path(tmp.path()).unwrap(),
+    );
     let throttled = avicull::storage::cache::ThrottledBackend::new(fs_backend, 4);
     use avicull::storage::opendal_backend::RemoteObjectBackend;
     assert!(!throttled.exists("non_existent_file.jpg").await.unwrap());

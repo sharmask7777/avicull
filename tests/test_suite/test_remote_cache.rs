@@ -106,9 +106,7 @@ async fn test_cache_corrupt_or_empty_file_handling() {
 
     // Cache should ignore empty file and fetch fresh
     let fetched = cache
-        .get_or_insert_with("birds/empty.cr2", || async {
-            Ok(vec![0x77u8; 10])
-        })
+        .get_or_insert_with("birds/empty.cr2", || async { Ok(vec![0x77u8; 10]) })
         .await
         .unwrap();
 
