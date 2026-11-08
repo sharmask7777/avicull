@@ -900,6 +900,12 @@ fn load_species_taxonomy_list() -> Vec<String> {
         }
     }
 
+    // Default to authoritative embedded canonical eBird taxonomy
+    let canonical = crate::types::canonical_bird_common_names();
+    if !canonical.is_empty() {
+        return canonical.to_vec();
+    }
+
     fallback_curated_species()
 }
 
