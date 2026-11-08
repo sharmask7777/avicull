@@ -1571,9 +1571,157 @@ fn main() -> Result<()> {
         Commands::CreateMockDataset(args) => {
             execute_create_mock_dataset(args)?;
         }
+
+        Commands::Mount(args) => {
+            execute_mount(&args);
+        }
+
+        Commands::Unmount(args) => {
+            execute_unmount(&args);
+        }
     }
 
     Ok(())
+}
+
+fn execute_mount(args: &avicull::cli::MountArgs) {
+    let mount_point = args
+        .mount_point
+        .clone()
+        .unwrap_or_else(|| std::path::PathBuf::from("/Volumes/avicull_birds"));
+
+    println!("== avicull mount ==");
+    println!(
+        "Source: {}",
+        avicull::storage::opendal_backend::OpenDalBackend::sanitize_uri(&args.source)
+    );
+    println!("Mount point: {}", mount_point.display());
+
+    // Build dedicated 2-worker Tokio runtime to protect Apple Silicon cores for Rayon/Metal
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("avicull-webdav")
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(e) => {
+            eprintln!("Failed to initialize Tokio runtime: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    rt.block_on(async {
+        // Resolve backend
+        let backend = if args.source.starts_with("s3://") {
+            let bucket = args.source.trim_start_matches("s3://");
+            let bucket_name = bucket.split('/').next().unwrap_or(bucket);
+            match avicull::storage::opendal_backend::OpenDalBackend::from_s3(
+                bucket_name,
+                args.endpoint.as_deref(),
+                args.region.as_deref(),
+            ) {
+                Ok(b) => std::sync::Arc::new(b),
+                Err(e) => {
+                    eprintln!("Failed to connect to S3 source: {e}");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            let path = std::path::Path::new(&args.source);
+            match avicull::storage::opendal_backend::OpenDalBackend::from_fs_path(path) {
+                Ok(b) => std::sync::Arc::new(b),
+                Err(e) => {
+                    eprintln!("Failed to access local source directory: {e}");
+                    std::process::exit(1);
+                }
+            }
+        };
+
+        let tree = std::sync::Arc::new(avicull::storage::webdav_server::TaxonomicTree::new());
+        let auth_token = avicull::storage::mount_service::generate_auth_token();
+
+        let config = avicull::storage::mount_service::MountServiceConfig {
+            port: args.port,
+            mount_point: mount_point.clone(),
+            serve_only: args.serve_only,
+            auth_token: auth_token.clone(),
+        };
+
+        let service = avicull::storage::mount_service::MountService::new(
+            config,
+            tree,
+            backend,
+        );
+
+        let bound_addr = match service.bind_listener().await {
+            Ok(addr) => addr,
+            Err(e) => {
+                eprintln!("Failed to bind loopback TCP port: {e}");
+                std::process::exit(1);
+            }
+        };
+
+        println!("WebDAV loopback server listening at: http://127.0.0.1:{}", bound_addr.port());
+
+        #[cfg(target_os = "macos")]
+        if !args.serve_only {
+            match avicull::storage::mount_service::MountService::<avicull::storage::opendal_backend::OpenDalBackend>::mount_darwin(
+                bound_addr.port(),
+                &mount_point,
+                &auth_token,
+            ) {
+                Ok(()) => {
+                    println!("Successfully mounted virtual volume at {}", mount_point.display());
+                    if args.open {
+                        let _ = std::process::Command::new("open").arg(&mount_point).status();
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Notice: OS mount_webdav failed: {e}. You can connect manually via Finder: Cmd+K -> http://127.0.0.1:{}", bound_addr.port());
+                }
+            }
+        }
+
+        println!("Virtual volume is active. Press Ctrl+C to unmount and exit.");
+
+        // Clean teardown signal trap
+        let _ = tokio::signal::ctrl_c().await;
+        println!("\nReceived shutdown signal. Cleaning up mount point...");
+
+        #[cfg(target_os = "macos")]
+        if !args.serve_only {
+            let _ = avicull::storage::mount_service::MountService::<avicull::storage::opendal_backend::OpenDalBackend>::unmount_darwin(&mount_point);
+        }
+
+        println!("Shutdown complete.");
+    });
+}
+
+fn execute_unmount(args: &avicull::cli::UnmountArgs) {
+    #[cfg(target_os = "macos")]
+    {
+        println!(
+            "Unmounting virtual volume at: {}",
+            args.mount_point.display()
+        );
+        match avicull::storage::mount_service::MountService::<
+            avicull::storage::opendal_backend::OpenDalBackend,
+        >::unmount_darwin(&args.mount_point)
+        {
+            Ok(()) => {
+                println!("Successfully unmounted {}", args.mount_point.display());
+            }
+            Err(e) => {
+                eprintln!("Failed to unmount volume: {e}");
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        eprintln!("Unmount utility requires macOS diskutil.");
+    }
 }
 
 fn execute_correct(args: &CorrectArgs) -> Result<()> {
