@@ -91,3 +91,26 @@ async fn test_throttled_backend_limits_concurrency() {
 
     assert_eq!(counter.load(Ordering::SeqCst), 6);
 }
+
+#[tokio::test]
+async fn test_cache_corrupt_or_empty_file_handling() {
+    let tmp = tempdir().unwrap();
+    let cache = DiskPreviewCache::new(tmp.path());
+    let path = cache.cache_path("birds/empty.cr2");
+
+    // Create empty file
+    if let Some(p) = path.parent() {
+        let _ = std::fs::create_dir_all(p);
+    }
+    std::fs::write(&path, []).unwrap();
+
+    // Cache should ignore empty file and fetch fresh
+    let fetched = cache
+        .get_or_insert_with("birds/empty.cr2", || async {
+            Ok(vec![0x77u8; 10])
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(fetched.len(), 10);
+}

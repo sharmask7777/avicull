@@ -609,3 +609,16 @@ fn test_cli_e2e_inplace_does_not_rename_no_bird_detected() {
         "Only the original 2 files should exist in directory"
     );
 }
+
+#[test]
+fn test_types_and_error_display_coverage() {
+    use avicull::types::AvicullError;
+    let err = AvicullError::InvalidConfidenceMode("invalid".to_string());
+    assert!(err.to_string().contains("invalid"));
+
+    let err2 = AvicullError::DatabaseError("db_err".to_string());
+    assert!(err2.to_string().contains("db_err"));
+
+    let err3 = AvicullError::HierarchyModeUnsupportedOnRemote { storage_type: "NFS" };
+    assert!(err3.to_string().contains("NFS"));
+}

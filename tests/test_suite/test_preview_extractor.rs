@@ -216,3 +216,31 @@ async fn test_extract_embedded_preview_from_subifd() {
     assert_eq!(preview[0], 0xFF);
     assert_eq!(preview[1], 0xD8);
 }
+
+#[tokio::test]
+async fn test_preview_extractor_edge_cases_and_fallbacks() {
+    let tmp = tempdir().unwrap();
+    let backend = OpenDalBackend::from_fs_path(tmp.path()).unwrap();
+    let extractor = PreviewExtractor::new(backend);
+
+    // 1. File too small
+    let small_file = tmp.path().join("tiny.dat");
+    std::fs::write(&small_file, [0x01, 0x02]).unwrap();
+    let err = extractor.extract_preview("tiny.dat", 128 * 1024).await.unwrap_err();
+    assert!(err.to_string().contains("too small"));
+
+    // 2. Standard JPEG fallback
+    let jpeg_file = tmp.path().join("plain.jpg");
+    let mut jpg = vec![0x11u8; 100];
+    jpg[0] = 0xFF;
+    jpg[1] = 0xD8;
+    std::fs::write(&jpeg_file, &jpg).unwrap();
+    let preview = extractor.extract_preview("plain.jpg", 128 * 1024).await.unwrap();
+    assert_eq!(preview.len(), 100);
+
+    // 3. Unrecognized format
+    let rand_file = tmp.path().join("rand.dat");
+    std::fs::write(&rand_file, vec![0x99u8; 64]).unwrap();
+    let err2 = extractor.extract_preview("rand.dat", 128 * 1024).await.unwrap_err();
+    assert!(err2.to_string().contains("Unrecognized"));
+}
