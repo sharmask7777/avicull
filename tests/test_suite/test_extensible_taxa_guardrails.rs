@@ -1001,3 +1001,36 @@ fn test_guardrail_catalog_template_defines_frozen_enums() {
         "Catalog template must reference AssetCategory.NO_SUBJECT_DETECTED enum instead of magic string"
     );
 }
+
+#[test]
+fn test_guardrail_catalog_template_resolve_target_category_never_defaults_to_bird() {
+    let template_src = std::fs::read_to_string("src/catalog/template.rs")
+        .or_else(|_| std::fs::read_to_string("../src/catalog/template.rs"))
+        .expect("Must read src/catalog/template.rs");
+
+    assert!(
+        !template_src.contains("if (fallbackCategory === AssetCategory.NO_SUBJECT_DETECTED || !fallbackCategory) return AssetCategory.BIRD;"),
+        "Catalog template resolveTargetCategory must NEVER default unknown/empty category to AssetCategory.BIRD"
+    );
+
+    // Guardrail: Editing an existing Bird item must not short-circuit return fallbackCategory (Bird)
+    // without validating whether the new species is actually a bird.
+    assert!(
+        template_src.contains("fallbackCategory !== AssetCategory.BIRD"),
+        "resolveTargetCategory must NOT retain fallbackCategory when fallbackCategory is AssetCategory.BIRD"
+    );
+
+    // Guardrail: "No Bird Detected" with spaces must resolve to NO_SUBJECT_DETECTED
+    assert!(
+        template_src.contains("no bird detected"),
+        "resolveTargetCategory must handle 'no bird detected' with spaces"
+    );
+
+    // Default for CatalogItem must be NoSubjectDetected, never Bird
+    let default_item = avicull::catalog::CatalogItem::default();
+    assert_eq!(
+        default_item.category,
+        AssetCategory::NoSubjectDetected,
+        "CatalogItem::default().category must be NoSubjectDetected, never Bird"
+    );
+}

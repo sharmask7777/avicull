@@ -72,7 +72,7 @@ impl Default for CatalogItem {
             location_source: None,
             subdirectory: None,
             top_predictions: Vec::new(),
-            category: AssetCategory::Bird,
+            category: AssetCategory::NoSubjectDetected,
         }
     }
 }
@@ -86,19 +86,40 @@ impl CatalogItem {
         companion_paths: Option<Vec<PathBuf>>,
         sidecar_paths: Option<Vec<PathBuf>>,
     ) -> Self {
-        let (assigned_species, scientific_name) = match decision.routing_tier {
+        let category = crate::organizer::resolve_category_for_decision(decision);
+
+        let (assigned_species, scientific_name, routing_tier) = match decision.routing_tier {
             RoutingTier::NoBirdDetected => {
-                (RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(), None)
+                let sentinel = if decision.assigned_species_slug.contains("Subject")
+                    || decision.assigned_species_slug.contains("subject")
+                {
+                    RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+                } else {
+                    RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
+                };
+                (sentinel, None, RoutingTier::NoBirdDetected)
             }
             _ => {
-                if decision.is_user_override {
+                if category == AssetCategory::NoSubjectDetected
+                    && !crate::types::is_known_bird_slug(&decision.assigned_species_slug)
+                {
+                    (
+                        RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
+                        None,
+                        RoutingTier::NoBirdDetected,
+                    )
+                } else if decision.is_user_override {
                     let cleaned = decision.assigned_species_slug.replace('_', " ");
-                    (cleaned, None)
+                    (cleaned, None, decision.routing_tier)
                 } else if let Some(top) = decision.top_predictions.first() {
-                    (top.common_name.clone(), Some(top.scientific_name.clone()))
+                    (
+                        top.common_name.clone(),
+                        Some(top.scientific_name.clone()),
+                        decision.routing_tier,
+                    )
                 } else {
                     let cleaned = decision.assigned_species_slug.replace('_', " ");
-                    (cleaned, None)
+                    (cleaned, None, decision.routing_tier)
                 }
             }
         };
@@ -119,8 +140,6 @@ impl CatalogItem {
             })
         });
 
-        let category = crate::organizer::resolve_category_for_decision(decision);
-
         Self {
             bundle_id: bundle.bundle_id.clone(),
             original_stem: bundle.original_stem.clone(),
@@ -132,7 +151,7 @@ impl CatalogItem {
             is_local: None,
             assigned_species,
             scientific_name,
-            routing_tier: decision.routing_tier,
+            routing_tier,
             confidence: decision.final_confidence,
             capture_date,
             location_name: bundle.resolved_location_name.clone(),
@@ -266,16 +285,23 @@ pub fn generate_html_catalog(
     let mut new_thumbnails_to_persist = Vec::new();
 
     for item in items {
+        let is_bird = item.category == AssetCategory::Bird;
         match item.routing_tier {
             RoutingTier::ConfirmedSpecies => {
                 confirmed_count += 1;
-                if !item.assigned_species.starts_with('_') && !item.assigned_species.is_empty() {
+                if is_bird
+                    && !item.assigned_species.starts_with('_')
+                    && !item.assigned_species.is_empty()
+                {
                     unique_species.insert(item.assigned_species.clone());
                 }
             }
             RoutingTier::NeedsReview => {
                 needs_review_count += 1;
-                if !item.assigned_species.starts_with('_') && !item.assigned_species.is_empty() {
+                if is_bird
+                    && !item.assigned_species.starts_with('_')
+                    && !item.assigned_species.is_empty()
+                {
                     unique_species.insert(item.assigned_species.clone());
                 }
             }
@@ -439,12 +465,15 @@ pub fn generate_html_catalog(
     let mut species_list = load_species_taxonomy_list();
     species_list.push("No Bird Detected".to_string());
     for item in items {
-        if !item.assigned_species.starts_with('_') && !item.assigned_species.is_empty() {
+        if item.category == AssetCategory::Bird
+            && !item.assigned_species.starts_with('_')
+            && !item.assigned_species.is_empty()
+        {
             species_list.push(item.assigned_species.clone());
-        }
-        for pred in &item.top_predictions {
-            if !pred.common_name.is_empty() {
-                species_list.push(pred.common_name.clone());
+            for pred in &item.top_predictions {
+                if !pred.common_name.is_empty() {
+                    species_list.push(pred.common_name.clone());
+                }
             }
         }
     }
@@ -853,8 +882,14 @@ fn load_species_taxonomy_list() -> Vec<String> {
                 if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
                     let mut list = Vec::with_capacity(parsed.len());
                     for obj in parsed {
-                        if let Some(name) = obj.get("common_name").and_then(|v| v.as_str()) {
-                            list.push(name.to_string());
+                        let slug = obj
+                            .get("folder_slug")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        if crate::types::is_known_bird_slug(slug) {
+                            if let Some(name) = obj.get("common_name").and_then(|v| v.as_str()) {
+                                list.push(name.to_string());
+                            }
                         }
                     }
                     if !list.is_empty() {

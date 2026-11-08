@@ -2,6 +2,7 @@ use avicull::organizer::*;
 use avicull::types::*;
 use std::fs::{self, File};
 use std::io::Write;
+use std::path::PathBuf;
 use tempfile::tempdir;
 
 #[test]
@@ -797,4 +798,118 @@ fn test_infer_prediction_from_stem_rejects_numeric_suffixes() {
     assert!(infer_prediction_from_stem("DSC_0042_1").is_none());
     assert!(infer_prediction_from_stem("IMG_1234_999").is_none());
     assert!(infer_prediction_from_stem("1X7A9001_02").is_none());
+}
+
+#[test]
+fn test_reconcile_inplace_renames_cleanses_botanical_and_bogus_fallback_filenames() {
+    let dir = tempdir().expect("tempdir");
+    let input_dir = dir.path().join("leh_photos");
+    fs::create_dir_all(&input_dir).expect("create input dir");
+
+    let old_jpg = input_dir.join("IMG_3082_Sacred_Lotus_20260801_Leh.jpg");
+    let old_xmp = input_dir.join("IMG_3082_Sacred_Lotus_20260801_Leh.CR2.xmp");
+    File::create(&old_jpg)
+        .expect("create jpg")
+        .write_all(b"fake jpg")
+        .expect("write jpg");
+    File::create(&old_xmp)
+        .expect("create xmp")
+        .write_all(b"fake xmp")
+        .expect("write xmp");
+
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    fs::create_dir_all(db_path.parent().unwrap()).expect("create .avicull dir");
+    let db = avicull::db::ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let run_id = "run_reconcile_test";
+    db.record_run(run_id, &input_dir, &input_dir, false, "{}")
+        .expect("record run");
+
+    let meta = fs::metadata(&old_jpg).expect("metadata");
+    use std::os::unix::fs::MetadataExt;
+    let ino = meta.ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "bundle_3082".to_string(),
+        source_inode: ino,
+        trip_folder_name: "leh_photos".to_string(),
+        original_stem: "IMG_3082".to_string(),
+        primary_image: old_jpg.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![old_xmp.clone()],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: Some("Leh".to_string()),
+        relative_path: Some(PathBuf::from("IMG_3082_Sacred_Lotus_20260801_Leh.jpg")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_3082".to_string(),
+        burst_id: None,
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 1.0,
+        assigned_species_slug: "Sacred_Lotus".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle])
+        .expect("record bundle");
+
+    let mut existing_bundle_map = db.get_existing_bundle_map().expect("bundle map");
+    let reconciled = reconcile_inplace_manual_renames(&input_dir, &db, &mut existing_bundle_map)
+        .expect("reconcile renames");
+
+    assert!(
+        reconciled > 0,
+        "Must reconcile botanical filename to neutral sentinel"
+    );
+    assert!(
+        !old_jpg.exists(),
+        "Old botanical filename IMG_3082_Sacred_Lotus... must no longer exist"
+    );
+    assert!(
+        !old_xmp.exists(),
+        "Old botanical sidecar IMG_3082_Sacred_Lotus...xmp must no longer exist"
+    );
+
+    let new_jpg = input_dir.join("IMG_3082_No_Subject_Detected_20260801_Leh.jpg");
+    let new_xmp = input_dir.join("IMG_3082_No_Subject_Detected_20260801_Leh.CR2.xmp");
+    assert!(
+        new_jpg.exists(),
+        "New sanitized filename IMG_3082_No_Subject_Detected_20260801_Leh.jpg must exist on disk"
+    );
+    assert!(
+        new_xmp.exists(),
+        "New sanitized sidecar IMG_3082_No_Subject_Detected_20260801_Leh.CR2.xmp must exist on disk"
+    );
+
+    let (dec, _) = existing_bundle_map
+        .get("bundle_3082")
+        .expect("bundle in map");
+    assert_eq!(dec.assigned_species_slug, "_No_Subject_Detected");
+    assert_eq!(dec.routing_tier, RoutingTier::NoBirdDetected);
+}
+
+#[test]
+fn test_parse_inplace_slug_and_tier_two_level_botanical_demotes_to_no_subject_detected() {
+    // A 2-level naming format with explicit Bird prefix but botanical species:
+    // e.g. IMG_3082_Bird_Sacred_Lotus_20260801_Leh
+    let result = avicull::organizer::reconcile::parse_inplace_slug_and_tier(
+        "IMG_3082_Bird_Sacred_Lotus_20260801_Leh",
+        "IMG_3082",
+        Some("Leh"),
+    );
+    let (cat, slug, tier) = result.expect("should parse");
+    assert_ne!(
+        cat,
+        AssetCategory::Bird,
+        "Botanical species must NEVER resolve to AssetCategory::Bird"
+    );
+    assert_eq!(cat, AssetCategory::NoSubjectDetected);
+    assert_eq!(slug, RoutingTier::SENTINEL_NO_SUBJECT_DETECTED);
+    assert_eq!(tier, RoutingTier::NoBirdDetected);
 }

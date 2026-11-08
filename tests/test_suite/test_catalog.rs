@@ -1,6 +1,8 @@
 use avicull::catalog::{generate_html_catalog, CatalogItem, ClassifiedBundleItem};
 use avicull::db::ManifestDb;
-use avicull::types::{AssetCategory, OrganizationMode, RoutingTier, SpeciesPrediction};
+use avicull::types::{
+    AssetBundle, AssetCategory, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
+};
 use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -1365,7 +1367,7 @@ const cmdsHier = buildMoveCommands("No Bird Detected");
 const cmdsHierStr = cmdsHier.join("\n");
 console.log("Hierarchy commands:\n", cmdsHierStr);
 
-if (!cmdsHierStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2001"')) {{
+if (!cmdsHierStr.includes('avicull correct --category "No_Subject_Detected" --species "_No_Bird_Detected" --file "IMG_2001"') && !cmdsHierStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2001"')) {{
   console.error("Failed: avicull correct command did not use _No_Bird_Detected. Got:", cmdsHierStr);
   process.exit(1);
 }}
@@ -1395,7 +1397,7 @@ const cmdsInplace = buildMoveCommands("No Bird Detected");
 const cmdsInplaceStr = cmdsInplace.join("\n");
 console.log("In-place commands:\n", cmdsInplaceStr);
 
-if (!cmdsInplaceStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2002"')) {{
+if (!cmdsInplaceStr.includes('avicull correct --category "No_Subject_Detected" --species "_No_Bird_Detected" --file "IMG_2002"') && !cmdsInplaceStr.includes('avicull correct --category "Bird" --species "_No_Bird_Detected" --file "IMG_2002"')) {{
   console.error("Failed: avicull correct command in in-place mode did not use _No_Bird_Detected. Got:", cmdsInplaceStr);
   process.exit(1);
 }}
@@ -3187,6 +3189,278 @@ fn test_resolve_category_for_decision_mammals_preservation() {
             resolve_category_for_decision(&bird_dec),
             AssetCategory::Bird,
             "Expected Bird for {b_slug}"
+        );
+    }
+}
+
+#[test]
+fn test_catalog_item_from_bundle_and_decision_never_resolves_non_bird_to_bird() {
+    let bundle = AssetBundle {
+        bundle_id: "bundle_lotus".to_string(),
+        source_inode: 111,
+        trip_folder_name: "Leh".to_string(),
+        original_stem: "IMG_3082".to_string(),
+        primary_image: PathBuf::from("/photos/IMG_3082.jpg"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: None,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_lotus".to_string(),
+        burst_id: None,
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 1.0,
+        assigned_species_slug: "Sacred_Lotus".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: true,
+    };
+
+    let cat_item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+
+    assert_ne!(
+        cat_item.category,
+        AssetCategory::Bird,
+        "Sacred Lotus must NEVER have AssetCategory::Bird"
+    );
+    assert_eq!(
+        cat_item.category,
+        AssetCategory::NoSubjectDetected,
+        "Sacred Lotus must resolve to AssetCategory::NoSubjectDetected"
+    );
+    assert_eq!(
+        cat_item.routing_tier,
+        RoutingTier::NoBirdDetected,
+        "Non-bird botanical item must route to RoutingTier::NoBirdDetected"
+    );
+    assert!(
+        cat_item.assigned_species == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+            || cat_item.assigned_species == RoutingTier::SENTINEL_NO_BIRD_DETECTED,
+        "Assigned species must be a neutral sentinel, found: {}",
+        cat_item.assigned_species
+    );
+}
+
+#[test]
+fn test_generate_html_catalog_purges_bad_fallbacks_from_bird_count_and_species_stats() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    let sparrow_item = CatalogItem {
+        bundle_id: "b-sparrow".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        current_path: PathBuf::from("IMG_1001.JPG"),
+        primary_image: dir.path().join("IMG_1001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "House Sparrow".to_string(),
+        scientific_name: Some("Passer domesticus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: None,
+        location_name: None,
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+        category: AssetCategory::Bird,
+    };
+
+    let lotus_item = CatalogItem {
+        bundle_id: "b-lotus".to_string(),
+        original_stem: "IMG_3082".to_string(),
+        current_path: PathBuf::from("IMG_3082.JPG"),
+        primary_image: dir.path().join("IMG_3082.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Sacred Lotus".to_string(),
+        scientific_name: None,
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 1.0,
+        capture_date: None,
+        location_name: None,
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+        category: AssetCategory::NoSubjectDetected,
+    };
+
+    let banyan_item = CatalogItem {
+        bundle_id: "b-banyan".to_string(),
+        original_stem: "IMG_3079".to_string(),
+        current_path: PathBuf::from("IMG_3079.JPG"),
+        primary_image: dir.path().join("IMG_3079.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Banyan Tree".to_string(),
+        scientific_name: None,
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 1.0,
+        capture_date: None,
+        location_name: None,
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+        category: AssetCategory::NoSubjectDetected,
+    };
+
+    generate_html_catalog(
+        "Leh",
+        &[sparrow_item, lotus_item, banyan_item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate catalog");
+
+    let html = fs::read_to_string(&catalog_path).expect("read catalog");
+    let json_start = html
+        .find("<script id=\"catalog-data\" type=\"application/json\">")
+        .expect("find json start")
+        + "<script id=\"catalog-data\" type=\"application/json\">".len();
+    let json_end = html[json_start..].find("</script>").expect("find json end") + json_start;
+    let payload_val: serde_json::Value =
+        serde_json::from_str(&html[json_start..json_end]).expect("parse catalog json");
+
+    let stats = &payload_val["stats"];
+    assert_eq!(
+        stats["bird_count"], 1,
+        "bird_count must be exactly 1 (only real bird), not 3"
+    );
+    assert_eq!(
+        stats["species_count"], 1,
+        "species_count must be exactly 1 (only real bird), not 3"
+    );
+
+    let items = payload_val["items"].as_array().expect("items array");
+    for it in items {
+        let name = it["assigned_species"].as_str().unwrap_or("");
+        let cat = it["category"].as_str().unwrap_or("");
+        if name.contains("Lotus") || name.contains("Banyan") {
+            assert_ne!(
+                cat, "Bird",
+                "Botanical item {name} must never have category Bird"
+            );
+            assert_eq!(cat, "No_Subject_Detected");
+        }
+    }
+}
+
+#[test]
+fn test_catalog_item_from_bundle_and_decision_preserves_no_subject_detected_sentinel() {
+    let dir = tempdir().expect("tempdir");
+    let primary_img = dir.path().join("IMG_9999.JPG");
+    File::create(&primary_img)
+        .unwrap()
+        .write_all(b"fake")
+        .unwrap();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_no_subject".to_string(),
+        source_inode: 9999,
+        trip_folder_name: "trip".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        primary_image: primary_img,
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: None,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_no_subject".to_string(),
+        burst_id: None,
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 1.0,
+        assigned_species_slug: RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
+        routing_tier: RoutingTier::NoBirdDetected,
+        is_user_override: false,
+    };
+
+    let cat_item = CatalogItem::from_bundle_and_decision(&bundle, &decision, None, None, None);
+    assert_eq!(
+        cat_item.assigned_species,
+        RoutingTier::SENTINEL_NO_SUBJECT_DETECTED,
+        "When decision is _No_Subject_Detected, assigned_species must be _No_Subject_Detected (not _No_Bird_Detected)"
+    );
+    assert_eq!(cat_item.category, AssetCategory::NoSubjectDetected);
+    assert_eq!(cat_item.routing_tier, RoutingTier::NoBirdDetected);
+}
+
+#[test]
+fn test_generate_html_catalog_does_not_include_non_avian_predictions_in_species_list() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    let mammal_item = CatalogItem {
+        bundle_id: "b-mammal".to_string(),
+        original_stem: "IMG_2001".to_string(),
+        current_path: PathBuf::from("IMG_2001.JPG"),
+        primary_image: dir.path().join("IMG_2001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Snow Leopard".to_string(),
+        scientific_name: Some("Panthera uncia".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: None,
+        location_name: None,
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![SpeciesPrediction {
+            taxon_id: "snoleo1".to_string(),
+            common_name: "Snow Leopard".to_string(),
+            folder_slug: "Snow_Leopard".to_string(),
+            scientific_name: "Panthera uncia".to_string(),
+            visual_prob: 0.98,
+            geo_prior: 1.0,
+            combined_score: 0.98,
+        }],
+        is_local: Some(true),
+        category: AssetCategory::Mammalia,
+    };
+
+    generate_html_catalog(
+        "Leh",
+        &[mammal_item],
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        &catalog_path,
+    )
+    .expect("generate catalog");
+
+    let html = fs::read_to_string(&catalog_path).expect("read catalog");
+    let json_start = html
+        .find("<script id=\"catalog-data\" type=\"application/json\">")
+        .expect("find json start")
+        + "<script id=\"catalog-data\" type=\"application/json\">".len();
+    let json_end = html[json_start..].find("</script>").expect("find json end") + json_start;
+    let payload_val: serde_json::Value =
+        serde_json::from_str(&html[json_start..json_end]).expect("parse catalog json");
+
+    let species_list = payload_val["species_list"]
+        .as_array()
+        .expect("species_list array");
+    for s in species_list {
+        let name = s.as_str().unwrap_or("");
+        assert_ne!(
+            name, "Snow Leopard",
+            "Non-avian prediction 'Snow Leopard' must not be in bird species_list"
         );
     }
 }

@@ -927,3 +927,240 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         "SQLite bundle_decisions category must be Mammalia, never Bird"
     );
 }
+
+#[test]
+fn test_apply_bundle_correction_rejects_or_corrects_non_bird_assigned_to_bird() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let run_id = "run_corr_test";
+    db.record_run(run_id, dir.path(), dir.path(), false, "{}")
+        .unwrap();
+
+    let img_path = dir.path().join("IMG_9999.JPG");
+    std::fs::File::create(&img_path)
+        .unwrap()
+        .write_all(b"fake")
+        .unwrap();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_corr_1".to_string(),
+        source_inode: 9999,
+        trip_folder_name: "test".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("IMG_9999.JPG")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_corr_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle]).unwrap();
+
+    // Attempt to correct to "Sacred_Lotus" under "Bird" category
+    let res = avicull::organizer::correct::apply_bundle_correction_with_category(
+        &db,
+        dir.path(),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        "IMG_9999",
+        "Bird",
+        "Sacred_Lotus",
+        None,
+        false,
+    )
+    .unwrap();
+
+    assert_eq!(res.len(), 1);
+    let (updated_dec, _) = &res[0];
+
+    // Must NEVER resolve to Bird for a non-bird!
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let cat_in_bundles: String = conn
+        .query_row(
+            "SELECT category FROM bundles WHERE bundle_id = 'b_corr_1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_ne!(
+        cat_in_bundles, "Bird",
+        "Sacred Lotus must NEVER be recorded as Bird in bundles"
+    );
+    assert_eq!(
+        cat_in_bundles, "No_Subject_Detected",
+        "Sacred Lotus must be corrected to No_Subject_Detected"
+    );
+    assert_eq!(
+        updated_dec.routing_tier,
+        RoutingTier::NoBirdDetected,
+        "Routing tier must be NoBirdDetected"
+    );
+}
+
+#[test]
+fn test_apply_bundle_correction_with_botanical_category_normalizes_to_no_subject_detected() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join(".avicull/manifest.sqlite");
+    fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let run_id = "run_botanical_cat_test";
+    db.record_run(run_id, dir.path(), dir.path(), false, "{}")
+        .unwrap();
+
+    let img_path = dir.path().join("IMG_8888.JPG");
+    File::create(&img_path)
+        .unwrap()
+        .write_all(b"fake img")
+        .unwrap();
+    let meta = fs::metadata(&img_path).unwrap();
+    let ino = meta.ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_botanical_1".to_string(),
+        source_inode: ino,
+        trip_folder_name: "photos".to_string(),
+        original_stem: "IMG_8888".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("IMG_8888.JPG")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_botanical_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle]).unwrap();
+
+    let res = avicull::organizer::correct::apply_bundle_correction_with_category(
+        &db,
+        dir.path(),
+        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        "IMG_8888",
+        "Botanical",
+        "Lotus",
+        None,
+        false,
+    )
+    .unwrap();
+
+    assert_eq!(res.len(), 1);
+    let (updated_dec, _) = &res[0];
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let cat_in_bundles: String = conn
+        .query_row(
+            "SELECT category FROM bundles WHERE bundle_id = 'b_botanical_1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        cat_in_bundles, "No_Subject_Detected",
+        "Category 'Botanical' must normalize to No_Subject_Detected"
+    );
+    assert_eq!(updated_dec.routing_tier, RoutingTier::NoBirdDetected);
+}
+
+#[test]
+fn test_reconcile_manual_disk_moves_never_resolves_botanical_or_non_bird_to_bird() {
+    let dir = tempdir().unwrap();
+    let output_root = dir.path().join("birds_hierarchy");
+    let botanical_dir = output_root.join("Bird/Sacred_Lotus");
+    fs::create_dir_all(&botanical_dir).unwrap();
+
+    let img_path = botanical_dir.join("IMG_1001.JPG");
+    File::create(&img_path)
+        .unwrap()
+        .write_all(b"fake img")
+        .unwrap();
+    let meta = fs::metadata(&img_path).unwrap();
+    let ino = meta.ino();
+
+    let db_path = output_root.join(".avicull/manifest.sqlite");
+    fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+
+    let run_id = "run_disk_move_test";
+    db.record_run(run_id, &output_root, &output_root, false, "{}")
+        .unwrap();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_disk_1".to_string(),
+        source_inode: ino,
+        trip_folder_name: "photos".to_string(),
+        original_stem: "IMG_1001".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("Bird/Sacred_Lotus/IMG_1001.JPG")),
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "b_disk_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.0,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.0,
+        final_confidence: 0.9,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    db.record_bundles(run_id, &[decision], &[bundle]).unwrap();
+
+    let mut existing_bundle_map = db.get_existing_bundle_map().unwrap();
+    let _reconciled =
+        reconcile_manual_disk_moves(&output_root, &db, &mut existing_bundle_map).unwrap();
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let cat_in_db: String = conn
+        .query_row(
+            "SELECT category FROM bundles WHERE bundle_id = 'b_disk_1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_ne!(
+        cat_in_db, "Bird",
+        "Sacred_Lotus in Bird/ folder must NEVER be recognized as Bird"
+    );
+    assert_eq!(
+        cat_in_db, "No_Subject_Detected",
+        "Sacred_Lotus must resolve to No_Subject_Detected"
+    );
+}
