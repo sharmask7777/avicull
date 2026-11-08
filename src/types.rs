@@ -53,6 +53,29 @@ static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::n
     set
 });
 
+static CANONICAL_BIRD_COMMON_NAMES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let mut names = Vec::new();
+    if let Ok(records) = serde_json::from_str::<Vec<serde_json::Value>>(TAXONOMY_JSON) {
+        for r in records {
+            let cat = r.get("category").and_then(|v| v.as_str()).unwrap_or("Bird");
+            if cat == "Bird" {
+                if let Some(cname) = r.get("common_name").and_then(|v| v.as_str()) {
+                    names.push(cname.to_string());
+                }
+            }
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+});
+
+/// Returns the slice of all canonical eBird bird common names.
+#[must_use]
+pub fn canonical_bird_common_names() -> &'static [String] {
+    &CANONICAL_BIRD_COMMON_NAMES
+}
+
 /// Checks whether an entity slug or species name belongs to authoritative eBird taxonomy.
 #[must_use]
 pub fn is_known_bird_slug(slug: &str) -> bool {

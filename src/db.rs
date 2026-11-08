@@ -601,6 +601,54 @@ impl ManifestDb {
         Ok(())
     }
 
+    /// Cleanses a bundle's classification when a botanical or bogus fallback is purged, resetting `is_user_override = 0`.
+    ///
+    /// # Arguments
+    /// * `bundle_id` - Identifier of the bundle being updated.
+    /// * `category` - Canonical category string representation.
+    /// * `new_species_slug` - Sanitized species or neutral sentinel slug.
+    /// * `routing_tier` - Destination sorting tier ([`RoutingTier`]).
+    /// * `final_conf` - Final confidence score.
+    ///
+    /// # Errors
+    /// Returns an error if SQLite update statements fail.
+    pub fn update_bundle_cleansed(
+        &self,
+        bundle_id: &str,
+        category: &str,
+        new_species_slug: &str,
+        routing_tier: RoutingTier,
+        final_conf: f32,
+    ) -> Result<()> {
+        let conn = self.lock_conn()?;
+        let tier_str = match routing_tier {
+            RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
+            RoutingTier::NeedsReview => "NeedsReview",
+            RoutingTier::NoBirdDetected => "NoBirdDetected",
+        };
+        conn.execute(
+            "UPDATE bundles
+             SET category = ?1,
+                 assigned_species_slug = ?2,
+                 routing_tier = ?3,
+                 final_conf = ?4,
+                 is_user_override = 0
+             WHERE bundle_id = ?5",
+            params![category, new_species_slug, tier_str, final_conf, bundle_id],
+        )?;
+        let _ = conn.execute(
+            "UPDATE bundle_decisions
+             SET category = ?1,
+                 assigned_species_slug = ?2,
+                 routing_tier = ?3,
+                 final_conf = ?4,
+                 is_user_override = 0
+             WHERE bundle_id = ?5",
+            params![category, new_species_slug, tier_str, final_conf, bundle_id],
+        );
+        Ok(())
+    }
+
     /// Updates a bundle's classification as a manual user override.
     ///
     /// # Arguments
@@ -1805,8 +1853,9 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                  top5_predictions_json = '[]',
                  detection_conf = 0.0,
                  frame_conf = 0.0,
-                 final_conf = 0.0
-             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')",
+                 final_conf = 0.0,
+                 is_user_override = 0
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus', 'Rhododendron', 'Rhododendron_arboreum', 'Wild_Mushroom', 'Indian_Lotus', 'Water_Lily', 'Indian_Banyan', 'Vada_Tree')",
             [],
         );
     }
@@ -1859,8 +1908,9 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                  top5_predictions_json = '[]',
                  detection_conf = 0.0,
                  frame_conf = 0.0,
-                 final_conf = 0.0
-             WHERE (category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')) AND is_user_override = 0"
+                 final_conf = 0.0,
+                 is_user_override = 0
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus', 'Rhododendron', 'Rhododendron_arboreum', 'Wild_Mushroom', 'Indian_Lotus', 'Water_Lily', 'Indian_Banyan', 'Vada_Tree')"
         } else {
             "UPDATE bundles
              SET category = 'No_Subject_Detected',
@@ -1870,7 +1920,7 @@ pub fn migrate_bundle_decisions(conn: &Connection) -> Result<()> {
                  detection_conf = 0.0,
                  frame_conf = 0.0,
                  final_conf = 0.0
-             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus')"
+             WHERE category = 'Botanical' OR assigned_species_slug IN ('Banyan_Tree', 'Sacred_Lotus', 'Rhododendron', 'Rhododendron_arboreum', 'Wild_Mushroom', 'Indian_Lotus', 'Water_Lily', 'Indian_Banyan', 'Vada_Tree')"
         };
         let _ = conn.execute(botanical_sql, []);
     }

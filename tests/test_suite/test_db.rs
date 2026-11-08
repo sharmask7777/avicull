@@ -659,3 +659,140 @@ fn test_migrate_preserves_user_override_in_bundles_table() {
         "Migration must preserve user override category in bundles table"
     );
 }
+
+#[test]
+fn test_migrate_purges_botanical_and_bogus_fallbacks_even_with_user_override() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let run_id = "run_botanical_purge";
+    db.record_run(
+        run_id,
+        Path::new("/photos/input"),
+        Path::new("/photos/output"),
+        false,
+        "{}",
+    )
+    .expect("record run");
+
+    let test_cases = [
+        ("b_lotus", "IMG_3082", "Sacred_Lotus", "Bird", true),
+        ("b_banyan", "IMG_3079", "Banyan_Tree", "Bird", true),
+        ("b_rhodo", "IMG_3090", "Rhododendron", "Botanical", true),
+    ];
+
+    for (b_id, stem, slug, cat, is_override) in test_cases {
+        let bundle = AssetBundle {
+            bundle_id: b_id.to_string(),
+            source_inode: 12345,
+            trip_folder_name: "Leh".to_string(),
+            original_stem: stem.to_string(),
+            primary_image: PathBuf::from(format!("/photos/input/{stem}.JPG")),
+            companion_images: vec![],
+            sidecar_files: vec![],
+            capture_timestamp_ms: None,
+            gps_coords: None,
+            resolved_location_name: None,
+            relative_path: None,
+        };
+
+        let decision = BundleDecision {
+            bundle_id: b_id.to_string(),
+            burst_id: None,
+            detection_confidence: 0.0,
+            bbox_xyxy_norm: None,
+            top_predictions: vec![],
+            frame_confidence: 0.0,
+            final_confidence: 1.0,
+            assigned_species_slug: slug.to_string(),
+            routing_tier: RoutingTier::ConfirmedSpecies,
+            is_user_override: is_override,
+        };
+
+        let cat_enum = cat.parse().unwrap_or(AssetCategory::Bird);
+        db.record_bundles(run_id, std::slice::from_ref(&decision), &[bundle])
+            .expect("record bundle");
+        db.insert_bundle_decision(&decision, &cat_enum, None)
+            .expect("insert decision");
+
+        // Force is_user_override = 1 in both tables
+        let raw_conn = db.raw_conn();
+        let conn = raw_conn.lock().expect("lock conn");
+        conn.execute(
+            "UPDATE bundles SET is_user_override = 1, category = ?1, assigned_species_slug = ?2 WHERE bundle_id = ?3",
+            rusqlite::params![cat, slug, b_id],
+        )
+        .expect("update bundles override");
+        conn.execute(
+            "UPDATE bundle_decisions SET is_user_override = 1, category = ?1, assigned_species_slug = ?2 WHERE bundle_id = ?3",
+            rusqlite::params![cat, slug, b_id],
+        )
+        .expect("update bundle_decisions override");
+    }
+
+    let conn = rusqlite::Connection::open(&db_path).expect("open raw sqlite");
+    migrate_bundle_decisions(&conn).expect("run migration");
+
+    for (b_id, _, _, _, _) in test_cases {
+        let (bundle_cat, bundle_slug, bundle_tier, bundle_override, bundle_conf): (
+            String,
+            String,
+            String,
+            i64,
+            f64,
+        ) = conn
+            .query_row(
+                "SELECT category, assigned_species_slug, routing_tier, is_user_override, final_conf FROM bundles WHERE bundle_id = ?1",
+                rusqlite::params![b_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .expect("query bundle row");
+
+        assert_eq!(
+            bundle_cat, "No_Subject_Detected",
+            "Bundle {b_id} category must be purged to No_Subject_Detected"
+        );
+        assert_eq!(
+            bundle_slug, "_No_Subject_Detected",
+            "Bundle {b_id} slug must be purged to _No_Subject_Detected"
+        );
+        assert_eq!(
+            bundle_tier, "NoBirdDetected",
+            "Bundle {b_id} tier must be NoBirdDetected"
+        );
+        assert_eq!(
+            bundle_override, 0,
+            "Bundle {b_id} user override flag must be reset to 0"
+        );
+        assert!(
+            bundle_conf < 1e-4,
+            "Bundle {b_id} final_conf must be reset to 0.0"
+        );
+
+        let (dec_cat, dec_slug, dec_tier, dec_override): (String, String, String, i64) = conn
+            .query_row(
+                "SELECT category, assigned_species_slug, routing_tier, is_user_override FROM bundle_decisions WHERE bundle_id = ?1",
+                rusqlite::params![b_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .expect("query decision row");
+
+        assert_eq!(
+            dec_cat, "No_Subject_Detected",
+            "Decision {b_id} category must be purged to No_Subject_Detected"
+        );
+        assert_eq!(
+            dec_slug, "_No_Subject_Detected",
+            "Decision {b_id} slug must be purged to _No_Subject_Detected"
+        );
+        assert_eq!(
+            dec_tier, "NoBirdDetected",
+            "Decision {b_id} tier must be NoBirdDetected"
+        );
+        assert_eq!(
+            dec_override, 0,
+            "Decision {b_id} user override flag must be reset to 0"
+        );
+    }
+}

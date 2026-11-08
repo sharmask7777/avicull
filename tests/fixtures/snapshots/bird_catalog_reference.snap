@@ -1934,7 +1934,7 @@ fi
   function resolveTargetCategory(species, fallbackCategory) {
     if (!species) return fallbackCategory || AssetCategory.NO_SUBJECT_DETECTED;
     const s = species.toLowerCase().trim().replace(/^_+/, '');
-    if (s.includes('no_bird_detected') || s.includes('no_subject_detected') || s.includes('nobird') || s.includes('nosubject')) return AssetCategory.NO_SUBJECT_DETECTED;
+    if (s.includes('no_bird_detected') || s.includes('no bird detected') || s.includes('no_subject_detected') || s.includes('no subject detected') || s.includes('nobird') || s.includes('nosubject')) return AssetCategory.NO_SUBJECT_DETECTED;
 
     // Direct match against known category prefixes
     if (s.startsWith('mammalia') || s.startsWith('mammal')) return AssetCategory.MAMMALIA;
@@ -1954,9 +1954,24 @@ fi
     const withUnderscores = s.replace(/ /g, '_');
     if (exactMultiTaxa[withUnderscores]) return exactMultiTaxa[withUnderscores];
 
-    // If user selected a valid species (like Brahminy Kite, European Turtle-Dove), it is a Bird!
-    if (fallbackCategory === AssetCategory.NO_SUBJECT_DETECTED || !fallbackCategory) return AssetCategory.BIRD;
-    return fallbackCategory;
+    // If fallbackCategory is already a specific non-avian category, respect it
+    if (fallbackCategory && fallbackCategory !== AssetCategory.NO_SUBJECT_DETECTED && fallbackCategory !== AssetCategory.BIRD) {
+      return fallbackCategory;
+    }
+
+    // Check if species is in the curated autocomplete taxonomy of birds (excluding sentinels)
+    const isKnownBird = Array.isArray(CATALOG_DATA.species_list) && CATALOG_DATA.species_list.some(b => {
+      const lowerB = b.toLowerCase();
+      if (lowerB.includes('no bird detected') || lowerB.includes('no_bird_detected') || lowerB.includes('no subject detected') || lowerB.includes('no_subject_detected')) return false;
+      return lowerB === s || lowerB === withSpaces || lowerB.replace(/ /g, '_') === s;
+    });
+
+    if (isKnownBird) {
+      return AssetCategory.BIRD;
+    }
+
+    // Unrecognized or unclassified entity: Invariant: NEVER assume unknown entities are birds!
+    return AssetCategory.NO_SUBJECT_DETECTED;
   }
 
   function buildMoveCommandsForItem(item, species) {

@@ -14,7 +14,9 @@ use crate::organizer::{
     sanitize_species_slug,
 };
 use crate::storage::detect_storage_backend;
-use crate::types::{AssetBundle, BundleDecision, OrganizationMode, RoutingTier};
+use crate::types::{
+    is_known_bird_slug, AssetBundle, AssetCategory, BundleDecision, OrganizationMode, RoutingTier,
+};
 use anyhow::{anyhow, Context, Result};
 use std::fs;
 use std::io::{IsTerminal, Write};
@@ -459,29 +461,46 @@ pub fn apply_bundle_correction_with_category(
         vec![(target_dec, target_bundle)]
     };
 
-    let normalized_category = match category.to_lowercase().as_str() {
-        "mammalia" | "mammal" | "mammals" => "Mammalia",
-        "insecta" | "insect" | "insects" => "Insecta",
-        "scenery" | "landscape" => "Scenery",
-        "bird" | "birds" => "Bird",
+    let mut normalized_category: String = match category.to_ascii_lowercase().as_str() {
+        "mammalia" | "mammal" | "mammals" => "Mammalia".to_string(),
+        "insecta" | "insect" | "insects" => "Insecta".to_string(),
+        "reptilia" | "reptile" | "reptiles" => "Reptilia".to_string(),
+        "amphibia" | "amphibian" | "amphibians" => "Amphibia".to_string(),
+        "scenery" | "landscape" => "Scenery".to_string(),
+        "architecture" | "monument" | "building" => "Architecture".to_string(),
+        "portrait" | "people" => "Portrait".to_string(),
+        "abstract" | "texture" => "Abstract".to_string(),
+        "botanical"
+        | "plant"
+        | "plants"
+        | "flora"
+        | "flower"
+        | "flowers"
+        | "tree"
+        | "trees"
+        | "no_subject_detected"
+        | "nosubjectdetected"
+        | "no_bird_detected"
+        | "nobirddetected" => AssetCategory::NoSubjectDetected.as_str().to_string(),
+        "bird" | "birds" => "Bird".to_string(),
         other => {
             if other.is_empty() {
-                "Bird"
+                "Bird".to_string()
             } else {
-                category
+                category.to_string()
             }
         }
     };
 
     let mut resolved_species = new_species.to_string();
-    let (has_needs_review, species_to_check) =
+    let (has_needs_review, mut species_to_check) =
         if let Some(stripped) = new_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
             (true, stripped)
         } else {
             (false, new_species)
         };
 
-    let is_no_bird = species_to_check == RoutingTier::SENTINEL_NO_BIRD_DETECTED
+    let mut is_no_bird = species_to_check == RoutingTier::SENTINEL_NO_BIRD_DETECTED
         || species_to_check == "NoBirdDetected"
         || species_to_check.eq_ignore_ascii_case("No Bird Detected")
         || species_to_check.eq_ignore_ascii_case("No_Bird_Detected")
@@ -490,9 +509,12 @@ pub fn apply_bundle_correction_with_category(
         || species_to_check.eq_ignore_ascii_case("No Subject Detected")
         || species_to_check.eq_ignore_ascii_case("No_Subject_Detected");
 
+    let mut suggestion_declined = false;
+    let mut has_bird_suggestion = false;
     if !is_no_bird {
         let taxonomy = load_taxonomy_records();
         if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
+            has_bird_suggestion = true;
             if is_interactive_session() {
                 print!(
                     "\nSpecies '{}' not found in taxonomy. Did you mean '{}'? [Y/n]: ",
@@ -511,6 +533,8 @@ pub fn apply_bundle_correction_with_category(
                     } else {
                         suggestion.common_name
                     };
+                } else {
+                    suggestion_declined = true;
                 }
             } else {
                 println!(
@@ -521,16 +545,42 @@ pub fn apply_bundle_correction_with_category(
         }
     }
 
+    if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
+        species_to_check = stripped;
+    } else {
+        species_to_check = &resolved_species;
+    }
+
+    if normalized_category == "Bird" {
+        if is_no_bird {
+            normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+        } else if !is_known_bird_slug(species_to_check) {
+            let cat = AssetCategory::from_slug(species_to_check);
+            if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
+                normalized_category = cat.as_str().to_string();
+            } else if suggestion_declined || !has_bird_suggestion {
+                if cat == AssetCategory::NoSubjectDetected {
+                    normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+                    is_no_bird = true;
+                } else {
+                    normalized_category = cat.as_str().to_string();
+                }
+            }
+        }
+    } else if normalized_category == AssetCategory::NoSubjectDetected.as_str() {
+        is_no_bird = true;
+    }
+
     let (routing_tier, target_slug) = if is_no_bird {
-        if species_to_check.to_ascii_lowercase().contains("subject") {
+        if species_to_check.to_ascii_lowercase().contains("bird") {
             (
                 RoutingTier::NoBirdDetected,
-                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
             )
         } else {
             (
                 RoutingTier::NoBirdDetected,
-                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
             )
         }
     } else if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
@@ -544,7 +594,7 @@ pub fn apply_bundle_correction_with_category(
 
     let target_dir = build_output_destination_path(
         operating_root,
-        normalized_category,
+        &normalized_category,
         &target_slug,
         routing_tier,
     );
@@ -582,7 +632,7 @@ pub fn apply_bundle_correction_with_category(
 
         db.update_bundle_override_with_category(
             &bundle.bundle_id,
-            normalized_category,
+            &normalized_category,
             &target_slug,
             routing_tier,
             1.0,
@@ -650,7 +700,7 @@ pub fn apply_bundle_correction_with_category(
                         let materialized = materialize_bundle_hardlinks_with_category(
                             &bundle,
                             &new_dec,
-                            normalized_category,
+                            &normalized_category,
                             operating_root,
                             &latest_run,
                             false,
@@ -711,7 +761,7 @@ pub fn apply_bundle_correction_with_category(
 
                 let new_stem = format_inplace_filename(
                     &bundle.original_stem,
-                    normalized_category,
+                    &normalized_category,
                     &target_slug,
                     date.as_deref(),
                     loc,

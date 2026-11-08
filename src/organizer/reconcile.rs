@@ -9,10 +9,12 @@
 //! - Subsequent runs preserve the user's manual sorting and propagate it to all companion files and sidecars.
 
 use crate::db::{ExistingBundleMap, ManifestDb};
-use crate::organizer::inplace::{match_known_category, parse_inplace_filename};
+use crate::organizer::inplace::{
+    format_inplace_filename, match_known_category, parse_inplace_filename,
+};
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
-use crate::types::{AssetCategory, RoutingTier};
+use crate::types::{is_known_bird_slug, AssetCategory, RoutingTier};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -98,7 +100,7 @@ pub fn reconcile_manual_disk_moves(
             continue;
         }
 
-        let (target_tier, target_slug, target_category) =
+        let (mut target_tier, mut target_slug, mut target_category) =
             if dir_components[0] == RoutingTier::DIR_NEEDS_REVIEW {
                 if dir_components.len() > 1 {
                     let slug =
@@ -116,9 +118,14 @@ pub fn reconcile_manual_disk_moves(
             } else if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED
                 || dir_components[0] == RoutingTier::DIR_NO_SUBJECT_DETECTED
             {
+                let slug = if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED {
+                    RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
+                } else {
+                    RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+                };
                 (
                     RoutingTier::NoBirdDetected,
-                    RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+                    slug,
                     AssetCategory::NoSubjectDetected,
                 )
             } else if let Some(species_dir) = dir_components.last() {
@@ -133,6 +140,25 @@ pub fn reconcile_manual_disk_moves(
             } else {
                 continue;
             };
+
+        // Enforce the core invariant: non-birds, botanical entities, or unknown entities
+        // must NEVER resolve to Bird or ConfirmedSpecies!
+        if target_category == AssetCategory::Bird && !is_known_bird_slug(&target_slug) {
+            let cat = AssetCategory::from_slug(&target_slug);
+            if cat == AssetCategory::NoSubjectDetected {
+                target_category = AssetCategory::NoSubjectDetected;
+                target_tier = RoutingTier::NoBirdDetected;
+                target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
+            } else if cat != AssetCategory::Bird {
+                target_category = cat;
+            }
+        } else if target_category == AssetCategory::NoSubjectDetected
+            && target_slug != RoutingTier::SENTINEL_NO_BIRD_DETECTED
+            && target_slug != RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+        {
+            target_tier = RoutingTier::NoBirdDetected;
+            target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
+        }
 
         // Match the file to a known bundle
         let mut matched_bundle_id: Option<String> = None;
@@ -277,7 +303,15 @@ pub fn prune_missing_bundles_from_manifest(
 /// Handles 2-level nomenclature `<original_stem>_<Category>_<Subject>[_<Date>][_<Location>]`,
 /// legacy v1 single-level stems `<original_stem>_<Species>[_<Date>][_<Location>]`,
 /// `Needs_Review_<Species>`, `_No_Bird_Detected`, and `_No_Subject_Detected`.
-pub(crate) fn parse_inplace_slug_and_tier(
+///
+/// # Arguments
+/// * `file_stem` - Current filename stem on disk without extension.
+/// * `original_stem` - Original camera stem (e.g. `DSC_0001`).
+/// * `known_location` - Optional resolved location to avoid parsing location as a species name.
+///
+/// # Returns
+/// `Some((AssetCategory, String, RoutingTier))` if the stem can be decomposed, or `None`.
+pub fn parse_inplace_slug_and_tier(
     file_stem: &str,
     original_stem: &str,
     known_location: Option<&str>,
@@ -285,9 +319,14 @@ pub(crate) fn parse_inplace_slug_and_tier(
     if let Some((cat, subject, tier, _date, loc)) = parse_inplace_filename(file_stem, original_stem)
     {
         if tier == RoutingTier::NoBirdDetected {
+            let sentinel = if subject.to_ascii_lowercase().contains("bird") {
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
+            } else {
+                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+            };
             return Some((
                 AssetCategory::NoSubjectDetected,
-                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+                sentinel,
                 RoutingTier::NoBirdDetected,
             ));
         }
@@ -309,16 +348,33 @@ pub(crate) fn parse_inplace_slug_and_tier(
         if slug.is_empty() {
             Some((
                 AssetCategory::NoSubjectDetected,
-                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
                 RoutingTier::NoBirdDetected,
             ))
         } else {
             let effective_cat = if cat == AssetCategory::NoSubjectDetected {
                 AssetCategory::from_slug(&slug)
+            } else if cat == AssetCategory::Bird && !is_known_bird_slug(&slug) {
+                let inferred = AssetCategory::from_slug(&slug);
+                if inferred == AssetCategory::NoSubjectDetected {
+                    AssetCategory::NoSubjectDetected
+                } else if inferred != AssetCategory::Bird {
+                    inferred
+                } else {
+                    AssetCategory::NoSubjectDetected
+                }
             } else {
                 cat
             };
-            Some((effective_cat, slug, tier))
+            if effective_cat == AssetCategory::NoSubjectDetected {
+                Some((
+                    AssetCategory::NoSubjectDetected,
+                    RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
+                    RoutingTier::NoBirdDetected,
+                ))
+            } else {
+                Some((effective_cat, slug, tier))
+            }
         }
     } else {
         None
@@ -385,9 +441,13 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         }
 
-        let Some((file_stem, _is_sidecar)) = decompose_filename(&file_name) else {
+        let Some((file_stem, is_sidecar)) = decompose_filename(&file_name) else {
             continue;
         };
+
+        if is_sidecar {
+            continue;
+        }
 
         // Match the file to a known bundle via inode or stem matching
         let mut matched_bundle_id: Option<String> = None;
@@ -436,7 +496,9 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         };
 
-        let Some((target_cat, target_slug, target_tier)) = parse_inplace_slug_and_tier(
+        let parsed_parts = parse_inplace_filename(&file_stem, &bundle.original_stem);
+
+        let Some((target_cat, mut target_slug, target_tier)) = parse_inplace_slug_and_tier(
             &file_stem,
             &bundle.original_stem,
             bundle.resolved_location_name.as_deref(),
@@ -444,7 +506,14 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         };
 
-        let is_override = if target_tier == RoutingTier::NoBirdDetected {
+        let lower_stem = file_stem.to_ascii_lowercase();
+        let needs_stem_cleansing = target_tier == RoutingTier::NoBirdDetected
+            && !lower_stem.contains("no_subject_detected")
+            && !lower_stem.contains("no_bird_detected");
+
+        let is_override = if needs_stem_cleansing {
+            true
+        } else if target_tier == RoutingTier::NoBirdDetected {
             existing_decision.routing_tier != RoutingTier::NoBirdDetected
         } else {
             let is_species_diff = existing_decision.assigned_species_slug != target_slug;
@@ -455,22 +524,74 @@ pub fn reconcile_inplace_manual_renames(
         };
 
         if is_override {
-            db.update_bundle_override_with_category(
-                &bundle_id,
-                target_cat.as_str(),
-                &target_slug,
-                target_tier,
-                1.0,
-            )?;
+            let mut file_path = file_path;
+            let mut file_name = file_name.to_string();
+            let mut new_base_stem = file_stem.clone();
 
-            let mut updated_dec = existing_decision.clone();
-            updated_dec.assigned_species_slug.clone_from(&target_slug);
+            if needs_stem_cleansing {
+                target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
+                let bundle_date = bundle.capture_timestamp_ms.and_then(|ms| {
+                    chrono::DateTime::from_timestamp_millis(ms)
+                        .map(|dt| dt.format("%Y%m%d").to_string())
+                });
+                let date_opt = parsed_parts
+                    .as_ref()
+                    .and_then(|(_, _, _, d, _)| d.as_deref())
+                    .or(bundle_date.as_deref());
+                let loc_opt = parsed_parts
+                    .as_ref()
+                    .and_then(|(_, _, _, _, l)| l.as_deref())
+                    .or(bundle.resolved_location_name.as_deref());
+
+                let sanitized_stem = format_inplace_filename(
+                    &bundle.original_stem,
+                    "No_Subject_Detected",
+                    "_No_Subject_Detected",
+                    date_opt,
+                    loc_opt,
+                    "",
+                );
+
+                let remainder = file_name.strip_prefix(&file_stem).unwrap_or("");
+
+                let new_file_name_str = format!("{sanitized_stem}{remainder}");
+                if let Some(parent) = file_path.parent() {
+                    let new_file_path = parent.join(&new_file_name_str);
+                    if file_path != new_file_path
+                        && !new_file_path.exists()
+                        && fs::rename(&file_path, &new_file_path).is_ok()
+                    {
+                        file_path = new_file_path;
+                        file_name = new_file_name_str;
+                        new_base_stem = sanitized_stem;
+                    }
+                }
+            }
+
+            if needs_stem_cleansing {
+                db.update_bundle_cleansed(
+                    &bundle_id,
+                    target_cat.as_str(),
+                    &target_slug,
+                    target_tier,
+                    1.0,
+                )?;
+            } else {
+                db.update_bundle_override_with_category(
+                    &bundle_id,
+                    target_cat.as_str(),
+                    &target_slug,
+                    target_tier,
+                    1.0,
+                )?;
+            }
+
+            let mut updated_dec = existing_decision;
+            updated_dec.assigned_species_slug = target_slug;
             updated_dec.routing_tier = target_tier;
             updated_dec.final_confidence = 1.0;
-            updated_dec.is_user_override = true;
+            updated_dec.is_user_override = !needs_stem_cleansing;
             existing_bundle_map.update_decision(&bundle_id, updated_dec);
-
-            let new_base_stem = file_stem.clone();
 
             if file_ino != 0 {
                 let _ = db.update_inplace_destination_by_inode(&bundle_id, file_ino, &file_path);
@@ -502,11 +623,7 @@ pub fn reconcile_inplace_manual_renames(
                                 && comp_path != file_path
                                 && comp_stem != new_base_stem
                             {
-                                let remainder = if comp_fname.len() >= comp_stem.len() {
-                                    &comp_fname[comp_stem.len()..]
-                                } else {
-                                    ""
-                                };
+                                let remainder = comp_fname.strip_prefix(&comp_stem).unwrap_or("");
                                 let target_comp_name = format!("{new_base_stem}{remainder}");
                                 let target_comp_path = parent_dir.join(&target_comp_name);
 
