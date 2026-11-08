@@ -17,3 +17,5 @@ tests/e2e/fixtures/*.html
 
 .gstack/
 .coverage
+.context/compound-engineering/
+.compound-engineering/*.local.yaml

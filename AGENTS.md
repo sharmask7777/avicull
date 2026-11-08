@@ -203,3 +203,15 @@ When upgrading neural network backbones, bird detectors, taxonomies, regional ch
    - Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
 3. **End-to-End Mock Testing**:
    - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs` and `tests/test_mock_directory_structure_e2e.rs`).
+
+---
+
+## 8. Compound Engineering & Knowledge Compounding
+
+- `CONCEPTS.md`: Defines shared domain vocabulary for this project (entities, named processes, and status concepts). Consult before authoring or refactoring domain structures.
+- `CODING_STANDARDS.md`: Defines mandatory coding standards and defect classes to avoid. Read before writing or reviewing code, and update when a change establishes or retires a rule.
+- `REVIEW.md`: Defines review policy, severity definitions, evidence requirements, and review exclusions.
+- `docs/solutions/`: Documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Check here before debugging known issues or designing architecture extensions.
+
+### Compounding Directive
+After a solved, verified problem, offer once to invoke the `ce-compound` skill at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not offer. Completion, effort, and diff size alone are not enough. Offer at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.

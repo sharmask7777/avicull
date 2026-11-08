@@ -58,6 +58,12 @@ pub enum Commands {
     /// Display interactive help topics, workflow manuals, and CLI reference
     Help(HelpArgs),
 
+    /// Mount remote or local photo archive as a native taxonomic virtual WebDAV volume
+    Mount(MountArgs),
+
+    /// Unmount a previously mounted virtual taxonomic WebDAV volume
+    Unmount(UnmountArgs),
+
     /// Generate an uncommitted minimal local test dataset from a user photo directory
     #[command(name = "create-mock-dataset")]
     CreateMockDataset(CreateMockDatasetArgs),
@@ -76,6 +82,57 @@ pub struct CreateMockDatasetArgs {
     /// Overwrite existing target directory if present
     #[arg(short, long, default_value_t = false)]
     pub force: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct MountArgs {
+    /// Remote object store URI (e.g. `s3://bucket/path`) or local directory
+    pub source: String,
+
+    /// Target mount point directory (defaults to `/Volumes/avicull_birds`)
+    pub mount_point: Option<PathBuf>,
+
+    /// Port to bind the loopback WebDAV server (defaults to 0 for ephemeral port)
+    #[arg(short, long, default_value_t = 0)]
+    pub port: u16,
+
+    /// Serve WebDAV only without invoking OS `mount_webdav`
+    #[arg(long, default_value_t = false)]
+    pub serve_only: bool,
+
+    /// Explicit path to SQLite classification manifest (defaults to auto-discovery)
+    #[arg(short, long)]
+    pub manifest: Option<PathBuf>,
+
+    /// Directory for caching extracted previews locally to eliminate egress costs
+    #[arg(long)]
+    pub cache_dir: Option<PathBuf>,
+
+    /// Stream mode: `preview` (fast embedded JPEGs) or `full` (proxy full RAWs)
+    #[arg(long, default_value = "preview")]
+    pub stream_mode: String,
+
+    /// AWS named profile for S3 authentication (e.g. `wildlife`)
+    #[arg(long)]
+    pub profile: Option<String>,
+
+    /// Custom endpoint URL for S3-compatible providers (MinIO, R2, B2)
+    #[arg(long)]
+    pub endpoint: Option<String>,
+
+    /// AWS region override (e.g. `us-west-2`)
+    #[arg(long)]
+    pub region: Option<String>,
+
+    /// Automatically open Finder to the mount point once mounted
+    #[arg(long, default_value_t = false)]
+    pub open: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct UnmountArgs {
+    /// Mount point directory to unmount
+    pub mount_point: PathBuf,
 }
 
 #[derive(Args, Debug)]

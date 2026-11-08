@@ -18,6 +18,7 @@ pub enum HelpTopic {
     Invariants,
     Models,
     Update,
+    Mount,
     All,
 }
 
@@ -32,9 +33,10 @@ impl FromStr for HelpTopic {
             "invariants" | "safety" | "apfs" => Ok(HelpTopic::Invariants),
             "models" | "weights" | "ai" => Ok(HelpTopic::Models),
             "update" | "upgrade" => Ok(HelpTopic::Update),
+            "mount" | "unmount" | "webdav" | "remote" => Ok(HelpTopic::Mount),
             "all" | "full" | "manual" => Ok(HelpTopic::All),
             other => Err(anyhow!(
-                "Unknown help topic '{other}'. Available topics: quickstart, organize, scan, invariants, models, update, all"
+                "Unknown help topic '{other}'. Available topics: quickstart, organize, scan, invariants, models, update, mount, all"
             )),
         }
     }
@@ -49,6 +51,7 @@ impl fmt::Display for HelpTopic {
             HelpTopic::Invariants => write!(f, "invariants"),
             HelpTopic::Models => write!(f, "models"),
             HelpTopic::Update => write!(f, "update"),
+            HelpTopic::Mount => write!(f, "mount"),
             HelpTopic::All => write!(f, "all"),
         }
     }
@@ -64,6 +67,7 @@ impl HelpTopic {
             HelpTopic::Invariants => "Filesystem Safety & APFS Hard Link Invariants",
             HelpTopic::Models => "Neural Models & eBird Taxonomy Cache",
             HelpTopic::Update => "Self-Update & Release Management",
+            HelpTopic::Mount => "Virtual Mount & Remote S3 Storage Streaming",
             HelpTopic::All => "Comprehensive avicull User Manual",
         }
     }
@@ -197,6 +201,25 @@ impl HelpTopic {
                  4. Manual Download:\n\
                     curl -sL https://github.com/sharmask7777/avicull/releases/latest/download/avicull-aarch64-apple-darwin.tar.gz | tar -xz\n"
             }
+            HelpTopic::Mount => {
+                "VIRTUAL MOUNT & REMOTE STORAGE (WEBDAV)\n\
+                 =======================================\n\n\
+                 Mount remote S3 buckets, MinIO shares, or local photo archives as a native\n\
+                 macOS Finder volume without downloading full RAW files or duplicating disk space.\n\n\
+                 USAGE:\n\
+                   avicull mount <SOURCE_URI> [MOUNT_POINT] [OPTIONS]\n\
+                   avicull unmount <MOUNT_POINT>\n\n\
+                 EXAMPLES:\n\
+                   1. Mount an S3 bucket to default /Volumes/avicull_birds:\n\
+                      avicull mount s3://my-wildlife-archive/2026\n\n\
+                   2. Mount an S3 bucket with named AWS profile and auto-open in Finder:\n\
+                      avicull mount s3://birds-archive /Volumes/Birds --profile wildlife --open\n\n\
+                   3. Mount a local NAS directory with persistent preview cache:\n\
+                      avicull mount /Volumes/TrueNAS/Photos /Volumes/MyBirds --cache-dir ~/.cache/avicull\n\n\
+                   4. Serve WebDAV only (e.g. for headless servers or 3rd-party clients):\n\
+                      avicull mount s3://bucket/photos --serve-only --port 8080\n"
+            }
+
             HelpTopic::All => {
                 "=======================================================================\n\
                  AVICULL — LOCAL AI BIRD PHOTO ORGANIZER (MACOS APPLE SILICON)\n\
@@ -260,6 +283,10 @@ pub fn list_topics() -> Vec<(&'static str, &'static str)> {
             "Self-update mechanism, release downloads, and update notifications",
         ),
         (
+            "mount",
+            "Virtual WebDAV mount and remote S3 storage streaming engine",
+        ),
+        (
             "all",
             "Comprehensive user manual and complete CLI reference",
         ),
@@ -280,7 +307,7 @@ pub fn render_help(topic: Option<HelpTopic>) -> String {
     if chosen != HelpTopic::All {
         out.push_str("-----------------------------------------------------------------------\n");
         out.push_str(
-            "Available topics: quickstart, organize, scan, invariants, models, update, all\n",
+            "Available topics: quickstart, organize, scan, invariants, models, update, mount, all\n",
         );
         out.push_str("Run 'avicull help <TOPIC>' to view a specific guide.\n\n");
     }

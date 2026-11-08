@@ -11,9 +11,14 @@
 
 #![allow(unsafe_code)]
 
+pub mod cache;
 pub mod cloud;
 pub mod local;
+pub mod mount_service;
 pub mod network;
+pub mod opendal_backend;
+pub mod preview_extractor;
+pub mod webdav_server;
 
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
