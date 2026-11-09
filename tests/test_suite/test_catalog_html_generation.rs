@@ -115,13 +115,7 @@ fn test_catalog_html_card_title_displays_species_only() {
     let dir = tempdir().unwrap();
     let item = make_card_item("Oriental Magpie-Robin", Some("2025-05-18"), None);
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &[item],
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &[item], OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
     assert!(
         html.contains("Oriental Magpie-Robin"),
@@ -146,13 +140,7 @@ fn test_catalog_html_card_renders_date_and_location_on_distinct_lines() {
         Some("K Gudi Wilderness"),
     );
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &[item],
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &[item], OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     assert!(
@@ -170,13 +158,7 @@ fn test_catalog_html_card_omits_date_line_when_capture_date_is_null() {
     let dir = tempdir().unwrap();
     let item = make_card_item("Oriental Magpie-Robin", None, Some("K Gudi"));
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &[item],
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &[item], OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     assert!(
@@ -201,13 +183,7 @@ fn test_catalog_html_location_modal_contains_bulk_directory_elements() {
         item_with_subdir("Leh Valley/Shey Marshes"),
     ];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
     assert!(
         html.contains("bulkLocationRows") || html.contains("bulk-location"),
@@ -232,13 +208,7 @@ fn test_catalog_html_location_modal_excludes_empty_location_rows() {
     let dir = tempdir().unwrap();
     let items = vec![item_with_subdir("Trip A"), item_with_subdir("Trip B")];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     assert!(
@@ -257,13 +227,7 @@ fn test_catalog_html_node_script_executes_bulk_location_batch() {
         item_with_subdir("Trip B"),
     ];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     let script_start = html
@@ -365,13 +329,7 @@ fn test_catalog_html_reclassify_modal_prevents_css_flex_collapse() {
         0.95,
     )];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     assert!(
@@ -422,13 +380,7 @@ fn test_catalog_html_node_script_location_reclassify_toggle_updates_commands() {
     let dir = tempdir().unwrap();
     let items = vec![item_with_subdir("Leh Valley")];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     let script_start = html
@@ -548,13 +500,7 @@ fn test_catalog_html_node_script_reclassify_modal_scopes_to_subdirectory() {
         make_reclassify_item("8", "IMG_008", "bandipur", "Grey Junglefowl", 0.89),
     ];
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     let json_start = html
@@ -658,13 +604,7 @@ fn test_catalog_html_node_script_reclassify_modal_renders_empty_state() {
     )];
 
     let out = dir.path().join("bird_catalog.html");
-    generate_html_catalog(
-        "Test Trip",
-        &items,
-        OrganizationMode::InPlace,
-        &out,
-    )
-    .unwrap();
+    generate_html_catalog("Test Trip", &items, OrganizationMode::InPlace, &out).unwrap();
     let html = std::fs::read_to_string(&out).unwrap();
 
     let json_start = html

@@ -41,8 +41,14 @@ fn test_inplace_mode_keeps_source_files_strictly_untouched() {
         0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
         0xff, 0xda, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3f, 0x00, 0xbf, 0x00, 0xff, 0xd9,
     ];
-    File::create(&img_path).unwrap().write_all(&valid_jpeg).unwrap();
-    File::create(&xmp_path).unwrap().write_all(b"<xmp>test metadata</xmp>").unwrap();
+    File::create(&img_path)
+        .unwrap()
+        .write_all(&valid_jpeg)
+        .unwrap();
+    File::create(&xmp_path)
+        .unwrap()
+        .write_all(b"<xmp>test metadata</xmp>")
+        .unwrap();
 
     let meta_before_img = fs::metadata(&img_path).unwrap();
     let meta_before_xmp = fs::metadata(&xmp_path).unwrap();
@@ -109,7 +115,10 @@ fn test_inplace_mode_keeps_source_files_strictly_untouched() {
     assert!(db_path.exists(), ".avicull/manifest.sqlite must exist");
 
     let catalog_path = input_dir.join("catalog.html");
-    assert!(catalog_path.exists(), "catalog.html must exist at input root");
+    assert!(
+        catalog_path.exists(),
+        "catalog.html must exist at input root"
+    );
 
     let catalog_html = fs::read_to_string(&catalog_path).expect("read catalog");
     assert!(

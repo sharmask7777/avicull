@@ -97,10 +97,7 @@ fn test_organization_mode_default_and_parsing() {
     use clap::ValueEnum;
 
     // Verify Default is InPlace (no rename mode)
-    assert_eq!(
-        OrganizationMode::default(),
-        OrganizationMode::InPlace
-    );
+    assert_eq!(OrganizationMode::default(), OrganizationMode::InPlace);
 
     // Verify clap parsing from string for primary names
     assert_eq!(
@@ -196,10 +193,7 @@ fn test_confidence_mode_parsing_display_and_errors() {
 
 #[test]
 fn test_organization_mode_display() {
-    assert_eq!(
-        format!("{}", OrganizationMode::InPlace),
-        "in-place"
-    );
+    assert_eq!(format!("{}", OrganizationMode::InPlace), "in-place");
     assert_eq!(
         format!("{}", OrganizationMode::InPlaceRename),
         "in-place-rename"

@@ -558,9 +558,8 @@ fn main() -> Result<()> {
                 db.get_existing_bundle_map().unwrap_or_default()
             };
 
-            let is_rename = matches!(args.mode, OrganizationMode::InPlaceRename);
             let mut _reconciled_moves_count = 0;
-            if is_rename && operating_root.exists() && !existing_bundle_map.is_empty() {
+            if is_inplace && operating_root.exists() && !existing_bundle_map.is_empty() {
                 match avicull::organizer::reconcile_inplace_manual_renames(
                     &operating_root,
                     &db,
@@ -822,7 +821,10 @@ fn main() -> Result<()> {
             }
 
             let latest_mode = db.get_latest_run_mode().unwrap_or(None);
-            let mode_matches = latest_mode == Some(args.mode);
+            let mode_matches = match latest_mode {
+                Some(m) => m == args.mode,
+                None => true,
+            };
 
             if !existing_bundle_map.is_empty() && new_bundles.is_empty() && mode_matches {
                 let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);

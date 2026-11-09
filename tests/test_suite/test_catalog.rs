@@ -154,11 +154,14 @@ fn test_generate_html_catalog_basic() {
     )
     .expect("generate_html_catalog with InPlaceRename should succeed");
     let rename_content = fs::read_to_string(&rename_catalog_path).expect("read rename catalog");
-    let r_json_start = rename_content.find(r#"<script id="catalog-data" type="application/json">"#).unwrap();
+    let r_json_start = rename_content
+        .find(r#"<script id="catalog-data" type="application/json">"#)
+        .unwrap();
     let r_after_start = &rename_content[r_json_start..];
     let r_data_start = r_after_start.find('>').unwrap() + 1;
     let r_data_end = r_after_start.find("</script>").unwrap();
-    let r_parsed: serde_json::Value = serde_json::from_str(&r_after_start[r_data_start..r_data_end]).unwrap();
+    let r_parsed: serde_json::Value =
+        serde_json::from_str(&r_after_start[r_data_start..r_data_end]).unwrap();
     assert_eq!(r_parsed["mode"], "in-place-rename");
     assert!(rename_content.contains("In-Place Renamed"));
 

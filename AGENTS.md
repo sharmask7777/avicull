@@ -6,21 +6,24 @@ Welcome to `avicull`. This document defines the engineering standards, architect
 
 ## 1. Non-Negotiable Core Invariants
 
-1. **Strict Source Immutability**:
-   The input archive (`--input`) is strictly read-only. Never move, rename, modify, or unlink any file inside `--input`.
-2. **Zero-Byte Output Tree via Hard Links (`std::fs::hard_link`)**:
-   Files are organized into an output tree on the same APFS volume using POSIX hard links. Both trees reference identical underlying inodes (`dst_meta.ino() == src_ino`), consuming 0 additional disk bytes for image payloads.
-3. **Default Output Directory (`birds_hierarchy`)**:
-   If `--output` is omitted, `avicull` defaults to `<input>/birds_hierarchy`. The tool remains customizable via `--output <PATH>`.
-4. **Skipped Paths During Traversal**:
+1. **Strict Source Immutability in Default Preferred Mode (`--mode in-place`)**:
+   `--mode in-place` is the default and preferred mode of operation for `avicull`. The input archive (`--input`) is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`.
+   Everything is completely self-contained within `<input>/.avicull/` (SQLite manifest, precomputed previews/thumbnails) and `<input>/catalog.html`.
+2. **Cosmetic Renaming via Explicit Opt-In (`--mode in-place-rename`)**:
+   Renaming source files is purely a cosmetic change. When explicitly requested via `--mode in-place-rename`, source files and companion sidecars are atomically renamed in-place with descriptive species, date, and location tokens. All in-place renames are transactionally journaled in SQLite for lossless rollback via `avicull clean`.
+3. **Zero-Byte Output Tree via Hard Links (`--mode hierarchy`)**:
+   When requested via `--mode hierarchy`, files are projected into `<input>/birds_hierarchy` (or `--output <PATH>`) on the same APFS volume using POSIX hard links (`std::fs::hard_link`). Both trees reference identical underlying inodes (`dst_meta.ino() == src_ino`), consuming 0 additional disk bytes for image payloads.
+4. **Default Output Directory in Hierarchy Mode (`birds_hierarchy`)**:
+   If `--mode hierarchy` is specified and `--output` is omitted, `avicull` defaults to `<input>/birds_hierarchy`. The tool remains customizable via `--output <PATH>`.
+5. **Skipped Paths During Traversal**:
    Recursive scans of `--input` must always skip:
    - Any directory named `birds_hierarchy` (preventing infinite loops or scanning previous output).
    - Any directory named `.avicull` (preventing scanning internal SQLite manifests).
    - Any directory ending with `.photoslibrary` (preventing scanning Apple Photos library packages).
    - Any directory starting with `.` (hidden directories like `.DS_Store`) or `@eaDir`.
-5. **Parent & Child Multi-Level Coexistence**:
+6. **Parent & Child Multi-Level Coexistence**:
    A trip subdirectory (e.g. `Pictures/Leh/birds_hierarchy`) and its parent directory (e.g. `Pictures/birds_hierarchy`) can both co-exist simultaneously via hard links. The inode link count (`st_nlink`) increments appropriately without conflict.
-6. **macOS FileProvider / iCloud Dataless Protection**:
+7. **macOS FileProvider / iCloud Dataless Protection**:
    Files marked with Darwin `SF_DATALESS` (`0x40000000`) must never be opened eagerly during pre-scans to prevent unwanted on-demand cloud hydration.
 
 ---
