@@ -555,6 +555,50 @@ fn test_insert_bundle_decision_zero_embedding_stored_as_null() {
 }
 
 #[test]
+fn test_insert_bundle_decision_preserves_existing_embedding_when_none_provided() {
+    let dir = tempdir().expect("create temp dir");
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let decision = BundleDecision {
+        bundle_id: "bundle_preserve_emb".to_string(),
+        burst_id: Some("burst_1".to_string()),
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.90,
+        final_confidence: 0.90,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    let mut valid_emb = vec![0.0f32; 512];
+    valid_emb[0] = 0.42;
+
+    // First insert with valid embedding
+    db.insert_bundle_decision(&decision, &AssetCategory::Bird, Some(&valid_emb))
+        .expect("initial insert with embedding");
+
+    let queried = db.query_decisions().expect("query decisions");
+    assert_eq!(queried.len(), 1);
+    assert!(queried[0].2.is_some(), "Embedding must be present");
+    assert_eq!(queried[0].2.as_ref().unwrap()[0], 0.42);
+
+    // Second insert (e.g. during re-run or mode switch) with None embedding
+    db.insert_bundle_decision(&decision, &AssetCategory::Bird, None)
+        .expect("second insert with None embedding");
+
+    let queried_after = db.query_decisions().expect("query decisions");
+    assert_eq!(queried_after.len(), 1);
+    assert!(
+        queried_after[0].2.is_some(),
+        "Existing embedding must be preserved via COALESCE, not nullified"
+    );
+    assert_eq!(queried_after[0].2.as_ref().unwrap()[0], 0.42);
+}
+
+#[test]
 fn test_query_decisions_preserves_user_override_bird_category() {
     let dir = tempdir().expect("create temp dir");
     let db_path = dir.path().join("manifest.sqlite");

@@ -559,7 +559,10 @@ fn main() -> Result<()> {
             };
 
             let mut _reconciled_moves_count = 0;
-            if is_inplace && operating_root.exists() && !existing_bundle_map.is_empty() {
+            if args.mode == OrganizationMode::InPlaceRename
+                && operating_root.exists()
+                && !existing_bundle_map.is_empty()
+            {
                 match avicull::organizer::reconcile_inplace_manual_renames(
                     &operating_root,
                     &db,

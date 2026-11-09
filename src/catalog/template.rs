@@ -2055,7 +2055,7 @@ fi
         commands.push(`    fileproviderctl evict "${{newPath}}" >/dev/null 2>&1 || true`);
         commands.push(`  fi`);
       }}
-    }} else {{
+    }} else if (CATALOG_DATA.mode === 'in-place-rename') {{
       // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = item.original_stem;
       const datePart = item.capture_date ? item.capture_date.replace(/[-:/]/g, '') : '';
@@ -2117,6 +2117,8 @@ fi
         commands.push(`    fileproviderctl evict "${{newPrimary}}" >/dev/null 2>&1 || true`);
         commands.push(`  fi`);
       }}
+    }} else {{
+      commands.push(`  echo "[WARN] avicull executable not found. In default in-place mode, files on disk are strictly read-only; run avicull directly to record corrections in manifest.sqlite."`);
     }}
     commands.push(`  if [ -n "$AVICULL_CMD" ]; then`);
     commands.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);

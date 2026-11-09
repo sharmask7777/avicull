@@ -133,3 +133,72 @@ fn test_inplace_mode_keeps_source_files_strictly_untouched() {
         Some(OrganizationMode::InPlace)
     );
 }
+
+#[test]
+fn test_inplace_mode_never_reconciles_or_renames_files_on_disk() {
+    let temp = tempdir().unwrap();
+    let fixture_models_dir = setup_fixture_models_dir(&temp);
+
+    let input_dir = temp.path().join("photos");
+    let trip_dir = input_dir.join("Trip");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let initial_photo = trip_dir.join("DSC_0001_Mallard.JPG");
+    let initial_sidecar = trip_dir.join("DSC_0001_Mallard.xmp");
+
+    File::create(&initial_photo)
+        .unwrap()
+        .write_all(b"fake image bytes")
+        .unwrap();
+    File::create(&initial_sidecar)
+        .unwrap()
+        .write_all(b"<xmp>test</xmp>")
+        .unwrap();
+
+    // 1. Organize with default in-place mode
+    let output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--no-prompt",
+        ])
+        .output()
+        .expect("run avicull organize");
+    assert!(output.status.success());
+
+    // 2. User manually renames primary image
+    let manual_photo = trip_dir.join("DSC_0001_Northern_Pintail.JPG");
+    fs::rename(&initial_photo, &manual_photo).unwrap();
+
+    // 3. Re-run organize in default in-place mode
+    let rerun = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--no-prompt",
+        ])
+        .output()
+        .expect("rerun avicull organize");
+    assert!(rerun.status.success());
+
+    // In default in-place mode, sidecar must NOT be renamed
+    assert!(
+        initial_sidecar.exists(),
+        "Sidecar must NOT be renamed in in-place mode"
+    );
+    let unexpected_sidecar = trip_dir.join("DSC_0001_Northern_Pintail.xmp");
+    assert!(
+        !unexpected_sidecar.exists(),
+        "Unexpected renamed sidecar should not exist in in-place mode"
+    );
+}

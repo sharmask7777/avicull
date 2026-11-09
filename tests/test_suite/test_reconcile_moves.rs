@@ -514,18 +514,18 @@ fn test_reconcile_inplace_manual_filename_rename() {
     let moved_photo = input_dir.join("DSC_0001_Northern_Pintail.JPG");
     fs::rename(&initial_photo, &moved_photo).unwrap();
 
-    // Re-run organize in in-place mode
+    // Re-run organize in in-place-rename mode
     let status = Command::new(env!("CARGO_BIN_EXE_avicull"))
         .args([
             "organize",
             "--input",
             input_dir.to_str().unwrap(),
             "--mode",
-            "in-place",
+            "in-place-rename",
             "--no-prompt",
         ])
         .status()
-        .expect("run avicull organize in-place");
+        .expect("run avicull organize in-place-rename");
     assert!(status.success());
 
     // Primary photo with new name should exist

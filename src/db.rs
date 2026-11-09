@@ -1975,11 +1975,23 @@ pub fn insert_bundle_decision(
     };
 
     conn.execute(
-        "INSERT OR REPLACE INTO bundle_decisions (
+        "INSERT INTO bundle_decisions (
             bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug,
             frame_conf, final_conf, routing_tier, top5_predictions_json,
             is_user_override, category, visual_embedding
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+        ON CONFLICT(bundle_id) DO UPDATE SET
+            burst_id = excluded.burst_id,
+            detection_conf = excluded.detection_conf,
+            bbox_json = excluded.bbox_json,
+            assigned_species_slug = excluded.assigned_species_slug,
+            frame_conf = excluded.frame_conf,
+            final_conf = excluded.final_conf,
+            routing_tier = excluded.routing_tier,
+            top5_predictions_json = excluded.top5_predictions_json,
+            is_user_override = excluded.is_user_override,
+            category = excluded.category,
+            visual_embedding = COALESCE(excluded.visual_embedding, bundle_decisions.visual_embedding)",
         params![
             decision.bundle_id,
             decision.burst_id,
@@ -1998,7 +2010,7 @@ pub fn insert_bundle_decision(
 
     if table_exists(conn, "bundles")? {
         let _ = conn.execute(
-            "UPDATE bundles SET category = ?1, visual_embedding = ?2 WHERE bundle_id = ?3",
+            "UPDATE bundles SET category = ?1, visual_embedding = COALESCE(?2, visual_embedding) WHERE bundle_id = ?3",
             params![category.as_str(), blob_bytes, decision.bundle_id],
         );
     }

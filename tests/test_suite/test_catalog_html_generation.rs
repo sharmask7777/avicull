@@ -694,3 +694,84 @@ console.log("EMPTY STATE TEST PASSED");
         "Node reclassify empty state test runner must succeed"
     );
 }
+
+#[test]
+fn test_catalog_html_fallback_move_commands_do_not_rename_in_inplace_mode() {
+    let dir = tempdir().unwrap();
+    let items = vec![make_reclassify_item(
+        "1",
+        "IMG_001",
+        "Gir",
+        "Indian Peafowl",
+        0.9,
+    )];
+
+    let out = dir.path().join("bird_catalog.html");
+    generate_html_catalog("Test Trip", &items, OrganizationMode::InPlace, &out).unwrap();
+    let html = std::fs::read_to_string(&out).unwrap();
+
+    let json_start = html
+        .find(r#"<script id="catalog-data" type="application/json">"#)
+        .expect("json script start");
+    let after_start = &html[json_start..];
+    let data_start = after_start.find('>').expect("close tag") + 1;
+    let data_end = after_start.find("</script>").expect("script end");
+    let embedded_json = after_start[data_start..data_end].trim();
+
+    let script_start = html
+        .find("<script>\n  let CATALOG_DATA")
+        .expect("script start not found");
+    let after_script = &html[script_start..];
+    let code_start = after_script.find('>').expect("close tag") + 1;
+    let code_end = after_script.find("</script>").expect("script end");
+    let js_code = &after_script[code_start..code_end];
+
+    let runner_js = format!(
+        r#"
+let appendedRows = [];
+const rawJson = {embedded_json:?};
+global.document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    return {{ value: '', checked: true, innerHTML: '', appendChild: () => {{}}, dataset: {{}}, classList: {{ add: () => {{}}, remove: () => {{}} }}, style: {{}} }};
+  }},
+  createElement: () => ({{ innerHTML: '', setAttribute: () => {{}}, style: {{}}, appendChild: () => {{}} }}),
+  querySelectorAll: () => [],
+  addEventListener: () => {{}}
+}};
+global.window = {{
+  matchMedia: () => ({{ matches: false, addEventListener: () => {{}} }})
+}};
+
+{js_code}
+
+const cmds = buildMoveCommandsForItem(CATALOG_DATA.items[0], 'Painted_Stork');
+const hasMv = cmds.some(cmd => cmd.trim().startsWith('mv ') || cmd.includes('  mv '));
+if (hasMv) {{
+  console.error("In-place mode fallback move commands should NOT include mv commands:", cmds);
+  process.exit(1);
+}}
+const hasWarn = cmds.some(cmd => cmd.includes('strictly read-only'));
+if (!hasWarn) {{
+  console.error("Expected warning about read-only in-place mode, got:", cmds);
+  process.exit(1);
+}}
+console.log("IN-PLACE NO-MV TEST PASSED");
+"#,
+        embedded_json = embedded_json,
+        js_code = js_code
+    );
+
+    let test_js_file = dir.path().join("test_inplace_no_mv.js");
+    std::fs::write(&test_js_file, runner_js).expect("write test runner");
+
+    let node_status = std::process::Command::new("node")
+        .arg(&test_js_file)
+        .status()
+        .expect("failed to execute node");
+
+    assert!(
+        node_status.success(),
+        "Node in-place fallback move commands test runner must succeed"
+    );
+}

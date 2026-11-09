@@ -667,7 +667,7 @@ fn test_catalog_local_files_do_not_emit_fileproviderctl_evict() {
     generate_html_catalog(
         "Local vs Cloud Evict Test",
         &[item_local, item_cloud],
-        OrganizationMode::InPlace,
+        OrganizationMode::InPlaceRename,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -953,7 +953,7 @@ fn test_inplace_move_commands_resolve_source_dynamically_when_file_already_renam
     generate_html_catalog(
         "Dynamic Source Move Test",
         &[item],
-        OrganizationMode::InPlace,
+        OrganizationMode::InPlaceRename,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -1401,8 +1401,8 @@ if (!cmdsHierStr.includes('mv "birds_hierarchy/House_Sparrow/IMG_2001.CR2" "bird
   process.exit(1);
 }}
 
-// Test In-place Mode with "No Bird Detected" and "_No_Bird_Detected"
-CATALOG_DATA.mode = 'in-place';
+// Test In-place Rename Mode with "No Bird Detected" and "_No_Bird_Detected"
+CATALOG_DATA.mode = 'in-place-rename';
 activeModalItem = {{
   id: 'bundle-102',
   original_stem: 'IMG_2002',
