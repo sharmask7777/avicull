@@ -118,7 +118,7 @@ fn test_catalog_html_card_title_displays_species_only() {
     generate_html_catalog(
         "Test Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -149,7 +149,7 @@ fn test_catalog_html_card_renders_date_and_location_on_distinct_lines() {
     generate_html_catalog(
         "Test Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -173,7 +173,7 @@ fn test_catalog_html_card_omits_date_line_when_capture_date_is_null() {
     generate_html_catalog(
         "Test Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -204,7 +204,7 @@ fn test_catalog_html_location_modal_contains_bulk_directory_elements() {
     generate_html_catalog(
         "Test",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -235,7 +235,7 @@ fn test_catalog_html_location_modal_excludes_empty_location_rows() {
     generate_html_catalog(
         "Test",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -260,7 +260,7 @@ fn test_catalog_html_node_script_executes_bulk_location_batch() {
     generate_html_catalog(
         "Test Trip",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -368,7 +368,7 @@ fn test_catalog_html_reclassify_modal_prevents_css_flex_collapse() {
     generate_html_catalog(
         "Test",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -425,7 +425,7 @@ fn test_catalog_html_node_script_location_reclassify_toggle_updates_commands() {
     generate_html_catalog(
         "Test",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -551,7 +551,7 @@ fn test_catalog_html_node_script_reclassify_modal_scopes_to_subdirectory() {
     generate_html_catalog(
         "Test Trip",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();
@@ -661,7 +661,7 @@ fn test_catalog_html_node_script_reclassify_modal_renders_empty_state() {
     generate_html_catalog(
         "Test Trip",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &out,
     )
     .unwrap();

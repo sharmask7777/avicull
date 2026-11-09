@@ -68,7 +68,7 @@ fn test_generate_html_catalog_reuses_cached_thumbnails() {
     generate_html_catalog(
         "Test Trip",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .unwrap();

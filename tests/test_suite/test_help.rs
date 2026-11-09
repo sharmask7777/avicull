@@ -101,16 +101,19 @@ fn test_render_help_topic_key_content() {
 fn test_render_help_documents_inplace_and_catalog() {
     let organize_content = render_help(Some(HelpTopic::Organize));
     assert!(organize_content.contains("In-Place Mode (default)"));
+    assert!(organize_content.contains("In-Place Rename Mode"));
     assert!(organize_content.contains("Hierarchy Mode"));
     assert!(organize_content.contains("catalog.html"));
 
     let quickstart_content = render_help(Some(HelpTopic::Quickstart));
-    assert!(quickstart_content.contains("In-Place Organize & HTML Catalog"));
+    assert!(quickstart_content.contains("In-Place Non-Destructive Organize & HTML Catalog"));
+    assert!(quickstart_content.contains("In-Place Rename Mode"));
     assert!(quickstart_content.contains("catalog.html"));
 
     let all_content = render_help(Some(HelpTopic::All));
     assert!(all_content.contains("--mode <MODE>"));
-    assert!(all_content.contains("'in-place' (default)"));
+    assert!(all_content.contains("'in-place' (default"));
+    assert!(all_content.contains("in-place-rename"));
     assert!(all_content.contains("catalog.html"));
 }
 

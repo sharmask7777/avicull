@@ -81,22 +81,25 @@ impl HelpTopic {
                  1. Dry-Run Check:\n\
                     Preview the classification and renaming plan without writing filesystem changes:\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh --dry-run\n\n\
-                 2. In-Place Organize & HTML Catalog (Default):\n\
-                    Renames photos in place with species, date, and location tags, and creates 'catalog.html':\n\
+                 2. In-Place Non-Destructive Organize & HTML Catalog (Default):\n\
+                    Keeps photos untouched and creates SQLite manifest and 'catalog.html':\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh\n\n\
-                 3. Hierarchy Mode (Zero-Copy APFS Hard Links):\n\
+                 3. In-Place Rename Mode:\n\
+                    Renames photos in place with species, date, and location tags, and creates 'catalog.html':\n\
+                    avicull organize --input /Volumes/Photos/Trips/Leh --mode in-place-rename\n\n\
+                 4. Hierarchy Mode (Zero-Copy APFS Hard Links):\n\
                     Organize photos into '<input>/birds_hierarchy' using zero-byte hard links:\n\
                     avicull organize --input /Volumes/Photos/Trips/Leh --mode hierarchy\n\n\
-                 4. Pre-Flight Scan Only:\n\
+                 5. Pre-Flight Scan Only:\n\
                     Verify volume APFS hardlink compatibility and location resolution:\n\
                     avicull scan --input /Volumes/Photos/Trips/Leh\n\n\
-                 5. Specifying a Region/Location Override:\n\
+                 6. Specifying a Region/Location Override:\n\
                     Help the gazetteer and eBird regional checklists when photos lack GPS:\n\
                     avicull organize --input /Volumes/Photos/Trips/2026-Leh --location \"Leh, Ladakh\"\n\n\
-                 6. Safe Rollback Clean:\n\
+                 7. Safe Rollback Clean:\n\
                     Losslessly revert in-place renames or unlink generated hard links:\n\
                     avicull clean --input /Volumes/Photos/Trips/Leh\n\n\
-                 7. Inspect Manifest Database:\n\
+                 8. Inspect Manifest Database:\n\
                     View classification manifest statistics and burst clustering records:\n\
                     avicull report --db /Volumes/Photos/Trips/Leh/.avicull/manifest.sqlite\n"
             }
@@ -120,6 +123,10 @@ impl HelpTopic {
                     the consensus winner smooths frame-to-frame variations across burst sequences.\n\n\
                  5. Output Materialization Modes:\n\
                     - In-Place Mode (default):\n\
+                      Non-destructive cataloging: keeps all input files completely untouched.\n\
+                      Full classification and metadata are tracked in '.avicull/manifest.sqlite'\n\
+                      and visualized in 'catalog.html' without renaming or moving any files.\n\
+                    - In-Place Rename Mode (--mode in-place-rename):\n\
                       Renames primary image and companion sidecars in place within '--input' to:\n\
                       <OriginalStem>_<Species_Common_Name>[_<Date>][_<Location>].<ext>\n\
                       All renames are tracked in SQLite for lossless rollback.\n\
@@ -129,7 +136,7 @@ impl HelpTopic {
                       * Needs Review:        <output>/_Needs_Review/<Species_Common_Name>/\n\
                       * No Bird Detected:    <output>/_No_Bird_Detected/\n\n\
                  6. Standalone Offline HTML Photo Catalog (catalog.html):\n\
-                    Both modes automatically generate 'catalog.html' in the output directory:\n\
+                    All modes automatically generate 'catalog.html' in the output directory:\n\
                     - Fast gallery with responsive grid and embedded RAW preview thumbnails.\n\
                     - Dynamic search and filter by species, date, location, and confidence tiers.\n\
                     - High-res lightbox modal with EXIF details and ML predictions.\n\
@@ -227,7 +234,8 @@ impl HelpTopic {
                  avicull organizes bird photography archives using local neural networks\n\
                  (YOLO11 + BioCLIP), eBird regional checklists, burst consensus smoothing,\n\
                  and generates a standalone offline HTML photo catalog (catalog.html).\n\n\
-                 It supports in-place descriptive renaming (default) and zero-copy APFS\n\
+                 It supports in-place non-destructive cataloging (default, keeping files untouched),\n\
+                 cosmetic in-place descriptive renaming (--mode in-place-rename), and zero-copy APFS\n\
                  hard-linked species hierarchies (--mode hierarchy).\n\n\
                  COMMANDS:\n\
                    scan        Pre-flight audit of volume hardlink support and location resolution\n\
@@ -243,7 +251,7 @@ impl HelpTopic {
                  FLAGS & OPTIONS:\n\
                    --input <DIR>            Source trip directory\n\
                    --output <DIR>           Target output directory (defaults to <INPUT>/birds_hierarchy in hierarchy mode)\n\
-                   --mode <MODE>            Organization mode: 'in-place' (default) or 'hierarchy'\n\
+                   --mode <MODE>            Organization mode: 'in-place' (default, untouched files), 'in-place-rename', or 'hierarchy'\n\
                    --dry-run                Calculate classifications without renaming files or creating hard links\n\
                    --location <NAME>        Override location name or coordinates for photos lacking GPS\n\
                    --min-confidence <FLOAT> Score threshold for Confirmed vs Needs Review (default: 0.65)\n\

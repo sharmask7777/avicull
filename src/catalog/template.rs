@@ -24,7 +24,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     let trip_name_escaped = html_escape(&payload.trip_name);
     let mode_display = match payload.mode.as_str() {
         "hierarchy" => "Hierarchy (APFS Hard Links)",
-        _ => "In-Place Renamed",
+        "in-place-rename" => "In-Place Renamed",
+        _ => "In-Place (Non-Destructive)",
     };
 
     let trip_location_display = payload
@@ -2014,7 +2015,7 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
     const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
-    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
@@ -2225,7 +2226,7 @@ fi
 
   function generateBatchScriptContent(forDownload) {{
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
     const normalizeBatch = (entries) => {{
       let items = [];
@@ -2586,7 +2587,7 @@ fi
     const reclassFlag = isReclass ? ' --reclassify' : '';
 
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
     let lines = [];
     if (CATALOG_DATA.catalog_dir) lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
@@ -2653,7 +2654,7 @@ fi
     const reclassFlag = isReclass ? ' --reclassify' : '';
 
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
     const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
     if (scope === 'selection' && selectedIds.size > 0) {{
@@ -2964,7 +2965,7 @@ fi
     }}
 
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : '--mode in-place';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
     commands.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
     commands.push(`fi`);
     return commands;
@@ -3187,8 +3188,13 @@ mod tests {
         };
 
         let html_inplace = render_catalog_html(&payload_inplace);
-        assert!(html_inplace.contains("In-Place Renamed"));
+        assert!(html_inplace.contains("In-Place (Non-Destructive)"));
         assert!(html_inplace.contains("Set Location"));
+
+        let mut payload_rename = payload_inplace;
+        payload_rename.mode = "in-place-rename".to_string();
+        let html_rename = render_catalog_html(&payload_rename);
+        assert!(html_rename.contains("In-Place Renamed"));
     }
 
     #[test]
