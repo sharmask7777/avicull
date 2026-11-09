@@ -1,0 +1,3053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Avicull Snapshot Test Suite — Avicull Photo Catalog</title>
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-card: #151d30;
+      --bg-card-hover: #1b2640;
+      --border-color: #24324f;
+      --border-focus: #3b82f6;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-green: #10b981;
+      --accent-green-bg: rgba(16, 185, 129, 0.15);
+      --accent-amber: #f59e0b;
+      --accent-amber-bg: rgba(245, 158, 11, 0.15);
+      --accent-slate: #64748b;
+      --accent-slate-bg: rgba(100, 116, 139, 0.15);
+      --accent-blue: #3b82f6;
+      --accent-blue-hover: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      padding: 16px 24px;
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-title h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .badge-mode {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .location-display-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .location-prefix {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .badge-location {
+      font-size: 0.8rem;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .badge-location:hover {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #34d399;
+    }
+
+    .btn-modify-locations {
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: rgba(59, 130, 246, 0.12);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+
+    .btn-modify-locations:hover {
+      background: rgba(59, 130, 246, 0.25);
+      border-color: #60a5fa;
+      color: #ffffff;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--accent-blue);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-blue-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-card-hover);
+      border-color: #3b82f6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Summary Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .stat-val {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .stat-confirmed .stat-val { color: var(--accent-green); }
+    .stat-review .stat-val { color: var(--accent-amber); }
+    .stat-species .stat-val { color: #38bdf8; }
+
+    /* Filters Bar */
+    .controls-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+
+    .controls-top-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filter-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sub-pills-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      transition: opacity 0.15s ease;
+    }
+
+    .sub-pills-row.hidden {
+      display: none;
+    }
+
+    .pills-group-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      user-select: none;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px 8px 36px;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .search-box input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .filter-pills, .category-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pill {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .pill:hover, .pill.active {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+    }
+
+    .badge-category {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+
+    .badge-cat-bird {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+    }
+
+    .badge-cat-mammalia {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+    }
+
+    .badge-cat-insecta {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .badge-cat-scenery {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+    }
+
+    /* Gallery Cards Grid */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #3b82f6;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-media {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #070a12;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .badge-tier {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .badge-confirmed {
+      background: rgba(16, 185, 129, 0.9);
+      color: #ffffff;
+    }
+
+    .badge-review {
+      background: rgba(245, 158, 11, 0.9);
+      color: #ffffff;
+    }
+
+    .badge-nobird {
+      background: rgba(100, 116, 139, 0.9);
+      color: #ffffff;
+    }
+
+    .card-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .card-species-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .card-scientific {
+      font-size: 0.85rem;
+      font-style: italic;
+      color: var(--text-secondary);
+    }
+
+    .card-date {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-location {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card-path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      background: #0b0f19;
+      padding: 4px 8px;
+      border-radius: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-top: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .card-actions {
+      margin-top: auto;
+      padding-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-correct {
+      width: 100%;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-correct:hover {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+    }
+
+    /* Cloud-Evicted / Fallback Tile */
+    .card.evicted .badge-cloud {
+      display: inline-flex;
+    }
+
+    .badge-cloud {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(30, 41, 59, 0.85);
+      color: #93c5fd;
+      border: 1px solid rgba(147, 197, 253, 0.3);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      align-items: center;
+      gap: 4px;
+    }
+
+    .card.is-evicted .badge-cloud {
+      display: inline-flex;
+    }
+
+    .preview-fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      text-align: center;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .preview-fallback-icon {
+      width: 36px;
+      height: 36px;
+      color: #64748b;
+    }
+
+    .preview-fallback-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+
+    /* Card Selection & Multi-Select Styling */
+    .card.selected {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px var(--accent-blue), 0 10px 25px -5px rgba(59, 130, 246, 0.3);
+      background: rgba(30, 58, 138, 0.15);
+    }
+
+    .card-select-badge {
+      display: none;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .card.selected .card-select-badge {
+      display: flex;
+    }
+
+    /* Floating Selection Action Bar */
+    .selection-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.6), 0 0 15px rgba(59, 130, 246, 0.3);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 10px 20px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 100;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .selection-bar.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .selection-bar-count {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .selection-bar-count span {
+      background: var(--accent-blue);
+      color: white;
+      border-radius: 9999px;
+      padding: 2px 8px;
+      font-size: 0.8rem;
+    }
+
+    .selection-bar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-fallback-sub {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    /* Modal Backdrop and Drawer */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 20px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 650px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.25rem;
+      line-height: 1;
+      padding: 4px;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .selected-photo-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .modal-thumb {
+      width: 70px;
+      height: 70px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #1e293b;
+      flex-shrink: 0;
+    }
+
+    .modal-photo-details {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .modal-photo-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-photo-sub {
+      font-size: 0.775rem;
+      color: var(--text-secondary);
+      font-family: ui-monospace, monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .autocomplete-wrap {
+      position: relative;
+    }
+
+    .autocomplete-input {
+      width: 100%;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .autocomplete-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .suggestions-list {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 60;
+      display: none;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .suggestions-list.open {
+      display: block;
+    }
+
+    .suggestion-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .suggestion-item:hover, .suggestion-item.highlighted {
+      background: var(--accent-blue);
+      color: #ffffff;
+    }
+
+    .command-box {
+      background: #070a12;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+
+    /* Reclassification Diff Modal Styles */
+    .diff-table-container {
+      min-height: 220px;
+      max-height: 380px;
+      flex-shrink: 0;
+      overflow-y: auto;
+      margin-top: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .diff-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    .diff-table th {
+      position: sticky;
+      top: 0;
+      background: #111827;
+      padding: 10px 12px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 2;
+    }
+
+    .diff-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+
+    .diff-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .diff-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #000;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .choice-pill-group {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .choice-pill {
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .choice-pill.active-take {
+      background: #10b981;
+      color: #ffffff;
+    }
+
+    .choice-pill.active-keep {
+      background: #3b82f6;
+      color: #ffffff;
+    }
+
+    .diff-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 8px;
+    }
+
+    .diff-bulk-btn {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    .diff-bulk-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-content">
+    <div class="brand-title">
+      <h1>Avicull Snapshot Test Suite</h1>
+      <span class="badge-mode">In-Place Renamed</span>
+      <div class="location-display-group">
+        <span class="location-prefix">Location of the current directory:</span>
+        <button class="badge-location" id="headerLocationBadge" onclick="openLocationModal()" title="View trip location for accurate regional bird classifications">
+          📍 <span id="headerLocationText">Ranthambore</span>
+        </button>
+        <button class="btn-modify-locations" id="btnModifyLocations" onclick="openLocationModal()" title="Modify locations of directory and subdirectory">
+          modify locations of directory and subdirectory
+        </button>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" id="btnMainReviewClassifications" onclick="openReclassifyReviewModal()" title="Review species classifications across photos" style="background: var(--accent-blue); color: #fff;">
+        <svg width="15" height="15" fill="currentColor" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 4px;"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        Review your classifications
+      </button>
+      <button class="btn btn-secondary" id="btnCopyBatchScript" onclick="copyBatchScript()" title="Copy bash script for all queued mislabel corrections to clipboard">
+        Copy Batch Script (<span id="batchCountCopy">0</span>)
+      </button>
+      <button class="btn btn-secondary" id="btnDownloadBatch" onclick="downloadBatchScript()" title="Download bash script for all queued mislabel corrections">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        Download apply_corrections.sh (<span id="batchCount">0</span>)
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-label">Total Photos</span>
+      <span class="stat-val" id="statTotal">2</span>
+    </div>
+    <div class="stat-card stat-species">
+      <span class="stat-label">Species Tally</span>
+      <span class="stat-val" id="statSpecies">2</span>
+    </div>
+    <div class="stat-card stat-confirmed">
+      <span class="stat-label">Confirmed Species</span>
+      <span class="stat-val" id="statConfirmed">1</span>
+    </div>
+    <div class="stat-card stat-review">
+      <span class="stat-label">Needs Review</span>
+      <span class="stat-val" id="statReview">1</span>
+    </div>
+  </div>
+
+  <div class="controls-bar">
+    <div class="controls-top-row">
+      <div class="search-box">
+        <svg class="search-icon" width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by species, category, location, date, or filename..." oninput="handleSearch()"/>
+      </div>
+      <div class="filter-section">
+        <span class="pills-group-label">Status</span>
+        <div class="filter-pills">
+          <button class="pill active" data-filter="all" onclick="setFilter('all', this)">All</button>
+          <button class="pill" data-filter="ConfirmedSpecies" onclick="setFilter('ConfirmedSpecies', this)">Confirmed (1)</button>
+          <button class="pill" data-filter="NeedsReview" onclick="setFilter('NeedsReview', this)">Needs Review (1)</button>
+          <button class="pill" data-filter="NoBirdDetected" onclick="setFilter('NoBirdDetected', this)">No Subject (0)</button>
+        </div>
+      </div>
+    </div>
+    <div class="sub-pills-row" id="categorySubPillsRow">
+      <span class="pills-group-label">Category</span>
+      <div class="category-pills" id="categoryPills">
+        <button class="pill category-pill active" data-category="all" onclick="setCategoryFilter('all', this)">All (<span id="catCountAll">2</span>)</button>
+        <button class="pill category-pill" data-category="Bird" onclick="setCategoryFilter('Bird', this)">Bird (<span id="catCountBird">2</span>)</button>
+        <button class="pill category-pill" data-category="Mammalia" onclick="setCategoryFilter('Mammalia', this)">Mammalia (<span id="catCountMammalia">0</span>)</button>
+        <button class="pill category-pill" data-category="Insecta" onclick="setCategoryFilter('Insecta', this)">Insecta (<span id="catCountInsecta">0</span>)</button>
+        <button class="pill category-pill" data-category="Reptilia" onclick="setCategoryFilter('Reptilia', this)">Reptilia (<span id="catCountReptilia">0</span>)</button>
+        <button class="pill category-pill" data-category="Amphibia" onclick="setCategoryFilter('Amphibia', this)">Amphibia (<span id="catCountAmphibia">0</span>)</button>
+        <button class="pill category-pill" data-category="Scenery" onclick="setCategoryFilter('Scenery', this)">Scenery (<span id="catCountScenery">0</span>)</button>
+        <button class="pill category-pill" data-category="Architecture" onclick="setCategoryFilter('Architecture', this)">Architecture (<span id="catCountArchitecture">0</span>)</button>
+        <button class="pill category-pill" data-category="Portrait" onclick="setCategoryFilter('Portrait', this)">Portrait (<span id="catCountPortrait">0</span>)</button>
+        <button class="pill category-pill" data-category="Abstract" onclick="setCategoryFilter('Abstract', this)">Abstract (<span id="catCountAbstract">0</span>)</button>
+        <button class="pill category-pill" data-category="No_Subject_Detected" onclick="setCategoryFilter('No_Subject_Detected', this)">No Subject (<span id="catCountNoSubject">0</span>)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="gallery-grid" id="galleryGrid">
+    <!-- Populated by JavaScript -->
+  </div>
+</div>
+
+<!-- Floating Multi-Selection Action Bar -->
+<div class="selection-bar" id="selectionBar">
+  <div class="selection-bar-count">
+    Selected: <span id="selectedCountBadge">0</span>
+  </div>
+  <div class="selection-bar-actions">
+    <button class="btn btn-secondary btn-sm" onclick="clearSelection()" title="Clear selection (Esc)" style="padding: 6px 12px; font-size: 0.8rem;">
+      Clear
+    </button>
+    <button class="btn btn-primary btn-sm" id="btnCorrectSelected" onclick="openModalForSelection()" style="padding: 6px 14px; font-size: 0.8rem; background: var(--accent-blue); color: #fff; font-weight: 600; border-radius: 9999px;">
+      <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 4px;"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+      Correct Selected (<span id="selectedCountBtn">0</span>)
+    </button>
+  </div>
+</div>
+
+<!-- Mislabel Correction Modal -->
+<div class="modal-backdrop" id="correctionModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Correct Bird Species</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="selected-photo-row" id="modalPhotoSummary">
+        <img id="modalPhotoThumb" class="modal-thumb" src="" alt="Thumbnail"/>
+        <div class="modal-photo-details">
+          <div class="modal-photo-name" id="modalCurrentSpecies">-</div>
+          <div class="modal-photo-sub" id="modalCurrentPath">-</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
+            Select Correct Species (eBird Taxonomy Autocomplete):
+          </label>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
+            Mark as No Subject (False Positive)
+          </button>
+        </div>
+        <div class="autocomplete-wrap">
+          <input type="text" id="speciesSearchInput" class="autocomplete-input" placeholder="Start typing bird name (e.g. Painted Stork)..." autocomplete="off" oninput="handleSpeciesAutocomplete()"/>
+          <div class="suggestions-list" id="speciesSuggestions"></div>
+        </div>
+      </div>
+
+      <div>
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Generated Correction Command (`avicull correct` / `mv`):
+        </label>
+        <div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 6px;">
+          Note: Run from the catalog directory or execute apply_corrections.sh to sync the SQLite manifest and relink/rename files.
+        </div>
+        <div class="command-box" id="commandOutput">Select a species above to compute destination filename and avicull correct command...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btnCopyCommand" onclick="copyCurrentCommand()">Copy Command</button>
+      <button class="btn btn-primary" id="btnAddToBatch" onclick="addToBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Trip Location Override Modal -->
+<div class="modal-backdrop" id="locationModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>Update Trip Geographic Location</h2>
+      <button class="modal-close" onclick="closeLocationModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid var(--border-color);padding-bottom:8px;">
+        <button id="tabSingle" class="btn btn-secondary" onclick="switchLocationTab('single')"
+                style="font-size:0.8rem;padding:4px 12px;background:var(--accent-blue);">Single / Selection</button>
+        <button id="tabBulk" class="btn btn-secondary" onclick="switchLocationTab('bulk')"
+                style="font-size:0.8rem;padding:4px 12px;">Directory Overrides</button>
+      </div>
+
+      <div id="locationSinglePanel">
+        <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+          Assigning GPS coordinates or an eBird gazetteer region refines the Bayesian priors used during classification, elevating local species probabilities and suppressing non-native false positives.
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location Scope / Target:
+          </label>
+          <select id="locationScopeSelect" class="autocomplete-input" style="margin-bottom: 12px;" onchange="handleLocationScopeChange()">
+            <option value="trip">Whole Trip / Directory</option>
+            <option value="directory">Subdirectory / Sub-folder...</option>
+            <option value="selection">Selected Photos (<span id="locationScopeCount">0</span>)</option>
+          </select>
+        </div>
+
+        <div id="locationSubdirRow" style="display: none; margin-bottom: 12px;">
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Select Subdirectory / Sub-folder:
+          </label>
+          <select id="locationSubdirSelect" class="autocomplete-input" onchange="handleLocationInput()">
+            <option value="">-- Choose Subdirectory --</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Location (Place Name or Latitude, Longitude):
+          </label>
+          <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
+        </div>
+
+        <div style="margin-top: 10px; margin-bottom: 6px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; user-select: none;">
+            <input type="checkbox" id="reclassifyOnLocationChange" checked onchange="handleLocationInput()" style="cursor: pointer;"/>
+            Reclassify on location change (--reclassify)
+          </label>
+        </div>
+
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+            Generated Location Command (`avicull location`):
+          </label>
+          <div class="command-box" id="locationCommandOutput">Enter a location name or coordinates above to generate location command...</div>
+        </div>
+      </div>
+
+      <div id="bulkLocationPanel" style="display:none;">
+        <p style="font-size:0.82rem; color:var(--text-secondary); margin-bottom:8px;">
+          Set a different location for each subdirectory. Each row generates an independent
+          <code>avicull location --dir … --location …</code> command.
+        </p>
+        <div id="bulkLocationRows"></div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="addBulkLocationRow()">+ Add Directory Row</button>
+        <div style="margin-top: 10px; margin-bottom: 6px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-primary); cursor: pointer; user-select: none;">
+            <input type="checkbox" id="bulkReclassifyOnLocationChange" checked onchange="renderBulkLocationPreview()" style="cursor: pointer;"/>
+            Reclassify on location change (--reclassify)
+          </label>
+        </div>
+        <div style="margin-top:14px;">
+          <label style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;display:block;">
+            Generated Commands:
+          </label>
+          <div class="command-box" id="bulkLocationCommandOutput">Add rows above to generate commands…</div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-secondary" onclick="copyBulkLocationCommands()">Copy Commands</button>
+          <button class="btn btn-primary" onclick="openReclassifyReviewModal()">Review your classifications</button>
+          <button class="btn btn-primary" onclick="applyBulkLocationBatch()">Add to Batch Script</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" id="locationModalFooter">
+      <button class="btn btn-secondary" id="btnCopyLocationCommand" onclick="copyLocationCommand()">Copy Command</button>
+      <button class="btn btn-primary" id="btnReclassifyModalTrigger" onclick="openReclassifyReviewModal()">Review your classifications</button>
+      <button class="btn btn-primary" id="btnAddLocationToBatch" onclick="addLocationToBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reclassification Review / Diff Modal -->
+<div class="modal-backdrop" id="reclassifyModal">
+  <div class="modal-box" style="max-width: 780px;">
+    <div class="modal-header">
+      <h2>Review Your Classifications</h2>
+      <button class="modal-close" onclick="closeReclassifyModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+        Location priors have recalculated potential species probabilities. Review proposed reclassifications below<span id="reclassifyScopeDesc" style="font-weight:600;color:var(--text-primary);"></span>:
+      </div>
+
+      <div class="diff-header-bar">
+        <div>
+          <button class="diff-bulk-btn" id="btnTakeAll" onclick="setAllReclassifyChoices('take')">✓ Take All</button>
+          <button class="diff-bulk-btn" id="btnKeepAll" onclick="setAllReclassifyChoices('keep')" style="margin-left: 6px;">✕ Keep All</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          Items to update: <span id="reclassifyChangeCount">0</span>
+        </div>
+      </div>
+
+      <div class="diff-table-container">
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">Photo</th>
+              <th>Current Species</th>
+              <th>Proposed Species</th>
+              <th style="width: 140px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="reclassifyDiffTableBody">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 14px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Generated Batch Script Commands:
+        </label>
+        <div class="command-box" id="reclassifyCommandOutput">Review choices above to generate commands...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeReclassifyModal()">Cancel</button>
+      <button class="btn btn-secondary" id="btnCopyReclassifyCommand" onclick="copyReclassifyCommand()">Copy Commands</button>
+      <button class="btn btn-primary" id="btnApplyReclassifyBatch" onclick="applyReclassifyBatch()">Add to Batch Script</button>
+    </div>
+  </div>
+</div>
+
+<!-- Embedded JSON Data for Offline Interactivity -->
+<script id="catalog-data" type="application/json">
+{"trip_name":"Avicull Snapshot Test Suite","mode":"in-place-rename","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0,"architecture_count":0,"portrait_count":0,"abstract_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
+</script>
+
+<script>
+  let CATALOG_DATA = {};
+
+  const AssetCategory = Object.freeze({
+    BIRD: 'Bird',
+    MAMMALIA: 'Mammalia',
+    INSECTA: 'Insecta',
+    HERPETOFAUNA: 'Herpetofauna',
+    REPTILIA: 'Reptilia',
+    AMPHIBIA: 'Amphibia',
+    SCENERY: 'Scenery',
+    PORTRAIT: 'Portrait',
+    ARCHITECTURE: 'Architecture',
+    ABSTRACT: 'Abstract',
+    NO_SUBJECT_DETECTED: 'No_Subject_Detected',
+    UNKNOWN: 'Unknown'
+  });
+
+  const RoutingTier = Object.freeze({
+    CONFIRMED_SPECIES: 'ConfirmedSpecies',
+    NEEDS_REVIEW: 'NeedsReview',
+    NO_BIRD_DETECTED: 'NoBirdDetected'
+  });
+  try {
+    const el = document.getElementById('catalog-data');
+    if (el) {
+      CATALOG_DATA = JSON.parse(el.textContent);
+    }
+  } catch (e) {
+    console.error("Failed to parse catalog-data:", e);
+  }
+
+  const items = CATALOG_DATA.items || [];
+  const speciesList = CATALOG_DATA.species_list || [];
+  let currentFilter = 'all';
+  let currentCategory = 'all';
+  let searchQuery = '';
+  let activeModalItem = null;
+  let activeModalItems = [];
+  let batchCommands = [];
+  let selectedIds = new Set();
+  let lastSelectedId = null;
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeShellArg(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\$/g, '\\$')
+      .replace(/`/g, '\\`');
+  }
+
+  function updateBatchUI() {
+    const count = batchCommands.length;
+    const batchCountEl = document.getElementById('batchCount');
+    if (batchCountEl) batchCountEl.textContent = count;
+    const batchCountCopyEl = document.getElementById('batchCountCopy');
+    if (batchCountCopyEl) batchCountCopyEl.textContent = count;
+  }
+
+  function sanitizeMediaUri(uri) {
+    if (!uri) return "";
+    const trimmed = String(uri).trim();
+    // Allow safe data URIs, local file URLs, or relative paths
+    if (trimmed.startsWith('data:image/') || trimmed.startsWith('file://') || trimmed.startsWith('/') || trimmed.startsWith('./') || !trimmed.includes(':')) {
+      return trimmed;
+    }
+    return "";
+  }
+
+  function sanitizeSlug(name) {
+    if (!name) return "";
+    return name
+      .replace(/'/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function attemptHighResSwap(img, item) {
+    if (!img || !item) return;
+    const isLocal = item.is_local !== false;
+    const localSrc = item.local_src || item.preview_url;
+    if (!isLocal || !localSrc) return;
+
+    const probe = new Image();
+    probe.onload = () => {
+      img.src = localSrc;
+    };
+    probe.onerror = () => {
+      // Gracefully keep embedded thumbnail baseline; tag card as cloud/evicted
+      const card = img.closest ? img.closest('.card') : document.getElementById('card-' + item.id);
+      if (card) {
+        card.classList.add('evicted');
+      }
+    };
+    probe.src = localSrc;
+  }
+
+  function handleImageError(img, itemId) {
+    const item = items.find(i => i.id === itemId);
+    const embeddedUri = item ? item.embedded_thumb_data_uri : null;
+    const fallbackThumb = (item ? item.thumb_src : null) || img.dataset.thumbSrc;
+
+    // First attempt to fall back to embedded data URI if high-res failed
+    if (embeddedUri && img.src !== embeddedUri) {
+      img.onerror = function() {
+        if (fallbackThumb && img.src !== fallbackThumb) {
+          img.onerror = function() { handleFinalImageFallback(img, itemId); };
+          img.src = fallbackThumb;
+        } else {
+          handleFinalImageFallback(img, itemId);
+        }
+      };
+      img.src = embeddedUri;
+      const card = img.closest ? img.closest('.card') : null;
+      if (card) {
+        card.classList.add('evicted');
+      }
+      return;
+    }
+
+    // Secondary fallback to thumbSrc
+    if (fallbackThumb && img.src !== fallbackThumb) {
+      img.onerror = function() { handleFinalImageFallback(img, itemId); };
+      img.src = fallbackThumb;
+      const card = img.closest ? img.closest('.card') : null;
+      if (card) {
+        card.classList.add('evicted');
+      }
+      return;
+    }
+
+    handleFinalImageFallback(img, itemId);
+  }
+
+  function handleFinalImageFallback(img, itemId) {
+    const parent = img.parentElement;
+    if (!parent) return;
+    const item = items.find(i => i.id === itemId);
+    const filename = item ? item.primary_filename : "File";
+    parent.innerHTML = `
+      <div class="preview-fallback">
+        <svg class="preview-fallback-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path>
+        </svg>
+        <div class="preview-fallback-text">${filename}</div>
+        <div class="preview-fallback-sub">Preview Unavailable (Cloud Evicted or Unsupported RAW)</div>
+      </div>
+    `;
+  }
+
+  function getFilteredItems() {
+    return items.filter(item => {
+      const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
+      if (!matchFilter) return false;
+
+      const itemCat = item.category || AssetCategory.NO_SUBJECT_DETECTED;
+      const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
+      if (!matchCategory) return false;
+
+      if (!searchQuery) return true;
+
+      const q = searchQuery.toLowerCase();
+      const sp = (item.assigned_species || '').toLowerCase();
+      const sc = (item.scientific_name || '').toLowerCase();
+      const cat = itemCat.toLowerCase();
+      const loc = (item.location_name || '').toLowerCase();
+      const dt = (item.capture_date || '').toLowerCase();
+      const fn = (item.primary_filename || '').toLowerCase();
+      return sp.includes(q) || sc.includes(q) || cat.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
+    });
+  }
+
+  function updateSelectionUI() {
+    const count = selectedIds.size;
+    const bar = document.getElementById('selectionBar');
+    const badge = document.getElementById('selectedCountBadge');
+    const btnCount = document.getElementById('selectedCountBtn');
+
+    if (badge) badge.textContent = count;
+    if (btnCount) btnCount.textContent = count;
+
+    if (bar) {
+      if (count > 0) {
+        bar.classList.add('visible');
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    // Update selection state on cards
+    document.querySelectorAll('.card').forEach(card => {
+      const id = card.id ? card.id.replace(/^card-/, '') : '';
+      if (selectedIds.has(id)) {
+        card.classList.add('selected');
+      } else {
+        card.classList.remove('selected');
+      }
+    });
+  }
+
+  function handleCardClick(itemId, event) {
+    const e = event || window.event || {};
+    const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+    const isShift = e.shiftKey;
+
+    if (isCmdOrCtrl) {
+      // Disjoint selection toggle
+      if (selectedIds.has(itemId)) {
+        selectedIds.delete(itemId);
+      } else {
+        selectedIds.add(itemId);
+        lastSelectedId = itemId;
+      }
+    } else if (isShift && lastSelectedId) {
+      // Contiguous range selection based on currently filtered cards
+      const visible = getFilteredItems();
+      const visibleIds = visible.map(i => i.id);
+      const startIdx = visibleIds.indexOf(lastSelectedId);
+      const targetIdx = visibleIds.indexOf(itemId);
+
+      if (startIdx !== -1 && targetIdx !== -1) {
+        const [low, high] = startIdx < targetIdx ? [startIdx, targetIdx] : [targetIdx, startIdx];
+        for (let i = low; i <= high; i++) {
+          selectedIds.add(visibleIds[i]);
+        }
+      } else {
+        selectedIds.add(itemId);
+        lastSelectedId = itemId;
+      }
+    } else {
+      // Single selection: clear previous unless clicking on already single-selected
+      selectedIds.clear();
+      selectedIds.add(itemId);
+      lastSelectedId = itemId;
+    }
+
+    updateSelectionUI();
+  }
+
+  function clearSelection() {
+    selectedIds.clear();
+    lastSelectedId = null;
+    updateSelectionUI();
+  }
+
+  function selectAllVisible() {
+    const visible = getFilteredItems();
+    visible.forEach(i => selectedIds.add(i.id));
+    if (visible.length > 0) {
+      lastSelectedId = visible[visible.length - 1].id;
+    }
+    updateSelectionUI();
+  }
+
+  function openModalForSelection() {
+    if (selectedIds.size === 0) return;
+    openModal(Array.from(selectedIds));
+  }
+
+  function renderGallery() {
+    const grid = document.getElementById('galleryGrid');
+    if (!grid) return;
+
+    const filtered = getFilteredItems();
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `<div class="empty-state"><h3>No photos matched your filter or search query.</h3></div>`;
+      return;
+    }
+
+    grid.innerHTML = filtered.map(item => {
+      const confPct = Math.round(item.confidence * 100);
+      let tierBadgeClass = "badge-confirmed";
+      let tierLabel = `${confPct}%`;
+
+      if (item.routing_tier === RoutingTier.NEEDS_REVIEW) {
+        tierBadgeClass = "badge-review";
+        tierLabel = `Review (${confPct}%)`;
+      } else if (item.routing_tier === RoutingTier.NO_BIRD_DETECTED) {
+        tierBadgeClass = "badge-nobird";
+        tierLabel = "No Subject";
+      }
+
+      const locationMarkup = item.location_name ? `
+        <div class="card-location">
+          <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+          ${item.location_name}
+        </div>
+      ` : '';
+
+      const dateMarkup = item.capture_date ? `
+        <div class="card-date">
+          <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+          ${item.capture_date}
+        </div>
+      ` : '';
+
+      const scientificMarkup = item.scientific_name ? `
+        <div class="card-scientific">${item.scientific_name}</div>
+      ` : '';
+
+      const isLocal = item.is_local !== false;
+      const initialSrc = (item.thumb_src && !item.thumb_src.startsWith('data:'))
+        ? item.thumb_src
+        : (item.preview_url && !item.preview_url.startsWith('data:'))
+        ? item.preview_url
+        : (item.embedded_thumb_data_uri || "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='200'></svg>");
+      const evictedClass = isLocal ? '' : ' evicted';
+      const isSelected = selectedIds.has(item.id);
+      const selectedClass = isSelected ? ' selected' : '';
+
+      const category = item.category || AssetCategory.NO_SUBJECT_DETECTED;
+      const catLower = category.toLowerCase();
+      const categoryBadgeMarkup = `<span class="badge-category badge-cat-${catLower}">${category}</span>`;
+
+      return `
+        <div class="card${evictedClass}${selectedClass}" id="card-${item.id}" onclick="handleCardClick('${item.id}', event)" data-local-src="${item.local_src || item.current_path}" data-thumb-src="${item.thumb_src || item.preview_url}" data-embedded-src="${item.embedded_thumb_data_uri || ''}" data-is-local="${isLocal}">
+          <div class="card-select-badge">
+            <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <div class="card-media">
+            <img src="${initialSrc}" alt="${item.assigned_species}" loading="lazy" data-local-src="${item.local_src || item.current_path}" data-thumb-src="${item.thumb_src || item.preview_url}" data-embedded-src="${item.embedded_thumb_data_uri || ''}" data-is-local="${isLocal}" onerror="handleImageError(this, '${item.id}')"/>
+            <span class="badge-cloud">☁️ Cloud</span>
+            <span class="badge-tier ${tierBadgeClass}">${tierLabel}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-species-title">
+              ${categoryBadgeMarkup} • <span>${item.assigned_species}</span>
+            </div>
+            ${scientificMarkup}
+            ${dateMarkup}
+            ${locationMarkup}
+            <div class="card-path" title="${item.current_path}">${item.current_path}</div>
+            <div class="card-actions">
+              <button class="btn-correct" onclick="event.stopPropagation(); handleCorrectButtonClick('${item.id}')">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                Correct Species
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Progressive background high-res probing using IntersectionObserver to prevent memory exhaustion and UI hangs
+    if (typeof window !== 'undefined' && window.IntersectionObserver) {
+      if (window._highResObserver) {
+        window._highResObserver.disconnect();
+      }
+      window._highResObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const card = entry.target;
+            const itemId = card.id ? card.id.replace(/^card-/, '') : null;
+            const item = items.find(i => i.id === itemId);
+            const img = card.querySelector('img');
+            if (img && item) {
+              if (item.embedded_thumb_data_uri && (!img.src || img.src.includes('data:image/svg') || img.src.includes('<svg'))) {
+                img.src = item.embedded_thumb_data_uri;
+              }
+              attemptHighResSwap(img, item);
+            }
+            observer.unobserve(card);
+          }
+        });
+      }, { rootMargin: '200px' });
+
+      filtered.forEach(item => {
+        const card = document.getElementById('card-' + item.id);
+        if (card) window._highResObserver.observe(card);
+      });
+    } else {
+      filtered.slice(0, 30).forEach(item => {
+        const card = document.getElementById('card-' + item.id);
+        if (card) {
+          const img = card.querySelector('img');
+          if (img) attemptHighResSwap(img, item);
+        }
+      });
+    }
+  }
+
+  function setCategoryFilter(category, btn) {
+    currentCategory = category;
+    document.querySelectorAll('.category-pills .pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderGallery();
+  }
+
+  function setFilter(tier, btn) {
+    currentFilter = tier;
+    document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    // Toggle category sub-pills row visibility for No Subject tier
+    const subPillsRow = document.getElementById('categorySubPillsRow');
+    if (subPillsRow) {
+      if (tier === RoutingTier.NO_BIRD_DETECTED) {
+        subPillsRow.classList.add('hidden');
+      } else {
+        subPillsRow.classList.remove('hidden');
+      }
+    }
+
+    // When changing status tier, update category sub-pill counts dynamically
+    updateCategoryCounts();
+    renderGallery();
+  }
+
+  function updateCategoryCounts() {
+    const scopeItems = currentFilter === 'all'
+      ? items
+      : items.filter(i => i.routing_tier === currentFilter);
+
+    const counts = { all: scopeItems.length, Bird: 0, Mammalia: 0, Insecta: 0, Reptilia: 0, Amphibia: 0, Scenery: 0, Architecture: 0, Portrait: 0, Abstract: 0, No_Subject_Detected: 0 };
+    scopeItems.forEach(i => {
+      const c = i.category || AssetCategory.NO_SUBJECT_DETECTED;
+      if (counts[c] !== undefined) {
+        counts[c]++;
+      } else {
+        counts[c] = (counts[c] || 0) + 1;
+      }
+    });
+    const elAll = document.getElementById('catCountAll');
+    if (elAll) elAll.textContent = counts.all;
+    const elBird = document.getElementById('catCountBird');
+    if (elBird) elBird.textContent = counts.Bird;
+    const elMam = document.getElementById('catCountMammalia');
+    if (elMam) elMam.textContent = counts.Mammalia;
+    const elIns = document.getElementById('catCountInsecta');
+    if (elIns) elIns.textContent = counts.Insecta;
+    const elRep = document.getElementById('catCountReptilia');
+    if (elRep) elRep.textContent = counts.Reptilia;
+    const elAmp = document.getElementById('catCountAmphibia');
+    if (elAmp) elAmp.textContent = counts.Amphibia;
+    const elScn = document.getElementById('catCountScenery');
+    if (elScn) elScn.textContent = counts.Scenery;
+    const elArch = document.getElementById('catCountArchitecture');
+    if (elArch) elArch.textContent = counts.Architecture;
+    const elPort = document.getElementById('catCountPortrait');
+    if (elPort) elPort.textContent = counts.Portrait;
+    const elAbst = document.getElementById('catCountAbstract');
+    if (elAbst) elAbst.textContent = counts.Abstract;
+    const elNoSub = document.getElementById('catCountNoSubject');
+    if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
+  }
+
+  function handleSearch() {
+    const el = document.getElementById('searchInput');
+    searchQuery = el ? el.value.trim() : '';
+    renderGallery();
+  }
+
+  function handleCorrectButtonClick(itemId) {
+    // If the clicked card is already in the selected set, keep selection and open for all
+    if (selectedIds.has(itemId) && selectedIds.size > 1) {
+      openModal(Array.from(selectedIds));
+    } else {
+      selectedIds.clear();
+      selectedIds.add(itemId);
+      lastSelectedId = itemId;
+      updateSelectionUI();
+      openModal([itemId]);
+    }
+  }
+
+  function openModal(itemIds) {
+    const ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    activeModalItems = items.filter(i => ids.includes(i.id));
+    if (activeModalItems.length === 0) return;
+    activeModalItem = activeModalItems[0];
+
+    const isMulti = activeModalItems.length > 1;
+    const thumb = document.getElementById('modalPhotoThumb');
+    const speciesEl = document.getElementById('modalCurrentSpecies');
+    const pathEl = document.getElementById('modalCurrentPath');
+
+    if (isMulti) {
+      if (speciesEl) {
+        speciesEl.textContent = `${activeModalItems.length} Photos Selected`;
+      }
+      if (pathEl) {
+        const stems = activeModalItems.map(i => i.original_stem).slice(0, 5).join(', ');
+        const more = activeModalItems.length > 5 ? ` +${activeModalItems.length - 5} more` : '';
+        pathEl.textContent = stems + more;
+      }
+    } else {
+      if (speciesEl) speciesEl.textContent = activeModalItem.assigned_species;
+      if (pathEl) pathEl.textContent = activeModalItem.current_path;
+    }
+
+    if (thumb) {
+      const embeddedUri = activeModalItem.embedded_thumb_data_uri;
+      const fallbackThumb = activeModalItem.thumb_src || activeModalItem.preview_url;
+      const initialThumb = embeddedUri || fallbackThumb;
+      thumb.src = initialThumb;
+      thumb.dataset.embeddedSrc = embeddedUri || '';
+      thumb.dataset.thumbSrc = fallbackThumb;
+      thumb.onerror = () => {
+        if (embeddedUri && thumb.src !== embeddedUri) {
+          thumb.src = embeddedUri;
+        } else if (fallbackThumb && thumb.src !== fallbackThumb) {
+          thumb.src = fallbackThumb;
+        } else {
+          thumb.style.display = 'none';
+        }
+      };
+      thumb.style.display = 'block';
+
+      // Upgrade modal thumb to high-res if available locally
+      if (activeModalItem.is_local !== false) {
+        const modalLocalSrc = activeModalItem.local_src || activeModalItem.preview_url;
+        if (modalLocalSrc) {
+          const modalProbe = new Image();
+          modalProbe.onload = () => {
+            if (activeModalItem && activeModalItem.id === activeModalItems[0].id) {
+              thumb.src = modalLocalSrc;
+            }
+          };
+          modalProbe.onerror = () => {
+            // Leave thumbnail in place
+          };
+          modalProbe.src = modalLocalSrc;
+        }
+      }
+    }
+
+    const input = document.getElementById('speciesSearchInput');
+    if (input) input.value = '';
+    const suggestions = document.getElementById('speciesSuggestions');
+    if (suggestions) suggestions.classList.remove('open');
+    const cmdOutput = document.getElementById('commandOutput');
+    if (cmdOutput) {
+      cmdOutput.textContent = isMulti
+        ? `Select a species from autocomplete above to generate commands for all ${activeModalItems.length} photos...`
+        : "Select a species from the autocomplete search above to generate avicull correct commands...";
+    }
+
+    const modal = document.getElementById('correctionModal');
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('correctionModal');
+    if (modal) modal.classList.remove('open');
+    activeModalItem = null;
+    activeModalItems = [];
+  }
+
+  function normalizeAutocompleteString(str) {
+    if (!str) return '';
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function normalizeAutocompleteTokens(str) {
+    const normalized = normalizeAutocompleteString(str);
+    return normalized ? normalized.split(/\s+/) : [];
+  }
+
+  function searchSpeciesAutocomplete(query, candidates) {
+    if (!query || !candidates) return [];
+    const normQueryStr = normalizeAutocompleteString(query);
+    const queryTokens = normalizeAutocompleteTokens(query);
+    if (queryTokens.length === 0) return [];
+
+    let scored = [];
+
+    for (const cand of candidates) {
+      const normCandStr = normalizeAutocompleteString(cand);
+      const candTokens = normalizeAutocompleteTokens(cand);
+      if (candTokens.length === 0) continue;
+
+      const allTokensMatch = queryTokens.every(qTok =>
+        candTokens.some(cTok => cTok.includes(qTok))
+      );
+      if (!allTokensMatch) continue;
+
+      let rank = 3;
+      if (normCandStr.startsWith(normQueryStr)) {
+        rank = 1;
+      } else {
+        const allPrefixes = queryTokens.every(qTok =>
+          candTokens.some(cTok => cTok.startsWith(qTok))
+        );
+        if (allPrefixes) {
+          rank = 2;
+        }
+      }
+
+      scored.push({ species: cand, rank: rank, length: cand.length });
+    }
+
+    scored.sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank;
+      return a.species.localeCompare(b.species);
+    });
+
+    return scored.map(item => item.species);
+  }
+
+  function handleSpeciesAutocomplete() {
+    const input = document.getElementById('speciesSearchInput');
+    const suggestionsEl = document.getElementById('speciesSuggestions');
+    if (!input || !suggestionsEl) return;
+
+    const val = input.value.trim();
+    if (!val || val.length < 2) {
+      suggestionsEl.classList.remove('open');
+      return;
+    }
+
+    const matches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
+    if (matches.length === 0) {
+      suggestionsEl.classList.remove('open');
+      return;
+    }
+
+    suggestionsEl.innerHTML = matches.map(s => `
+      <div class="suggestion-item" onclick="selectSpecies('${s.replace(/'/g, "\\'")}')">${s}</div>
+    `).join('');
+    suggestionsEl.classList.add('open');
+  }
+
+  function findAvicullCmd() {
+    return `
+# Locate avicull binary
+AVICULL_CMD=""
+if command -v avicull >/dev/null 2>&1; then
+  AVICULL_CMD="avicull"
+elif [ -x "/usr/local/bin/avicull" ]; then
+  AVICULL_CMD="/usr/local/bin/avicull"
+elif [ -x "/opt/homebrew/bin/avicull" ]; then
+  AVICULL_CMD="/opt/homebrew/bin/avicull"
+elif [ -x "$HOME/.cargo/bin/avicull" ]; then
+  AVICULL_CMD="$HOME/.cargo/bin/avicull"
+elif [ -f "./target/release/avicull" ]; then
+  AVICULL_CMD="./target/release/avicull"
+elif [ -f "../target/release/avicull" ]; then
+  AVICULL_CMD="../target/release/avicull"
+elif [ -f "../../target/release/avicull" ]; then
+  AVICULL_CMD="../../target/release/avicull"
+elif [ -f "../../../target/release/avicull" ]; then
+  AVICULL_CMD="../../../target/release/avicull"
+elif [ -f "$HOME/.cargo/bin/avicull" ]; then
+  AVICULL_CMD="$HOME/.cargo/bin/avicull"
+else
+  # Upward search loop for Cargo.toml or target/release/avicull
+  SEARCH_DIR="."
+  for _ in 1 2 3 4 5; do
+    if [ -f "$SEARCH_DIR/target/release/avicull" ]; then
+      AVICULL_CMD="$SEARCH_DIR/target/release/avicull"
+      break
+    elif [ -f "$SEARCH_DIR/Cargo.toml" ] && command -v cargo >/dev/null 2>&1; then
+      AVICULL_CMD="cargo run --manifest-path $SEARCH_DIR/Cargo.toml --release --bin avicull --"
+      break
+    fi
+    SEARCH_DIR="$SEARCH_DIR/.."
+  done
+  if [ -z "$AVICULL_CMD" ] && command -v cargo >/dev/null 2>&1 && [ -f "Cargo.toml" -o -f "../Cargo.toml" -o -f "../../Cargo.toml" ]; then
+    AVICULL_CMD="cargo run --release --bin avicull --"
+  fi
+fi
+`;
+  }
+
+  function resolveTargetCategory(species, fallbackCategory) {
+    if (!species) return fallbackCategory || AssetCategory.NO_SUBJECT_DETECTED;
+    const s = species.toLowerCase().trim().replace(/^_+/, '');
+    if (s.includes('no_bird_detected') || s.includes('no bird detected') || s.includes('no_subject_detected') || s.includes('no subject detected') || s.includes('nobird') || s.includes('nosubject')) return AssetCategory.NO_SUBJECT_DETECTED;
+
+    // Direct match against known category prefixes
+    if (s.startsWith('mammalia') || s.startsWith('mammal')) return AssetCategory.MAMMALIA;
+    if (s.startsWith('insecta') || s.startsWith('insect')) return AssetCategory.INSECTA;
+    if (s.startsWith('reptilia') || s.startsWith('reptile')) return AssetCategory.REPTILIA;
+    if (s.startsWith('amphibia') || s.startsWith('amphibian')) return AssetCategory.AMPHIBIA;
+    if (s.startsWith('scenery') || s.startsWith('landscape')) return AssetCategory.SCENERY;
+    if (s.startsWith('architecture') || s.startsWith('building')) return AssetCategory.ARCHITECTURE;
+    if (s.startsWith('portrait')) return AssetCategory.PORTRAIT;
+    if (s.startsWith('abstract')) return AssetCategory.ABSTRACT;
+
+    // Exact matches in non-avian curated categories
+    const exactMultiTaxa = {"aardvark":"Mammalia","abst_minimal_geometry":"Abstract","abst_water_ripples":"Abstract","abstract geometry":"Abstract","abstract_geometry":"Abstract","african buffalo":"Mammalia","african bush elephant":"Mammalia","african forest elephant":"Mammalia","african lion":"Mammalia","african wild dog":"Mammalia","african_buffalo":"Mammalia","african_bush_elephant":"Mammalia","african_forest_elephant":"Mammalia","african_lion":"Mammalia","african_wild_dog":"Mammalia","alpaca":"Mammalia","alpine chamois":"Mammalia","alpine ibex":"Mammalia","alpine marmot":"Mammalia","alpine peak":"Scenery","alpine_chamois":"Mammalia","alpine_ibex":"Mammalia","alpine_marmot":"Mammalia","alpine_peak":"Scenery","american bison":"Mammalia","american black bear":"Mammalia","american pika":"Mammalia","american_bison":"Mammalia","american_black_bear":"Mammalia","american_pika":"Mammalia","amph_common_indian_toad":"Amphibia","amph_indian_bullfrog":"Amphibia","ancient fort":"Architecture","ancient temple":"Architecture","ancient_fort":"Architecture","ancient_temple":"Architecture","andean bear":"Mammalia","andean_bear":"Mammalia","ant bear":"Mammalia","ant_bear":"Mammalia","antbear":"Mammalia","anubis baboon":"Mammalia","anubis_baboon":"Mammalia","arabian camel":"Mammalia","arabian_camel":"Mammalia","arch_fort_palace":"Architecture","arch_hindu_temple":"Architecture","arch_modern_building":"Architecture","arch_monument":"Architecture","architectural shadow pattern":"Abstract","architectural_shadow_pattern":"Abstract","arctic fox":"Mammalia","arctic_fox":"Mammalia","argali":"Mammalia","arid mountain valley":"Scenery","arid_mountain_valley":"Scenery","armadillo":"Mammalia","asian black bear":"Mammalia","asian buffalo":"Mammalia","asian common toad":"Amphibia","asian elephant":"Mammalia","asian tapir":"Mammalia","asian_black_bear":"Mammalia","asian_buffalo":"Mammalia","asian_common_toad":"Amphibia","asian_elephant":"Mammalia","asian_tapir":"Mammalia","asiatic ibex":"Mammalia","asiatic lion":"Mammalia","asiatic wild ass":"Mammalia","asiatic wild dog":"Mammalia","asiatic_ibex":"Mammalia","asiatic_lion":"Mammalia","asiatic_wild_ass":"Mammalia","asiatic_wild_dog":"Mammalia","astrophotography":"Scenery","aurora borealis":"Scenery","aurora_borealis":"Scenery","australian wild dog":"Mammalia","australian_wild_dog":"Mammalia","axis deer":"Mammalia","axis_deer":"Mammalia","babakoto":"Mammalia","badger":"Mammalia","baird's tapir":"Mammalia","baird's_tapir":"Mammalia","banded peacock":"Insecta","banded_peacock":"Insecta","barasingha":"Mammalia","barking deer":"Mammalia","barking_deer":"Mammalia","barren valley":"Scenery","barren_valley":"Scenery","beaver":"Mammalia","bengal monitor":"Reptilia","bengal tiger":"Mammalia","bengal_monitor":"Reptilia","bengal_tiger":"Mammalia","bharal":"Mammalia","bighorn sheep":"Mammalia","bighorn_sheep":"Mammalia","black bear":"Mammalia","black rhinoceros":"Mammalia","black wildebeest":"Mammalia","black-backed jackal":"Mammalia","black-backed_jackal":"Mammalia","black-spined toad":"Amphibia","black-spined_toad":"Amphibia","black-tailed deer":"Mammalia","black-tailed prairie dog":"Mammalia","black-tailed python":"Reptilia","black-tailed_deer":"Mammalia","black-tailed_prairie_dog":"Mammalia","black-tailed_python":"Reptilia","black_backed jackal":"Mammalia","black_backed_jackal":"Mammalia","black_bear":"Mammalia","black_rhinoceros":"Mammalia","black_spined toad":"Amphibia","black_spined_toad":"Amphibia","black_tailed deer":"Mammalia","black_tailed prairie dog":"Mammalia","black_tailed python":"Reptilia","black_tailed_deer":"Mammalia","black_tailed_prairie_dog":"Mammalia","black_tailed_python":"Reptilia","black_wildebeest":"Mammalia","blackbuck":"Mammalia","bleeding-heart baboon":"Mammalia","bleeding-heart_baboon":"Mammalia","bleeding_heart baboon":"Mammalia","bleeding_heart_baboon":"Mammalia","blue bull":"Mammalia","blue mormon":"Insecta","blue sheep":"Mammalia","blue tiger":"Insecta","blue whale":"Mammalia","blue wildebeest":"Mammalia","blue_bull":"Mammalia","blue_mormon":"Insecta","blue_sheep":"Mammalia","blue_tiger":"Insecta","blue_whale":"Mammalia","blue_wildebeest":"Mammalia","bobcat":"Mammalia","bonnet macaque":"Mammalia","bonnet_macaque":"Mammalia","bonobo":"Mammalia","bornean orangutan":"Mammalia","bornean_orangutan":"Mammalia","bottlenose dolphin":"Mammalia","bottlenose_dolphin":"Mammalia","brindled gnu":"Mammalia","brindled_gnu":"Mammalia","broad-snouted crocodile":"Reptilia","broad-snouted_crocodile":"Reptilia","broad_snouted crocodile":"Reptilia","broad_snouted_crocodile":"Reptilia","brown bear":"Mammalia","brown hare":"Mammalia","brown-throated sloth":"Mammalia","brown-throated_sloth":"Mammalia","brown_bear":"Mammalia","brown_hare":"Mammalia","brown_throated sloth":"Mammalia","brown_throated_sloth":"Mammalia","brushtail possum":"Mammalia","brushtail_possum":"Mammalia","buffalo":"Mammalia","bullfrog":"Amphibia","cachalot":"Mammalia","california sea lion":"Mammalia","california_sea_lion":"Mammalia","canada lynx":"Mammalia","canada_lynx":"Mammalia","canyon":"Scenery","cape baboon":"Mammalia","cape buffalo":"Mammalia","cape hunting dog":"Mammalia","cape_baboon":"Mammalia","cape_buffalo":"Mammalia","cape_hunting_dog":"Mammalia","capuchin monkey":"Mammalia","capuchin_monkey":"Mammalia","capybara":"Mammalia","caracal":"Mammalia","carcajou":"Mammalia","caribou":"Mammalia","cascades":"Scenery","central american tapir":"Mammalia","central_american_tapir":"Mammalia","chacma baboon":"Mammalia","chacma_baboon":"Mammalia","chamois":"Mammalia","cheetah":"Mammalia","chimp":"Mammalia","chimpanzee":"Mammalia","chinkara":"Mammalia","chiru":"Mammalia","chital":"Mammalia","chousingha":"Mammalia","citadel":"Architecture","close-up human portrait":"Portrait","close-up_human_portrait":"Portrait","close_up human portrait":"Portrait","close_up_human_portrait":"Portrait","clouded leopard":"Mammalia","clouded_leopard":"Mammalia","coast":"Scenery","coatimundi":"Mammalia","common bottlenose dolphin":"Mammalia","common brushtail possum":"Mammalia","common chimpanzee":"Mammalia","common eland":"Mammalia","common green darner":"Insecta","common hippo":"Mammalia","common indian monitor":"Reptilia","common indian toad":"Amphibia","common jackal":"Mammalia","common jezebel":"Insecta","common mormon":"Insecta","common raccoon":"Mammalia","common seal":"Mammalia","common squirrel monkey":"Mammalia","common vampire bat":"Mammalia","common warthog":"Mammalia","common wombat":"Mammalia","common zebra":"Mammalia","common_bottlenose_dolphin":"Mammalia","common_brushtail_possum":"Mammalia","common_chimpanzee":"Mammalia","common_eland":"Mammalia","common_green_darner":"Insecta","common_hippo":"Mammalia","common_indian_monitor":"Reptilia","common_indian_toad":"Amphibia","common_jackal":"Mammalia","common_jezebel":"Insecta","common_mormon":"Insecta","common_raccoon":"Mammalia","common_seal":"Mammalia","common_squirrel_monkey":"Mammalia","common_vampire_bat":"Mammalia","common_warthog":"Mammalia","common_wombat":"Mammalia","common_zebra":"Mammalia","contemporary architecture":"Architecture","contemporary_architecture":"Architecture","cougar":"Mammalia","coyote":"Mammalia","crimson rose":"Insecta","crimson_rose":"Insecta","cultural street portrait":"Portrait","cultural_street_portrait":"Portrait","dall sheep":"Mammalia","dall_sheep":"Mammalia","desert dunes":"Scenery","desert fox":"Mammalia","desert lynx":"Mammalia","desert_dunes":"Scenery","desert_fox":"Mammalia","desert_lynx":"Mammalia","dhole":"Mammalia","dingo":"Mammalia","domestic yak":"Mammalia","domestic_yak":"Mammalia","dromedary":"Mammalia","duck-billed platypus":"Mammalia","duck-billed_platypus":"Mammalia","duck_billed platypus":"Mammalia","duck_billed_platypus":"Mammalia","eastern gorilla":"Mammalia","eastern gray kangaroo":"Mammalia","eastern gray squirrel":"Mammalia","eastern_gorilla":"Mammalia","eastern_gray_kangaroo":"Mammalia","eastern_gray_squirrel":"Mammalia","el tigre":"Mammalia","el_tigre":"Mammalia","eland":"Mammalia","elephant seal":"Mammalia","elephant_seal":"Mammalia","elk":"Mammalia","environmental portrait":"Portrait","environmental_portrait":"Portrait","eurasian badger":"Mammalia","eurasian beaver":"Mammalia","eurasian elk":"Mammalia","eurasian lynx":"Mammalia","eurasian otter":"Mammalia","eurasian red squirrel":"Mammalia","eurasian_badger":"Mammalia","eurasian_beaver":"Mammalia","eurasian_elk":"Mammalia","eurasian_lynx":"Mammalia","eurasian_otter":"Mammalia","eurasian_red_squirrel":"Mammalia","european bison":"Mammalia","european hare":"Mammalia","european otter":"Mammalia","european red deer":"Mammalia","european roe deer":"Mammalia","european_bison":"Mammalia","european_hare":"Mammalia","european_otter":"Mammalia","european_red_deer":"Mammalia","european_roe_deer":"Mammalia","facial portrait":"Portrait","facial_portrait":"Portrait","fallow deer":"Mammalia","fallow_deer":"Mammalia","fennec fox":"Mammalia","fennec_fox":"Mammalia","fluid reflection":"Abstract","fluid_reflection":"Abstract","forest":"Scenery","forest canopy":"Scenery","forest giraffe":"Mammalia","forest_canopy":"Scenery","forest_giraffe":"Mammalia","fortress":"Architecture","four-horned antelope":"Mammalia","four-horned_antelope":"Mammalia","four_horned antelope":"Mammalia","four_horned_antelope":"Mammalia","fox":"Mammalia","fox squirrel":"Mammalia","fox_squirrel":"Mammalia","ganges river dolphin":"Mammalia","ganges_river_dolphin":"Mammalia","gaur":"Mammalia","gelada":"Mammalia","gemsbok":"Mammalia","giant anteater":"Mammalia","giant cavy":"Mammalia","giant otter":"Mammalia","giant panda":"Mammalia","giant river otter":"Mammalia","giant_anteater":"Mammalia","giant_cavy":"Mammalia","giant_otter":"Mammalia","giant_panda":"Mammalia","giant_river_otter":"Mammalia","giraffe":"Mammalia","globe skimmer":"Insecta","globe_skimmer":"Insecta","glutton":"Mammalia","goa":"Mammalia","golden hour":"Scenery","golden jackal":"Mammalia","golden_hour":"Scenery","golden_jackal":"Mammalia","gopuram":"Architecture","gray langur":"Mammalia","gray squirrel":"Mammalia","gray wolf":"Mammalia","gray_langur":"Mammalia","gray_squirrel":"Mammalia","gray_wolf":"Mammalia","greater indian fruit bat":"Mammalia","greater kudu":"Mammalia","greater one-horned rhinoceros":"Mammalia","greater one_horned rhinoceros":"Mammalia","greater_indian_fruit_bat":"Mammalia","greater_kudu":"Mammalia","greater_one-horned_rhinoceros":"Mammalia","greater_one_horned_rhinoceros":"Mammalia","green darner":"Insecta","green_darner":"Insecta","grizzly bear":"Mammalia","grizzly_bear":"Mammalia","groundhog":"Mammalia","grévy's zebra":"Mammalia","grévy's_zebra":"Mammalia","guanaco":"Mammalia","hanuman langur":"Mammalia","hanuman_langur":"Mammalia","harbor seal":"Mammalia","harbor_seal":"Mammalia","headshot":"Portrait","himalayan marmot":"Mammalia","himalayan pika":"Mammalia","himalayan tahr":"Mammalia","himalayan yak":"Mammalia","himalayan_marmot":"Mammalia","himalayan_pika":"Mammalia","himalayan_tahr":"Mammalia","himalayan_yak":"Mammalia","hippopotamus":"Mammalia","historic fort and palace":"Architecture","historic stone temple":"Architecture","historic_fort_and_palace":"Architecture","historic_stone_temple":"Architecture","honey badger":"Mammalia","honey bear":"Mammalia","honey_badger":"Mammalia","honey_bear":"Mammalia","hook-lipped rhinoceros":"Mammalia","hook-lipped_rhinoceros":"Mammalia","hook_lipped rhinoceros":"Mammalia","hook_lipped_rhinoceros":"Mammalia","hoolock":"Mammalia","howler monkey":"Mammalia","howler_monkey":"Mammalia","humpback whale":"Mammalia","humpback_whale":"Mammalia","hunting leopard":"Mammalia","hunting_leopard":"Mammalia","ibex of nilgiris":"Mammalia","ibex_of_nilgiris":"Mammalia","ice bear":"Mammalia","ice_bear":"Mammalia","impala":"Mammalia","imperial zebra":"Mammalia","imperial_zebra":"Mammalia","indian antelope":"Mammalia","indian bison":"Mammalia","indian bullfrog":"Amphibia","indian crested porcupine":"Mammalia","indian elephant":"Mammalia","indian flying fox":"Mammalia","indian gazelle":"Mammalia","indian giant squirrel":"Mammalia","indian leopard":"Mammalia","indian muntjac":"Mammalia","indian pangolin":"Mammalia","indian python":"Reptilia","indian rhinoceros":"Mammalia","indian rock python":"Reptilia","indian wild dog":"Mammalia","indian_antelope":"Mammalia","indian_bison":"Mammalia","indian_bullfrog":"Amphibia","indian_crested_porcupine":"Mammalia","indian_elephant":"Mammalia","indian_flying_fox":"Mammalia","indian_gazelle":"Mammalia","indian_giant_squirrel":"Mammalia","indian_leopard":"Mammalia","indian_muntjac":"Mammalia","indian_pangolin":"Mammalia","indian_python":"Reptilia","indian_rhinoceros":"Mammalia","indian_rock_python":"Reptilia","indian_wild_dog":"Mammalia","indri":"Mammalia","indus valley bullfrog":"Amphibia","indus_valley_bullfrog":"Amphibia","ins_blue_mormon1":"Insecta","ins_blue_tiger1":"Insecta","ins_crimson_rose1":"Insecta","ins_globe_skimmer1":"Insecta","ins_green_darner1":"Insecta","ins_jezebel1":"Insecta","ins_monarch1":"Insecta","ins_mormon1":"Insecta","ins_peacock1":"Insecta","jaguar":"Mammalia","japanese macaque":"Mammalia","japanese_macaque":"Mammalia","kangaroo":"Mammalia","khur":"Mammalia","kiang":"Mammalia","killer whale":"Mammalia","killer_whale":"Mammalia","koala":"Mammalia","koala bear":"Mammalia","koala_bear":"Mammalia","kodiak bear":"Mammalia","kodiak_bear":"Mammalia","kudu":"Mammalia","labiatated bear":"Mammalia","labiatated_bear":"Mammalia","lar gibbon":"Mammalia","lar_gibbon":"Mammalia","laughing hyena":"Mammalia","laughing_hyena":"Mammalia","lemur":"Mammalia","leopard":"Mammalia","leopard seal":"Mammalia","leopard_seal":"Mammalia","lesser panda":"Mammalia","lesser_panda":"Mammalia","lion":"Mammalia","lion-tailed macaque":"Mammalia","lion-tailed_macaque":"Mammalia","lion_tailed macaque":"Mammalia","lion_tailed_macaque":"Mammalia","little brown bat":"Mammalia","little_brown_bat":"Mammalia","llama":"Mammalia","long-nosed monkey":"Mammalia","long-nosed_monkey":"Mammalia","long_nosed monkey":"Mammalia","long_nosed_monkey":"Mammalia","malabar banded peacock":"Insecta","malabar giant squirrel":"Mammalia","malabar_banded_peacock":"Insecta","malabar_giant_squirrel":"Mammalia","malayan sun bear":"Mammalia","malayan tapir":"Mammalia","malayan_sun_bear":"Mammalia","malayan_tapir":"Mammalia","mamm_aardvark1":"Mammalia","mamm_af_buffalo1":"Mammalia","mamm_af_bush_eleph1":"Mammalia","mamm_af_for_eleph1":"Mammalia","mamm_af_wild_dog1":"Mammalia","mamm_alpaca1":"Mammalia","mamm_alpine_ibex1":"Mammalia","mamm_alpine_marmot1":"Mammalia","mamm_am_beaver1":"Mammalia","mamm_am_bison1":"Mammalia","mamm_am_black_bear1":"Mammalia","mamm_am_pika1":"Mammalia","mamm_arctic_fox1":"Mammalia","mamm_argali1":"Mammalia","mamm_as_black_bear1":"Mammalia","mamm_bact_camel1":"Mammalia","mamm_bairds_tapir1":"Mammalia","mamm_barasingha1":"Mammalia","mamm_bharal1":"Mammalia","mamm_bighorn_sheep1":"Mammalia","mamm_bl_jackal1":"Mammalia","mamm_bl_tail_prairie1":"Mammalia","mamm_black_rhino1":"Mammalia","mamm_black_wildebeest1":"Mammalia","mamm_blackbuck1":"Mammalia","mamm_blue_whale1":"Mammalia","mamm_blue_wildebeest1":"Mammalia","mamm_bobcat1":"Mammalia","mamm_bonnet_mac1":"Mammalia","mamm_bonobo1":"Mammalia","mamm_bor_orang1":"Mammalia","mamm_bottlenose_dol1":"Mammalia","mamm_br_sloth1":"Mammalia","mamm_brush_possum1":"Mammalia","mamm_ca_sea_lion1":"Mammalia","mamm_can_lynx1":"Mammalia","mamm_capuchin1":"Mammalia","mamm_capybara1":"Mammalia","mamm_caracal1":"Mammalia","mamm_chacma_baboon1":"Mammalia","mamm_chamois1":"Mammalia","mamm_cheetah1":"Mammalia","mamm_chimpanzee1":"Mammalia","mamm_chinkara1":"Mammalia","mamm_chital1":"Mammalia","mamm_cloud_leop1":"Mammalia","mamm_coati1":"Mammalia","mamm_com_wombat1":"Mammalia","mamm_common_eland1":"Mammalia","mamm_cougar1":"Mammalia","mamm_coyote1":"Mammalia","mamm_crest_porcupine1":"Mammalia","mamm_dall_sheep1":"Mammalia","mamm_dhole1":"Mammalia","mamm_dingo1":"Mammalia","mamm_dom_yak1":"Mammalia","mamm_drom_camel1":"Mammalia","mamm_e_gorilla1":"Mammalia","mamm_e_gray_kang1":"Mammalia","mamm_ea_gray_sq1":"Mammalia","mamm_eleph1":"Mammalia","mamm_elk1":"Mammalia","mamm_eur_badger1":"Mammalia","mamm_eur_beaver1":"Mammalia","mamm_eur_hare1":"Mammalia","mamm_eur_lynx1":"Mammalia","mamm_eur_otter1":"Mammalia","mamm_eur_red_sq1":"Mammalia","mamm_fallow_deer1":"Mammalia","mamm_fennec_fox1":"Mammalia","mamm_four_horn1":"Mammalia","mamm_fox_sq1":"Mammalia","mamm_fruit_bat1":"Mammalia","mamm_ganga_dol1":"Mammalia","mamm_gaur1":"Mammalia","mamm_gelada1":"Mammalia","mamm_gemsbok1":"Mammalia","mamm_giant_anteater1":"Mammalia","mamm_giant_otter1":"Mammalia","mamm_giant_panda1":"Mammalia","mamm_giraffe1":"Mammalia","mamm_gold_jackal1":"Mammalia","mamm_gray_wolf1":"Mammalia","mamm_greater_kudu1":"Mammalia","mamm_grevys_zebra1":"Mammalia","mamm_grizzly1":"Mammalia","mamm_guanaco1":"Mammalia","mamm_harbor_seal1":"Mammalia","mamm_him_marmot1":"Mammalia","mamm_him_tahr1":"Mammalia","mamm_hippo1":"Mammalia","mamm_honey_badger1":"Mammalia","mamm_hoolock1":"Mammalia","mamm_howler_monk1":"Mammalia","mamm_humpback1":"Mammalia","mamm_impala1":"Mammalia","mamm_ind_leop1":"Mammalia","mamm_ind_rhino1":"Mammalia","mamm_indian_pang1":"Mammalia","mamm_indri1":"Mammalia","mamm_jaguar1":"Mammalia","mamm_japanese_mac1":"Mammalia","mamm_kiang1":"Mammalia","mamm_koala1":"Mammalia","mamm_langur1":"Mammalia","mamm_lar_gibbon1":"Mammalia","mamm_leopard_seal1":"Mammalia","mamm_lion1":"Mammalia","mamm_lion2":"Mammalia","mamm_lion_tail_mac1":"Mammalia","mamm_little_brown_bat1":"Mammalia","mamm_llama1":"Mammalia","mamm_mal_sq1":"Mammalia","mamm_malayan_tapir1":"Mammalia","mamm_mandrill1":"Mammalia","mamm_markhor1":"Mammalia","mamm_meerkat1":"Mammalia","mamm_moose1":"Mammalia","mamm_mountain_goat1":"Mammalia","mamm_mountain_zebra1":"Mammalia","mamm_mule_deer1":"Mammalia","mamm_muntjac1":"Mammalia","mamm_muskox1":"Mammalia","mamm_na_porcupine1":"Mammalia","mamm_nilgai1":"Mammalia","mamm_nilgiri_tahr1":"Mammalia","mamm_nine_band_arm1":"Mammalia","mamm_ocelot1":"Mammalia","mamm_okapi1":"Mammalia","mamm_olive_baboon1":"Mammalia","mamm_onager1":"Mammalia","mamm_orca1":"Mammalia","mamm_plains_zebra1":"Mammalia","mamm_platypus1":"Mammalia","mamm_polar_bear1":"Mammalia","mamm_proboscis_monk1":"Mammalia","mamm_pygmy_hippo1":"Mammalia","mamm_quokka1":"Mammalia","mamm_raccoon1":"Mammalia","mamm_red_deer1":"Mammalia","mamm_red_fox1":"Mammalia","mamm_red_kangaroo1":"Mammalia","mamm_red_panda1":"Mammalia","mamm_reindeer1":"Mammalia","mamm_rhesus1":"Mammalia","mamm_ring_tail_lem1":"Mammalia","mamm_roe_deer1":"Mammalia","mamm_roy_pika1":"Mammalia","mamm_s_elephant_seal1":"Mammalia","mamm_saiga1":"Mammalia","mamm_sambar1":"Mammalia","mamm_scimitar_oryx1":"Mammalia","mamm_sea_otter1":"Mammalia","mamm_serval1":"Mammalia","mamm_sh_echidna1":"Mammalia","mamm_siberian_ibex1":"Mammalia","mamm_sloth_bear1":"Mammalia","mamm_snow_leop1":"Mammalia","mamm_snowshoe_hare1":"Mammalia","mamm_spect_bear1":"Mammalia","mamm_sperm_whale1":"Mammalia","mamm_spinner_dol1":"Mammalia","mamm_spotted_hyena1":"Mammalia","mamm_springbok1":"Mammalia","mamm_squirrel_monk1":"Mammalia","mamm_striped_hyena1":"Mammalia","mamm_sugar_glider1":"Mammalia","mamm_sum_orang1":"Mammalia","mamm_sun_bear1":"Mammalia","mamm_tas_devil1":"Mammalia","mamm_tib_antelope1":"Mammalia","mamm_tib_gazelle1":"Mammalia","mamm_tiger1":"Mammalia","mamm_vamp_bat1":"Mammalia","mamm_vicuna1":"Mammalia","mamm_virg_opossum1":"Mammalia","mamm_w_gorilla1":"Mammalia","mamm_walrus1":"Mammalia","mamm_warthog1":"Mammalia","mamm_water_buffalo1":"Mammalia","mamm_wh_deer1":"Mammalia","mamm_white_rhino1":"Mammalia","mamm_wild_boar1":"Mammalia","mamm_wild_yak1":"Mammalia","mamm_wisent1":"Mammalia","mamm_wolverine1":"Mammalia","mamm_woodchuck1":"Mammalia","mamm_wool_hare1":"Mammalia","mandir":"Architecture","mandrill":"Mammalia","mantled howler":"Mammalia","mantled_howler":"Mammalia","markhor":"Mammalia","marsh crocodile":"Reptilia","marsh_crocodile":"Reptilia","mausoleum":"Architecture","meerkat":"Mammalia","memorial":"Architecture","milky way":"Scenery","milky_way":"Scenery","minimalist geometric pattern":"Abstract","minimalist_geometric_pattern":"Abstract","modern urban skyscraper":"Architecture","modern_urban_skyscraper":"Architecture","monarch":"Insecta","monarch butterfly":"Insecta","monarch_butterfly":"Insecta","monitor lizard":"Reptilia","monitor_lizard":"Reptilia","monument":"Architecture","monumental architecture":"Architecture","monumental_architecture":"Architecture","moon bear":"Mammalia","moon_bear":"Mammalia","moose":"Mammalia","mormon butterfly":"Insecta","mormon_butterfly":"Insecta","morsea":"Mammalia","mountain goat":"Mammalia","mountain gorilla":"Mammalia","mountain hare":"Mammalia","mountain landscape":"Scenery","mountain lion":"Mammalia","mountain pass":"Scenery","mountain sheep":"Mammalia","mountain zebra":"Mammalia","mountain_goat":"Mammalia","mountain_gorilla":"Mammalia","mountain_hare":"Mammalia","mountain_landscape":"Scenery","mountain_lion":"Mammalia","mountain_pass":"Scenery","mountain_sheep":"Mammalia","mountain_zebra":"Mammalia","mountains":"Scenery","mugger crocodile":"Reptilia","mugger_crocodile":"Reptilia","mule deer":"Mammalia","mule_deer":"Mammalia","musk ox":"Mammalia","musk_ox":"Mammalia","muskox":"Mammalia","nilgai":"Mammalia","nilgiri tahr":"Mammalia","nilgiri_tahr":"Mammalia","nine-banded armadillo":"Mammalia","nine-banded_armadillo":"Mammalia","nine_banded armadillo":"Mammalia","nine_banded_armadillo":"Mammalia","north american beaver":"Mammalia","north american opossum":"Mammalia","north american porcupine":"Mammalia","north_american_beaver":"Mammalia","north_american_opossum":"Mammalia","north_american_porcupine":"Mammalia","northern giraffe":"Mammalia","northern lights":"Scenery","northern lynx":"Mammalia","northern_giraffe":"Mammalia","northern_lights":"Scenery","northern_lynx":"Mammalia","ocean coastline":"Scenery","ocean_coastline":"Scenery","ocelot":"Mammalia","okapi":"Mammalia","olive baboon":"Mammalia","olive_baboon":"Mammalia","onager":"Mammalia","one-humped camel":"Mammalia","one-humped_camel":"Mammalia","one_humped camel":"Mammalia","one_humped_camel":"Mammalia","orangutan":"Mammalia","orca":"Mammalia","ounce":"Mammalia","painted dog":"Mammalia","painted leopard":"Mammalia","painted_dog":"Mammalia","painted_leopard":"Mammalia","panda bear":"Mammalia","panda_bear":"Mammalia","panther":"Mammalia","persian lion":"Mammalia","persian_lion":"Mammalia","pika":"Mammalia","plains bison":"Mammalia","plains zebra":"Mammalia","plains_bison":"Mammalia","plains_zebra":"Mammalia","platypus":"Mammalia","polar bear":"Mammalia","polar fox":"Mammalia","polar_bear":"Mammalia","polar_fox":"Mammalia","porcupine":"Mammalia","port_close_up":"Portrait","port_cultural":"Portrait","prairie dog":"Mammalia","prairie wolf":"Mammalia","prairie_dog":"Mammalia","prairie_wolf":"Mammalia","proboscis monkey":"Mammalia","proboscis_monkey":"Mammalia","puma":"Mammalia","pygmy chimpanzee":"Mammalia","pygmy hippopotamus":"Mammalia","pygmy_chimpanzee":"Mammalia","pygmy_hippopotamus":"Mammalia","quokka":"Mammalia","raccoon":"Mammalia","rainbow":"Scenery","rainbow over landscape":"Scenery","rainbow sky":"Scenery","rainbow_over_landscape":"Scenery","rainbow_sky":"Scenery","ratel":"Mammalia","razorback":"Mammalia","red deer":"Mammalia","red fox":"Mammalia","red kangaroo":"Mammalia","red lynx":"Mammalia","red panda":"Mammalia","red squirrel":"Mammalia","red_deer":"Mammalia","red_fox":"Mammalia","red_kangaroo":"Mammalia","red_lynx":"Mammalia","red_panda":"Mammalia","red_squirrel":"Mammalia","reindeer":"Mammalia","rept_bengal_monitor":"Reptilia","rept_indian_rock_python":"Reptilia","rept_mugger_croc":"Reptilia","rhesus macaque":"Mammalia","rhesus monkey":"Mammalia","rhesus_macaque":"Mammalia","rhesus_monkey":"Mammalia","ring-tailed lemur":"Mammalia","ring-tailed_lemur":"Mammalia","ring_tailed lemur":"Mammalia","ring_tailed_lemur":"Mammalia","river horse":"Mammalia","river valley":"Scenery","river_horse":"Mammalia","river_valley":"Scenery","rocky mountain goat":"Mammalia","rocky_mountain_goat":"Mammalia","roe deer":"Mammalia","roe_deer":"Mammalia","royal bengal tiger":"Mammalia","royal_bengal_tiger":"Mammalia","royle's pika":"Mammalia","royle's_pika":"Mammalia","sahara oryx":"Mammalia","sahara_oryx":"Mammalia","saiga":"Mammalia","saiga antelope":"Mammalia","saiga_antelope":"Mammalia","sambar":"Mammalia","sambar deer":"Mammalia","sambar_deer":"Mammalia","sand dunes":"Scenery","sand_dunes":"Scenery","savanna elephant":"Mammalia","savanna_elephant":"Mammalia","scaly anteater":"Mammalia","scaly_anteater":"Mammalia","scen_aurora":"Scenery","scen_coastline":"Scenery","scen_desert":"Scenery","scen_forest":"Scenery","scen_mountain":"Scenery","scen_night_sky":"Scenery","scen_rainbow":"Scenery","scen_sunset":"Scenery","scen_valley":"Scenery","scen_waterfall":"Scenery","scimitar-horned oryx":"Mammalia","scimitar-horned_oryx":"Mammalia","scimitar_horned oryx":"Mammalia","scimitar_horned_oryx":"Mammalia","sea leopard":"Mammalia","sea lion":"Mammalia","sea otter":"Mammalia","sea_leopard":"Mammalia","sea_lion":"Mammalia","sea_otter":"Mammalia","seashore":"Scenery","serval":"Mammalia","short-beaked echidna":"Mammalia","short-beaked_echidna":"Mammalia","short_beaked echidna":"Mammalia","short_beaked_echidna":"Mammalia","siberian ibex":"Mammalia","siberian_ibex":"Mammalia","silver-backed jackal":"Mammalia","silver-backed_jackal":"Mammalia","silver_backed jackal":"Mammalia","silver_backed_jackal":"Mammalia","simba":"Mammalia","skyscraper":"Architecture","sloth bear":"Mammalia","sloth_bear":"Mammalia","snow leopard":"Mammalia","snow monkey":"Mammalia","snow_leopard":"Mammalia","snow_monkey":"Mammalia","snowshoe hare":"Mammalia","snowshoe_hare":"Mammalia","south african oryx":"Mammalia","south_african_oryx":"Mammalia","southern elephant seal":"Mammalia","southern giraffe":"Mammalia","southern_elephant_seal":"Mammalia","southern_giraffe":"Mammalia","spectacled bear":"Mammalia","spectacled_bear":"Mammalia","sperm whale":"Mammalia","sperm_whale":"Mammalia","spinner dolphin":"Mammalia","spinner_dolphin":"Mammalia","spiny anteater":"Mammalia","spiny_anteater":"Mammalia","spotted deer":"Mammalia","spotted hyena":"Mammalia","spotted_deer":"Mammalia","spotted_hyena":"Mammalia","springbok":"Mammalia","square-lipped rhinoceros":"Mammalia","square-lipped_rhinoceros":"Mammalia","square_lipped rhinoceros":"Mammalia","square_lipped_rhinoceros":"Mammalia","starry night sky":"Scenery","starry_night_sky":"Scenery","steinbock":"Mammalia","street portrait":"Portrait","street_portrait":"Portrait","striped hyena":"Mammalia","striped_hyena":"Mammalia","sugar glider":"Mammalia","sugar_glider":"Mammalia","sulphur-bottom whale":"Mammalia","sulphur-bottom_whale":"Mammalia","sulphur_bottom whale":"Mammalia","sulphur_bottom_whale":"Mammalia","sumatran orangutan":"Mammalia","sumatran_orangutan":"Mammalia","sun bear":"Mammalia","sun_bear":"Mammalia","sunrise":"Scenery","sunset sky":"Scenery","sunset_sky":"Scenery","suricate":"Mammalia","susu":"Mammalia","swamp deer":"Mammalia","swamp_deer":"Mammalia","tasmanian devil":"Mammalia","tasmanian_devil":"Mammalia","thinhorn sheep":"Mammalia","thinhorn_sheep":"Mammalia","three-toed sloth":"Mammalia","three-toed_sloth":"Mammalia","three_toed sloth":"Mammalia","three_toed_sloth":"Mammalia","tibetan antelope":"Mammalia","tibetan gazelle":"Mammalia","tibetan hare":"Mammalia","tibetan wild ass":"Mammalia","tibetan_antelope":"Mammalia","tibetan_gazelle":"Mammalia","tibetan_hare":"Mammalia","tibetan_wild_ass":"Mammalia","tierboskat":"Mammalia","tiger":"Mammalia","timber wolf":"Mammalia","timber_wolf":"Mammalia","tower":"Architecture","two-humped camel":"Mammalia","two-humped_camel":"Mammalia","two_humped camel":"Mammalia","two_humped_camel":"Mammalia","vampire bat":"Mammalia","vampire_bat":"Mammalia","varying hare":"Mammalia","varying_hare":"Mammalia","vicuña":"Mammalia","virginia deer":"Mammalia","virginia opossum":"Mammalia","virginia_deer":"Mammalia","virginia_opossum":"Mammalia","walrus":"Mammalia","wandering glider":"Insecta","wandering_glider":"Insecta","wanderoo":"Mammalia","wapiti":"Mammalia","warthog":"Mammalia","water ripples and refraction texture":"Abstract","water texture":"Abstract","water_ripples_and_refraction_texture":"Abstract","water_texture":"Abstract","waterfall":"Scenery","western gorilla":"Mammalia","western hoolock gibbon":"Mammalia","western lowland gorilla":"Mammalia","western_gorilla":"Mammalia","western_hoolock_gibbon":"Mammalia","western_lowland_gorilla":"Mammalia","white bear":"Mammalia","white fox":"Mammalia","white rhinoceros":"Mammalia","white-handed gibbon":"Mammalia","white-handed_gibbon":"Mammalia","white-headed capuchin":"Mammalia","white-headed_capuchin":"Mammalia","white-nosed coati":"Mammalia","white-nosed_coati":"Mammalia","white-tailed deer":"Mammalia","white-tailed gnu":"Mammalia","white-tailed_deer":"Mammalia","white-tailed_gnu":"Mammalia","white_bear":"Mammalia","white_fox":"Mammalia","white_handed gibbon":"Mammalia","white_handed_gibbon":"Mammalia","white_headed capuchin":"Mammalia","white_headed_capuchin":"Mammalia","white_nosed coati":"Mammalia","white_nosed_coati":"Mammalia","white_rhinoceros":"Mammalia","white_tailed deer":"Mammalia","white_tailed gnu":"Mammalia","white_tailed_deer":"Mammalia","white_tailed_gnu":"Mammalia","wild bactrian camel":"Mammalia","wild boar":"Mammalia","wild pig":"Mammalia","wild water buffalo":"Mammalia","wild yak":"Mammalia","wild_bactrian_camel":"Mammalia","wild_boar":"Mammalia","wild_pig":"Mammalia","wild_water_buffalo":"Mammalia","wild_yak":"Mammalia","wisent":"Mammalia","wolf":"Mammalia","wolverine":"Mammalia","wombat":"Mammalia","woodchuck":"Mammalia","woodland":"Scenery","woolly hare":"Mammalia","woolly_hare":"Mammalia","yak":"Mammalia"};
+    if (exactMultiTaxa[s]) return exactMultiTaxa[s];
+    const withSpaces = s.replace(/_/g, ' ');
+    if (exactMultiTaxa[withSpaces]) return exactMultiTaxa[withSpaces];
+    const withUnderscores = s.replace(/ /g, '_');
+    if (exactMultiTaxa[withUnderscores]) return exactMultiTaxa[withUnderscores];
+
+    // If fallbackCategory is already a specific non-avian category, respect it
+    if (fallbackCategory && fallbackCategory !== AssetCategory.NO_SUBJECT_DETECTED && fallbackCategory !== AssetCategory.BIRD) {
+      return fallbackCategory;
+    }
+
+    // Check if species is in the curated autocomplete taxonomy of birds (excluding sentinels)
+    const isKnownBird = Array.isArray(CATALOG_DATA.species_list) && CATALOG_DATA.species_list.some(b => {
+      const lowerB = b.toLowerCase();
+      if (lowerB.includes('no bird detected') || lowerB.includes('no_bird_detected') || lowerB.includes('no subject detected') || lowerB.includes('no_subject_detected')) return false;
+      return lowerB === s || lowerB === withSpaces || lowerB.replace(/ /g, '_') === s;
+    });
+
+    if (isKnownBird) {
+      return AssetCategory.BIRD;
+    }
+
+    // Unrecognized or unclassified entity: Invariant: NEVER assume unknown entities are birds!
+    return AssetCategory.NO_SUBJECT_DETECTED;
+  }
+
+  function buildMoveCommandsForItem(item, species) {
+    if (!item) return [];
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
+    const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
+
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {
+      commands.push(`cd "${CATALOG_DATA.catalog_dir}"`);
+    }
+
+    const targetItem = item || activeModalItem;
+    const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
+    const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || AssetCategory.NO_SUBJECT_DETECTED;
+    const cat = resolveTargetCategory(species, itemCat);
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    commands.push(`  avicull correct --category "${cat}" --species "${newSlug}" --file "${activeModalItem ? activeModalItem.original_stem : stem}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${newSlug}" --file "${stem}"`);
+    commands.push(`else`);
+
+    const currentPath = item.current_path;
+    const lastSlash = currentPath.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? currentPath.substring(0, lastSlash) : '';
+    const allSidecars = [...(item.sidecar_files || []), ...(item.companion_files || [])];
+
+    const isLocal = item.is_local !== false;
+
+    if (isHierarchy) {
+      const targetDir = isNoBird ? `birds_hierarchy/_No_Bird_Detected` : `birds_hierarchy/${cat}/${newSlug}`;
+      commands.push(`  mkdir -p "${targetDir}"`);
+      const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
+      const newPath = `${targetDir}/${filename}`;
+      commands.push(`  mv "${currentPath}" "${newPath}"`);
+
+      for (const sc of allSidecars) {
+        const scSlash = sc.lastIndexOf('/');
+        const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
+        commands.push(`mv "${sc}" "${targetDir}/${scFilename}"`);
+      }
+      if (!isLocal) {
+        commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+        commands.push(`    fileproviderctl evict "${newPath}" >/dev/null 2>&1 || true`);
+        commands.push(`  fi`);
+      }
+    } else if (CATALOG_DATA.mode === 'in-place-rename') {
+      // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
+      const originalStem = item.original_stem;
+      const datePart = item.capture_date ? item.capture_date.replace(/[-:/]/g, '') : '';
+      const locPart = item.location_name ? sanitizeSlug(item.location_name) : '';
+
+      let tags = [];
+      if (newSlug) tags.push(newSlug);
+      if (datePart && datePart.toLowerCase() !== 'unknown') tags.push(datePart);
+      if (locPart && locPart.toLowerCase() !== 'unknown') tags.push(locPart);
+
+      // Avoid double underscore if newSlug starts with '_' (e.g. _No_Bird_Detected)
+      let targetStem = originalStem;
+      if (tags.length > 0) {
+        if (tags[0].startsWith('_')) {
+          const first = tags[0];
+          const rest = tags.slice(1);
+          targetStem = rest.length > 0 ? `${originalStem}${first}_${rest.join('_')}` : `${originalStem}${first}`;
+        } else {
+          targetStem = `${originalStem}_${tags.join('_')}`;
+        }
+      }
+
+      // Primary file extension
+      const primaryExt = getExtension(item.primary_filename);
+      const searchDir = dir || '.';
+      const newPrimary = (dir ? dir + '/' : '') + targetStem + primaryExt;
+      commands.push(`  PRIMARY_SRC="${currentPath}"`);
+      commands.push(`  if [ ! -f "$PRIMARY_SRC" ]; then`);
+      commands.push(`    PRIMARY_CANDIDATE=$(find "${searchDir}" -maxdepth 1 -name "${originalStem}*${primaryExt}" 2>/dev/null | head -n 1)`);
+      commands.push(`    if [ -n "$PRIMARY_CANDIDATE" ] && [ -f "$PRIMARY_CANDIDATE" ]; then`);
+      commands.push(`      PRIMARY_SRC="$PRIMARY_CANDIDATE"`);
+      commands.push(`    fi`);
+      commands.push(`  fi`);
+      commands.push(`  if [ -f "$PRIMARY_SRC" ] && [ "$PRIMARY_SRC" != "${newPrimary}" ]; then`);
+      commands.push(`    mv "$PRIMARY_SRC" "${newPrimary}"`);
+      commands.push(`  fi`);
+
+      // Companion and sidecar files
+      for (const sc of allSidecars) {
+        const scSlash = sc.lastIndexOf('/');
+        const scDir = scSlash >= 0 ? sc.substring(0, scSlash) : dir;
+        const scFilename = scSlash >= 0 ? sc.substring(scSlash + 1) : sc;
+        const scExt = getCompoundExtension(scFilename);
+        const newSc = (scDir ? scDir + '/' : '') + targetStem + scExt;
+        const scSearchDir = scDir || '.';
+        commands.push(`  SC_SRC="${sc}"`);
+        commands.push(`  if [ ! -f "$SC_SRC" ]; then`);
+        commands.push(`    SC_CANDIDATE=$(find "${scSearchDir}" -maxdepth 1 -name "${originalStem}*${scExt}" 2>/dev/null | head -n 1)`);
+        commands.push(`    if [ -n "$SC_CANDIDATE" ] && [ -f "$SC_CANDIDATE" ]; then`);
+        commands.push(`      SC_SRC="$SC_CANDIDATE"`);
+        commands.push(`    fi`);
+        commands.push(`  fi`);
+        commands.push(`  if [ -f "$SC_SRC" ] && [ "$SC_SRC" != "${newSc}" ]; then`);
+        commands.push(`    mv "$SC_SRC" "${newSc}"`);
+        commands.push(`  fi`);
+      }
+      if (!isLocal) {
+        commands.push(`  if command -v fileproviderctl >/dev/null 2>&1; then`);
+        commands.push(`    fileproviderctl evict "${newPrimary}" >/dev/null 2>&1 || true`);
+        commands.push(`  fi`);
+      }
+    } else {
+      commands.push(`  echo "[WARN] avicull executable not found. In default in-place mode, files on disk are strictly read-only; run avicull directly to record corrections in manifest.sqlite."`);
+    }
+    commands.push(`  if [ -n "$AVICULL_CMD" ]; then`);
+    commands.push(`    $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+    commands.push(`  fi`);
+    commands.push(`fi`);
+
+    return commands;
+  }
+
+  function buildMoveCommands(species) {
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return [];
+    if (targets.length === 1) {
+      return buildMoveCommandsForItem(targets[0], species);
+    }
+    // Concatenate commands for all targets
+    let allCommands = [];
+    for (const it of targets) {
+      allCommands.push(...buildMoveCommandsForItem(it, species));
+    }
+    return allCommands;
+  }
+
+  function markNoBirdDetected() {
+    selectSpecies("No Bird Detected");
+  }
+
+  function selectSpecies(species) {
+    const input = document.getElementById('speciesSearchInput');
+    if (input) input.value = species;
+    const suggestions = document.getElementById('speciesSuggestions');
+    if (suggestions) suggestions.classList.remove('open');
+
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return;
+
+    for (const it of targets) {
+      it._pendingCommands = buildMoveCommandsForItem(it, species);
+    }
+
+    const commands = buildMoveCommands(species);
+    const cmdStr = commands.join('\n');
+    const cmdOutput = document.getElementById('commandOutput');
+    if (cmdOutput) cmdOutput.textContent = cmdStr;
+    if (activeModalItem) activeModalItem._pendingCommands = commands;
+  }
+
+  function getExtension(filename) {
+    const idx = filename.indexOf('.');
+    return idx >= 0 ? filename.substring(idx) : '';
+  }
+
+  function getCompoundExtension(filename) {
+    const m = filename.match(/(\.[a-zA-Z0-9]+(?:\.xmp)?)$/i);
+    return m ? m[1] : '';
+  }
+
+  function copyCurrentCommand() {
+    const text = document.getElementById('commandOutput').textContent;
+    if (!text || text.startsWith("Select a species")) return;
+
+    // Filter comment lines before copying to clipboard to prevent 'zsh: command not found: #'
+    const cleanText = text
+      .split('\n')
+      .filter(line => !line.trim().startsWith('#'))
+      .join('\n');
+
+    navigator.clipboard.writeText(cleanText).then(() => {
+      const btn = document.getElementById('btnCopyCommand');
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }).catch(() => {
+      alert("Command: \n\n" + cleanText);
+    });
+  }
+
+  function addActiveModalToBatch() {
+    const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
+    if (targets.length === 0) return;
+
+    for (const it of targets) {
+      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
+      if (cmds && cmds.length > 0) {
+        const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && b.stem === it.original_stem));
+        if (existingIdx >= 0) {
+          batchCommands[existingIdx] = {
+            stem: it.original_stem,
+            commands: [...cmds]
+          };
+        } else {
+          batchCommands.push({
+            stem: it.original_stem,
+            commands: [...cmds]
+          });
+        }
+      }
+    }
+
+    updateBatchUI();
+    closeModal();
+  }
+
+  function addToBatch() {
+    addActiveModalToBatch();
+  }
+
+  function generateBatchScriptContent(forDownload) {
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
+
+    const normalizeBatch = (entries) => {
+      let items = [];
+      let currentLines = [];
+      let currentStem = "";
+      let ifDepth = 0;
+
+      for (const entry of entries) {
+        if (typeof entry === 'object' && entry && entry.commands) {
+          if (currentLines.length > 0) {
+            items.push({ stem: currentStem || 'item', commands: currentLines });
+            currentLines = [];
+            currentStem = '';
+            ifDepth = 0;
+          }
+          items.push(entry);
+          continue;
+        }
+
+        const str = String(entry);
+        const m = str.match(/--file\s+"([^"]+)"/) || str.match(/mv\s+"[^"]*?([^\/"]+)\.[a-zA-Z0-9]+"/);
+        if (m && !currentStem) currentStem = m[1];
+
+        const lines = str.split('\n');
+        for (const l of lines) {
+          const trimmed = l.trim();
+          if (/^if\b/.test(trimmed)) ifDepth++;
+          if (/^fi\b/.test(trimmed)) ifDepth--;
+        }
+
+        currentLines.push(str);
+
+        if (ifDepth <= 0 && currentStem && currentLines.length > 0) {
+          items.push({ stem: currentStem, commands: currentLines });
+          currentLines = [];
+          currentStem = '';
+          ifDepth = 0;
+        }
+      }
+
+      if (currentLines.length > 0) {
+        items.push({ stem: currentStem || 'item', commands: currentLines });
+      }
+
+      return items;
+    };
+
+    const normalizedItems = normalizeBatch(batchCommands);
+
+    const renderItemBlock = (entry, indent) => {
+      const stem = entry.stem || 'item';
+      const cmds = entry.commands || [];
+
+      let cleanCmds = cmds
+        .flatMap(cmd => cmd.split('\n'))
+        .filter(line => !line.trim().startsWith('#'))
+        .map(cmd => `${indent}    ${cmd}`);
+
+      return [
+        `${indent}  if run_correction "${stem}" <<'AVICULL_ITEM_EOF'`,
+        ...cleanCmds,
+        `AVICULL_ITEM_EOF`,
+        `${indent}  then`,
+        `${indent}    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))`,
+        `${indent}  else`,
+        `${indent}    echo "[WARN] Correction failed or file missing for: ${stem} (skipping)"`,
+        `${indent}    FAILED_COUNT=$((FAILED_COUNT + 1))`,
+        `${indent}  fi`
+      ];
+    };
+
+    if (forDownload) {
+      let bodyLines = [];
+      bodyLines.push("#!/usr/bin/env bash");
+      bodyLines.push("# Avicull Mislabel Corrections Batch Script");
+      bodyLines.push("# Generated automatically by avicull standalone catalog");
+      bodyLines.push("set -u");
+      bodyLines.push("");
+      bodyLines.push(`cd "${CATALOG_DATA.catalog_dir || '.'}"`);
+      bodyLines.push("");
+      bodyLines.push(findAvicullCmd().trim());
+      bodyLines.push("export AVICULL_CMD");
+      bodyLines.push("");
+      bodyLines.push("SUCCESS_COUNT=0");
+      bodyLines.push("FAILED_COUNT=0");
+      bodyLines.push("");
+      bodyLines.push("run_correction() {");
+      bodyLines.push("  local item_label=\"$1\"");
+      bodyLines.push("  bash -e");
+      bodyLines.push("}");
+      bodyLines.push("");
+
+      for (const item of normalizedItems) {
+        bodyLines.push(...renderItemBlock(item, ""));
+        bodyLines.push("");
+      }
+
+      bodyLines.push("if [ -n \"$AVICULL_CMD\" ]; then");
+      bodyLines.push("  echo 'Regenerating catalog with updated SQLite overrides...'");
+      bodyLines.push(`  $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+      bodyLines.push("fi");
+      bodyLines.push("");
+      bodyLines.push("echo \"\"");
+      bodyLines.push("if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+      bodyLines.push("  echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+      bodyLines.push("  exit 1");
+      bodyLines.push("else");
+      bodyLines.push("  echo '✓ All avicull mislabel corrections applied successfully!'");
+      bodyLines.push("fi");
+      bodyLines.push("");
+
+      return bodyLines.join('\n');
+    }
+
+    let bodyLines = [];
+    bodyLines.push("(");
+    bodyLines.push(`  cd "${CATALOG_DATA.catalog_dir || '.'}"`);
+    bodyLines.push("");
+
+    const cleanFindCmds = findAvicullCmd()
+      .trim()
+      .split('\n')
+      .filter(line => !line.trim().startsWith('#'))
+      .map(line => "  " + line);
+
+    bodyLines.push(...cleanFindCmds);
+    bodyLines.push("  export AVICULL_CMD");
+    bodyLines.push("  SUCCESS_COUNT=0");
+    bodyLines.push("  FAILED_COUNT=0");
+    bodyLines.push("");
+    bodyLines.push("  run_correction() {");
+    bodyLines.push("    local item_label=\"$1\"");
+    bodyLines.push("    bash -e");
+    bodyLines.push("  }");
+    bodyLines.push("");
+
+    for (const item of normalizedItems) {
+      bodyLines.push(...renderItemBlock(item, ""));
+      bodyLines.push("");
+    }
+
+    bodyLines.push("  if [ -n \"$AVICULL_CMD\" ]; then");
+    bodyLines.push("    echo 'Regenerating catalog with updated SQLite overrides...'");
+    bodyLines.push(`    $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+    bodyLines.push("  fi");
+    bodyLines.push("  echo \"\"");
+    bodyLines.push("  if [ \"$FAILED_COUNT\" -gt 0 ]; then");
+    bodyLines.push("    echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
+    bodyLines.push("    return 1 2>/dev/null || exit 1");
+    bodyLines.push("  else");
+    bodyLines.push("    echo '✓ All avicull mislabel corrections applied successfully!'");
+    bodyLines.push("  fi");
+    bodyLines.push(")");
+    bodyLines.push("");
+
+    return bodyLines.join('\n');
+  }
+
+  function copyBatchScript() {
+    if (batchCommands.length === 0) {
+      alert("No mislabel corrections have been added to the batch yet. Click 'Correct Species' on any photo and select 'Add to Batch Script'.");
+      return;
+    }
+
+    const scriptContent = generateBatchScriptContent(false);
+    navigator.clipboard.writeText(scriptContent).then(() => {
+      const btn = document.getElementById('btnCopyBatchScript');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      alert("Batch Script: \n\n" + scriptContent);
+    });
+  }
+
+  function downloadBatchScript() {
+    if (batchCommands.length === 0) {
+      alert("No mislabel corrections have been added to the batch yet. Click 'Correct Species' on any photo and select 'Add to Batch Script'.");
+      return;
+    }
+
+    const scriptContent = generateBatchScriptContent(true);
+
+    const blob = new Blob([scriptContent], { type: 'text/x-sh' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'apply_corrections.sh';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function getAllSubdirectories() {
+    let dirSet = new Set();
+    if (Array.isArray(CATALOG_DATA.directories)) {
+      CATALOG_DATA.directories.forEach(d => dirSet.add(d));
+    }
+    items.forEach(item => {
+      if (item.subdirectory) {
+        let parts = item.subdirectory.split('/');
+        let accum = '';
+        parts.forEach(p => {
+          accum = accum ? accum + '/' + p : p;
+          dirSet.add(accum);
+        });
+      }
+    });
+    return Array.from(dirSet).sort();
+  }
+
+  function populateSubdirectories() {
+    const select = document.getElementById('locationSubdirSelect');
+    if (!select) return;
+
+    // Preserve existing selection if possible
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Choose Subdirectory --</option>';
+
+    const sortedDirs = getAllSubdirectories();
+    sortedDirs.forEach(dir => {
+      const opt = document.createElement('option');
+      opt.value = dir;
+      // Indent based on nesting level for visual hierarchy
+      const depth = (dir.match(/\//g) || []).length;
+      const indent = '\u00A0\u00A0\u00A0\u00A0'.repeat(depth);
+      const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+      opt.textContent = indent + prefix + dir;
+      select.appendChild(opt);
+    });
+
+    if (currentVal && sortedDirs.includes(currentVal)) {
+      select.value = currentVal;
+    }
+  }
+
+  function handleLocationScopeChange() {
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    const subdirRow = document.getElementById('locationSubdirRow');
+    if (!scopeSelect || !subdirRow) return;
+
+    if (scopeSelect.value === 'directory') {
+      subdirRow.style.display = 'block';
+      populateSubdirectories();
+    } else {
+      subdirRow.style.display = 'none';
+    }
+    handleLocationInput();
+  }
+
+  function openLocationModal() {
+    const modal = document.getElementById('locationModal');
+    if (modal) modal.classList.add('open');
+    switchLocationTab('single');
+    const input = document.getElementById('locationInput');
+    const scopeSelect = document.getElementById('locationScopeSelect');
+    if (scopeSelect) {
+      scopeSelect.value = selectedIds.size > 0 ? 'selection' : 'trip';
+      handleLocationScopeChange();
+    }
+    if (input) {
+      input.value = CATALOG_DATA.trip_location_name || '';
+      handleLocationInput();
+    }
+  }
+
+  function closeLocationModal() {
+    const modal = document.getElementById('locationModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  // --- Bulk Location Override by Subdirectory ---
+
+  let bulkLocationRowsData = [];
+  let activeLocationTab = 'single';
+
+  function switchLocationTab(tab) {
+    activeLocationTab = tab;
+    const singlePanel = document.getElementById('locationSinglePanel');
+    const bulkPanel = document.getElementById('bulkLocationPanel');
+    const tabSingle = document.getElementById('tabSingle');
+    const tabBulk = document.getElementById('tabBulk');
+    const modalFooter = document.getElementById('locationModalFooter');
+    if (tab === 'bulk') {
+      if (singlePanel) singlePanel.style.display = 'none';
+      if (bulkPanel) bulkPanel.style.display = 'block';
+      if (tabBulk) tabBulk.style.background = 'var(--accent-blue)';
+      if (tabSingle) tabSingle.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'none';
+      if (bulkLocationRowsData.length === 0) addBulkLocationRow();
+    } else {
+      if (singlePanel) singlePanel.style.display = 'block';
+      if (bulkPanel) bulkPanel.style.display = 'none';
+      if (tabSingle) tabSingle.style.background = 'var(--accent-blue)';
+      if (tabBulk) tabBulk.style.background = '';
+      if (modalFooter) modalFooter.style.display = 'flex';
+    }
+  }
+
+  function addBulkLocationRow() {
+    bulkLocationRowsData.push({ subdir: '', location: '' });
+    renderBulkLocationRows();
+  }
+
+  function removeBulkLocationRow(idx) {
+    bulkLocationRowsData.splice(idx, 1);
+    renderBulkLocationRows();
+  }
+
+  function updateBulkRow(idx, field, value) {
+    if (bulkLocationRowsData[idx]) {
+      bulkLocationRowsData[idx][field] = value;
+      renderBulkLocationPreview();
+    }
+  }
+
+  function renderBulkLocationRows() {
+    const container = document.getElementById('bulkLocationRows');
+    if (!container) return;
+
+    const sortedDirs = getAllSubdirectories();
+
+    container.innerHTML = bulkLocationRowsData.map((row, idx) => {
+      const opts = sortedDirs.map(d => {
+        const depth = (d.match(/\//g) || []).length;
+        const indent = '\u00A0\u00A0'.repeat(depth);
+        const prefix = depth > 0 ? '\u2514\u2500 ' : '\uD83D\uDCC1 ';
+        const sel = row.subdir === d ? ' selected' : '';
+        return `<option value="${escHtml(d)}"${sel}>${indent}${prefix}${escHtml(d)}</option>`;
+      }).join('');
+
+      return `
+        <div class="bulk-loc-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <select style="flex:0 0 200px;" onchange="updateBulkRow(${idx},'subdir',this.value)">
+            <option value="">-- Subdirectory --</option>
+            ${opts}
+          </select>
+          <input type="text" style="flex:1;" placeholder="Location (place name or lat,lon)"
+                 value="${escHtml(row.location)}" oninput="updateBulkRow(${idx},'location',this.value)"/>
+          <button class="btn btn-secondary" style="padding:4px 8px;font-size:0.8rem;"
+                  onclick="removeBulkLocationRow(${idx})">&#x2715;</button>
+        </div>
+      `;
+    }).join('');
+
+    renderBulkLocationPreview();
+  }
+
+  function buildBulkLocationCommands() {
+    const validRows = bulkLocationRowsData.filter(r => r.subdir && r.location.trim());
+    if (validRows.length === 0) return [];
+
+    const bulkReclassToggle = document.getElementById('bulkReclassifyOnLocationChange');
+    const isReclass = !bulkReclassToggle || bulkReclassToggle.checked;
+    const reclassFlag = isReclass ? ' --reclassify' : '';
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
+
+    let lines = [];
+    if (CATALOG_DATA.catalog_dir) lines.push(`cd "${escapeShellArg(CATALOG_DATA.catalog_dir)}"`);
+    lines.push(findAvicullCmd().trim());
+    lines.push(`if [ -n "$AVICULL_CMD" ]; then`);
+    validRows.forEach(r => {
+      const safeDir = escapeShellArg(r.subdir);
+      const safeLoc = escapeShellArg(r.location.trim());
+      lines.push(`  avicull location --dir "${safeDir}" --location "${safeLoc}"${reclassFlag} 2>/dev/null || $AVICULL_CMD location --dir "${safeDir}" --location "${safeLoc}"${reclassFlag}`);
+    });
+    if (isReclass) {
+      lines.push(`  $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+    }
+    lines.push(`fi`);
+    return lines;
+  }
+
+  function renderBulkLocationPreview() {
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+
+    const lines = buildBulkLocationCommands();
+    if (lines.length === 0) {
+      box.textContent = 'Add rows above to generate commands\u2026';
+      return;
+    }
+    box.textContent = lines.join('\n');
+  }
+
+  function copyBulkLocationCommands() {
+    const box = document.getElementById('bulkLocationCommandOutput');
+    if (!box) return;
+    navigator.clipboard.writeText(box.textContent).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = box.textContent;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+
+  function applyBulkLocationBatch() {
+    const cmds = buildBulkLocationCommands();
+    if (cmds.length === 0) return;
+    batchCommands.push({
+      stem: 'bulk_location_overrides',
+      commands: cmds
+    });
+    updateBatchUI();
+    closeLocationModal();
+  }
+
+  function buildLocationCommands(locStr) {
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {
+      commands.push(`cd "${CATALOG_DATA.catalog_dir}"`);
+    }
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+
+    const reclassToggle = document.getElementById('reclassifyOnLocationChange');
+    const isReclass = !reclassToggle || reclassToggle.checked;
+    const reclassFlag = isReclass ? ' --reclassify' : '';
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
+
+    const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
+    if (scope === 'selection' && selectedIds.size > 0) {
+      for (const id of selectedIds) {
+        const item = items.find(i => i.id === id);
+        if (item) {
+          commands.push(`  avicull location --file "${item.original_stem}" --location "${locStr}"${reclassFlag} 2>/dev/null || $AVICULL_CMD location --file "${item.original_stem}" --location "${locStr}"${reclassFlag}`);
+        }
+      }
+    } else if (scope === 'directory') {
+      const subdirSelect = document.getElementById('locationSubdirSelect');
+      const chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+      if (chosenDir) {
+        commands.push(`  avicull location --dir "${chosenDir}" --location "${locStr}"${reclassFlag} 2>/dev/null || $AVICULL_CMD location --dir "${chosenDir}" --location "${locStr}"${reclassFlag}`);
+      } else {
+        commands.push(`  avicull location --location "${locStr}"${reclassFlag} 2>/dev/null || $AVICULL_CMD location --location "${locStr}"${reclassFlag}`);
+      }
+    } else {
+      commands.push(`  avicull location --location "${locStr}"${reclassFlag} 2>/dev/null || $AVICULL_CMD location --location "${locStr}"${reclassFlag}`);
+    }
+    if (isReclass) {
+      commands.push(`  $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+    }
+    commands.push(`fi`);
+    return commands;
+  }
+
+  // Reclassification Review & Diff State
+  let reclassifyDiffItems = [];
+  let reclassifyScopeContext = { scope: 'trip', location: '', dir: '' };
+
+  function openReclassifyReviewModal() {
+    closeLocationModal();
+    const modal = document.getElementById('reclassifyModal');
+    if (!modal) return;
+
+    // Detect scope from location modal:
+    const isBulkTab = (activeLocationTab === 'bulk');
+    let targetItems = [];
+    let locValue = '';
+    let chosenDir = '';
+    let scopeDesc = '';
+
+    if (isBulkTab) {
+      const activeRows = bulkLocationRowsData.filter(r => r.subdir && r.location && r.location.trim());
+      if (activeRows.length > 0) {
+        const subdirsSet = new Set(activeRows.map(r => r.subdir));
+        targetItems = items.filter(i => {
+          if (!i.subdirectory) return false;
+          for (const s of subdirsSet) {
+            if (i.subdirectory === s || i.subdirectory.startsWith(s + '/')) return true;
+          }
+          return false;
+        });
+        reclassifyScopeContext = { scope: 'bulk', rows: activeRows };
+        scopeDesc = `Directory Overrides (${activeRows.length} directories)`;
+      } else {
+        targetItems = [];
+        reclassifyScopeContext = { scope: 'bulk', rows: [] };
+        scopeDesc = 'Directory Overrides';
+      }
+    } else {
+      const scopeSelect = document.getElementById('locationScopeSelect');
+      const scope = scopeSelect ? scopeSelect.value : 'trip';
+      const locInput = document.getElementById('locationInput');
+      locValue = locInput ? locInput.value.trim() : '';
+
+      if (scope === 'selection' && selectedIds.size > 0) {
+        targetItems = items.filter(i => selectedIds.has(i.id));
+        reclassifyScopeContext = { scope: 'selection', location: locValue, selectedIds: Array.from(selectedIds) };
+        scopeDesc = `Selected Photos (${targetItems.length})`;
+      } else if (scope === 'directory') {
+        const subdirSelect = document.getElementById('locationSubdirSelect');
+        chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
+        if (chosenDir) {
+          targetItems = items.filter(i => i.subdirectory && (i.subdirectory === chosenDir || i.subdirectory.startsWith(chosenDir + '/')));
+        } else {
+          targetItems = items;
+        }
+        reclassifyScopeContext = { scope: 'directory', dir: chosenDir, location: locValue };
+        scopeDesc = chosenDir ? `Subdirectory "${chosenDir}"` : 'All Subdirectories';
+      } else {
+        targetItems = items;
+        reclassifyScopeContext = { scope: 'trip', location: locValue };
+        scopeDesc = 'Entire Trip';
+      }
+    }
+
+    const scopeDescEl = document.getElementById('reclassifyScopeDesc');
+    if (scopeDescEl) {
+      scopeDescEl.textContent = scopeDesc ? ` (${scopeDesc})` : '';
+    }
+
+    // Look for top predictions or alternative candidates
+    reclassifyDiffItems = targetItems.map(item => {
+      let altSpecies = item.assigned_species;
+      let altConf = item.confidence;
+      if (item.top_predictions && item.top_predictions.length > 1) {
+        const firstPred = item.top_predictions[0];
+        const secondPred = item.top_predictions[1];
+        const firstScore = firstPred.score || firstPred.combined_score || 0;
+        const secondScore = secondPred.score || secondPred.combined_score || 0;
+
+        if (item.assigned_species === firstPred.common_name && firstScore >= 0.85) {
+          altSpecies = firstPred.common_name;
+        } else {
+          altSpecies = (item.assigned_species === firstPred.common_name) ? secondPred.common_name : firstPred.common_name;
+          altConf = secondScore;
+        }
+      } else if (item.routing_tier === RoutingTier.NEEDS_REVIEW) {
+        altSpecies = item.assigned_species;
+      }
+
+      const willChange = altSpecies !== item.assigned_species;
+      return {
+        item,
+        currentSpecies: item.assigned_species,
+        proposedSpecies: altSpecies,
+        choice: willChange ? 'take' : 'keep',
+        customSpecies: altSpecies,
+      };
+    });
+
+    renderReclassifyDiffTable();
+    modal.classList.add('open');
+  }
+
+  function closeReclassifyModal() {
+    const modal = document.getElementById('reclassifyModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  function setAllReclassifyChoices(choice) {
+    for (const d of reclassifyDiffItems) {
+      d.choice = choice;
+    }
+    renderReclassifyDiffTable();
+  }
+
+  function setReclassifyChoice(idx, choice) {
+    if (reclassifyDiffItems[idx]) {
+      reclassifyDiffItems[idx].choice = choice;
+      renderReclassifyDiffTable();
+    }
+  }
+
+  function renderReclassifyDiffTable() {
+    const tbody = document.getElementById('reclassifyDiffTableBody');
+    if (!tbody) return;
+
+    const countEl = document.getElementById('reclassifyChangeCount');
+    const takeCount = reclassifyDiffItems.filter(d => d.choice === 'take' && d.currentSpecies !== d.proposedSpecies).length;
+    if (countEl) countEl.textContent = takeCount;
+
+    tbody.textContent = '';
+
+    if (reclassifyDiffItems.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 4;
+      td.style.textAlign = 'center';
+      td.style.padding = '36px 16px';
+      td.style.color = 'var(--text-muted)';
+      td.textContent = 'No photos found matching the selected location scope.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      updateReclassifyCommandOutput();
+      return;
+    }
+
+    reclassifyDiffItems.forEach((d, idx) => {
+      const isTake = d.choice === 'take';
+      const isKeep = d.choice === 'keep';
+      const thumb = d.item.embedded_thumb_data_uri || d.item.thumb_src || d.item.preview_url;
+
+      const tr = document.createElement('tr');
+
+      // Col 1: Thumbnail
+      const tdThumb = document.createElement('td');
+      const safeThumb = sanitizeMediaUri(thumb);
+      if (safeThumb) {
+        const img = document.createElement('img');
+        img.src = safeThumb;
+        img.className = 'diff-thumb';
+        img.alt = d.item.original_stem || '';
+        tdThumb.appendChild(img);
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'diff-thumb';
+        placeholder.style.background = 'var(--border-color)';
+        tdThumb.appendChild(placeholder);
+      }
+      tr.appendChild(tdThumb);
+
+      // Col 2: Current Species & filename
+      const tdCurr = document.createElement('td');
+      const currSpeciesDiv = document.createElement('div');
+      currSpeciesDiv.style.fontWeight = '600';
+      currSpeciesDiv.textContent = d.currentSpecies || '';
+      const currFileDiv = document.createElement('div');
+      currFileDiv.style.fontSize = '0.75rem';
+      currFileDiv.style.color = 'var(--text-muted)';
+      currFileDiv.textContent = d.item.primary_filename || '';
+      tdCurr.appendChild(currSpeciesDiv);
+      tdCurr.appendChild(currFileDiv);
+      tr.appendChild(tdCurr);
+
+      // Col 3: Proposed Species
+      const tdProp = document.createElement('td');
+      const propSpeciesDiv = document.createElement('div');
+      propSpeciesDiv.style.fontWeight = '600';
+      propSpeciesDiv.style.color = '#38bdf8';
+      propSpeciesDiv.textContent = d.proposedSpecies || '';
+      const propDescDiv = document.createElement('div');
+      propDescDiv.style.fontSize = '0.75rem';
+      propDescDiv.style.color = 'var(--text-muted)';
+      propDescDiv.textContent = 'Recalculated with updated location';
+      tdProp.appendChild(propSpeciesDiv);
+      tdProp.appendChild(propDescDiv);
+      tr.appendChild(tdProp);
+
+      // Col 4: Action pills
+      const tdAction = document.createElement('td');
+      tdAction.style.textAlign = 'right';
+      const pillGroup = document.createElement('div');
+      pillGroup.className = 'choice-pill-group';
+
+      const btnTake = document.createElement('button');
+      btnTake.type = 'button';
+      btnTake.className = `choice-pill ${isTake ? 'active-take' : ''}`;
+      btnTake.textContent = 'Take';
+      btnTake.onclick = (e) => {
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'take');
+      };
+
+      const btnKeep = document.createElement('button');
+      btnKeep.type = 'button';
+      btnKeep.className = `choice-pill ${isKeep ? 'active-keep' : ''}`;
+      btnKeep.textContent = 'Keep';
+      btnKeep.onclick = (e) => {
+        e.stopPropagation();
+        setReclassifyChoice(idx, 'keep');
+      };
+
+      pillGroup.appendChild(btnTake);
+      pillGroup.appendChild(btnKeep);
+      tdAction.appendChild(pillGroup);
+      tr.appendChild(tdAction);
+
+      tbody.appendChild(tr);
+    });
+
+    updateReclassifyCommandOutput();
+  }
+
+  function buildReclassifyCommands() {
+    let commands = [];
+    if (CATALOG_DATA.catalog_dir) {
+      commands.push(`cd "${escapeShellArg(CATALOG_DATA.catalog_dir)}"`);
+    }
+    commands.push(findAvicullCmd().trim());
+    commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
+
+    if (reclassifyScopeContext.scope === 'bulk' && reclassifyScopeContext.rows) {
+      for (const row of reclassifyScopeContext.rows) {
+        if (row.subdir && row.location && row.location.trim()) {
+          const escSub = escapeShellArg(row.subdir);
+          const escLoc = escapeShellArg(row.location.trim());
+          commands.push(`  avicull location --dir "${escSub}" --location "${escLoc}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${escSub}" --location "${escLoc}" --reclassify`);
+        }
+      }
+    } else if (reclassifyScopeContext.scope === 'directory' && reclassifyScopeContext.dir) {
+      const escDir = escapeShellArg(reclassifyScopeContext.dir);
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {
+        commands.push(`  avicull location --dir "${escDir}" --location "${escLoc}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${escDir}" --location "${escLoc}" --reclassify`);
+      } else {
+        commands.push(`  avicull location --dir "${escDir}" --reclassify 2>/dev/null || $AVICULL_CMD location --dir "${escDir}" --reclassify`);
+      }
+    } else if (reclassifyScopeContext.scope === 'selection') {
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      for (const id of (reclassifyScopeContext.selectedIds || [])) {
+        const item = items.find(i => i.id === id);
+        if (item) {
+          const escStem = escapeShellArg(item.original_stem);
+          if (escLoc) {
+            commands.push(`  avicull location --file "${escStem}" --location "${escLoc}" --reclassify 2>/dev/null || $AVICULL_CMD location --file "${escStem}" --location "${escLoc}" --reclassify`);
+          }
+        }
+      }
+    } else {
+      const escLoc = escapeShellArg(reclassifyScopeContext.location || '');
+      if (escLoc) {
+        commands.push(`  avicull location --location "${escLoc}" --reclassify 2>/dev/null || $AVICULL_CMD location --location "${escLoc}" --reclassify`);
+      } else {
+        commands.push(`  avicull location --reclassify 2>/dev/null || $AVICULL_CMD location --reclassify`);
+      }
+    }
+
+    for (const d of reclassifyDiffItems) {
+      if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {
+        const escStem = escapeShellArg(d.item.original_stem);
+        const escSpec = escapeShellArg(d.proposedSpecies);
+        const cat = d.item.category || AssetCategory.NO_SUBJECT_DETECTED;
+        commands.push(`  avicull correct --category "${cat}" --species "${escSpec}" --file "${escStem}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${escSpec}" --file "${escStem}"`);
+      }
+    }
+
+    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
+    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
+    commands.push(`  $AVICULL_CMD organize --input "." ${modeFlag} --no-prompt || true`);
+    commands.push(`fi`);
+    return commands;
+  }
+
+  function updateReclassifyCommandOutput() {
+    const out = document.getElementById('reclassifyCommandOutput');
+    if (!out) return;
+    const cmds = buildReclassifyCommands();
+    out.textContent = cmds.join('\n');
+  }
+
+  function copyReclassifyCommand() {
+    const text = document.getElementById('reclassifyCommandOutput').textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('btnCopyReclassifyCommand');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      alert("Commands:\n\n" + text);
+    });
+  }
+
+  function applyReclassifyBatch() {
+    const cmds = buildReclassifyCommands();
+    batchCommands.push({
+      stem: 'reclassify_updates',
+      commands: cmds
+    });
+    updateBatchUI();
+    closeReclassifyModal();
+  }
+
+  function handleLocationInput() {
+    const input = document.getElementById('locationInput');
+    const out = document.getElementById('locationCommandOutput');
+    if (!input || !out) return;
+    const val = input.value.trim();
+    if (!val) {
+      out.textContent = "Enter a location name or coordinates above to generate location command...";
+      return;
+    }
+    const cmds = buildLocationCommands(val);
+    out.textContent = cmds.join('\n');
+  }
+
+  function copyLocationCommand() {
+    const text = document.getElementById('locationCommandOutput').textContent;
+    if (!text || text.startsWith("Enter a location")) return;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('btnCopyLocationCommand');
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }).catch(() => {
+      alert("Command:\n\n" + text);
+    });
+  }
+
+  function addLocationToBatch() {
+    const input = document.getElementById('locationInput');
+    const val = input ? input.value.trim() : '';
+    if (!val) return;
+    const cmds = buildLocationCommands(val);
+    batchCommands.push({
+      stem: 'location_update',
+      commands: cmds
+    });
+    updateBatchUI();
+    closeLocationModal();
+  }
+
+  // Keyboard shortcuts for selection
+  document.addEventListener('keydown', (e) => {
+    // Escape clears selection or closes modal
+    if (e.key === 'Escape') {
+      const locModal = document.getElementById('locationModal');
+      if (locModal && locModal.classList.contains('open')) {
+        closeLocationModal();
+        return;
+      }
+      const modal = document.getElementById('correctionModal');
+      if (modal && modal.classList.contains('open')) {
+        closeModal();
+      } else if (selectedIds.size > 0) {
+        clearSelection();
+      }
+    }
+    // Cmd+A or Ctrl+A (when not typing in an input) selects all visible photos
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
+      const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      if (tag !== 'input' && tag !== 'textarea') {
+        e.preventDefault();
+        selectAllVisible();
+      }
+    }
+  });
+
+  if (typeof window !== 'undefined') {
+    window.selectSpecies = selectSpecies;
+    window.setCategoryFilter = setCategoryFilter;
+    window.setFilter = setFilter;
+  }
+
+  // Initialize on load
+  document.addEventListener('DOMContentLoaded', () => {
+    updateCategoryCounts();
+    renderGallery();
+  });
+</script>
+
+</body>
+</html>
