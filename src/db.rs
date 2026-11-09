@@ -1041,8 +1041,10 @@ impl ManifestDb {
             let config_str: String = row.get(0)?;
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&config_str) {
                 if let Some(mode_str) = val.get("mode").and_then(|m| m.as_str()) {
-                    if mode_str == "in_place" {
-                        return Ok(Some(OrganizationMode::InPlaceFileRenameToDescriptiveNames));
+                    if mode_str == "in_place" || mode_str == "in-place" {
+                        return Ok(Some(OrganizationMode::InPlace));
+                    } else if mode_str == "in_place_rename" || mode_str == "in-place-rename" {
+                        return Ok(Some(OrganizationMode::InPlaceRename));
                     } else if mode_str == "hierarchy" {
                         return Ok(Some(OrganizationMode::HierarchicalHardlinkHierarchy));
                     }

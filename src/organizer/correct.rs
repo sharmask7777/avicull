@@ -710,7 +710,11 @@ pub fn apply_bundle_correction_with_category(
                 }
             }
 
-            OrganizationMode::InPlaceFileRenameToDescriptiveNames => {
+            OrganizationMode::InPlace => {
+                // Untouched files on disk: only SQLite records are updated with user override
+            }
+
+            OrganizationMode::InPlaceRename => {
                 let ops = db.get_bundle_operations(&bundle.bundle_id)?;
                 let mut current_primary = bundle.primary_image.clone();
                 for op in &ops {
@@ -860,7 +864,7 @@ pub fn apply_bundle_correction_with_category(
                         .collect();
                     (p_dest, Some(c_dests), Some(sc_dests))
                 }
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames => (
+                OrganizationMode::InPlace | OrganizationMode::InPlaceRename => (
                     Some(b.primary_image.clone()),
                     Some(b.companion_images.clone()),
                     Some(b.sidecar_files.clone()),

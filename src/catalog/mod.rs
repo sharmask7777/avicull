@@ -482,7 +482,8 @@ pub fn generate_html_catalog(
 
     let mode_str = match mode {
         OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in-place",
+        OrganizationMode::InPlaceRename => "in-place-rename",
+        OrganizationMode::InPlace => "in-place",
     };
 
     let catalog_dir_str = output_root

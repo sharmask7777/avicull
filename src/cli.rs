@@ -223,8 +223,8 @@ pub struct OrganizeArgs {
     #[arg(long, default_value = "burst-consensus")]
     pub confidence_mode: String,
 
-    /// Organization mode: [in-place | hierarchy] (default: in-place)
-    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlaceFileRenameToDescriptiveNames)]
+    /// Organization mode: [in-place | in-place-rename | hierarchy] (default: in-place)
+    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlace)]
     pub mode: OrganizationMode,
 
     /// Strength of SINR geographical prior [0.0..2.0] (default: 1.0)
@@ -373,7 +373,7 @@ pub struct CorrectArgs {
     #[arg(short = 'c', long, default_value = "Bird")]
     pub category: String,
 
-    /// Organization mode: [in-place | hierarchy]
+    /// Organization mode: [in-place | in-place-rename | hierarchy]
     #[arg(long, value_enum)]
     pub mode: Option<OrganizationMode>,
 

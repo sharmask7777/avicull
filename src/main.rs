@@ -513,7 +513,7 @@ fn main() -> Result<()> {
 
             let is_inplace = matches!(
                 args.mode,
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames
+                OrganizationMode::InPlace | OrganizationMode::InPlaceRename
             );
 
             let (operating_root, db_path, skip_dir) = if is_inplace {
@@ -900,7 +900,8 @@ fn main() -> Result<()> {
 
             let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
             let mode_str = match args.mode {
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in_place",
+                OrganizationMode::InPlace => "in_place",
+                OrganizationMode::InPlaceRename => "in_place_rename",
                 OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
             };
             let config_json = serde_json::to_string(&serde_json::json!({
@@ -1769,7 +1770,7 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
     } else if args.output.is_some() || db_path.to_string_lossy().contains("birds_hierarchy") {
         OrganizationMode::HierarchicalHardlinkHierarchy
     } else {
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+        OrganizationMode::InPlace
     };
 
     let operating_root = match mode {
@@ -1791,7 +1792,7 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
                     PathBuf::from(".")
                 }
             }),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames => args
+        OrganizationMode::InPlace | OrganizationMode::InPlaceRename => args
             .input
             .clone()
             .or_else(|| {
