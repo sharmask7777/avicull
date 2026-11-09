@@ -342,12 +342,12 @@ fn test_cli_e2e_inplace_default() {
     );
 
     assert!(
-        !img_path.exists(),
-        "Original primary image should have been renamed in-place"
+        img_path.exists(),
+        "Original primary image must remain untouched in default in-place mode"
     );
     assert!(
-        !xmp_path.exists(),
-        "Original sidecar should have been renamed in-place in lockstep"
+        xmp_path.exists(),
+        "Original sidecar must remain untouched in default in-place mode"
     );
 
     // If organize is re-run and all bundles are cached, bird_catalog.html should be regenerated if missing
@@ -373,14 +373,51 @@ fn test_cli_e2e_inplace_default() {
         .unwrap()
         .filter_map(|e| e.ok())
         .collect();
-    let renamed_jpg = entries
+    assert_eq!(
+        entries.len(),
+        2,
+        "Files must remain untouched in default in-place mode"
+    );
+    assert!(img_path.exists());
+    assert!(xmp_path.exists());
+
+    // 3. Now run with --mode in-place-rename and verify cosmetic renames occur
+    let rename_run = std::process::Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--mode",
+            "in-place-rename",
+            "--no-prompt",
+        ])
+        .output()
+        .expect("in-place-rename avicull organize");
+    assert!(rename_run.status.success(), "in-place-rename must succeed");
+
+    assert!(
+        !img_path.exists(),
+        "Original primary image should have been renamed in in-place-rename mode"
+    );
+    assert!(
+        !xmp_path.exists(),
+        "Original sidecar should have been renamed in lockstep in in-place-rename mode"
+    );
+
+    let rename_entries: Vec<_> = fs::read_dir(&trip_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .collect();
+    let renamed_jpg = rename_entries
         .iter()
         .find(|e| {
             let name = e.file_name().to_string_lossy().to_string();
             name.starts_with("DSC_0042_") && name.ends_with(".JPG")
         })
         .expect("Renamed JPG matching DSC_0042_* must exist");
-    let renamed_xmp = entries
+    let renamed_xmp = rename_entries
         .iter()
         .find(|e| {
             let name = e.file_name().to_string_lossy().to_string();
