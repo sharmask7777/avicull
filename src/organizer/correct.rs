@@ -710,7 +710,11 @@ pub fn apply_bundle_correction_with_category(
                 }
             }
 
-            OrganizationMode::InPlaceFileRenameToDescriptiveNames => {
+            OrganizationMode::InPlace => {
+                // Untouched files on disk: only SQLite records are updated with user override
+            }
+
+            OrganizationMode::InPlaceRename => {
                 let ops = db.get_bundle_operations(&bundle.bundle_id)?;
                 let mut current_primary = bundle.primary_image.clone();
                 for op in &ops {
@@ -860,11 +864,61 @@ pub fn apply_bundle_correction_with_category(
                         .collect();
                     (p_dest, Some(c_dests), Some(sc_dests))
                 }
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames => (
+                OrganizationMode::InPlace => (
                     Some(b.primary_image.clone()),
                     Some(b.companion_images.clone()),
                     Some(b.sidecar_files.clone()),
                 ),
+                OrganizationMode::InPlaceRename => {
+                    let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();
+                    let mut current_primary = b.primary_image.clone();
+                    for op in &ops {
+                        if op.operation_type == "in_place_rename"
+                            && op.status == "renamed"
+                            && op.dest_path.exists()
+                        {
+                            current_primary.clone_from(&op.dest_path);
+                        }
+                    }
+
+                    let c_dests: Vec<PathBuf> = b
+                        .companion_images
+                        .iter()
+                        .map(|c| {
+                            let mut resolved = c.clone();
+                            for op in &ops {
+                                if op.operation_type == "in_place_rename"
+                                    && op.status == "renamed"
+                                    && (op.source_path == *c || op.source_path == resolved)
+                                    && op.dest_path.exists()
+                                {
+                                    resolved.clone_from(&op.dest_path);
+                                }
+                            }
+                            resolved
+                        })
+                        .collect();
+
+                    let sc_dests: Vec<PathBuf> = b
+                        .sidecar_files
+                        .iter()
+                        .map(|sc| {
+                            let mut resolved = sc.clone();
+                            for op in &ops {
+                                if op.operation_type == "in_place_rename"
+                                    && op.status == "renamed"
+                                    && (op.source_path == *sc || op.source_path == resolved)
+                                    && op.dest_path.exists()
+                                {
+                                    resolved.clone_from(&op.dest_path);
+                                }
+                            }
+                            resolved
+                        })
+                        .collect();
+
+                    (Some(current_primary), Some(c_dests), Some(sc_dests))
+                }
             };
 
             catalog_items.push(CatalogItem::from_bundle_and_decision(

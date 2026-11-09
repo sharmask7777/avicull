@@ -4,8 +4,11 @@ Rules governing code written in `avicull`. Reviewers and automated review passes
 
 ## Filesystem & Source Immutability
 
-### Source Preservation
-The input archive is strictly read-only. Never move, rename, modify, unlink, or write into any path under the input directory.
+### Source Preservation in Default Mode
+In default `--mode in-place`, the input archive is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`. All state and previews must remain isolated within `<input>/.avicull/` and `<input>/catalog.html`. Neither filename reconciliation nor client-side catalog scripts may execute physical renames on disk in this mode.
+
+### Cosmetic Renaming Opt-In
+Renaming source files is purely cosmetic. Only when explicitly requested via `--mode in-place-rename` may files and sidecars be atomically renamed in place. All in-place renames must be transactionally journaled in `.avicull/manifest.sqlite` for lossless rollback via `avicull clean`.
 
 ### Zero-Byte Hard Link Parity
 Organized output hierarchies on the same APFS volume must share underlying storage inodes using POSIX hard links (`std::fs::hard_link`). Never copy or duplicate raw image payloads. Verify inode parity (`dst_meta.ino() == src_ino`) in filesystem operations.

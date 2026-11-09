@@ -61,23 +61,27 @@ On first run, `avicull` will offer to automatically download and initialize the 
 
 ## Non-Negotiable Filesystem Invariants
 
-1. **In-Place Descriptive Renaming (`--mode in-place`, Default)**:
+1. **In-Place Non-Destructive Cataloging (`--mode in-place`, Default & Preferred)**:
+   - Input photos and sidecars are strictly read-only and kept untouched in `--input`.
+   - All classification state, metadata, preview caches, and interactive HTML photo catalog (`catalog.html`) are completely self-contained within `<input>/.avicull/` and `<input>/catalog.html`.
+   - Renaming is purely cosmetic; users who prefer descriptive filenames on disk can opt into `--mode in-place-rename`.
+2. **In-Place Descriptive Renaming (`--mode in-place-rename`)**:
    - Primary images, companion files, and sidecars (`.xmp`, `.dop`) are renamed in lockstep to `<OriginalStem>_<Category>_<Subject>[_<YYYYMMDD>][_<Location_Slug>].<ext>`.
    - Zero file copying and zero data deletion.
    - All renaming operations are transactionally journaled in `.avicull/manifest.sqlite`, guaranteeing lossless rollback via `avicull clean`.
    - Automatic collision resolution preserves unique filenames when bursts or duplicate names occur.
    - Manual user renames in Finder or terminal are automatically detected and reconciled on subsequent runs, renaming companions and sidecars in lockstep.
-2. **Strict Source Immutability in Hierarchy Mode (`--mode hierarchy`)**:
+3. **Strict Source Immutability in Hierarchy Mode (`--mode hierarchy`)**:
    - The input trip directory (`--input`) is strictly read-only. `avicull` never moves, renames, modifies, or unlinks any file inside `--input`.
    - Files are projected into `<input>/birds_hierarchy` (or `--output`) using zero-byte POSIX hard links (`std::fs::hard_link`), pointing to identical underlying APFS inodes (`src_ino == dst_ino`) without consuming additional disk bytes.
    - Root hierarchy structure groups subjects into standardized singular categories: `<output>/<Category>/<SubjectSlug>/...`, `<output>/_Needs_Review/<SubjectSlug>/...`, and `<output>/_No_Subject_Detected/...`.
-3. **Multi-Level Coexistence (Hierarchy Mode)**:
+4. **Multi-Level Coexistence (Hierarchy Mode)**:
    - You can create a `birds_hierarchy` in an individual trip folder (e.g. `Leh/birds_hierarchy`), and also in its parent directory (e.g. `Pictures/birds_hierarchy`). Both hierarchies co-exist seamlessly via hard links to the same underlying inodes (incrementing `st_nlink` to 2, 3, etc.) without duplicating storage.
-4. **Auto-Detection & Incremental Updates**:
+5. **Auto-Detection & Incremental Updates**:
    - Running `avicull organize` on an existing archive automatically discovers newly added photos while reusing cached ML decisions from `.avicull/manifest.sqlite`. Only new or updated files undergo neural network inference.
-5. **Upfront Volume & Safety Validation**:
+6. **Upfront Volume & Safety Validation**:
    - In hierarchy mode, `avicull` verifies via `std::os::unix::fs::MetadataExt::dev()` that `--input` and `--output` reside on the same filesystem device (`st_dev`) so hard linking cannot fail mid-run with `EXDEV` (Cross-device link), and verifies that input is not nested inside output. Recursive scanners automatically skip `birds_hierarchy`, `.avicull`, `*.photoslibrary`, and system metadata files.
-6. **Cross-Machine Portable Manifest & Durable User Overrides**:
+7. **Cross-Machine Portable Manifest & Durable User Overrides**:
    - The SQLite manifest—located at `<input>/.avicull/manifest.sqlite` (in-place mode) or `<output>/.avicull/manifest.sqlite` (hierarchy mode)—serves as a durable, self-contained record that travels with the archive.
    - When a photo directory or hierarchy tree is copied, rsynced, or mounted on another machine where inodes and absolute paths differ, `avicull organize` matches existing bundles by portable relative path and `(trip_folder, original_stem)` with 100% cache hits and zero redundant AI inferences.
    - User classification corrections—made via `avicull correct` (supporting burst propagation `--burst` / `-b`, query disambiguation, and fuzzy species autocorrect), manual Finder folder moves in hierarchy mode, manual in-place filename renames reconciled by `avicull organize`, or running the catalog's exported `apply_corrections.sh` script—are recorded as permanent overrides (`is_user_override = 1`, `final_confidence = 1.0`), permanently protected from neural re-classification or burst consensus smoothing across all routing tiers (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected` / `NoSubjectDetected`).
@@ -349,15 +353,23 @@ python3 scripts/export_models.py --output-dir models/ --mock
 ### 1. `organize`: Full Pipeline Execution
 Runs bird detection, classification, spatio-temporal prior weighting, burst smoothing, file organization, and generates an offline HTML catalog. Automatically detects and reconciles previous manual user adjustments (Finder moves in hierarchy mode or manual filename renames in in-place mode) into permanent SQLite overrides before processing new files.
 
-#### Mode A: In-Place Descriptive File Renaming (Default)
-By default, `avicull organize` renames files in place within `--input` and generates `<input>/catalog.html`:
+#### Mode A: In-Place Non-Destructive Cataloging (Default & Preferred)
+By default, `avicull organize` leaves photo files strictly untouched in `--input`, generating `<input>/.avicull/manifest.sqlite` and `<input>/catalog.html`:
 ```bash
 avicull organize --input /Volumes/Photos/Leh
+# Keeps files untouched: DSC_0042.CR2 + DSC_0042.xmp remain as-is
+# Generates /Volumes/Photos/Leh/catalog.html and .avicull/ manifest
+```
+
+#### Mode B: In-Place Descriptive File Renaming (`--mode in-place-rename`)
+Renames primary photos and companion sidecars in place within `--input` with descriptive species, date, and location tokens:
+```bash
+avicull organize --input /Volumes/Photos/Leh --mode in-place-rename
 # Renames files in-place: DSC_0042_Bird_House_Sparrow_20261025_Leh.CR2 + DSC_0042_...xmp
 # Generates /Volumes/Photos/Leh/catalog.html
 ```
 
-#### Mode B: Hard-Linked Species Directory Tree (`--mode hierarchy`)
+#### Mode C: Hard-Linked Species Directory Tree (`--mode hierarchy`)
 Organize files into `<input>/birds_hierarchy` using zero-byte POSIX hard links:
 ```bash
 avicull organize --input /Volumes/Photos/Leh --mode hierarchy
@@ -432,7 +444,8 @@ Actions coordinated safely in lockstep:
 - Sanitizes the target species name (`Painted_Stork`) and assigns the appropriate routing tier (`ConfirmedSpecies`, `NeedsReview`, or `NoBirdDetected`).
 - Updates `.avicull/manifest.sqlite` marking `is_user_override = 1` and `final_confidence = 1.0`.
 - In **hierarchy mode**: moves/relinks primary images, companions, and sidecars into `<output>/<Species>/`, updating operation records and automatically pruning empty directories.
-- In **in-place mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`, `.dop`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
+- In **in-place mode** (default): updates `.avicull/manifest.sqlite` overrides and regenerates `catalog.html` without renaming or touching files on disk.
+- In **in-place-rename mode**: renames primary images, companions, and compound sidecars (`.xmp`, `.JPG.xmp`, `.dop`) in lockstep to reflect the new species while preserving original stems, dates, and locations.
 - Automatically regenerates `bird_catalog.html` with updated counts and species tallies.
 
 #### A. Burst Propagation (`--burst`, `-b`, `--propagate-burst`)

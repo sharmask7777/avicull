@@ -22,6 +22,18 @@ An organized directory hierarchy referencing photographic assets on the same loc
 
 A HardLinkTree creates multiple organized views of an archive without duplicating image payloads. Because hard links share underlying storage, modifying an image payload in one tree alters it in all linked trees, but creating, moving, or unlinking path entries is strictly safe and isolated.
 
+### InPlaceCataloging
+The default non-destructive organization mode where source files and companion sidecars in the input archive remain strictly untouched on disk.
+*Avoid:* Read-only scan, catalog only
+
+In-place cataloging generates precomputed RAW preview thumbnails, populates the persistent SQLite manifest store, and materializes `catalog.html` inside the input directory without modifying, renaming, or moving any original photograph or companion file.
+
+### InPlaceFileRenaming
+An explicit opt-in organization mode (`--mode in-place-rename`) that transactionally renames primary images and companion sidecars in place with descriptive taxonomy, date, and location tokens.
+*Avoid:* In-place mode, rename mode
+
+In-place renaming is purely cosmetic. All file operations are recorded transactionally in the manifest store under `in_place_rename` with status `renamed`, enabling lossless rollback via `avicull clean`.
+
 ### VirtualMount
 An on-demand virtual filesystem mount providing a local path interface to stream and inspect remote or cloud-hosted photographic archives.
 *Avoid:* Cloud sync, local cache

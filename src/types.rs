@@ -6,7 +6,7 @@
 //! - [`SpeciesPrediction`]: Multi-class avian predictions with visual probabilities and Bayesian geographic priors.
 //! - [`BundleDecision`]: The finalized classification, routing tier, and consensus confidence for an asset.
 //! - [`RoutingTier`]: The tri-state sorting tier determining directory routing (`ConfirmedSpecies`, `NeedsReview`, `NoBirdDetected`).
-//! - [`OrganizationMode`]: The file organization strategy (`HierarchicalHardlinkHierarchy` vs `InPlaceFileRenameToDescriptiveNames`).
+//! - [`OrganizationMode`]: The file organization strategy (`InPlace`, `InPlaceRename`, `HierarchicalHardlinkHierarchy`).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -572,10 +572,18 @@ pub enum ConfidenceMode {
 /// Strategy for organizing the photo archive on disk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default, Serialize, Deserialize)]
 pub enum OrganizationMode {
-    /// Atomically renames source files in-place with descriptive species, date, and location tokens.
+    /// Non-destructive in-place cataloging mode (default): keeps source files strictly untouched,
+    /// writing all classification metadata, previews, and HTML catalog into `.avicull/` and `catalog.html`.
     #[default]
-    #[value(name = "in-place", alias = "in-place-file-rename-to-descriptive-names")]
-    InPlaceFileRenameToDescriptiveNames,
+    #[value(name = "in-place", alias = "no-rename")]
+    InPlace,
+
+    /// Atomically renames source files in-place with descriptive species, date, and location tokens.
+    #[value(
+        name = "in-place-rename",
+        alias = "in-place-file-rename-to-descriptive-names"
+    )]
+    InPlaceRename,
 
     /// Materializes a zero-byte taxonomy hierarchy (`birds_hierarchy/`) using APFS hard links.
     #[value(
@@ -586,10 +594,17 @@ pub enum OrganizationMode {
     HierarchicalHardlinkHierarchy,
 }
 
+impl OrganizationMode {
+    /// Backwards-compatible alias for [`OrganizationMode::InPlaceRename`].
+    #[allow(non_upper_case_globals)]
+    pub const InPlaceFileRenameToDescriptiveNames: Self = Self::InPlaceRename;
+}
+
 impl std::fmt::Display for OrganizationMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OrganizationMode::InPlaceFileRenameToDescriptiveNames => write!(f, "in-place"),
+            OrganizationMode::InPlace => write!(f, "in-place"),
+            OrganizationMode::InPlaceRename => write!(f, "in-place-rename"),
             OrganizationMode::HierarchicalHardlinkHierarchy => write!(f, "hierarchy"),
         }
     }

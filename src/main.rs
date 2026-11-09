@@ -513,13 +513,13 @@ fn main() -> Result<()> {
 
             let is_inplace = matches!(
                 args.mode,
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames
+                OrganizationMode::InPlace | OrganizationMode::InPlaceRename
             );
 
             let (operating_root, db_path, skip_dir) = if is_inplace {
                 if args.output.is_some() {
                     println!(
-                        "[avicull] Note: In in-place rename mode, photos are organized directly in '--input'; '--output' is ignored."
+                        "[avicull] Note: In in-place mode, photos and manifests are organized directly in '--input'; '--output' is ignored."
                     );
                 }
                 let db_p = args.input.join(".avicull/manifest.sqlite");
@@ -559,7 +559,10 @@ fn main() -> Result<()> {
             };
 
             let mut _reconciled_moves_count = 0;
-            if is_inplace && operating_root.exists() && !existing_bundle_map.is_empty() {
+            if args.mode == OrganizationMode::InPlaceRename
+                && operating_root.exists()
+                && !existing_bundle_map.is_empty()
+            {
                 match avicull::organizer::reconcile_inplace_manual_renames(
                     &operating_root,
                     &db,
@@ -820,7 +823,13 @@ fn main() -> Result<()> {
                 );
             }
 
-            if !existing_bundle_map.is_empty() && new_bundles.is_empty() {
+            let latest_mode = db.get_latest_run_mode().unwrap_or(None);
+            let mode_matches = match latest_mode {
+                Some(m) => m == args.mode,
+                None => true,
+            };
+
+            if !existing_bundle_map.is_empty() && new_bundles.is_empty() && mode_matches {
                 let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
                 let trip_name = args
                     .input
@@ -858,7 +867,11 @@ fn main() -> Result<()> {
             let conf_mode: ConfidenceMode =
                 args.confidence_mode.parse().map_err(|e| anyhow!("{e}"))?;
 
-            let models_dir = resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?;
+            let models_dir = if new_bundles.is_empty() {
+                None
+            } else {
+                resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?
+            };
 
             // Initialize models only if we have new bundles to process
             let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = models_dir {
@@ -900,7 +913,8 @@ fn main() -> Result<()> {
 
             let run_id = format!("run-{}", chrono::Utc::now().format("%Y%m%d-%H%M%S"));
             let mode_str = match args.mode {
-                OrganizationMode::InPlaceFileRenameToDescriptiveNames => "in_place",
+                OrganizationMode::InPlace => "in_place",
+                OrganizationMode::InPlaceRename => "in_place_rename",
                 OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",
             };
             let config_json = serde_json::to_string(&serde_json::json!({
@@ -1119,7 +1133,19 @@ fn main() -> Result<()> {
             let mut catalog_items = Vec::with_capacity(processable_discovered.len());
             let mut total_ops_count = 0usize;
 
-            if is_inplace {
+            if args.mode == OrganizationMode::InPlace {
+                println!("In-place non-destructive cataloging: keeping source files untouched in '--input'...");
+                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter()) {
+                    let cat_item = CatalogItem::from_bundle_and_decision(
+                        bundle,
+                        decision,
+                        Some(bundle.primary_image.clone()),
+                        Some(bundle.companion_images.clone()),
+                        Some(bundle.sidecar_files.clone()),
+                    );
+                    catalog_items.push(cat_item);
+                }
+            } else if args.mode == OrganizationMode::InPlaceRename {
                 println!(
                     "Executing in-place file renames (dry_run: {})...",
                     args.dry_run
@@ -1769,7 +1795,7 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
     } else if args.output.is_some() || db_path.to_string_lossy().contains("birds_hierarchy") {
         OrganizationMode::HierarchicalHardlinkHierarchy
     } else {
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+        OrganizationMode::InPlace
     };
 
     let operating_root = match mode {
@@ -1791,7 +1817,7 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
                     PathBuf::from(".")
                 }
             }),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames => args
+        OrganizationMode::InPlace | OrganizationMode::InPlaceRename => args
             .input
             .clone()
             .or_else(|| {

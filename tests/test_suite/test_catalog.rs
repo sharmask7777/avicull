@@ -105,7 +105,7 @@ fn test_generate_html_catalog_basic() {
     generate_html_catalog(
         "Leh Birding Trip",
         &items,
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog should succeed");
@@ -143,6 +143,27 @@ fn test_generate_html_catalog_basic() {
     assert_eq!(parsed["stats"]["needs_review_count"], 1);
     assert_eq!(parsed["stats"]["no_bird_count"], 1);
     assert_eq!(parsed["stats"]["species_count"], 2);
+
+    // Verify InPlaceRename mode sets mode to "in-place-rename" in catalog
+    let rename_catalog_path = dir.path().join("rename_catalog.html");
+    generate_html_catalog(
+        "Leh Birding Trip",
+        &items,
+        OrganizationMode::InPlaceRename,
+        &rename_catalog_path,
+    )
+    .expect("generate_html_catalog with InPlaceRename should succeed");
+    let rename_content = fs::read_to_string(&rename_catalog_path).expect("read rename catalog");
+    let r_json_start = rename_content
+        .find(r#"<script id="catalog-data" type="application/json">"#)
+        .unwrap();
+    let r_after_start = &rename_content[r_json_start..];
+    let r_data_start = r_after_start.find('>').unwrap() + 1;
+    let r_data_end = r_after_start.find("</script>").unwrap();
+    let r_parsed: serde_json::Value =
+        serde_json::from_str(&r_after_start[r_data_start..r_data_end]).unwrap();
+    assert_eq!(r_parsed["mode"], "in-place-rename");
+    assert!(rename_content.contains("In-Place Renamed"));
 
     // Check interactive UI features: search, filter, mislabel correction, onerror fallback
     assert!(
@@ -198,7 +219,7 @@ fn test_generate_html_catalog_raw_preview_extraction() {
     generate_html_catalog(
         "RAW Extraction Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog with RAW preview");
@@ -253,7 +274,7 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
     generate_html_catalog(
         "Cloud Evicted Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog should succeed on cloud-evicted items");
@@ -373,7 +394,7 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
     generate_html_catalog(
         "InPlace Preview Trip",
         &[raw_item, jpg_item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -495,7 +516,7 @@ fn test_single_command_copy_is_executable_in_interactive_zsh_without_comment_err
     generate_html_catalog(
         "Single Command Test Trip",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -646,7 +667,7 @@ fn test_catalog_local_files_do_not_emit_fileproviderctl_evict() {
     generate_html_catalog(
         "Local vs Cloud Evict Test",
         &[item_local, item_cloud],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlaceRename,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -774,7 +795,7 @@ fn test_batch_script_updates_consecutive_corrections_and_deduplicates_by_stem() 
     generate_html_catalog(
         "Consecutive Batch Test",
         &[item1, item2],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -932,7 +953,7 @@ fn test_inplace_move_commands_resolve_source_dynamically_when_file_already_renam
     generate_html_catalog(
         "Dynamic Source Move Test",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlaceRename,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -1189,7 +1210,7 @@ fn test_catalog_reclassify_modal_resolves_all_curated_multi_taxa_species() {
     generate_html_catalog(
         "Multi-Taxa Validation",
         &[item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate catalog");
@@ -1380,8 +1401,8 @@ if (!cmdsHierStr.includes('mv "birds_hierarchy/House_Sparrow/IMG_2001.CR2" "bird
   process.exit(1);
 }}
 
-// Test In-place Mode with "No Bird Detected" and "_No_Bird_Detected"
-CATALOG_DATA.mode = 'in-place';
+// Test In-place Rename Mode with "No Bird Detected" and "_No_Bird_Detected"
+CATALOG_DATA.mode = 'in-place-rename';
 activeModalItem = {{
   id: 'bundle-102',
   original_stem: 'IMG_2002',
@@ -2096,7 +2117,7 @@ fn test_catalog_embedded_base64_thumbnails() {
     generate_html_catalog(
         "Embed Test Trip",
         std::slice::from_ref(&item),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -2175,7 +2196,7 @@ fn test_catalog_standalone_dynamic_high_res_replacement() {
     generate_html_catalog(
         "Dynamic High-Res Test Trip",
         std::slice::from_ref(&item),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate_html_catalog");
@@ -3318,7 +3339,7 @@ fn test_generate_html_catalog_purges_bad_fallbacks_from_bird_count_and_species_s
     generate_html_catalog(
         "Leh",
         &[sparrow_item, lotus_item, banyan_item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate catalog");
@@ -3439,7 +3460,7 @@ fn test_generate_html_catalog_does_not_include_non_avian_predictions_in_species_
     generate_html_catalog(
         "Leh",
         &[mammal_item],
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames,
+        OrganizationMode::InPlace,
         &catalog_path,
     )
     .expect("generate catalog");

@@ -96,16 +96,21 @@ fn test_bundle_decision_serialization_roundtrip() {
 fn test_organization_mode_default_and_parsing() {
     use clap::ValueEnum;
 
-    // Verify Default is InPlaceFileRenameToDescriptiveNames
-    assert_eq!(
-        OrganizationMode::default(),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames
-    );
+    // Verify Default is InPlace (no rename mode)
+    assert_eq!(OrganizationMode::default(), OrganizationMode::InPlace);
 
     // Verify clap parsing from string for primary names
     assert_eq!(
         OrganizationMode::from_str("in-place", true).unwrap(),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+        OrganizationMode::InPlace
+    );
+    assert_eq!(
+        OrganizationMode::from_str("no-rename", true).unwrap(),
+        OrganizationMode::InPlace
+    );
+    assert_eq!(
+        OrganizationMode::from_str("in-place-rename", true).unwrap(),
+        OrganizationMode::InPlaceRename
     );
     assert_eq!(
         OrganizationMode::from_str("hierarchy", true).unwrap(),
@@ -115,7 +120,7 @@ fn test_organization_mode_default_and_parsing() {
     // Verify clap parsing from aliases
     assert_eq!(
         OrganizationMode::from_str("in-place-file-rename-to-descriptive-names", true).unwrap(),
-        OrganizationMode::InPlaceFileRenameToDescriptiveNames
+        OrganizationMode::InPlaceRename
     );
     assert_eq!(
         OrganizationMode::from_str("hierarchical-hardlink-hierarchy", true).unwrap(),
@@ -132,11 +137,17 @@ fn test_organization_mode_default_and_parsing() {
 
 #[test]
 fn test_organization_mode_serialization_roundtrip() {
-    let mode_inplace = OrganizationMode::InPlaceFileRenameToDescriptiveNames;
+    let mode_inplace = OrganizationMode::InPlace;
     let serialized_inplace = serde_json::to_string(&mode_inplace).expect("serialization failed");
     let deserialized_inplace: OrganizationMode =
         serde_json::from_str(&serialized_inplace).expect("deserialization failed");
     assert_eq!(mode_inplace, deserialized_inplace);
+
+    let mode_rename = OrganizationMode::InPlaceRename;
+    let serialized_rename = serde_json::to_string(&mode_rename).expect("serialization failed");
+    let deserialized_rename: OrganizationMode =
+        serde_json::from_str(&serialized_rename).expect("deserialization failed");
+    assert_eq!(mode_rename, deserialized_rename);
 
     let mode_hierarchy = OrganizationMode::HierarchicalHardlinkHierarchy;
     let serialized_hierarchy =
@@ -182,9 +193,10 @@ fn test_confidence_mode_parsing_display_and_errors() {
 
 #[test]
 fn test_organization_mode_display() {
+    assert_eq!(format!("{}", OrganizationMode::InPlace), "in-place");
     assert_eq!(
-        format!("{}", OrganizationMode::InPlaceFileRenameToDescriptiveNames),
-        "in-place"
+        format!("{}", OrganizationMode::InPlaceRename),
+        "in-place-rename"
     );
     assert_eq!(
         format!("{}", OrganizationMode::HierarchicalHardlinkHierarchy),

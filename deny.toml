@@ -12,7 +12,9 @@ feature-depth = 1
 [advisories]
 yanked = "warn"
 unmaintained = "all"
-ignore = []
+ignore = [
+    "RUSTSEC-2026-0459", # SQLite uninitialized page cache on mismatched WAL page size; requires rusqlite 0.41+ / Rust 1.89+
+]
 
 [licenses]
 allow = [

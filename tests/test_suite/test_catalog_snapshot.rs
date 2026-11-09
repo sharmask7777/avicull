@@ -145,8 +145,7 @@ fn out2_src(s: &str) -> &str {
     s
 }
 
-#[test]
-fn test_catalog_raw_html_snapshot_parity() {
+fn assert_catalog_snapshot_parity(mode: OrganizationMode, snapshot_filename: &str) {
     let temp_root = tempdir().expect("create temp dir");
     let output_catalog_path = temp_root.path().join("bird_catalog.html");
 
@@ -154,7 +153,7 @@ fn test_catalog_raw_html_snapshot_parity() {
     generate_html_catalog(
         "Avicull Snapshot Test Suite",
         &items,
-        OrganizationMode::HierarchicalHardlinkHierarchy,
+        mode,
         &output_catalog_path,
     )
     .expect("failed to generate catalog html");
@@ -163,7 +162,8 @@ fn test_catalog_raw_html_snapshot_parity() {
     let normalized_html = normalize_html_for_snapshot(&raw_html);
 
     let snapshot_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/snapshots/bird_catalog_reference.snap");
+        .join("tests/fixtures/snapshots")
+        .join(snapshot_filename);
 
     if !snapshot_path.exists() || std::env::var("UPDATE_SNAPSHOTS").is_ok() {
         fs::create_dir_all(snapshot_path.parent().unwrap()).expect("create snapshot dir");
@@ -192,7 +192,8 @@ fn test_catalog_raw_html_snapshot_parity() {
             }
         }
         panic!(
-            "Catalog HTML snapshot mismatch!\nDifferences detected against {:?}.\nRun with UPDATE_SNAPSHOTS=1 to intentionally refresh snapshot baseline.",
+            "Catalog HTML snapshot mismatch for mode {:?}!\nDifferences detected against {:?}.\nRun with UPDATE_SNAPSHOTS=1 to intentionally refresh snapshot baseline.",
+            mode,
             snapshot_path
         );
     }
@@ -209,5 +210,38 @@ fn test_catalog_raw_html_snapshot_parity() {
     assert!(
         normalized_html.contains("id=\"btnModifyLocations\""),
         "Snapshot must contain dedicated Modify Locations button"
+    );
+}
+
+#[test]
+fn test_catalog_raw_html_snapshot_parity() {
+    // Backwards-compatible snapshot test against default reference
+    assert_catalog_snapshot_parity(
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        "bird_catalog_reference.snap",
+    );
+}
+
+#[test]
+fn test_catalog_raw_html_snapshot_parity_hierarchy() {
+    assert_catalog_snapshot_parity(
+        OrganizationMode::HierarchicalHardlinkHierarchy,
+        "bird_catalog_reference_hierarchy.snap",
+    );
+}
+
+#[test]
+fn test_catalog_raw_html_snapshot_parity_inplace() {
+    assert_catalog_snapshot_parity(
+        OrganizationMode::InPlace,
+        "bird_catalog_reference_inplace.snap",
+    );
+}
+
+#[test]
+fn test_catalog_raw_html_snapshot_parity_inplace_rename() {
+    assert_catalog_snapshot_parity(
+        OrganizationMode::InPlaceRename,
+        "bird_catalog_reference_inplace_rename.snap",
     );
 }
