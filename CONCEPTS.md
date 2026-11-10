@@ -46,6 +46,12 @@ A filesystem inspection mechanism that detects cloud-managed placeholder files a
 
 Dataless files appear as normal directory entries but lack local disk blocks. Reading or opening their content triggers an operating system cloud fault that blocks until downloaded; the guard inspects file flags beforehand to skip or defer unhydrated files.
 
+### EmbeddedAssetResolver
+A mechanism that locates companion runtime scripts and checklist data by prioritizing workspace paths, falling back to binary-adjacent paths, and unpacking compiled-in binary payloads to a user cache directory.
+*Avoid:* Path finder, script locator
+
+When executing outside a development repository (such as on network storage or external drives), the resolver ensures inference engines and biodiversity checklists remain accessible by extracting embedded fallback assets into persistent local cache storage without requiring manual path configuration.
+
 ## Taxonomy & Classification
 
 ### TaxonIdentifier
@@ -109,6 +115,12 @@ A standalone, zero-dependency interactive interface generated within the organiz
 *Avoid:* Web gallery, preview page
 
 The CatalogView runs entirely client-side without a running backend server, loading thumbnail streams and allowing reviewers to submit corrections directly back into the local manifest.
+
+### ReclassificationPrecedence
+A strict four-tier hierarchy determining when previously evaluated asset bundles undergo re-inference versus cache reuse during organization passes.
+*Avoid:* Re-run check, reclassify rule
+
+Reclassification precedence prevents unnecessary re-inference of unchanged assets while guaranteeing that human overrides remain inviolable, explicit CLI requests force updates, and coordinate shifts trigger re-evaluation against regional biodiversity checklists.
 
 ## Flagged ambiguities
 

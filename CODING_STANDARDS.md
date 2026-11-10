@@ -67,6 +67,14 @@ Never leave procedural agent comments (such as `// Step 1: ...`, `// Step 2: Imp
 ### Generic, Data-Driven Biodiverse Logic
 Never hardcode personal photographer directories, private trip names, or ad-hoc regional heuristics in production code. All spatial-temporal priors and species checklists must be data-driven, drawn from standardized gazetteers and biodiversity checklists.
 
+## Standalone Distribution & Incremental Manifest Invariants
+
+### Self-Contained Executable Asset Resolution
+Never rely on hardcoded paths relative to the current working directory to locate companion scripts or model assets. Binaries executed outside repository workspaces (e.g. on external mounts or system installations) must resolve bundled assets via a fallback ladder: working directory, executable parent path, and embedded asset extraction to standard cache locations (`~/.cache/avicull/`).
+
+### Reclassification Precedence & Incremental Cache Protection
+Never unconditionally re-infer unclassified or zero-confidence assets across repeated incremental runs, as non-subject photos legitimately yield zero confidence. Incremental pipelines must enforce strict reclassification precedence: user overrides remain permanently inviolable; explicit CLI reclassification flags force re-evaluation; coordinate or metadata changes trigger targeted re-inference; and unchanged bundles reuse cached manifest decisions without redundant execution.
+
 ---
 
 ## Maintaining this file
