@@ -3874,14 +3874,18 @@ fn test_catalog_nfs_responsiveness_and_search_optimizations() {
 
     let html = fs::read_to_string(&catalog_path).expect("read catalog.html");
 
-    // 1. CSS optimizations for virtualization and fast rendering
+    // 1. Pagination controls and DOM containment
     assert!(
-        html.contains("content-visibility: auto") || html.contains("content-visibility:auto"),
-        "Catalog CSS must include content-visibility: auto for smooth scrolling without DOM thrashing"
+        html.contains("pagination-bar") && html.contains("paginationControls"),
+        "Catalog must include pagination-bar and paginationControls to avoid rendering unpaginated thousands of DOM nodes"
     );
     assert!(
-        html.contains("contain-intrinsic-size"),
-        "Catalog CSS must include contain-intrinsic-size for smooth scroll height calculation"
+        html.contains("pageSizeSelect") || html.contains("handlePageSizeChange"),
+        "Catalog must provide page size selection (e.g. 60 items per page default)"
+    );
+    assert!(
+        !html.contains("content-visibility: auto"),
+        "Catalog CSS must not use content-visibility: auto on cards as it causes blank page rendering below nav on scroll in Safari/WebKit"
     );
 
     // 2. Search optimizations: debounce and pre-indexed search tokens
@@ -3894,10 +3898,15 @@ fn test_catalog_nfs_responsiveness_and_search_optimizations() {
         "Catalog JS must pre-index search text on items to eliminate redundant per-keystroke string allocations"
     );
 
-    // 3. Image loading optimization: initialSrc must prefer embedded_thumb_data_uri directly
-    // and attemptHighResSwap must skip camera RAW formats (.CR2, .CR3, .NEF, .ARW, etc.)
+    // 3. Image loading optimization: initialSrc must prefer embedded_thumb_data_uri directly,
+    // guard attemptHighResSwap against camera RAW formats (.CR2, .CR3, .NEF, .ARW, etc.),
+    // and ONLY start high-res upgrading when all thumbnails on the current page have finished rendering!
     assert!(
         html.contains("isRaw") || html.contains("RAW_EXTENSIONS") || html.contains(".cr2"),
         "Catalog JS must guard attemptHighResSwap against camera RAW file downloads"
+    );
+    assert!(
+        html.contains("onAllThumbnailsRendered") || html.contains("highResUpgradeQueue"),
+        "Catalog JS must render thumbnails first and only begin high-res replacement when all thumbnails in the view render"
     );
 }
