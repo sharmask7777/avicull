@@ -114,7 +114,7 @@ DeltaScans compare filesystem timestamps and file identity against existing mani
 A standalone, zero-dependency interactive interface generated within the organized hierarchy for visual verification and correction submission.
 *Avoid:* Web gallery, preview page
 
-The CatalogView runs entirely client-side without a running backend server, loading thumbnail streams and allowing reviewers to submit corrections directly back into the local manifest.
+The CatalogView runs entirely client-side without a running backend server, loading thumbnail streams, embedding canonical taxonomy definitions for offline category routing, and allowing reviewers to submit corrections directly back into the local manifest.
 
 ### ReclassificationPrecedence
 A strict four-tier hierarchy determining when previously evaluated asset bundles undergo re-inference versus cache reuse during organization passes.
