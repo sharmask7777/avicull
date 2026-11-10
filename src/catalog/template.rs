@@ -2024,11 +2024,13 @@ fi
 
     const targetItem = item || activeModalItem;
     const stem = (targetItem && targetItem.original_stem) || (activeModalItem && activeModalItem.original_stem) || '';
+    const targetFile = (targetItem && (targetItem.relative_path || targetItem.original_stem)) || (activeModalItem && (activeModalItem.relative_path || activeModalItem.original_stem)) || stem;
+    const escTargetFile = escapeShellArg(targetFile);
     const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || AssetCategory.NO_SUBJECT_DETECTED;
     const cat = resolveTargetCategory(species, itemCat);
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{activeModalItem ? activeModalItem.original_stem : stem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{stem}}"`);
+    commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}"`);
     commands.push(`else`);
 
     const currentPath = item.current_path;
@@ -2203,14 +2205,17 @@ fi
     for (const it of targets) {{
       const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
       if (cmds && cmds.length > 0) {{
-        const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && b.stem === it.original_stem));
+        const itemKey = it.relative_path || it.id || it.original_stem;
+        const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && (b.key ? b.key === itemKey : b.stem === it.original_stem)));
         if (existingIdx >= 0) {{
           batchCommands[existingIdx] = {{
+            key: itemKey,
             stem: it.original_stem,
             commands: [...cmds]
           }};
         }} else {{
           batchCommands.push({{
+            key: itemKey,
             stem: it.original_stem,
             commands: [...cmds]
           }});
@@ -2658,24 +2663,28 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
+    const escLoc = escapeShellArg(locStr);
     const scope = document.getElementById('locationScopeSelect') ? document.getElementById('locationScopeSelect').value : 'trip';
     if (scope === 'selection' && selectedIds.size > 0) {{
       for (const id of selectedIds) {{
         const item = items.find(i => i.id === id);
         if (item) {{
-          commands.push(`  avicull location --file "${{item.original_stem}}" --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --file "${{item.original_stem}}" --location "${{locStr}}"${{reclassFlag}}`);
+          const targetFile = item.relative_path || item.original_stem;
+          const escTargetFile = escapeShellArg(targetFile);
+          commands.push(`  avicull location --file "${{escTargetFile}}" --location "${{escLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --file "${{escTargetFile}}" --location "${{escLoc}}"${{reclassFlag}}`);
         }}
       }}
     }} else if (scope === 'directory') {{
       const subdirSelect = document.getElementById('locationSubdirSelect');
       const chosenDir = subdirSelect ? subdirSelect.value.trim() : '';
       if (chosenDir) {{
-        commands.push(`  avicull location --dir "${{chosenDir}}" --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --dir "${{chosenDir}}" --location "${{locStr}}"${{reclassFlag}}`);
+        const escDir = escapeShellArg(chosenDir);
+        commands.push(`  avicull location --dir "${{escDir}}" --location "${{escLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --dir "${{escDir}}" --location "${{escLoc}}"${{reclassFlag}}`);
       }} else {{
-        commands.push(`  avicull location --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"${{reclassFlag}}`);
+        commands.push(`  avicull location --location "${{escLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{escLoc}}"${{reclassFlag}}`);
       }}
     }} else {{
-      commands.push(`  avicull location --location "${{locStr}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{locStr}}"${{reclassFlag}}`);
+      commands.push(`  avicull location --location "${{escLoc}}"${{reclassFlag}} 2>/dev/null || $AVICULL_CMD location --location "${{escLoc}}"${{reclassFlag}}`);
     }}
     if (isReclass) {{
       commands.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
@@ -2916,7 +2925,7 @@ fi
   function buildReclassifyCommands() {{
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
-      commands.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
+      commands.push(`cd "${{CATALOG_DATA.catalog_dir}}"`);
     }}
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
@@ -2942,9 +2951,10 @@ fi
       for (const id of (reclassifyScopeContext.selectedIds || [])) {{
         const item = items.find(i => i.id === id);
         if (item) {{
-          const escStem = escapeShellArg(item.original_stem);
+          const targetFile = item.relative_path || item.original_stem;
+          const escTargetFile = escapeShellArg(targetFile);
           if (escLoc) {{
-            commands.push(`  avicull location --file "${{escStem}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --file "${{escStem}}" --location "${{escLoc}}" --reclassify`);
+            commands.push(`  avicull location --file "${{escTargetFile}}" --location "${{escLoc}}" --reclassify 2>/dev/null || $AVICULL_CMD location --file "${{escTargetFile}}" --location "${{escLoc}}" --reclassify`);
           }}
         }}
       }}
@@ -2959,10 +2969,11 @@ fi
 
     for (const d of reclassifyDiffItems) {{
       if (d.choice === 'take' && d.currentSpecies !== d.proposedSpecies) {{
-        const escStem = escapeShellArg(d.item.original_stem);
+        const targetFile = d.item.relative_path || d.item.original_stem;
+        const escTargetFile = escapeShellArg(targetFile);
         const escSpec = escapeShellArg(d.proposedSpecies);
         const cat = d.item.category || AssetCategory.NO_SUBJECT_DETECTED;
-        commands.push(`  avicull correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escStem}}"`);
+        commands.push(`  avicull correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escTargetFile}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{escSpec}}" --file "${{escTargetFile}}"`);
       }}
     }}
 

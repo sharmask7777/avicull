@@ -247,41 +247,100 @@ pub fn apply_bundle_correction_with_category(
         operating_root
     };
     let query_trim = file_query.trim();
-    let clean_query = query_trim.strip_prefix("./").unwrap_or(query_trim);
+    if query_trim.is_empty() || query_trim == "./" || query_trim == ".\\" {
+        return Err(anyhow!(
+            "Photo query cannot be empty. Please specify an unambiguous file path or stem."
+        ));
+    }
+    let (is_explicit_root, clean_query) = if let Some(stripped) = query_trim.strip_prefix("./") {
+        (
+            !stripped.contains('/') && !stripped.contains('\\'),
+            stripped,
+        )
+    } else if let Some(stripped) = query_trim.strip_prefix(".\\") {
+        (
+            !stripped.contains('/') && !stripped.contains('\\'),
+            stripped,
+        )
+    } else {
+        (false, query_trim)
+    };
+    if clean_query.is_empty() {
+        return Err(anyhow!(
+            "Photo query cannot be empty. Please specify an unambiguous file path or stem."
+        ));
+    }
     let has_path_separator = clean_query.contains('/') || clean_query.contains('\\');
 
-    let query_stem = Path::new(clean_query)
+    let target_path = Path::new(clean_query);
+    let target_s = target_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or(clean_query);
-    let query_file_name = Path::new(clean_query)
+        .unwrap_or("");
+    let target_s_prefix = if target_s.is_empty() {
+        String::new()
+    } else {
+        format!("{target_s}_")
+    };
+    let target_s_suffix = if target_s.is_empty() {
+        String::new()
+    } else {
+        format!("_{target_s}")
+    };
+
+    let query_stem = target_s;
+    let query_file_name = target_path
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or(clean_query);
 
     let all_bundles = db.get_all_bundles(None)?;
 
+    let is_in_root = |b: &AssetBundle| -> bool {
+        b.relative_path.as_ref().map_or_else(
+            || b.trip_folder_name.is_empty(),
+            |p| p.parent().is_none_or(|par| par.as_os_str().is_empty()),
+        )
+    };
+
     // Filter all bundles matching the query by bundle ID, path, or filename/stem
     let mut matched_bundles: Vec<(BundleDecision, AssetBundle)> = all_bundles
         .iter()
         .filter(|(_, bundle)| {
+            if is_explicit_root && !is_in_root(bundle) {
+                return false;
+            }
+
             if bundle.bundle_id == clean_query {
                 return true;
             }
 
             if has_path_separator {
-                let target_path = Path::new(clean_query);
                 if let Some(ref rel) = bundle.relative_path {
-                    if rel == target_path || rel.ends_with(target_path) {
-                        return true;
-                    }
-                    if rel.with_extension("") == target_path {
-                        return true;
-                    }
-                    if rel.with_extension("") == target_path.with_extension("")
-                        && rel.parent() == target_path.parent()
+                    if rel == target_path
+                        || rel.ends_with(target_path)
+                        || rel.with_extension("") == target_path
+                        || (rel.with_extension("") == target_path.with_extension("")
+                            && rel.parent() == target_path.parent())
                     {
                         return true;
+                    }
+                    if let (Some(rel_p), Some(target_p)) = (rel.parent(), target_path.parent()) {
+                        if rel_p == target_p && !target_s.is_empty() {
+                            let rel_s = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                            if rel_s == target_s
+                                || target_s == bundle.original_stem
+                                || rel_s.starts_with(&target_s_prefix)
+                                || rel_s.ends_with(&target_s_suffix)
+                                || (!bundle.original_stem.is_empty()
+                                    && (target_s
+                                        .starts_with(&format!("{}_", bundle.original_stem))
+                                        || target_s
+                                            .ends_with(&format!("_{}", bundle.original_stem))))
+                            {
+                                return true;
+                            }
+                        }
                     }
                 }
                 if bundle.primary_image.ends_with(target_path)
@@ -309,8 +368,9 @@ pub fn apply_bundle_correction_with_category(
             if bundle.original_stem == clean_query || bundle.original_stem == query_stem {
                 return true;
             }
-            if bundle.original_stem.starts_with(&format!("{clean_query}_"))
-                || bundle.original_stem.starts_with(&format!("{query_stem}_"))
+            if !clean_query.is_empty()
+                && (bundle.original_stem.starts_with(&format!("{clean_query}_"))
+                    || bundle.original_stem.starts_with(&format!("{query_stem}_")))
             {
                 return true;
             }

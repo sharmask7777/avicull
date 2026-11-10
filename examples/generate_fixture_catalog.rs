@@ -37,6 +37,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.95,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-2".to_string(),
@@ -64,6 +65,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.91,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-3".to_string(),
@@ -91,6 +93,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.58,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-4".to_string(),
@@ -118,6 +121,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.92,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-5".to_string(),
@@ -145,6 +149,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.49,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-6".to_string(),
@@ -168,6 +173,7 @@ fn create_payload() -> CatalogPayload {
             sidecar_files: vec![],
             top_predictions: vec![],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-7".to_string(),
@@ -191,6 +197,7 @@ fn create_payload() -> CatalogPayload {
             sidecar_files: vec![],
             top_predictions: vec![],
             category: "Bird".to_string(),
+            relative_path: None,
         },
         CatalogPayloadItem {
             id: "bundle-8".to_string(),
@@ -221,6 +228,7 @@ fn create_payload() -> CatalogPayload {
                 score: 0.97,
             }],
             category: "Bird".to_string(),
+            relative_path: None,
         },
     ];
 

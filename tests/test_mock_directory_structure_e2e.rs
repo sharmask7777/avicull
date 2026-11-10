@@ -427,6 +427,11 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
     assert!(find_linked_file(&output_dir.join("Insecta"), "1X7A9002", ".jpg").is_some());
     assert!(find_linked_file(&output_dir.join("Scenery"), "1X7A9003", ".jpg").is_some());
 
+    // Persist final catalog to target/mock_run_output for Playwright e2e test validation
+    let mock_run_target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/mock_run_output");
+    let _ = fs::create_dir_all(&mock_run_target);
+    let _ = fs::copy(&catalog_html, mock_run_target.join("bird_catalog.html"));
+
     // 5. Manifest DB and visual embeddings verification
     let db_path = output_dir.join(".avicull/manifest.sqlite");
     assert!(db_path.exists(), "Manifest SQLite must exist");

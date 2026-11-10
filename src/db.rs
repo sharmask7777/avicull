@@ -1444,27 +1444,197 @@ impl ManifestDb {
         }
     }
 
-    /// Finds a bundle by bundle_id, original_stem, or primary filename.
+    /// Finds a bundle by bundle_id, path (relative_path or primary_image), original_stem, or primary filename.
+    ///
+    /// # Arguments
+    /// * `query` - Identifier query string (bundle ID, relative path within trip folder,
+    ///   primary filename, bare stem, or `./<file>` for explicit root directory disambiguation).
+    ///
+    /// # Returns
+    /// Returns `Ok(Some(AssetBundle))` if a unique matching bundle is found, `Ok(None)` if no
+    /// candidate matches, or `Err` if the query is ambiguous and matches multiple bundles.
+    ///
+    /// # Errors
+    /// Returns an error if multiple candidate bundles match an ambiguous query, listing the choices,
+    /// or if database querying fails.
     pub fn find_bundle_by_query(&self, query: &str) -> Result<Option<crate::types::AssetBundle>> {
-        let clean_query = query.trim().strip_prefix("./").unwrap_or(query.trim());
-        let stem = std::path::Path::new(clean_query)
+        let query_trim = query.trim();
+        if query_trim.is_empty() || query_trim == "./" || query_trim == ".\\" {
+            return Ok(None);
+        }
+        let (is_explicit_root, clean_query) = if let Some(stripped) = query_trim.strip_prefix("./")
+        {
+            (
+                !stripped.contains('/') && !stripped.contains('\\'),
+                stripped,
+            )
+        } else if let Some(stripped) = query_trim.strip_prefix(".\\") {
+            (
+                !stripped.contains('/') && !stripped.contains('\\'),
+                stripped,
+            )
+        } else {
+            (false, query_trim)
+        };
+        if clean_query.is_empty() {
+            return Ok(None);
+        }
+        let target_path = std::path::Path::new(clean_query);
+        let has_path_sep = clean_query.contains('/') || clean_query.contains('\\');
+        let stem = target_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or(clean_query);
 
+        let target_s = target_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let target_s_prefix = if target_s.is_empty() {
+            String::new()
+        } else {
+            format!("{target_s}_")
+        };
+        let target_s_suffix = if target_s.is_empty() {
+            String::new()
+        } else {
+            format!("_{target_s}")
+        };
+
         let all = self.get_all_bundles(None)?;
-        for (_, bundle) in all {
-            if bundle.bundle_id == clean_query
-                || bundle.original_stem == stem
-                || bundle.original_stem == clean_query
-                || bundle
-                    .primary_image
-                    .file_name()
-                    .is_some_and(|f| f.to_string_lossy() == clean_query)
-            {
+
+        let is_in_root = |b: &AssetBundle| -> bool {
+            b.relative_path.as_ref().map_or_else(
+                || b.trip_folder_name.is_empty(),
+                |p| p.parent().is_none_or(|par| par.as_os_str().is_empty()),
+            )
+        };
+
+        let format_ambiguous = |candidates: &[&AssetBundle]| -> anyhow::Error {
+            use std::fmt::Write;
+            let mut msg = format!("Multiple photo bundles matched query '{query}':\n");
+            for b in candidates {
+                let rel = b.relative_path.as_ref().map_or_else(
+                    || b.primary_image.to_string_lossy().to_string(),
+                    |p| p.to_string_lossy().to_string(),
+                );
+                let _ = writeln!(msg, "  - {rel}");
+            }
+            msg.push_str("Specify an unambiguous relative path using --file (e.g. --file \"<trip>/<file>\").");
+            anyhow::anyhow!(msg)
+        };
+
+        let resolve_unique = |candidates: Vec<&AssetBundle>| -> Result<Option<AssetBundle>> {
+            match candidates.len() {
+                0 => Ok(None),
+                1 => Ok(Some(candidates[0].clone())),
+                _ => Err(format_ambiguous(&candidates)),
+            }
+        };
+
+        // Priority 1: Exact bundle_id match
+        for (_, bundle) in &all {
+            if bundle.bundle_id == clean_query {
+                return Ok(Some(bundle.clone()));
+            }
+        }
+
+        // Priority 2: If query has path separators, match against relative_path or primary_image
+        if has_path_sep {
+            let mut path_matches: Vec<&AssetBundle> = Vec::new();
+            for (_, bundle) in &all {
+                if is_explicit_root && !is_in_root(bundle) {
+                    continue;
+                }
+                let mut matched = false;
+                if let Some(ref rel) = bundle.relative_path {
+                    if rel == target_path
+                        || rel.ends_with(target_path)
+                        || rel.with_extension("") == target_path
+                        || (rel.with_extension("") == target_path.with_extension("")
+                            && rel.parent() == target_path.parent())
+                    {
+                        matched = true;
+                    } else if let (Some(rel_p), Some(target_p)) =
+                        (rel.parent(), target_path.parent())
+                    {
+                        if rel_p == target_p && !target_s.is_empty() {
+                            let rel_s = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                            if rel_s == target_s
+                                || target_s == bundle.original_stem
+                                || rel_s.starts_with(&target_s_prefix)
+                                || rel_s.ends_with(&target_s_suffix)
+                                || (!bundle.original_stem.is_empty()
+                                    && (target_s
+                                        .starts_with(&format!("{}_", bundle.original_stem))
+                                        || target_s
+                                            .ends_with(&format!("_{}", bundle.original_stem))))
+                            {
+                                matched = true;
+                            }
+                        }
+                    }
+                }
+                if !matched && bundle.primary_image.ends_with(target_path) {
+                    matched = true;
+                }
+                if !matched {
+                    for comp in &bundle.companion_images {
+                        if comp.ends_with(target_path) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                if !matched {
+                    for sc in &bundle.sidecar_files {
+                        if sc.ends_with(target_path) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+                if matched {
+                    path_matches.push(bundle);
+                }
+            }
+            if let Some(bundle) = resolve_unique(path_matches)? {
                 return Ok(Some(bundle));
             }
         }
+
+        // Priority 3: Exact primary filename match
+        let mut filename_matches: Vec<&AssetBundle> = Vec::new();
+        for (_, bundle) in &all {
+            if is_explicit_root && !is_in_root(bundle) {
+                continue;
+            }
+            if bundle
+                .primary_image
+                .file_name()
+                .is_some_and(|f| f.to_string_lossy() == clean_query)
+            {
+                filename_matches.push(bundle);
+            }
+        }
+        if let Some(bundle) = resolve_unique(filename_matches)? {
+            return Ok(Some(bundle));
+        }
+
+        // Priority 4: Exact original_stem match
+        let mut stem_matches: Vec<&AssetBundle> = Vec::new();
+        for (_, bundle) in &all {
+            if is_explicit_root && !is_in_root(bundle) {
+                continue;
+            }
+            if bundle.original_stem == clean_query || bundle.original_stem == stem {
+                stem_matches.push(bundle);
+            }
+        }
+        if let Some(bundle) = resolve_unique(stem_matches)? {
+            return Ok(Some(bundle));
+        }
+
         Ok(None)
     }
 
