@@ -9,12 +9,12 @@
 pub mod template;
 
 use crate::scanner::extract_embedded_jpeg_preview;
-use crate::storage::StorageBackend;
 use crate::types::{
     AssetBundle, AssetCategory, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -47,6 +47,20 @@ pub struct CatalogItem {
     pub top_predictions: Vec<SpeciesPrediction>,
     #[serde(default)]
     pub category: AssetCategory,
+}
+
+impl CatalogItem {
+    /// Returns a reference to the active on-disk image path, favoring `current_path`
+    /// if it exists on disk (e.g. inside hierarchy output directory or post-rename),
+    /// and falling back to `primary_image`.
+    #[must_use]
+    pub fn active_primary_path(&self) -> &Path {
+        if self.current_path.exists() {
+            &self.current_path
+        } else {
+            &self.primary_image
+        }
+    }
 }
 
 /// Backward and forward compatible alias so calling code can reference ClassifiedBundleItem.
@@ -236,6 +250,9 @@ pub struct CatalogPayloadItem {
     pub top_predictions: Vec<PayloadPrediction>,
     #[serde(default)]
     pub category: String,
+    /// Archive-relative path of the primary asset for unambiguous CLI command generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_path: Option<String>,
 }
 
 /// Serializable species prediction candidate for the catalog.
@@ -247,6 +264,19 @@ pub struct PayloadPrediction {
 }
 
 /// Generates a standalone, zero-dependency offline HTML photo catalog.
+///
+/// # Arguments
+/// * `trip_name` - Descriptive title for the photo archive catalog.
+/// * `items` - Slice of catalog items to include in the visual gallery.
+/// * `mode` - Active organization mode (`InPlace`, `InPlaceRename`, or `HierarchicalHardlinkHierarchy`).
+/// * `output_path` - Target destination path for `catalog.html`.
+///
+/// # Returns
+/// `Ok(())` on successful catalog creation, or an `anyhow::Result` error if output directories
+/// cannot be created or catalog template generation fails.
+///
+/// # Errors
+/// Returns an error if filesystem directory creation fails or temporary file writes fail.
 pub fn generate_html_catalog(
     trip_name: &str,
     items: &[CatalogItem],
@@ -263,12 +293,6 @@ pub fn generate_html_catalog(
         })?;
     }
 
-    let mut payload_items = Vec::with_capacity(items.len());
-    let mut confirmed_count = 0;
-    let mut needs_review_count = 0;
-    let mut no_bird_count = 0;
-    let mut unique_species = HashSet::new();
-
     // Check if a manifest database exists in output_root/.avicull/manifest.sqlite
     let db_path = output_root.join(".avicull/manifest.sqlite");
     let manifest_db = if db_path.exists() {
@@ -277,12 +301,67 @@ pub fn generate_html_catalog(
         None
     };
 
-    let mut cached_thumbnails = manifest_db
+    let cached_thumbnails = manifest_db
         .as_ref()
         .and_then(|db| db.get_all_thumbnails().ok())
         .unwrap_or_default();
 
+    // Pre-scan existing previews directory once upfront to collapse 1000s of NFS stat RPCs into 1 readdir call
+    let previews_dir = output_root.join(".avicull").join("previews");
+    let _ = fs::create_dir_all(&previews_dir);
+    let existing_previews: HashSet<String> = if previews_dir.is_dir() {
+        fs::read_dir(&previews_dir)
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .filter_map(|e| e.file_name().into_string().ok())
+            .collect()
+    } else {
+        HashSet::new()
+    };
+
+    let payload_results: Vec<(CatalogPayloadItem, Option<(String, String)>)> = items
+        .par_iter()
+        .map(|item| {
+            build_catalog_payload_item(item, output_root, &existing_previews, &cached_thumbnails)
+        })
+        .collect();
+
+    let mut payload_items = Vec::with_capacity(payload_results.len());
     let mut new_thumbnails_to_persist = Vec::new();
+
+    for (payload_item, new_thumb) in payload_results {
+        payload_items.push(payload_item);
+        if let Some(thumb) = new_thumb {
+            new_thumbnails_to_persist.push(thumb);
+        }
+    }
+
+    if !new_thumbnails_to_persist.is_empty() {
+        if let Some(ref db) = manifest_db {
+            let slice: Vec<(&str, &str)> = new_thumbnails_to_persist
+                .iter()
+                .map(|(b, u)| (b.as_str(), u.as_str()))
+                .collect();
+            let _ = db.store_thumbnails_bulk(&slice);
+        }
+    }
+
+    let mut confirmed_count = 0;
+    let mut needs_review_count = 0;
+    let mut no_bird_count = 0;
+    let mut unique_species = HashSet::new();
+
+    let mut bird_count = 0;
+    let mut mammalia_count = 0;
+    let mut insecta_count = 0;
+    let mut reptilia_count = 0;
+    let mut amphibia_count = 0;
+    let mut scenery_count = 0;
+    let mut architecture_count = 0;
+    let mut portrait_count = 0;
+    let mut abstract_count = 0;
+    let mut no_subject_count = 0;
 
     for item in items {
         let is_bird = item.category == AssetCategory::Bird;
@@ -310,125 +389,6 @@ pub fn generate_html_catalog(
             }
         }
 
-        let preview_url = resolve_or_extract_preview(item, output_root);
-        let persistent_thumb = ensure_persistent_thumbnail(item, output_root);
-        let thumb_src = persistent_thumb
-            .unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
-
-        let embedded_thumb_data_uri =
-            if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
-                Some(cached_uri.clone())
-            } else if let Some(ref prev) = item.relative_preview_path {
-                if prev.starts_with("data:image/") {
-                    Some(prev.clone())
-                } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
-                    new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
-                    cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
-                    Some(fresh_uri)
-                } else {
-                    None
-                }
-            } else if let Some(fresh_uri) = generate_base64_micro_thumbnail(item, output_root) {
-                new_thumbnails_to_persist.push((item.bundle_id.clone(), fresh_uri.clone()));
-                cached_thumbnails.insert(item.bundle_id.clone(), fresh_uri.clone());
-                Some(fresh_uri)
-            } else {
-                None
-            };
-
-        let current_path_rel = to_relative_string(&item.current_path, output_root);
-        let local_src = current_path_rel.clone();
-        let is_local = item.is_local.unwrap_or_else(|| {
-            if item.current_path.exists() {
-                crate::storage::LocalVolumeBackend
-                    .inspect_locality(&item.current_path)
-                    .map_or(true, |loc| loc.pre_existing_local)
-            } else {
-                false
-            }
-        });
-
-        let primary_filename = item
-            .primary_image
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("image.jpg")
-            .to_string();
-
-        let companion_files: Vec<String> = item
-            .companion_images
-            .iter()
-            .map(|p| to_relative_string(p, output_root))
-            .collect();
-
-        let sidecar_files: Vec<String> = item
-            .sidecar_files
-            .iter()
-            .map(|p| to_relative_string(p, output_root))
-            .collect();
-
-        let top_preds: Vec<PayloadPrediction> = item
-            .top_predictions
-            .iter()
-            .map(|p| PayloadPrediction {
-                common_name: p.common_name.clone(),
-                scientific_name: p.scientific_name.clone(),
-                score: p.combined_score,
-            })
-            .collect();
-
-        let tier_str = match item.routing_tier {
-            RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
-            RoutingTier::NeedsReview => "NeedsReview",
-            RoutingTier::NoBirdDetected => "NoBirdDetected",
-        };
-
-        payload_items.push(CatalogPayloadItem {
-            id: item.bundle_id.clone(),
-            original_stem: item.original_stem.clone(),
-            current_path: current_path_rel,
-            primary_filename,
-            preview_url,
-            local_src,
-            thumb_src,
-            embedded_thumb_data_uri,
-            is_local,
-            assigned_species: item.assigned_species.clone(),
-            scientific_name: item.scientific_name.clone(),
-            routing_tier: tier_str.to_string(),
-            confidence: item.confidence,
-            capture_date: item.capture_date.clone(),
-            location_name: item.location_name.clone(),
-            location_source: item.location_source.clone(),
-            subdirectory: item.subdirectory.clone(),
-            companion_files,
-            sidecar_files,
-            top_predictions: top_preds,
-            category: item.category.as_str().to_string(),
-        });
-    }
-
-    if !new_thumbnails_to_persist.is_empty() {
-        if let Some(ref db) = manifest_db {
-            let slice: Vec<(&str, &str)> = new_thumbnails_to_persist
-                .iter()
-                .map(|(b, u)| (b.as_str(), u.as_str()))
-                .collect();
-            let _ = db.store_thumbnails_bulk(&slice);
-        }
-    }
-
-    let mut bird_count = 0;
-    let mut mammalia_count = 0;
-    let mut insecta_count = 0;
-    let mut reptilia_count = 0;
-    let mut amphibia_count = 0;
-    let mut scenery_count = 0;
-    let mut architecture_count = 0;
-    let mut portrait_count = 0;
-    let mut abstract_count = 0;
-    let mut no_subject_count = 0;
-    for item in items {
         match item.category {
             AssetCategory::Bird => bird_count += 1,
             AssetCategory::Mammalia => mammalia_count += 1,
@@ -616,19 +576,182 @@ pub fn encode_base64(bytes: &[u8]) -> String {
     encoded
 }
 
-/// Generates a lightweight base64 micro-thumbnail data URI (max dimension ~300px, quality ~65)
+/// Resolves the preview file name and target path inside `<output_root>/.avicull/previews/`.
+fn preview_path_and_name(output_root: &Path, original_stem: &str) -> (String, PathBuf) {
+    let preview_name = format!("{original_stem}.jpg");
+    let target_file = output_root
+        .join(".avicull")
+        .join("previews")
+        .join(&preview_name);
+    (preview_name, target_file)
+}
+
+/// Constructs a single `CatalogPayloadItem` and optional newly generated micro-thumbnail data URI.
+fn build_catalog_payload_item(
+    item: &CatalogItem,
+    output_root: &Path,
+    existing_previews: &HashSet<String>,
+    cached_thumbnails: &std::collections::HashMap<String, String>,
+) -> (CatalogPayloadItem, Option<(String, String)>) {
+    let active_primary = item.active_primary_path();
+
+    let is_local = item.is_local.unwrap_or_else(|| {
+        if crate::geo::is_dataless_file(active_primary) {
+            false
+        } else {
+            active_primary.exists()
+        }
+    });
+
+    let preview_url =
+        resolve_or_extract_preview(item, output_root, Some(existing_previews), is_local);
+    let persistent_thumb = ensure_persistent_thumbnail_with_previews(
+        item,
+        output_root,
+        Some(existing_previews),
+        is_local,
+    );
+    let thumb_src =
+        persistent_thumb.unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
+
+    let (embedded_thumb_data_uri, new_thumb_entry) =
+        if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
+            (Some(cached_uri.clone()), None)
+        } else if item
+            .relative_preview_path
+            .as_deref()
+            .is_some_and(|p| p.starts_with("data:image/"))
+        {
+            (item.relative_preview_path.clone(), None)
+        } else if let Some(fresh_uri) = generate_base64_micro_thumbnail_with_previews(
+            item,
+            output_root,
+            Some(existing_previews),
+            is_local,
+        ) {
+            (
+                Some(fresh_uri.clone()),
+                Some((item.bundle_id.clone(), fresh_uri)),
+            )
+        } else {
+            (None, None)
+        };
+
+    let current_path_rel = to_relative_string(&item.current_path, output_root);
+    let local_src = current_path_rel.clone();
+
+    let primary_filename = item
+        .primary_image
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("image.jpg")
+        .to_string();
+
+    let companion_files: Vec<String> = item
+        .companion_images
+        .iter()
+        .map(|p| to_relative_string(p, output_root))
+        .collect();
+
+    let sidecar_files: Vec<String> = item
+        .sidecar_files
+        .iter()
+        .map(|p| to_relative_string(p, output_root))
+        .collect();
+
+    let top_preds: Vec<PayloadPrediction> = item
+        .top_predictions
+        .iter()
+        .map(|p| PayloadPrediction {
+            common_name: p.common_name.clone(),
+            scientific_name: p.scientific_name.clone(),
+            score: p.combined_score,
+        })
+        .collect();
+
+    let tier_str = match item.routing_tier {
+        RoutingTier::ConfirmedSpecies => "ConfirmedSpecies",
+        RoutingTier::NeedsReview => "NeedsReview",
+        RoutingTier::NoBirdDetected => "NoBirdDetected",
+    };
+
+    let relative_path = item
+        .subdirectory
+        .as_ref()
+        .map(|sub| format!("{sub}/{primary_filename}"));
+
+    let payload_item = CatalogPayloadItem {
+        id: item.bundle_id.clone(),
+        original_stem: item.original_stem.clone(),
+        current_path: current_path_rel,
+        primary_filename,
+        preview_url,
+        local_src,
+        thumb_src,
+        embedded_thumb_data_uri,
+        is_local,
+        assigned_species: item.assigned_species.clone(),
+        scientific_name: item.scientific_name.clone(),
+        routing_tier: tier_str.to_string(),
+        confidence: item.confidence,
+        capture_date: item.capture_date.clone(),
+        location_name: item.location_name.clone(),
+        location_source: item.location_source.clone(),
+        subdirectory: item.subdirectory.clone(),
+        companion_files,
+        sidecar_files,
+        top_predictions: top_preds,
+        category: item.category.as_str().to_string(),
+        relative_path,
+    };
+
+    (payload_item, new_thumb_entry)
+}
+
+/// Generates a lightweight base64 micro-thumbnail data URI (max dimension ~300px, quality 68)
 /// embedded directly into the HTML catalog JSON payload so the gallery renders standalone
 /// without requiring local synchronization of `.avicull/`.
+///
+/// # Arguments
+/// * `item` - Catalog item containing asset paths and metadata.
+/// * `output_root` - Root destination directory containing `.avicull/previews/`.
+///
+/// # Returns
+/// `Some(data_uri)` containing the base64-encoded micro-thumbnail, or `None` if unavailable.
+///
+/// # Invariants
+/// Strictly avoids reading dataless or cloud-evicted image payloads.
 pub fn generate_base64_micro_thumbnail(item: &CatalogItem, output_root: &Path) -> Option<String> {
-    // 1. Try reading an existing persistent preview thumbnail if present on disk
-    let previews_dir = output_root.join(".avicull").join("previews");
-    let preview_path = previews_dir.join(format!("{}.jpg", item.original_stem));
+    generate_base64_micro_thumbnail_with_previews(
+        item,
+        output_root,
+        None,
+        item.is_local.unwrap_or(true),
+    )
+}
 
-    let preview_bytes_opt = if preview_path.exists() {
+fn generate_base64_micro_thumbnail_with_previews(
+    item: &CatalogItem,
+    output_root: &Path,
+    existing_previews: Option<&HashSet<String>>,
+    is_local: bool,
+) -> Option<String> {
+    // 1. Try reading an existing persistent preview thumbnail if present on disk
+    let (preview_name, preview_path) = preview_path_and_name(output_root, &item.original_stem);
+
+    let preview_exists =
+        existing_previews.map_or_else(|| preview_path.exists(), |set| set.contains(&preview_name));
+
+    let preview_bytes_opt = if preview_exists {
         fs::read(&preview_path).ok()
     } else {
         None
     };
+
+    // If cloud-evicted or dataless and no preview is cached, do not eagerly hydrate
+    if preview_bytes_opt.is_none() && !is_local {
+        return None;
+    }
 
     // 2. If no persistent preview, try extracting embedded JPEG from RAW, or opening image
     let (raw_image_bytes, candidate_path) = if let Some(bytes) = preview_bytes_opt {
@@ -715,23 +838,54 @@ fn downsample_to_micro_jpeg(img: &image::DynamicImage) -> Option<Vec<u8>> {
     Some(buf)
 }
 
-/// Resolves or extracts preview thumbnail path for an item relative to output_root.
+/// Ensures a persistent web-displayable preview JPEG exists on disk inside
+/// `<output_root>/.avicull/previews/<original_stem>.jpg`.
+///
+/// Extracts the embedded JPEG preview from camera RAW files or generates an 800×800
+/// thumbnail from companion/web images if no preview currently exists.
+///
+/// # Arguments
+/// * `item` - Catalog item containing asset paths and metadata.
+/// * `output_root` - Root destination directory containing `.avicull/previews/`.
+///
+/// # Returns
+/// `Some(path)` relative to `output_root` if the persistent preview exists or was created,
+/// or `None` if extraction/generation was not possible.
+///
+/// # Invariants
+/// Guaranteed non-panicking and strictly read-only with respect to primary source images.
 pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Option<String> {
-    let previews_dir = output_root.join(".avicull").join("previews");
-    let preview_name = format!("{}.jpg", item.original_stem);
-    let target_file = previews_dir.join(&preview_name);
+    ensure_persistent_thumbnail_with_previews(
+        item,
+        output_root,
+        None,
+        item.is_local.unwrap_or(true),
+    )
+}
 
-    if target_file.exists() {
+fn ensure_persistent_thumbnail_with_previews(
+    item: &CatalogItem,
+    output_root: &Path,
+    existing_previews: Option<&HashSet<String>>,
+    is_local: bool,
+) -> Option<String> {
+    let (preview_name, target_file) = preview_path_and_name(output_root, &item.original_stem);
+
+    let already_exists =
+        existing_previews.map_or_else(|| target_file.exists(), |set| set.contains(&preview_name));
+
+    if already_exists {
         return Some(format!(".avicull/previews/{preview_name}"));
     }
 
-    let active_primary = if item.current_path.exists() {
-        &item.current_path
-    } else {
-        &item.primary_image
-    };
+    if !is_local {
+        return None;
+    }
+
+    let active_primary = item.active_primary_path();
 
     let mut generated = false;
+    let previews_dir = output_root.join(".avicull").join("previews");
 
     // A. If standalone camera RAW file: extract embedded JPEG preview thumbnail
     if active_primary.exists() {
@@ -762,7 +916,7 @@ pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Op
                     matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
                 });
             if is_web {
-                Some(active_primary.as_path())
+                Some(active_primary)
             } else {
                 None
             }
@@ -796,7 +950,12 @@ pub fn ensure_persistent_thumbnail(item: &CatalogItem, output_root: &Path) -> Op
 }
 
 /// Resolves or extracts preview thumbnail path for an item relative to output_root.
-fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String {
+fn resolve_or_extract_preview(
+    item: &CatalogItem,
+    output_root: &Path,
+    existing_previews: Option<&HashSet<String>>,
+    is_local: bool,
+) -> String {
     // 1. Explicit preview already provided
     if let Some(ref p) = item.relative_preview_path {
         if !p.is_empty() {
@@ -811,11 +970,7 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
         }
     }
 
-    let active_primary = if item.current_path.exists() {
-        &item.current_path
-    } else {
-        &item.primary_image
-    };
+    let active_primary = item.active_primary_path();
 
     // 3. Web-renderable primary image
     let is_web_img = active_primary
@@ -830,17 +985,30 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
         return to_relative_string(active_primary, output_root);
     }
 
-    // 4. Standalone camera RAW file: extract embedded JPEG preview thumbnail
+    // 4. Standalone camera RAW file: check if precomputed preview already exists on disk
+    let (preview_name, target_file) = preview_path_and_name(output_root, &item.original_stem);
+
+    let preview_exists =
+        existing_previews.map_or_else(|| target_file.exists(), |set| set.contains(&preview_name));
+
+    if preview_exists {
+        return format!(".avicull/previews/{preview_name}");
+    }
+
+    // If cloud-evicted or non-local, do NOT eagerly read raw bytes
+    if !is_local {
+        return to_relative_string(active_primary, output_root);
+    }
+
+    // Extract embedded JPEG preview thumbnail from camera RAW file
     if active_primary.exists() {
         if let Ok(raw_bytes) = fs::read(active_primary) {
             if let Some(preview_bytes) = extract_embedded_jpeg_preview(&raw_bytes) {
                 let previews_dir = output_root.join(".avicull").join("previews");
-                if fs::create_dir_all(&previews_dir).is_ok() {
-                    let preview_name = format!("{}.jpg", item.original_stem);
-                    let target_file = previews_dir.join(&preview_name);
-                    if fs::write(&target_file, &preview_bytes).is_ok() {
-                        return format!(".avicull/previews/{preview_name}");
-                    }
+                if fs::create_dir_all(&previews_dir).is_ok()
+                    && fs::write(&target_file, &preview_bytes).is_ok()
+                {
+                    return format!(".avicull/previews/{preview_name}");
                 }
             }
         }
@@ -852,11 +1020,10 @@ fn resolve_or_extract_preview(item: &CatalogItem, output_root: &Path) -> String 
 
 /// Formats a path relative to root when possible.
 fn to_relative_string(path: &Path, root: &Path) -> String {
-    if let Ok(rel) = path.strip_prefix(root) {
-        rel.to_string_lossy().to_string()
-    } else {
-        path.to_string_lossy().to_string()
-    }
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Loads full eBird species taxonomy if cached or local models exist,

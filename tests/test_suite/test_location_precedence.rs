@@ -210,3 +210,92 @@ fn test_strict_four_tier_location_precedence() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_apply_location_precedence_cached_parity() -> Result<()> {
+    use avicull::location::resolver::{
+        apply_location_precedence, apply_location_precedence_cached, ResolvedLocation,
+    };
+    use avicull::types::{AssetBundle, LocationSource};
+    use std::path::PathBuf;
+
+    let dir = tempdir()?;
+    let db_path = dir.path().join("manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path)?;
+
+    let img_override = ResolvedLocation {
+        name: "Custom Image Spot".to_string(),
+        region_code: "IN-KA".to_string(),
+        latitude: 12.3333,
+        longitude: 77.3333,
+        source: "ImageOverride".to_string(),
+    };
+    db.set_bundle_location("bundle_test_1", &img_override)?;
+
+    let dir_override = ResolvedLocation {
+        name: "Custom Dir Spot".to_string(),
+        region_code: "IN-KA".to_string(),
+        latitude: 12.4444,
+        longitude: 77.4444,
+        source: "DirOverride".to_string(),
+    };
+    db.set_directory_location("Trip_Bangalore/Sub", &dir_override)?;
+
+    let bundle_locs = db.get_all_bundle_locations()?;
+    let dir_locs = db.get_all_directory_locations()?;
+    assert_eq!(bundle_locs.len(), 1);
+    assert_eq!(dir_locs.len(), 1);
+
+    let mut b1 = AssetBundle {
+        bundle_id: "bundle_test_1".to_string(),
+        source_inode: 201,
+        trip_folder_name: "Trip_Bangalore".to_string(),
+        original_stem: "IMG_0001".to_string(),
+        primary_image: PathBuf::from("Trip_Bangalore/Sub/IMG_0001.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("Trip_Bangalore/Sub/IMG_0001.JPG")),
+    };
+    let mut b1_cached = b1.clone();
+
+    apply_location_precedence(&mut b1, &db)?;
+    apply_location_precedence_cached(&mut b1_cached, &bundle_locs, &dir_locs);
+
+    assert_eq!(b1.gps_coords, b1_cached.gps_coords);
+    assert_eq!(b1.resolved_location_name, b1_cached.resolved_location_name);
+    assert_eq!(
+        b1_cached.gps_coords.unwrap().source,
+        LocationSource::ImageLocationOverride
+    );
+
+    // Test directory fallback
+    let mut b2 = AssetBundle {
+        bundle_id: "bundle_test_2".to_string(),
+        source_inode: 202,
+        trip_folder_name: "Trip_Bangalore".to_string(),
+        original_stem: "IMG_0002".to_string(),
+        primary_image: PathBuf::from("Trip_Bangalore/Sub/IMG_0002.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("Trip_Bangalore/Sub/IMG_0002.JPG")),
+    };
+    let mut b2_cached = b2.clone();
+
+    apply_location_precedence(&mut b2, &db)?;
+    apply_location_precedence_cached(&mut b2_cached, &bundle_locs, &dir_locs);
+
+    assert_eq!(b2.gps_coords, b2_cached.gps_coords);
+    assert_eq!(b2.resolved_location_name, b2_cached.resolved_location_name);
+    assert_eq!(
+        b2_cached.gps_coords.unwrap().source,
+        LocationSource::SubdirectoryGazetteer
+    );
+
+    Ok(())
+}

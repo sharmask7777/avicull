@@ -25,6 +25,7 @@
 use crate::types::{AssetBundle, GpsCoordinate, LocationSource};
 use anyhow::Result;
 use chrono::NaiveDateTime;
+use rayon::prelude::*;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -228,16 +229,15 @@ pub fn resolve_locations(
     locations_toml_path: Option<&Path>,
     default_coords: Option<(f64, f64)>,
 ) -> Result<()> {
-    // Extract missing EXIF GPS and timestamps from primary or companion images
-    for bundle in bundles.iter_mut() {
-        if bundle.gps_coords.is_none() || bundle.capture_timestamp_ms.is_none() {
+    // Extract missing EXIF GPS and timestamps from primary or companion images in parallel
+    bundles.par_iter_mut().for_each(|bundle| {
+        // If capture_timestamp_ms is already present, EXIF was already parsed (or loaded from cache)
+        if bundle.capture_timestamp_ms.is_none() {
             let (gps, ts) = extract_exif_metadata(&bundle.primary_image);
             if bundle.gps_coords.is_none() {
                 bundle.gps_coords = gps;
             }
-            if bundle.capture_timestamp_ms.is_none() {
-                bundle.capture_timestamp_ms = ts;
-            }
+            bundle.capture_timestamp_ms = ts;
 
             if bundle.gps_coords.is_none() || bundle.capture_timestamp_ms.is_none() {
                 for comp in &bundle.companion_images {
@@ -254,7 +254,7 @@ pub fn resolve_locations(
                 }
             }
         }
-    }
+    });
 
     // Propagate sibling median GPS within each trip cluster
     let mut trip_gps_medians: HashMap<String, (f64, f64)> = HashMap::new();

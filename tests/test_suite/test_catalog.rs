@@ -286,6 +286,124 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
 }
 
 #[test]
+fn test_generate_html_catalog_reuses_existing_preview_without_reading_raw() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // 1. Pre-create the extracted preview file in .avicull/previews/
+    let previews_dir = dir.path().join(".avicull").join("previews");
+    fs::create_dir_all(&previews_dir).expect("create previews dir");
+    let existing_preview = previews_dir.join("IMG_EXISTING.jpg");
+    fs::write(&existing_preview, b"PRE_EXISTING_PREVIEW_BYTES").expect("write existing preview");
+
+    // 2. Primary image is a RAW file that contains NO embedded JPEG preview (would fail or stall if read)
+    let raw_file = dir.path().join("IMG_EXISTING.CR2");
+    fs::write(&raw_file, vec![0xEE; 2048]).expect("write dummy raw file");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-existing-preview".to_string(),
+        original_stem: "IMG_EXISTING".to_string(),
+        current_path: raw_file.clone(),
+        primary_image: raw_file,
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Tibetan Snowcock".to_string(),
+        scientific_name: Some("Tetraogallus tibetanus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: None,
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Existing Preview Trip",
+        &[item],
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog should succeed using existing preview");
+
+    // Verify catalog payload references the existing preview URL
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        html_content.contains(r#""preview_url":".avicull/previews/IMG_EXISTING.jpg""#),
+        "Catalog HTML preview_url must reference the existing preview without reading RAW"
+    );
+    assert!(
+        html_content.contains(r#""thumb_src":".avicull/previews/IMG_EXISTING.jpg""#),
+        "Catalog HTML thumb_src must reference the existing preview"
+    );
+
+    // Verify existing preview bytes were not overwritten
+    let preview_bytes = fs::read(&existing_preview).expect("read existing preview");
+    assert_eq!(
+        preview_bytes, b"PRE_EXISTING_PREVIEW_BYTES",
+        "Pre-existing preview must be preserved intact"
+    );
+}
+
+#[test]
+fn test_generate_html_catalog_cloud_evicted_dataless_does_not_read_raw() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Primary image is marked cloud-evicted (is_local: Some(false)).
+    // The RAW file does NOT have a pre-existing preview in .avicull/previews/.
+    let raw_file = dir.path().join("IMG_CLOUD.CR2");
+    // Write invalid bytes that cannot be parsed as JPEG or image
+    fs::write(&raw_file, vec![0xCC; 1024]).expect("write dummy raw file");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-cloud-dataless".to_string(),
+        original_stem: "IMG_CLOUD".to_string(),
+        current_path: raw_file.clone(),
+        primary_image: raw_file,
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Bearded Vulture".to_string(),
+        scientific_name: Some("Gypaetus barbatus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(false),
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Cloud Evicted Dataless Trip",
+        &[item],
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog must succeed gracefully on cloud-evicted items");
+
+    // Previews dir must NOT have IMG_CLOUD.jpg created
+    let previews_dir = dir.path().join(".avicull").join("previews");
+    let generated_preview = previews_dir.join("IMG_CLOUD.jpg");
+    assert!(
+        !generated_preview.exists(),
+        "Cloud-evicted RAW files without previews must not be read or extracted"
+    );
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        html_content.contains(r#""is_local":false"#),
+        "Item must be marked is_local: false in catalog payload"
+    );
+}
+
+#[test]
 fn test_generate_html_catalog_hierarchy_mode() {
     let dir = tempdir().expect("tempdir");
     let catalog_path = dir.path().join("bird_catalog.html");
@@ -2081,6 +2199,240 @@ setTimeout(() => {{
         zsh_stderr,
         zsh_stdout
     );
+}
+
+#[test]
+fn test_batch_and_single_correction_scripts_do_not_contain_organize_call() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-1".to_string(),
+        original_stem: "IMG_9999".to_string(),
+        current_path: PathBuf::from("tests/IMG_9999.JPG"),
+        primary_image: PathBuf::from("tests/IMG_9999.JPG"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Lammergeier".to_string(),
+        scientific_name: Some("Gypaetus barbatus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.99,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Script Test Trip",
+        std::slice::from_ref(&item),
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate catalog");
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let script_marker = "<script>\n";
+    let script_start =
+        html_content.find(script_marker).expect("script start") + script_marker.len();
+    let script_end = html_content[script_start..]
+        .find("</script>")
+        .expect("script end")
+        + script_start;
+    let js_code = &html_content[script_start..script_end];
+
+    let node_runner = format!(
+        r#"
+const rawJson = {raw_json:?};
+let clipboardContent = '';
+const document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') {{
+      return {{ textContent: rawJson }};
+    }}
+    return {{ textContent: '', value: '', classList: {{ remove: () => {{}}, add: () => {{}} }} }};
+  }},
+  addEventListener: () => {{}}
+}};
+const navigator = {{
+  clipboard: {{
+    writeText: async (text) => {{
+      clipboardContent = text;
+      return Promise.resolve();
+    }}
+  }}
+}};
+const window = {{}};
+
+{js_code}
+
+const item = CATALOG_DATA.items.find(i => i.original_stem === 'IMG_9999');
+if (!item) throw new Error('Item IMG_9999 not found in CATALOG_DATA');
+activeModalItem = item;
+const singleCmds = buildMoveCommandsForItem(item, 'Osprey');
+batchCommands.push({{ stem: item.original_stem, commands: singleCmds }});
+
+const downloadScript = generateBatchScriptContent(true);
+const inlineScript = generateBatchScriptContent(false);
+
+reclassifyDiffItems = [{{
+  item: item,
+  currentSpecies: 'Lammergeier',
+  proposedSpecies: 'Osprey',
+  choice: 'take'
+}}];
+const reclassifyCmds = buildReclassifyCommands();
+
+console.log(JSON.stringify({{
+  singleCmds: singleCmds.join('\n'),
+  downloadScript: downloadScript,
+  inlineScript: inlineScript,
+  reclassifyCmds: reclassifyCmds.join('\n')
+}}));
+"#,
+        raw_json = json_data_str,
+        js_code = js_code
+    );
+
+    let node_output = Command::new("node")
+        .arg("-e")
+        .arg(&node_runner)
+        .output()
+        .expect("execute node runner");
+
+    assert!(node_output.status.success());
+    let output_str = String::from_utf8_lossy(&node_output.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(output_str.trim()).expect("parse node json");
+
+    let single_cmds = parsed["singleCmds"].as_str().unwrap();
+    let download_script = parsed["downloadScript"].as_str().unwrap();
+    let inline_script = parsed["inlineScript"].as_str().unwrap();
+    let reclassify_cmds = parsed["reclassifyCmds"].as_str().unwrap();
+
+    assert!(
+        !single_cmds.contains("organize --input"),
+        "singleCmds must NOT contain organize call: {single_cmds}"
+    );
+    assert!(
+        !download_script.contains("organize --input"),
+        "downloadScript must NOT contain organize call: {download_script}"
+    );
+    assert!(
+        !inline_script.contains("organize --input"),
+        "inlineScript must NOT contain organize call: {inline_script}"
+    );
+    assert!(
+        !reclassify_cmds.contains("organize --input"),
+        "reclassifyCmds must NOT contain organize call: {reclassify_cmds}"
+    );
+}
+
+#[test]
+fn test_regenerate_catalog_from_manifest_applies_location_overrides() {
+    let dir = tempdir().expect("tempdir");
+    let avicull_dir = dir.path().join(".avicull");
+    fs::create_dir_all(&avicull_dir).expect("create .avicull dir");
+    let db_path = avicull_dir.join("manifest.sqlite");
+
+    let db = avicull::db::ManifestDb::open_or_create(&db_path).expect("open db");
+
+    let img_path = dir.path().join("IMG_1234.JPG");
+    fs::write(&img_path, b"test image content").expect("write test image");
+
+    let bundle = AssetBundle {
+        bundle_id: "test_loc_bundle_1".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: 12345,
+        capture_timestamp_ms: Some(1_700_000_000_000),
+        gps_coords: None,
+        trip_folder_name: "TestTrip".to_string(),
+        original_stem: "IMG_1234".to_string(),
+        relative_path: Some(PathBuf::from("IMG_1234.JPG")),
+        resolved_location_name: None,
+    };
+
+    let decision = BundleDecision {
+        bundle_id: "test_loc_bundle_1".to_string(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+
+    db.record_run("run-loc-1", dir.path(), dir.path(), false, "{}")
+        .expect("record run");
+
+    db.record_bundles_with_locality(
+        "run-loc-1",
+        std::slice::from_ref(&decision),
+        std::slice::from_ref(&bundle),
+        &[false],
+    )
+    .expect("record bundle");
+
+    // Set location override in database
+    let override_loc = avicull::location::resolver::ResolvedLocation {
+        name: "Dubare Elephant Camp".to_string(),
+        latitude: 12.3686,
+        longitude: 75.9042,
+        region_code: "IN-KA".to_string(),
+        source: "image_override".to_string(),
+    };
+    db.set_bundle_location(&bundle.bundle_id, &override_loc)
+        .expect("set bundle location");
+
+    // Regenerate catalog directly from manifest
+    let catalog_path = avicull::organizer::regenerate_catalog_from_manifest(
+        &db,
+        dir.path(),
+        Some("Dubare Trip"),
+        Some(OrganizationMode::InPlace),
+    )
+    .expect("regenerate catalog");
+
+    assert!(catalog_path.exists());
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+
+    let json_start_marker = "<script id=\"catalog-data\" type=\"application/json\">\n";
+    let json_start = html_content
+        .find(json_start_marker)
+        .expect("json start marker")
+        + json_start_marker.len();
+    let json_end = html_content[json_start..]
+        .find("</script>")
+        .expect("json end marker")
+        + json_start;
+    let json_data_str = &html_content[json_start..json_end];
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_data_str).expect("parse catalog json");
+    let items = parsed["items"].as_array().expect("items array");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["location_name"], "Dubare Elephant Camp");
 }
 
 #[test]

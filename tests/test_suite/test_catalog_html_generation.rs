@@ -775,3 +775,108 @@ console.log("IN-PLACE NO-MV TEST PASSED");
         "Node in-place fallback move commands test runner must succeed"
     );
 }
+
+#[test]
+fn test_catalog_html_correction_commands_use_relative_path_for_disambiguation() {
+    let dir = tempdir().unwrap();
+    let item1 = make_reclassify_item(
+        "b1",
+        "dubare_19",
+        "Dubare - 2 and nagarhole 2024 /Processed - compressed",
+        "Tickell's Blue Flycatcher",
+        0.9,
+    );
+    let item2 = make_reclassify_item(
+        "b2",
+        "dubare_19",
+        "Kashmir and Dubare -1  2024/Processed/Dubare compressed",
+        "Tickell's Blue Flycatcher",
+        0.9,
+    );
+
+    let out = dir.path().join("bird_catalog.html");
+    generate_html_catalog(
+        "Test Trip",
+        &[item1, item2],
+        OrganizationMode::InPlace,
+        &out,
+    )
+    .unwrap();
+    let html = std::fs::read_to_string(&out).unwrap();
+
+    let json_start = html
+        .find(r#"<script id="catalog-data" type="application/json">"#)
+        .expect("json script start");
+    let after_start = &html[json_start..];
+    let data_start = after_start.find('>').expect("close tag") + 1;
+    let data_end = after_start.find("</script>").expect("script end");
+    let embedded_json = after_start[data_start..data_end].trim();
+
+    let script_start = html
+        .find("<script>\n  let CATALOG_DATA")
+        .expect("script start not found");
+    let after_script = &html[script_start..];
+    let code_start = after_script.find('>').expect("close tag") + 1;
+    let code_end = after_script.find("</script>").expect("script end");
+    let js_code = &after_script[code_start..code_end];
+
+    let runner_js = format!(
+        r#"
+const rawJson = {embedded_json:?};
+global.document = {{
+  getElementById: (id) => {{
+    if (id === 'catalog-data') return {{ textContent: rawJson }};
+    return {{ value: '', checked: true, innerHTML: '', appendChild: () => {{}}, dataset: {{}}, classList: {{ add: () => {{}}, remove: () => {{}} }}, style: {{}} }};
+  }},
+  createElement: () => ({{ innerHTML: '', setAttribute: () => {{}}, style: {{}}, appendChild: () => {{}} }}),
+  querySelectorAll: () => [],
+  addEventListener: () => {{}}
+}};
+global.window = {{
+  matchMedia: () => ({{ matches: false, addEventListener: () => {{}} }})
+}};
+
+{js_code}
+
+const item1 = CATALOG_DATA.items[0];
+const item2 = CATALOG_DATA.items[1];
+
+const cmds1 = buildMoveCommandsForItem(item1, 'Painted_Stork');
+const correctCmd1 = cmds1.find(cmd => cmd.includes('avicull correct'));
+if (!correctCmd1) {{
+  console.error("Missing avicull correct command in cmds1:", cmds1);
+  process.exit(1);
+}}
+
+// Must contain relative path for unambiguous matching, NOT bare dubare_19
+if (!correctCmd1.includes('--file "Dubare - 2 and nagarhole 2024 /Processed - compressed/dubare_19.jpg"')) {{
+  console.error("Expected unambiguous relative path in correction command, but got:", correctCmd1);
+  process.exit(1);
+}}
+
+const cmds2 = buildMoveCommandsForItem(item2, 'Painted_Stork');
+const correctCmd2 = cmds2.find(cmd => cmd.includes('avicull correct'));
+if (!correctCmd2.includes('--file "Kashmir and Dubare -1  2024/Processed/Dubare compressed/dubare_19.jpg"')) {{
+  console.error("Expected unambiguous relative path for item2, but got:", correctCmd2);
+  process.exit(1);
+}}
+
+console.log("RELATIVE PATH DISAMBIGUATION TEST PASSED");
+"#,
+        embedded_json = embedded_json,
+        js_code = js_code
+    );
+
+    let test_js_file = dir.path().join("test_disambiguation.js");
+    std::fs::write(&test_js_file, runner_js).expect("write test runner");
+
+    let node_status = std::process::Command::new("node")
+        .arg(&test_js_file)
+        .status()
+        .expect("failed to execute node");
+
+    assert!(
+        node_status.success(),
+        "Node disambiguation test runner must succeed"
+    );
+}

@@ -1444,28 +1444,342 @@ impl ManifestDb {
         }
     }
 
-    /// Finds a bundle by bundle_id, original_stem, or primary filename.
-    pub fn find_bundle_by_query(&self, query: &str) -> Result<Option<crate::types::AssetBundle>> {
-        let clean_query = query.trim().strip_prefix("./").unwrap_or(query.trim());
-        let stem = std::path::Path::new(clean_query)
+    /// Retrieves all directory location overrides in a single query mapped by `path_key`.
+    ///
+    /// # Returns
+    /// Returns a `HashMap` mapping directory paths (`path_key`) to their `ResolvedLocation`.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_all_directory_locations(
+        &self,
+    ) -> Result<std::collections::HashMap<String, crate::location::resolver::ResolvedLocation>>
+    {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT path_key, resolved_name, region_code, latitude, longitude, source
+             FROM directory_locations",
+        )?;
+        let mut map = std::collections::HashMap::new();
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let path_key: String = row.get(0)?;
+            let name: String = row.get(1)?;
+            let region_code: String = row.get(2)?;
+            let latitude: f64 = row.get(3)?;
+            let longitude: f64 = row.get(4)?;
+            let source: String = row.get(5)?;
+            map.insert(
+                path_key,
+                crate::location::resolver::ResolvedLocation {
+                    name,
+                    region_code,
+                    latitude,
+                    longitude,
+                    source,
+                },
+            );
+        }
+        Ok(map)
+    }
+
+    /// Retrieves all explicit bundle location overrides in a single query mapped by `bundle_id`.
+    ///
+    /// # Returns
+    /// Returns a `HashMap` mapping bundle IDs to their overridden `ResolvedLocation`.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_all_bundle_locations(
+        &self,
+    ) -> Result<std::collections::HashMap<String, crate::location::resolver::ResolvedLocation>>
+    {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT bundle_id, resolved_name, region_code, latitude, longitude, source
+             FROM bundle_locations",
+        )?;
+        let mut map = std::collections::HashMap::new();
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let bundle_id: String = row.get(0)?;
+            let name: String = row.get(1)?;
+            let region_code: String = row.get(2)?;
+            let latitude: f64 = row.get(3)?;
+            let longitude: f64 = row.get(4)?;
+            let source: String = row.get(5)?;
+            map.insert(
+                bundle_id,
+                crate::location::resolver::ResolvedLocation {
+                    name,
+                    region_code,
+                    latitude,
+                    longitude,
+                    source,
+                },
+            );
+        }
+        Ok(map)
+    }
+
+    /// Finds bundle entry candidates matching the query by prioritized search ladder:
+    /// - Priority 1: Exact `bundle_id` match.
+    /// - Priority 2: Path separator provided: exact path matches take strict precedence over fuzzy path matches.
+    /// - Priority 3: Exact primary filename match.
+    /// - Priority 4: Exact `original_stem` match.
+    /// - Priority 5: Fuzzy prefix/suffix filename or stem match.
+    ///
+    /// # Arguments
+    /// * `query` - Identifier query string (bundle ID, relative path within trip folder,
+    ///   primary filename, bare stem, or `./<file>` for explicit root directory disambiguation).
+    ///
+    /// # Returns
+    /// Returns `Ok(Vec<(BundleDecision, AssetBundle)>)` containing matching candidate entries at the highest
+    /// matching priority tier (0, 1, or multiple if ambiguous).
+    ///
+    /// # Errors
+    /// Returns an error if database querying fails.
+    pub fn find_candidate_bundle_entries_by_query(
+        &self,
+        query: &str,
+    ) -> Result<Vec<(crate::types::BundleDecision, crate::types::AssetBundle)>> {
+        let query_trim = query.trim();
+        if query_trim.is_empty() || query_trim == "./" || query_trim == ".\\" {
+            return Ok(Vec::new());
+        }
+        let (is_explicit_root, clean_query) = if let Some(stripped) = query_trim.strip_prefix("./")
+        {
+            (
+                !stripped.contains('/') && !stripped.contains('\\'),
+                stripped,
+            )
+        } else if let Some(stripped) = query_trim.strip_prefix(".\\") {
+            (
+                !stripped.contains('/') && !stripped.contains('\\'),
+                stripped,
+            )
+        } else {
+            (false, query_trim)
+        };
+        if clean_query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let normalized_query = clean_query.replace('\\', "/");
+        let target_path = std::path::Path::new(&normalized_query);
+        let has_path_sep = normalized_query.contains('/');
+        let stem = target_path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or(clean_query);
 
+        let target_s = target_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        let target_s_prefix = if target_s.is_empty() {
+            String::new()
+        } else {
+            format!("{target_s}_")
+        };
+        let target_s_suffix = if target_s.is_empty() {
+            String::new()
+        } else {
+            format!("_{target_s}")
+        };
+
         let all = self.get_all_bundles(None)?;
-        for (_, bundle) in all {
-            if bundle.bundle_id == clean_query
-                || bundle.original_stem == stem
-                || bundle.original_stem == clean_query
-                || bundle
-                    .primary_image
-                    .file_name()
-                    .is_some_and(|f| f.to_string_lossy() == clean_query)
-            {
-                return Ok(Some(bundle));
+
+        let is_in_root = |b: &AssetBundle| -> bool {
+            b.relative_path.as_ref().map_or_else(
+                || b.trip_folder_name.is_empty(),
+                |p| p.parent().is_none_or(|par| par.as_os_str().is_empty()),
+            )
+        };
+
+        // Priority 1: Exact bundle_id match
+        let id_matches: Vec<(crate::types::BundleDecision, crate::types::AssetBundle)> = all
+            .iter()
+            .filter(|(_, b)| b.bundle_id == clean_query)
+            .cloned()
+            .collect();
+        if !id_matches.is_empty() {
+            return Ok(id_matches);
+        }
+
+        // Priority 2: If query has path separators, match against relative_path or primary_image
+        if has_path_sep {
+            let mut exact_path_matches: Vec<(
+                crate::types::BundleDecision,
+                crate::types::AssetBundle,
+            )> = Vec::new();
+            let mut fuzzy_path_matches: Vec<(
+                crate::types::BundleDecision,
+                crate::types::AssetBundle,
+            )> = Vec::new();
+            for (dec, bundle) in &all {
+                if is_explicit_root && !is_in_root(bundle) {
+                    continue;
+                }
+                let mut exact_matched = false;
+                if let Some(ref rel) = bundle.relative_path {
+                    if rel == target_path
+                        || rel.ends_with(target_path)
+                        || rel.with_extension("") == target_path
+                        || (rel.parent() == target_path.parent()
+                            && rel.file_stem() == target_path.file_stem())
+                    {
+                        exact_matched = true;
+                    }
+                }
+                if !exact_matched
+                    && (bundle.primary_image == target_path
+                        || bundle.primary_image.ends_with(target_path))
+                {
+                    exact_matched = true;
+                }
+                if !exact_matched {
+                    for comp in &bundle.companion_images {
+                        if comp == target_path || comp.ends_with(target_path) {
+                            exact_matched = true;
+                            break;
+                        }
+                    }
+                }
+                if !exact_matched {
+                    for sc in &bundle.sidecar_files {
+                        if sc == target_path || sc.ends_with(target_path) {
+                            exact_matched = true;
+                            break;
+                        }
+                    }
+                }
+
+                if exact_matched {
+                    exact_path_matches.push((dec.clone(), bundle.clone()));
+                } else if let Some(ref rel) = bundle.relative_path {
+                    if let (Some(rel_p), Some(target_p)) = (rel.parent(), target_path.parent()) {
+                        if rel_p == target_p && !target_s.is_empty() {
+                            let rel_s = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                            if rel_s == target_s
+                                || target_s == bundle.original_stem
+                                || rel_s.starts_with(&target_s_prefix)
+                                || rel_s.ends_with(&target_s_suffix)
+                            {
+                                fuzzy_path_matches.push((dec.clone(), bundle.clone()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !exact_path_matches.is_empty() {
+                return Ok(exact_path_matches);
+            }
+            if !fuzzy_path_matches.is_empty() {
+                return Ok(fuzzy_path_matches);
+            }
+        } else {
+            // Priority 3: Exact primary filename match
+            let filename_matches: Vec<(crate::types::BundleDecision, crate::types::AssetBundle)> =
+                all.iter()
+                    .filter(|(_, b)| {
+                        if is_explicit_root && !is_in_root(b) {
+                            return false;
+                        }
+                        b.primary_image
+                            .file_name()
+                            .is_some_and(|f| f.to_string_lossy() == clean_query)
+                    })
+                    .cloned()
+                    .collect();
+            if !filename_matches.is_empty() {
+                return Ok(filename_matches);
+            }
+
+            // Priority 4: Exact original_stem match
+            let stem_matches: Vec<(crate::types::BundleDecision, crate::types::AssetBundle)> = all
+                .iter()
+                .filter(|(_, b)| {
+                    if is_explicit_root && !is_in_root(b) {
+                        return false;
+                    }
+                    b.original_stem == clean_query || b.original_stem == stem
+                })
+                .cloned()
+                .collect();
+            if !stem_matches.is_empty() {
+                return Ok(stem_matches);
+            }
+
+            // Priority 5: Fuzzy prefix/suffix filename or stem match
+            let mut fuzzy_matches: Vec<(crate::types::BundleDecision, crate::types::AssetBundle)> =
+                Vec::new();
+            for (dec, bundle) in &all {
+                if is_explicit_root && !is_in_root(bundle) {
+                    continue;
+                }
+                if !clean_query.is_empty()
+                    && (bundle.original_stem.starts_with(&format!("{clean_query}_"))
+                        || bundle.original_stem.starts_with(&format!("{stem}_")))
+                {
+                    fuzzy_matches.push((dec.clone(), bundle.clone()));
+                    continue;
+                }
+                if let Some(s) = bundle.primary_image.file_stem().and_then(|s| s.to_str()) {
+                    if s == stem {
+                        fuzzy_matches.push((dec.clone(), bundle.clone()));
+                        continue;
+                    }
+                }
+                for comp in &bundle.companion_images {
+                    if let Some(s) = comp.file_stem().and_then(|s| s.to_str()) {
+                        if s == stem {
+                            fuzzy_matches.push((dec.clone(), bundle.clone()));
+                            break;
+                        }
+                    }
+                }
+            }
+            if !fuzzy_matches.is_empty() {
+                return Ok(fuzzy_matches);
             }
         }
-        Ok(None)
+
+        Ok(Vec::new())
+    }
+
+    /// Finds a bundle by bundle_id, path (relative_path or primary_image), original_stem, or primary filename.
+    ///
+    /// # Arguments
+    /// * `query` - Identifier query string (bundle ID, relative path within trip folder,
+    ///   primary filename, bare stem, or `./<file>` for explicit root directory disambiguation).
+    ///
+    /// # Returns
+    /// Returns `Ok(Some(AssetBundle))` if a unique matching bundle is found, `Ok(None)` if no
+    /// candidate matches, or `Err` if the query is ambiguous and matches multiple bundles.
+    ///
+    /// # Errors
+    /// Returns an error if multiple candidate bundles match an ambiguous query, listing the choices,
+    /// or if database querying fails.
+    pub fn find_bundle_by_query(&self, query: &str) -> Result<Option<crate::types::AssetBundle>> {
+        let candidates = self.find_candidate_bundle_entries_by_query(query)?;
+        match candidates.len() {
+            0 => Ok(None),
+            1 => Ok(candidates.into_iter().next().map(|(_, b)| b)),
+            _ => {
+                use std::fmt::Write;
+                let mut msg = format!("Multiple photo bundles matched query '{query}':\n");
+                for (_, b) in &candidates {
+                    let rel = b.relative_path.as_ref().map_or_else(
+                        || b.primary_image.to_string_lossy().to_string(),
+                        |p| p.to_string_lossy().to_string(),
+                    );
+                    let _ = writeln!(msg, "  - {rel}");
+                }
+                msg.push_str("Specify an unambiguous relative path using --file (e.g. --file \"<trip>/<file>\").");
+                Err(anyhow::anyhow!(msg))
+            }
+        }
     }
 
     /// Saves or updates the explicit location override for a photo bundle.
