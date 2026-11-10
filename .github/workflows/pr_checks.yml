@@ -63,7 +63,7 @@ jobs:
       - name: Install cargo-llvm-cov and cargo-nextest
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov,nextest
+          tool: cargo-llvm-cov,cargo-nextest
 
       - name: Run full Rust test suite and verify blocking coverage gate
         run: cargo llvm-cov nextest --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e
