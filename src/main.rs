@@ -593,7 +593,17 @@ fn main() -> Result<()> {
             let mut all_discovered = scan_input_tree_with_skip(&args.input, skip_dir.as_deref())?;
             for bundle in &mut all_discovered {
                 if let Some((_, old_bundle)) = existing_bundle_map.get_by_bundle(bundle) {
+                    bundle.bundle_id.clone_from(&old_bundle.bundle_id);
                     bundle.original_stem = old_bundle.original_stem.clone();
+                    if bundle.gps_coords.is_none() {
+                        bundle.gps_coords = old_bundle.gps_coords;
+                    }
+                    if bundle.capture_timestamp_ms.is_none() {
+                        bundle.capture_timestamp_ms = old_bundle.capture_timestamp_ms;
+                    }
+                    if bundle.resolved_location_name.is_none() {
+                        bundle.resolved_location_name = old_bundle.resolved_location_name.clone();
+                    }
                 }
             }
             println!(
@@ -849,7 +859,6 @@ fn main() -> Result<()> {
             };
 
             if !existing_bundle_map.is_empty() && new_bundles.is_empty() && mode_matches {
-                let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
                 let trip_name = args
                     .input
                     .file_name()
@@ -857,23 +866,14 @@ fn main() -> Result<()> {
                     .unwrap_or("Avian Photos");
                 println!(
                     "Generating standalone offline HTML photo catalog at '{}'...",
-                    catalog_path.display()
+                    operating_root.join(DEFAULT_CATALOG_FILENAME).display()
                 );
-                let mut catalog_items = Vec::with_capacity(all_discovered.len());
-                for bundle in &all_discovered {
-                    if let Some((existing_decision, _)) = existing_bundle_map.get_by_bundle(bundle)
-                    {
-                        let cat_item = CatalogItem::from_bundle_and_decision(
-                            bundle,
-                            existing_decision,
-                            Some(bundle.primary_image.clone()),
-                            Some(bundle.companion_images.clone()),
-                            Some(bundle.sidecar_files.clone()),
-                        );
-                        catalog_items.push(cat_item);
-                    }
-                }
-                generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
+                avicull::organizer::regenerate_catalog_from_manifest(
+                    &db,
+                    &operating_root,
+                    Some(trip_name),
+                    Some(args.mode),
+                )?;
 
                 let unclassified_count = cached_items
                     .values()
@@ -1947,6 +1947,22 @@ fn execute_location(args: LocationArgs) -> Result<()> {
             "✓ Set directory '{}' location to '{}' (region: '{}')",
             dir_key, resolved.name, resolved.region_code
         );
+    }
+
+    let operating_root = db_path
+        .parent()
+        .and_then(|p| p.parent())
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    if operating_root.exists() {
+        if let Ok(catalog_path) =
+            avicull::organizer::regenerate_catalog_from_manifest(&db, operating_root, None, None)
+        {
+            println!(
+                "✓ Regenerated photo catalog with updated locations at '{}'",
+                catalog_path.display()
+            );
+        }
     }
 
     Ok(())

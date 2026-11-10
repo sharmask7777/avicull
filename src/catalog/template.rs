@@ -2015,7 +2015,6 @@ fi
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
     const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
-    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
@@ -2122,9 +2121,6 @@ fi
     }} else {{
       commands.push(`  echo "[WARN] avicull executable not found. In default in-place mode, files on disk are strictly read-only; run avicull directly to record corrections in manifest.sqlite."`);
     }}
-    commands.push(`  if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
-    commands.push(`  fi`);
     commands.push(`fi`);
 
     return commands;
@@ -2232,9 +2228,6 @@ fi
   }}
 
   function generateBatchScriptContent(forDownload) {{
-    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
-
     const normalizeBatch = (entries) => {{
       let items = [];
       let currentLines = [];
@@ -2331,11 +2324,6 @@ fi
         bodyLines.push("");
       }}
 
-      bodyLines.push("if [ -n \"$AVICULL_CMD\" ]; then");
-      bodyLines.push("  echo 'Regenerating catalog with updated SQLite overrides...'");
-      bodyLines.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
-      bodyLines.push("fi");
-      bodyLines.push("");
       bodyLines.push("echo \"\"");
       bodyLines.push("if [ \"$FAILED_COUNT\" -gt 0 ]; then");
       bodyLines.push("  echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
@@ -2375,10 +2363,6 @@ fi
       bodyLines.push("");
     }}
 
-    bodyLines.push("  if [ -n \"$AVICULL_CMD\" ]; then");
-    bodyLines.push("    echo 'Regenerating catalog with updated SQLite overrides...'");
-    bodyLines.push(`    $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
-    bodyLines.push("  fi");
     bodyLines.push("  echo \"\"");
     bodyLines.push("  if [ \"$FAILED_COUNT\" -gt 0 ]; then");
     bodyLines.push("    echo \"⚠️ Completed with $SUCCESS_COUNT succeeded, $FAILED_COUNT failed/skipped.\"");
@@ -2977,9 +2961,6 @@ fi
       }}
     }}
 
-    const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
-    const modeFlag = isHierarchy ? '--mode hierarchy' : (CATALOG_DATA.mode === 'in-place-rename' ? '--mode in-place-rename' : '--mode in-place');
-    commands.push(`  $AVICULL_CMD organize --input "." ${{modeFlag}} --no-prompt || true`);
     commands.push(`fi`);
     return commands;
   }}

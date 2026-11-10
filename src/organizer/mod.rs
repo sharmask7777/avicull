@@ -16,6 +16,7 @@ pub use correct::*;
 pub use inplace::*;
 pub use reconcile::*;
 
+use crate::catalog::CatalogItem;
 use crate::db::{HardlinkOperation, ManifestDb};
 use crate::scanner::decompose_filename;
 use crate::storage::{StorageBackend, StorageKind};
@@ -658,4 +659,158 @@ pub fn should_reclassify_bundle(
         return true;
     }
     false
+}
+
+/// Regenerates `catalog.html` directly from the SQLite manifest database.
+///
+/// # Arguments
+/// * `db` - Open `ManifestDb` instance containing bundle decisions and records.
+/// * `operating_root` - Root directory where `catalog.html` will be placed.
+/// * `trip_name` - Optional display name for the trip header in the catalog.
+/// * `mode` - Organization mode; if `None`, looks up the latest run mode from `db`.
+///
+/// # Returns
+/// The destination path of the generated HTML catalog.
+///
+/// # Errors
+/// Returns `Err` if SQLite read operations or catalog HTML emission fail.
+pub fn regenerate_catalog_from_manifest(
+    db: &ManifestDb,
+    operating_root: &Path,
+    trip_name: Option<&str>,
+    mode: Option<OrganizationMode>,
+) -> Result<PathBuf> {
+    let catalog_path = operating_root.join(crate::catalog::DEFAULT_CATALOG_FILENAME);
+    let effective_mode = match mode {
+        Some(m) => m,
+        None => db
+            .get_latest_run_mode()?
+            .unwrap_or(OrganizationMode::InPlace),
+    };
+
+    let canonical_root = operating_root.canonicalize().ok();
+    let fallback_trip_name = canonical_root
+        .as_deref()
+        .and_then(|p| p.file_name())
+        .and_then(|n| n.to_str())
+        .or_else(|| operating_root.file_name().and_then(|n| n.to_str()))
+        .unwrap_or("Avian Photos");
+    let effective_trip_name = trip_name.unwrap_or(fallback_trip_name);
+
+    let all_db_bundles = db.get_all_bundles(None)?;
+    let mut catalog_items = Vec::with_capacity(all_db_bundles.len());
+
+    for (dec, mut b) in all_db_bundles {
+        let _ = crate::location::resolver::apply_location_precedence(&mut b, db);
+        let (prim_dest, comp_dests, sidecar_dests) = match effective_mode {
+            OrganizationMode::HierarchicalHardlinkHierarchy => {
+                let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();
+                let p_dest = ops
+                    .iter()
+                    .find(|op| op.source_path == b.primary_image && op.operation_type == "hardlink")
+                    .map(|op| op.dest_path.clone())
+                    .or_else(|| {
+                        let expected = compute_target_dir(operating_root, &dec);
+                        let dst_name = b.primary_image.file_name()?;
+                        let p = expected.join(dst_name);
+                        if p.exists() {
+                            Some(p)
+                        } else {
+                            None
+                        }
+                    });
+                let c_dests: Vec<PathBuf> = b
+                    .companion_images
+                    .iter()
+                    .filter_map(|c| {
+                        ops.iter()
+                            .find(|op| op.source_path == *c && op.operation_type == "hardlink")
+                            .map(|op| op.dest_path.clone())
+                    })
+                    .collect();
+                let sc_dests: Vec<PathBuf> = b
+                    .sidecar_files
+                    .iter()
+                    .filter_map(|sc| {
+                        ops.iter()
+                            .find(|op| op.source_path == *sc && op.operation_type == "hardlink")
+                            .map(|op| op.dest_path.clone())
+                    })
+                    .collect();
+                (p_dest, Some(c_dests), Some(sc_dests))
+            }
+            OrganizationMode::InPlace => (
+                Some(b.primary_image.clone()),
+                Some(b.companion_images.clone()),
+                Some(b.sidecar_files.clone()),
+            ),
+            OrganizationMode::InPlaceRename => {
+                let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();
+                let mut current_primary = b.primary_image.clone();
+                for op in &ops {
+                    if op.operation_type == "in_place_rename"
+                        && op.status == "renamed"
+                        && op.dest_path.exists()
+                    {
+                        current_primary.clone_from(&op.dest_path);
+                    }
+                }
+
+                let c_dests: Vec<PathBuf> = b
+                    .companion_images
+                    .iter()
+                    .map(|c| {
+                        let mut resolved = c.clone();
+                        for op in &ops {
+                            if op.operation_type == "in_place_rename"
+                                && op.status == "renamed"
+                                && (op.source_path == *c || op.source_path == resolved)
+                                && op.dest_path.exists()
+                            {
+                                resolved.clone_from(&op.dest_path);
+                            }
+                        }
+                        resolved
+                    })
+                    .collect();
+
+                let sc_dests: Vec<PathBuf> = b
+                    .sidecar_files
+                    .iter()
+                    .map(|sc| {
+                        let mut resolved = sc.clone();
+                        for op in &ops {
+                            if op.operation_type == "in_place_rename"
+                                && op.status == "renamed"
+                                && (op.source_path == *sc || op.source_path == resolved)
+                                && op.dest_path.exists()
+                            {
+                                resolved.clone_from(&op.dest_path);
+                            }
+                        }
+                        resolved
+                    })
+                    .collect();
+
+                (Some(current_primary), Some(c_dests), Some(sc_dests))
+            }
+        };
+
+        catalog_items.push(CatalogItem::from_bundle_and_decision(
+            &b,
+            &dec,
+            prim_dest,
+            comp_dests,
+            sidecar_dests,
+        ));
+    }
+
+    crate::catalog::generate_html_catalog(
+        effective_trip_name,
+        &catalog_items,
+        effective_mode,
+        &catalog_path,
+    )?;
+
+    Ok(catalog_path)
 }

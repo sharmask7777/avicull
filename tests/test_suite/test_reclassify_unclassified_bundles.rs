@@ -295,3 +295,71 @@ fn test_end_to_end_manifest_reclassification_detection() {
         false
     ));
 }
+
+#[test]
+fn test_discovered_bundle_preserves_cached_metadata_from_existing_bundle_map() {
+    let cached_coords = Some(GpsCoordinate {
+        latitude: 12.9716,
+        longitude: 77.5946,
+        source: LocationSource::SubdirectoryGazetteer,
+    });
+    let cached_ts = Some(1_700_000_000_123);
+    let cached_loc_name = Some("Bangalore".to_string());
+
+    let old_bundle = AssetBundle {
+        bundle_id: "photo_preserved_1".to_string(),
+        primary_image: PathBuf::from("source/photo_preserved_1.jpg"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: 88888,
+        capture_timestamp_ms: cached_ts,
+        gps_coords: cached_coords,
+        trip_folder_name: "Bangalore".to_string(),
+        original_stem: "photo_preserved_1".to_string(),
+        relative_path: Some(PathBuf::from("Bangalore/photo_preserved_1.jpg")),
+        resolved_location_name: cached_loc_name.clone(),
+    };
+    let decision = create_valid_decision("photo_preserved_1", false);
+
+    // Newly scanned bundle from scanner has None for EXIF/GPS/location
+    let mut scanned_bundle = AssetBundle {
+        bundle_id: "photo_preserved_1".to_string(),
+        primary_image: PathBuf::from("source/photo_preserved_1.jpg"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        source_inode: 88888,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        trip_folder_name: "Bangalore".to_string(),
+        original_stem: "photo_preserved_1".to_string(),
+        relative_path: Some(PathBuf::from("Bangalore/photo_preserved_1.jpg")),
+        resolved_location_name: None,
+    };
+
+    // Before metadata transfer, should_reclassify_bundle would trigger because None != Some
+    assert!(
+        should_reclassify_bundle(&scanned_bundle, &decision, &old_bundle, false),
+        "Without metadata transfer, scanned bundle with None coordinates falsely triggers reclassification"
+    );
+
+    // Apply metadata transfer as performed in main.rs organize scan reconciliation
+    if scanned_bundle.gps_coords.is_none() {
+        scanned_bundle.gps_coords = old_bundle.gps_coords;
+    }
+    if scanned_bundle.capture_timestamp_ms.is_none() {
+        scanned_bundle.capture_timestamp_ms = old_bundle.capture_timestamp_ms;
+    }
+    if scanned_bundle.resolved_location_name.is_none() {
+        scanned_bundle.resolved_location_name = old_bundle.resolved_location_name.clone();
+    }
+
+    assert_eq!(scanned_bundle.gps_coords, cached_coords);
+    assert_eq!(scanned_bundle.capture_timestamp_ms, cached_ts);
+    assert_eq!(scanned_bundle.resolved_location_name, cached_loc_name);
+
+    // After metadata transfer, should_reclassify_bundle must return false
+    assert!(
+        !should_reclassify_bundle(&scanned_bundle, &decision, &old_bundle, false),
+        "With metadata transfer, cached bundle must NOT trigger reclassification on organize"
+    );
+}

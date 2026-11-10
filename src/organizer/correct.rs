@@ -5,12 +5,11 @@
 //! - Recommends close eBird taxonomy matches using trigram similarity when typos are detected.
 //! - Optionally propagates corrections across all images in the same temporal capture burst.
 
-use crate::catalog::{generate_html_catalog, CatalogItem};
 use crate::db::ManifestDb;
 use crate::location::trigram_similarity;
 use crate::organizer::inplace::{execute_inplace_bundle_rename_with_stem, format_inplace_filename};
 use crate::organizer::{
-    build_output_destination_path, compute_target_dir, materialize_bundle_hardlinks_with_category,
+    build_output_destination_path, materialize_bundle_hardlinks_with_category,
     sanitize_species_slug,
 };
 use crate::storage::detect_storage_backend;
@@ -874,123 +873,16 @@ pub fn apply_bundle_correction_with_category(
     }
 
     // Regenerate catalog.html if catalog or output tree exists
-    let catalog_path = operating_root.join(crate::catalog::DEFAULT_CATALOG_FILENAME);
     if operating_root.exists() {
         let trip_name = input_root
             .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            .unwrap_or("Avian Photos");
-
-        let all_db_bundles = db.get_all_bundles(None)?;
-        let mut catalog_items = Vec::with_capacity(all_db_bundles.len());
-
-        for (dec, b) in all_db_bundles {
-            let (prim_dest, comp_dests, sidecar_dests) = match mode {
-                OrganizationMode::HierarchicalHardlinkHierarchy => {
-                    let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();
-                    let p_dest = ops
-                        .iter()
-                        .find(|op| {
-                            op.source_path == b.primary_image && op.operation_type == "hardlink"
-                        })
-                        .map(|op| op.dest_path.clone())
-                        .or_else(|| {
-                            let expected = compute_target_dir(operating_root, &dec);
-                            let dst_name = b.primary_image.file_name()?;
-                            let p = expected.join(dst_name);
-                            if p.exists() {
-                                Some(p)
-                            } else {
-                                None
-                            }
-                        });
-                    let c_dests: Vec<PathBuf> = b
-                        .companion_images
-                        .iter()
-                        .filter_map(|c| {
-                            ops.iter()
-                                .find(|op| op.source_path == *c && op.operation_type == "hardlink")
-                                .map(|op| op.dest_path.clone())
-                        })
-                        .collect();
-                    let sc_dests: Vec<PathBuf> = b
-                        .sidecar_files
-                        .iter()
-                        .filter_map(|sc| {
-                            ops.iter()
-                                .find(|op| op.source_path == *sc && op.operation_type == "hardlink")
-                                .map(|op| op.dest_path.clone())
-                        })
-                        .collect();
-                    (p_dest, Some(c_dests), Some(sc_dests))
-                }
-                OrganizationMode::InPlace => (
-                    Some(b.primary_image.clone()),
-                    Some(b.companion_images.clone()),
-                    Some(b.sidecar_files.clone()),
-                ),
-                OrganizationMode::InPlaceRename => {
-                    let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();
-                    let mut current_primary = b.primary_image.clone();
-                    for op in &ops {
-                        if op.operation_type == "in_place_rename"
-                            && op.status == "renamed"
-                            && op.dest_path.exists()
-                        {
-                            current_primary.clone_from(&op.dest_path);
-                        }
-                    }
-
-                    let c_dests: Vec<PathBuf> = b
-                        .companion_images
-                        .iter()
-                        .map(|c| {
-                            let mut resolved = c.clone();
-                            for op in &ops {
-                                if op.operation_type == "in_place_rename"
-                                    && op.status == "renamed"
-                                    && (op.source_path == *c || op.source_path == resolved)
-                                    && op.dest_path.exists()
-                                {
-                                    resolved.clone_from(&op.dest_path);
-                                }
-                            }
-                            resolved
-                        })
-                        .collect();
-
-                    let sc_dests: Vec<PathBuf> = b
-                        .sidecar_files
-                        .iter()
-                        .map(|sc| {
-                            let mut resolved = sc.clone();
-                            for op in &ops {
-                                if op.operation_type == "in_place_rename"
-                                    && op.status == "renamed"
-                                    && (op.source_path == *sc || op.source_path == resolved)
-                                    && op.dest_path.exists()
-                                {
-                                    resolved.clone_from(&op.dest_path);
-                                }
-                            }
-                            resolved
-                        })
-                        .collect();
-
-                    (Some(current_primary), Some(c_dests), Some(sc_dests))
-                }
-            };
-
-            catalog_items.push(CatalogItem::from_bundle_and_decision(
-                &b,
-                &dec,
-                prim_dest,
-                comp_dests,
-                sidecar_dests,
-            ));
-        }
-
-        let _ = generate_html_catalog(trip_name, &catalog_items, mode, &catalog_path);
+            .and_then(|n| n.to_str());
+        let _ = crate::organizer::regenerate_catalog_from_manifest(
+            db,
+            operating_root,
+            trip_name,
+            Some(mode),
+        );
     }
 
     Ok(results)
