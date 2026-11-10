@@ -32,7 +32,118 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-static EMBEDDED_REGIONAL_CHECKLISTS_JSON: &str = include_str!("../data/regional_checklists.json");
+/// The embedded Python inference script (`scripts/infer.py`) compiled into the binary payload.
+pub const EMBEDDED_INFERENCE_SCRIPT: &str = include_str!("../scripts/infer.py");
+
+/// The embedded eBird regional checklist JSON mapping compiled into the binary payload.
+pub const EMBEDDED_REGIONAL_CHECKLISTS_JSON: &str =
+    include_str!("../data/regional_checklists.json");
+
+/// Resolves the file path to `scripts/infer.py`, checking candidate locations in priority order:
+/// 1. `./scripts/infer.py` (relative to current working directory, for local development)
+/// 2. `<current_exe_dir>/scripts/infer.py` (next to binary distribution)
+/// 3. Cached / extracted script in `~/.cache/avicull/scripts/infer.py` (or `$AVICULL_CACHE_DIR/scripts/infer.py`),
+///    extracting or updating the embedded payload if missing or if hash differs.
+///
+/// # Errors
+/// Returns an error if the script cannot be written or cache directory cannot be created.
+pub fn resolve_inference_script() -> Result<PathBuf> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf));
+    let cache_dir = if let Ok(custom) = std::env::var("AVICULL_CACHE_DIR") {
+        PathBuf::from(custom).join("scripts")
+    } else if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home).join(".cache/avicull/scripts")
+    } else {
+        std::env::temp_dir().join("avicull/scripts")
+    };
+    resolve_inference_script_in(&cwd, exe_dir.as_deref(), &cache_dir)
+}
+
+/// Resolves or extracts the inference script using explicit `cwd`, optional `exe_dir`, and `cache_dir`.
+///
+/// # Arguments
+/// * `cwd` - The current working directory to check for `scripts/infer.py`.
+/// * `exe_dir` - Optional directory containing the running executable to check for `scripts/infer.py`.
+/// * `cache_dir` - Target persistent directory where embedded `infer.py` is extracted if not found locally.
+///
+/// # Returns
+/// The resolved path to the inference script.
+///
+/// # Errors
+/// Returns an error if directory creation or file extraction fails.
+pub fn resolve_inference_script_in(
+    cwd: &Path,
+    exe_dir: Option<&Path>,
+    cache_dir: &Path,
+) -> Result<PathBuf> {
+    let cwd_script = cwd.join("scripts").join("infer.py");
+    if cwd_script.is_file() {
+        return Ok(cwd_script);
+    }
+
+    if let Some(exe_d) = exe_dir {
+        let exe_script = exe_d.join("scripts").join("infer.py");
+        if exe_script.is_file() {
+            return Ok(exe_script);
+        }
+    }
+
+    let target_path = cache_dir.join("infer.py");
+    let needs_extraction = match std::fs::read(&target_path) {
+        Ok(existing) => {
+            blake3::hash(&existing) != blake3::hash(EMBEDDED_INFERENCE_SCRIPT.as_bytes())
+        }
+        Err(_) => true,
+    };
+
+    if needs_extraction {
+        std::fs::create_dir_all(cache_dir)?;
+        let temp_path = cache_dir.join(format!(".infer.py.tmp.{}", std::process::id()));
+        std::fs::write(&temp_path, EMBEDDED_INFERENCE_SCRIPT)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&temp_path, std::fs::Permissions::from_mode(0o755));
+        }
+        std::fs::rename(&temp_path, &target_path)?;
+    }
+
+    Ok(target_path)
+}
+
+/// Ensures that `regional_checklists.json` is present in `models_dir`, extracting
+/// [`EMBEDDED_REGIONAL_CHECKLISTS_JSON`] if missing or empty.
+///
+/// # Arguments
+/// * `models_dir` - Target directory where species embeddings and checklists reside.
+///
+/// # Returns
+/// The path to `models_dir/regional_checklists.json`.
+///
+/// # Errors
+/// Returns an error if directory creation or file writing fails.
+pub fn sync_regional_checklists(models_dir: &Path) -> Result<PathBuf> {
+    let target_path = models_dir.join("regional_checklists.json");
+    let needs_extraction = match std::fs::read(&target_path) {
+        Ok(existing) => existing.is_empty(),
+        Err(_) => true,
+    };
+
+    if needs_extraction {
+        std::fs::create_dir_all(models_dir)?;
+        let temp_path = models_dir.join(format!(
+            ".regional_checklists.json.tmp.{}",
+            std::process::id()
+        ));
+        std::fs::write(&temp_path, EMBEDDED_REGIONAL_CHECKLISTS_JSON)?;
+        std::fs::rename(&temp_path, &target_path)?;
+    }
+
+    Ok(target_path)
+}
 
 /// Deserializes the embedded `data/regional_checklists.json` into a mapping of region codes to taxon ID sets.
 pub fn load_embedded_regional_checklists() -> HashMap<String, HashSet<String>> {

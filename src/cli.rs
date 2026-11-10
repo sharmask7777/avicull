@@ -207,6 +207,10 @@ pub struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
+    /// Re-evaluate and reclassify photo bundles even if previously cached (preserves explicit user overrides)
+    #[arg(long, default_value_t = false)]
+    pub reclassify: bool,
+
     /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
     #[arg(long, default_value_t = 0.65)]
     pub min_confidence: f32,
