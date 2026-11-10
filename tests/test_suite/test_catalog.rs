@@ -3837,3 +3837,76 @@ fn test_generate_html_catalog_does_not_include_non_avian_predictions_in_species_
         );
     }
 }
+
+#[test]
+fn test_catalog_nfs_responsiveness_and_search_optimizations() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("catalog.html");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-nfs-1".to_string(),
+        original_stem: "RAW_0001".to_string(),
+        current_path: PathBuf::from("RAW_0001.CR2"),
+        primary_image: PathBuf::from("RAW_0001.CR2"),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: Some("data:image/jpeg;base64,mockembeddedthumb".to_string()),
+        assigned_species: "Tibetan Snowcock".to_string(),
+        scientific_name: Some("Tetraogallus tibetanus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-05-18".to_string()),
+        location_name: Some("Taglang La".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(true),
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "NFS Optimization Test Trip",
+        std::slice::from_ref(&item),
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog");
+
+    let html = fs::read_to_string(&catalog_path).expect("read catalog.html");
+
+    // 1. Pagination controls and DOM containment
+    assert!(
+        html.contains("pagination-bar") && html.contains("paginationControls"),
+        "Catalog must include pagination-bar and paginationControls to avoid rendering unpaginated thousands of DOM nodes"
+    );
+    assert!(
+        html.contains("pageSizeSelect") || html.contains("handlePageSizeChange"),
+        "Catalog must provide page size selection (e.g. 60 items per page default)"
+    );
+    assert!(
+        !html.contains("content-visibility: auto"),
+        "Catalog CSS must not use content-visibility: auto on cards as it causes blank page rendering below nav on scroll in Safari/WebKit"
+    );
+
+    // 2. Search optimizations: debounce and pre-indexed search tokens
+    assert!(
+        html.contains("searchDebounceTimer") || html.contains("debounceSearch"),
+        "Catalog JS must debounce search input to prevent main-thread hangs on keystrokes"
+    );
+    assert!(
+        html.contains("_searchIndex") || html.contains("_searchText"),
+        "Catalog JS must pre-index search text on items to eliminate redundant per-keystroke string allocations"
+    );
+
+    // 3. Image loading optimization: initialSrc must prefer embedded_thumb_data_uri directly,
+    // guard attemptHighResSwap against camera RAW formats (.CR2, .CR3, .NEF, .ARW, etc.),
+    // and ONLY start high-res upgrading when all thumbnails on the current page have finished rendering!
+    assert!(
+        html.contains("isRaw") || html.contains("RAW_EXTENSIONS") || html.contains(".cr2"),
+        "Catalog JS must guard attemptHighResSwap against camera RAW file downloads"
+    );
+    assert!(
+        html.contains("onAllThumbnailsRendered") || html.contains("highResUpgradeQueue"),
+        "Catalog JS must render thumbnails first and only begin high-res replacement when all thumbnails in the view render"
+    );
+}

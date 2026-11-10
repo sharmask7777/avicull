@@ -8,7 +8,8 @@ __pycache__/
 *.pyc
 /dist/
 .aider*
-node_modules/
+node_modules
+.worktrees/
 test-results/
 playwright-report/
 fixtures/*.html

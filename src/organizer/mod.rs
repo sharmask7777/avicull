@@ -621,12 +621,13 @@ pub fn clean_run_inplace(db: &ManifestDb, run_id: &str) -> Result<usize> {
 /// Determines whether an existing cached photo bundle should be re-evaluated and reclassified.
 ///
 /// # Invariants & Reclassification Precedence
-/// 1. **User Overrides are Permanent & Inviolable**:
-///    If `existing_decision.is_user_override` is `true`, this function returns `false` under all
-///    circumstances. Explicit human corrections recorded via `avicull correct` or the HTML catalog
-///    must never be clobbered by automatic reclassification or flag sweeps.
-/// 2. **Explicit `--reclassify` Opt-In**:
-///    If `force_reclassify` is `true`, all non-override cached bundles are queued for re-classification.
+/// 1. **Explicit `--reclassify` Opt-In**:
+///    If `force_reclassify` is `true`, all photo bundles across the archive are queued for
+///    re-detection and re-classification from scratch (doing the entire thing again).
+/// 2. **User Overrides Preserved on Normal Organize**:
+///    If `existing_decision.is_user_override` is `true` and `force_reclassify` is `false`, this
+///    function returns `false`. Explicit human corrections recorded via `avicull correct` or the
+///    HTML catalog are strictly preserved during incremental `organize` re-runs.
 /// 3. **Spatial & Coordinate Prior Updates**:
 ///    If `bundle.gps_coords != old_bundle.gps_coords`, the bundle's geographic location has changed
 ///    (e.g. from newly assigned EXIF, parent directory gazetteer resolution, or catalog override),
@@ -649,11 +650,11 @@ pub fn should_reclassify_bundle(
     old_bundle: &AssetBundle,
     force_reclassify: bool,
 ) -> bool {
-    if existing_decision.is_user_override {
-        return false;
-    }
     if force_reclassify {
         return true;
+    }
+    if existing_decision.is_user_override {
+        return false;
     }
     if bundle.gps_coords != old_bundle.gps_coords {
         return true;

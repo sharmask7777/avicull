@@ -63,18 +63,25 @@ fn create_mock_failed_decision(bundle_id: &str) -> BundleDecision {
 }
 
 #[test]
-fn test_user_override_preserved_even_with_force_reclassify() {
+fn test_user_override_preserved_on_normal_organize_and_reclassified_with_force_reclassify() {
     let bundle = create_sample_bundle("img_1", None);
     let decision = create_valid_decision("img_1", true);
 
-    // Even with force_reclassify = true, user override must never be reclassified
-    let reclassify = should_reclassify_bundle(&bundle, &decision, &bundle, true);
+    // Without force_reclassify, user override must be strictly preserved
+    let reclassify_normal = should_reclassify_bundle(&bundle, &decision, &bundle, false);
     assert!(
-        !reclassify,
-        "User override must never be reclassified even if force_reclassify is true"
+        !reclassify_normal,
+        "User override must be preserved on normal organize re-run without --reclassify"
     );
 
-    // Even with coordinates updated, user override must remain protected
+    // With force_reclassify = true, user override must be reclassified (re-runs the entire archive)
+    let reclassify_force = should_reclassify_bundle(&bundle, &decision, &bundle, true);
+    assert!(
+        reclassify_force,
+        "User override must be reclassified when --reclassify is explicitly requested"
+    );
+
+    // Even with coordinates updated, user override must remain protected on normal re-run
     let updated_bundle = create_sample_bundle(
         "img_1",
         Some(GpsCoordinate {
@@ -83,10 +90,10 @@ fn test_user_override_preserved_even_with_force_reclassify() {
             source: LocationSource::SubdirectoryGazetteer,
         }),
     );
-    let reclassify_coords = should_reclassify_bundle(&updated_bundle, &decision, &bundle, true);
+    let reclassify_coords = should_reclassify_bundle(&updated_bundle, &decision, &bundle, false);
     assert!(
         !reclassify_coords,
-        "User override must never be reclassified even if coordinates change"
+        "User override must remain protected during coordinate updates unless --reclassify is passed"
     );
 }
 
@@ -248,7 +255,8 @@ fn test_end_to_end_manifest_reclassification_detection() {
         false
     ));
 
-    // 3. User override bundle should NOT be reclassified even with force
+    // 3. User override bundle should be preserved on normal organize (force: false)
+    // but should be reclassified when --reclassify is explicitly requested (force: true)
     let mut decision_override = decision_v1.clone();
     decision_override.is_user_override = true;
     db.record_bundles_with_locality(
@@ -263,6 +271,12 @@ fn test_end_to_end_manifest_reclassification_detection() {
         .get_by_bundle(&bundle_v1)
         .expect("Bundle must be found");
     assert!(!should_reclassify_bundle(
+        &bundle_v1,
+        cached_override_dec,
+        cached_override_bundle,
+        false
+    ));
+    assert!(should_reclassify_bundle(
         &bundle_v1,
         cached_override_dec,
         cached_override_bundle,
