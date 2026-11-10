@@ -911,6 +911,7 @@ def main() -> None:
         with open(args.batch_file) as f:
             tasks = json.load(f)
 
+        total_tasks = len(tasks)
         results = []
         for i, task in enumerate(tasks):
             img_path = task.get("primary_image")
@@ -929,8 +930,18 @@ def main() -> None:
             )
             res["bundle_id"] = task.get("bundle_id")
             results.append(res)
-            if (i + 1) % 50 == 0 or (i + 1) == len(tasks):
-                print(f"Inference progress: {i + 1}/{len(tasks)} processed...", file=sys.stderr)
+
+            interval = 5 if total_tasks <= 20 else 10
+            if (i + 1) % interval == 0 or (i + 1) == total_tasks:
+                pct = ((i + 1) * 100) // total_tasks if total_tasks > 0 else 100
+                assigned = res.get("assigned_species_slug") or "Unknown"
+                conf = res.get("final_confidence", 0.0)
+                bundle_id = task.get("bundle_id", "")
+                msg = (
+                    f"[inference] Progress: {i + 1}/{total_tasks} ({pct}%)"
+                    f" - {bundle_id}: {assigned} ({conf:.0%})"
+                )
+                print(msg, file=sys.stderr, flush=True)
 
         if args.output_file:
             with open(args.output_file, "w", encoding="utf-8") as f:

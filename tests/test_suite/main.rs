@@ -32,6 +32,7 @@ mod test_cli_create_mock_dataset;
 mod test_cli_e2e;
 mod test_cli_location;
 mod test_cli_mount;
+mod test_cli_verbose;
 mod test_cloud_resilience;
 mod test_dataset_generator;
 mod test_dav_fs;

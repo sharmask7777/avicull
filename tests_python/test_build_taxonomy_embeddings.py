@@ -309,6 +309,34 @@ class TestMultiTaxaTaxonomyEmbeddings(unittest.TestCase):
         self.assertEqual(len(unmerged), 1)
         self.assertEqual(unmerged[0].species_code, "brakit1")
 
+    def test_compute_species_embeddings_outputs_progress_to_stderr(self):
+        import io
+        from unittest.mock import MagicMock
+
+        import torch
+
+        from scripts.build_taxonomy_embeddings import compute_species_embeddings
+
+        entries = [
+            TaxonomyEntry(f"sp_{i}", f"Sci {i}", f"Common {i}", category="Bird") for i in range(5)
+        ]
+        mock_model = MagicMock()
+        mock_model.encode_text.return_value = torch.ones((1, 512))
+        mock_tokenizer = MagicMock()
+        mock_tokenizer.return_value = MagicMock()
+
+        fake_stderr = io.StringIO()
+        with unittest.mock.patch.object(sys, "stderr", fake_stderr):
+            compute_species_embeddings(
+                entries=entries,
+                model=mock_model,
+                tokenizer=mock_tokenizer,
+                device="cpu",
+                batch_size=2,
+            )
+        output = fake_stderr.getvalue()
+        self.assertIn("[models] BioCLIP embedding progress:", output)
+
 
 if __name__ == "__main__":
     unittest.main()
