@@ -151,7 +151,7 @@ fn run_batch_inference(
     geo_prior_weight: f32,
     bundle_regions: &std::collections::HashMap<String, String>,
 ) -> Result<std::collections::HashMap<String, ClassifiedBundleItem>> {
-    let infer_script = Path::new("scripts/infer.py");
+    let infer_script = avicull::classifier::resolve_inference_script()?;
     let embeddings_file = models_dir.join("species_embeddings.safetensors");
 
     if !infer_script.exists() || !embeddings_file.exists() {
@@ -189,6 +189,7 @@ fn run_batch_inference(
 
     let batch_file_str = batch_file.to_string_lossy();
     let output_file_str = output_file.to_string_lossy();
+    let infer_script_str = infer_script.to_string_lossy();
 
     let output = std::process::Command::new("uv")
         .args([
@@ -196,7 +197,7 @@ fn run_batch_inference(
             "--with",
             "torch,open-clip-torch,safetensors,ultralytics,pillow",
             "python3",
-            "scripts/infer.py",
+            infer_script_str.as_ref(),
             "--models-dir",
             models_dir.to_str().unwrap_or("models"),
             "--batch-file",
@@ -364,92 +365,99 @@ fn resolve_or_prompt_models_dir(
     requested: Option<PathBuf>,
     no_prompt: bool,
 ) -> Result<Option<PathBuf>> {
-    if let Some(r) = requested {
-        return Ok(Some(r));
-    }
-
-    // Check local ./models directory
-    let local_models = PathBuf::from("models");
-    if local_models.join("species_embeddings.safetensors").exists() {
-        return Ok(Some(local_models));
-    }
-
-    // Check persistent user cache ~/.cache/avicull/models
-    let home = std::env::var("HOME").ok();
-    let cache_dir = home.map(|h| PathBuf::from(h).join(".cache/avicull/models"));
-    if let Some(ref c_dir) = cache_dir {
-        if c_dir.join("species_embeddings.safetensors").exists() {
-            let manifest_path = c_dir.join("manifest.json");
-            if let Ok(meta) = std::fs::metadata(&manifest_path) {
-                if let Ok(modified) = meta.modified() {
-                    if let Ok(elapsed) = modified.elapsed() {
-                        if elapsed.as_secs() > 30 * 86400 {
-                            println!(
-                                "[avicull] Note: Model cache is over 30 days old. You can update the eBird taxonomy anytime."
-                            );
+    let resolved = if let Some(r) = requested {
+        Some(r)
+    } else {
+        // Check local ./models directory
+        let local_models = PathBuf::from("models");
+        if local_models.join("species_embeddings.safetensors").exists() {
+            Some(local_models)
+        } else {
+            // Check persistent user cache ~/.cache/avicull/models
+            let home = std::env::var("HOME").ok();
+            let cache_dir = home.map(|h| PathBuf::from(h).join(".cache/avicull/models"));
+            if let Some(ref c_dir) = cache_dir {
+                if c_dir.join("species_embeddings.safetensors").exists() {
+                    let manifest_path = c_dir.join("manifest.json");
+                    if let Ok(meta) = std::fs::metadata(&manifest_path) {
+                        if let Ok(modified) = meta.modified() {
+                            if let Ok(elapsed) = modified.elapsed() {
+                                if elapsed.as_secs() > 30 * 86400 {
+                                    println!(
+                                        "[avicull] Note: Model cache is over 30 days old. You can update the eBird taxonomy anytime."
+                                    );
+                                }
+                            }
                         }
                     }
-                }
-            }
-            return Ok(Some(c_dir.clone()));
-        }
-    }
+                    Some(c_dir.clone())
+                } else if !no_prompt && std::io::stdin().is_terminal() {
+                    // Prompt user in interactive terminal sessions
+                    use std::io::{self, Write};
+                    print!(
+                        "\n[avicull] Avian neural weights and 11,000-species eBird taxonomy (~30 MB) not found in cache.\nWould you like to download & initialize them into '{}' now? [Y/n]: ",
+                        c_dir.display()
+                    );
+                    let _ = io::stdout().flush();
 
-    // Avoid prompting in non-interactive environments, headless test runners, or when --no-prompt is specified
-    if no_prompt || !std::io::stdin().is_terminal() {
-        return Ok(None);
-    }
+                    let mut input = String::new();
+                    if io::stdin().read_line(&mut input).is_ok() {
+                        let choice = input.trim().to_lowercase();
+                        if choice.is_empty() || choice == "y" || choice == "yes" {
+                            println!(
+                                "[avicull] Initializing eBird taxonomy & BioCLIP embeddings on Apple Silicon GPU..."
+                            );
+                            std::fs::create_dir_all(c_dir)?;
+                            let c_dir_str = c_dir.to_string_lossy();
+                            let status_res = std::process::Command::new("uv")
+                                .args([
+                                    "run",
+                                    "--with",
+                                    "torch,open-clip-torch,safetensors,ultralytics",
+                                    "python3",
+                                    "scripts/build_taxonomy_embeddings.py",
+                                    c_dir_str.as_ref(),
+                                ])
+                                .status();
 
-    // Prompt user in interactive terminal sessions
-    if let Some(ref c_dir) = cache_dir {
-        use std::io::{self, Write};
-        print!(
-            "\n[avicull] Avian neural weights and 11,000-species eBird taxonomy (~30 MB) not found in cache.\nWould you like to download & initialize them into '{}' now? [Y/n]: ",
-            c_dir.display()
-        );
-        let _ = io::stdout().flush();
-
-        let mut input = String::new();
-        if io::stdin().read_line(&mut input).is_ok() {
-            let choice = input.trim().to_lowercase();
-            if choice.is_empty() || choice == "y" || choice == "yes" {
-                println!(
-                    "[avicull] Initializing eBird taxonomy & BioCLIP embeddings on Apple Silicon GPU..."
-                );
-                std::fs::create_dir_all(c_dir)?;
-                let c_dir_str = c_dir.to_string_lossy();
-                let status_res = std::process::Command::new("uv")
-                    .args([
-                        "run",
-                        "--with",
-                        "torch,open-clip-torch,safetensors,ultralytics",
-                        "python3",
-                        "scripts/build_taxonomy_embeddings.py",
-                        c_dir_str.as_ref(),
-                    ])
-                    .status();
-
-                match status_res {
-                    Ok(status) if status.success() => {
-                        println!(
-                            "[avicull] ✓ Models successfully installed to '{}' and ready for reuse across all future runs.",
-                            c_dir.display()
-                        );
-                        return Ok(Some(c_dir.clone()));
+                            match status_res {
+                                Ok(status) if status.success() => {
+                                    println!(
+                                        "[avicull] ✓ Models successfully installed to '{}' and ready for reuse across all future runs.",
+                                        c_dir.display()
+                                    );
+                                    Some(c_dir.clone())
+                                }
+                                _ => {
+                                    eprintln!(
+                                        "[avicull] Warning: Failed to download models. Falling back to mock classifier."
+                                    );
+                                    None
+                                }
+                            }
+                        } else {
+                            println!(
+                                "[avicull] Skipping model download. Falling back to mock classifier."
+                            );
+                            None
+                        }
+                    } else {
+                        None
                     }
-                    _ => {
-                        eprintln!(
-                            "[avicull] Warning: Failed to download models. Falling back to mock classifier."
-                        );
-                    }
+                } else {
+                    None
                 }
             } else {
-                println!("[avicull] Skipping model download. Falling back to mock classifier.");
+                None
             }
         }
+    };
+
+    if let Some(ref m_dir) = resolved {
+        avicull::classifier::sync_regional_checklists(m_dir)?;
     }
 
-    Ok(None)
+    Ok(resolved)
 }
 
 fn main() -> Result<()> {
@@ -980,9 +988,9 @@ fn main() -> Result<()> {
                 // Run classification on chunk
                 let chunk_refs: Vec<&AssetBundle> = processable_chunk.iter().collect();
                 let chunk_classified = if let Some(ref m_dir) = models_dir {
-                    if m_dir.join("species_embeddings.safetensors").exists()
-                        && Path::new("scripts/infer.py").exists()
-                    {
+                    let has_infer_script =
+                        avicull::classifier::resolve_inference_script().is_ok_and(|p| p.is_file());
+                    if m_dir.join("species_embeddings.safetensors").exists() && has_infer_script {
                         match run_batch_inference(
                             &chunk_refs,
                             m_dir,
