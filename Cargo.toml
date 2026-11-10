@@ -75,8 +75,16 @@ opt-level = 0
 debug = 1
 split-debuginfo = "unpacked"
 
-# Optimize third-party dependencies so image decoding & math run fast during tests
+# Tiered dev profile dependency optimization:
+# opt-level = 1 on general dependencies minimizes cold LLVM compilation time in CI,
+# while opt-level = 2 is selectively retained for compute bottlenecks (image decoding & cryptographic hashing).
 [profile.dev.package."*"]
+opt-level = 1
+
+[profile.dev.package.image]
+opt-level = 2
+
+[profile.dev.package.blake3]
 opt-level = 2
 
 [profile.release]

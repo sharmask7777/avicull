@@ -161,7 +161,7 @@ All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject
 3. **Build Time Optimizations**:
    - Always maintain `split-debuginfo = "unpacked"` in `.cargo/config.toml` and `Cargo.toml` to eliminate `dsymutil` overhead on macOS Apple Silicon.
    - Keep crate feature dependencies minimal (e.g., `image` with `default-features = false` and only `["jpeg", "png", "tiff"]`).
-   - Use `[profile.dev.package."*"] opt-level = 2` so dependencies run at release speed while development code compiles in milliseconds.
+   - Use tiered dev profile optimization (`[profile.dev.package."*"] opt-level = 1` for broad dependency cold-build speedup, paired with `opt-level = 2` for compute-heavy crates `image` and `blake3`).
 4. **Incremental Auto-Detection**:
    - When running `organize` on an existing directory, query SQLite for existing bundles.
    - Only execute neural network detection and classification on newly added or modified bundles.
