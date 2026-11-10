@@ -716,6 +716,81 @@ fn test_cli_correct_duplicate_stem_across_subdirectories_in_place_mode() {
 }
 
 #[test]
+fn test_cli_correct_does_not_falsely_match_prefix_stem_photo() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Kashmir and Dubare/Processed/Dubare");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo_base = trip_dir.join("dubare.jpg");
+    let photo_num = trip_dir.join("dubare_19.jpg");
+    File::create(&photo_base)
+        .unwrap()
+        .write_all(b"JPEG DUBARE BASE")
+        .unwrap();
+    File::create(&photo_num)
+        .unwrap()
+        .write_all(b"JPEG DUBARE NUM 19")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in-place
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(org_output.status.success());
+
+    // 2. Correct dubare_19.jpg using its relative path. It must NOT match dubare.jpg!
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "Kashmir and Dubare/Processed/Dubare/dubare_19.jpg",
+            "--species",
+            "Indian Roller",
+        ])
+        .output()
+        .expect("failed to run avicull correct");
+
+    assert!(
+        correct_output.status.success(),
+        "Correction failed with stderr: {}",
+        String::from_utf8_lossy(&correct_output.stderr)
+    );
+
+    // Verify only dubare_19 was updated
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+
+    let b_base = bundles
+        .iter()
+        .find(|(_, b)| b.original_stem == "dubare")
+        .expect("dubare must exist");
+    assert_ne!(b_base.0.assigned_species_slug, "Indian_Roller");
+
+    let b_num = bundles
+        .iter()
+        .find(|(_, b)| b.original_stem == "dubare_19")
+        .expect("dubare_19 must exist");
+    assert_eq!(b_num.0.assigned_species_slug, "Indian_Roller");
+    assert!(b_num.0.is_user_override);
+}
+
+#[test]
 fn test_cli_correct_root_file_disambiguation_with_dot_slash() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("Photos");
@@ -1559,14 +1634,6 @@ fn test_cli_correct_no_bird_detected_variants() {
         ])
         .output()
         .expect("failed to run avicull correct 1");
-    println!(
-        "correct1 stdout: {}",
-        String::from_utf8_lossy(&correct1.stdout)
-    );
-    println!(
-        "correct1 stderr: {}",
-        String::from_utf8_lossy(&correct1.stderr)
-    );
     assert!(
         correct1.status.success(),
         "avicull correct 'No Bird Detected' failed: {}",
@@ -1741,4 +1808,91 @@ fn test_cli_correct_subcommand_overrides_category_and_species_simultaneously() {
         "Hardlink inode must match source inode"
     );
     assert!(dst_meta.nlink() >= 2, "nlink must be >= 2");
+}
+
+#[test]
+fn test_cli_correct_without_input_flag_resolves_root_not_avicull_dir() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Hesaraghatta");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo = trip_dir.join("IMG_0100.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG IMG_0100 TEST DATA")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Run avicull organize in in-place mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+
+    assert!(
+        org_output.status.success(),
+        "organize failed: stderr: {}",
+        String::from_utf8_lossy(&org_output.stderr)
+    );
+
+    let catalog_path = input_dir.join("catalog.html");
+    assert!(
+        catalog_path.exists(),
+        "catalog.html should exist in input_dir"
+    );
+    let _initial_catalog_modtime = fs::metadata(&catalog_path).unwrap().modified().unwrap();
+
+    // 2. Call avicull correct with current_dir = input_dir and WITHOUT --input
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .current_dir(&input_dir)
+        .args([
+            "correct",
+            "--category",
+            "Bird",
+            "--species",
+            "Indian_Roller",
+            "--file",
+            "IMG_0100",
+        ])
+        .output()
+        .expect("failed to run avicull correct");
+
+    assert!(
+        correct_output.status.success(),
+        "avicull correct failed: stderr: {}",
+        String::from_utf8_lossy(&correct_output.stderr)
+    );
+
+    // 3. Crucial Assertions:
+    // (a) `<input_dir>/.avicull/catalog.html` must NEVER be created!
+    let wrong_catalog = input_dir.join(".avicull/catalog.html");
+    assert!(
+        !wrong_catalog.exists(),
+        "catalog.html should NEVER be created inside .avicull/"
+    );
+
+    // (b) `<input_dir>/.avicull/.avicull` must NEVER be created!
+    let wrong_nested_avicull = input_dir.join(".avicull/.avicull");
+    assert!(
+        !wrong_nested_avicull.exists(),
+        "Nested .avicull/.avicull directory should NEVER be created"
+    );
+
+    // (c) `<input_dir>/catalog.html` must be updated
+    let updated_catalog_content = fs::read_to_string(&catalog_path).unwrap();
+    assert!(
+        updated_catalog_content.contains("Indian Roller"),
+        "catalog.html in input_dir should contain updated species 'Indian Roller'"
+    );
 }

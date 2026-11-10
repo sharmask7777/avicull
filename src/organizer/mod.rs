@@ -698,10 +698,16 @@ pub fn regenerate_catalog_from_manifest(
     let effective_trip_name = trip_name.unwrap_or(fallback_trip_name);
 
     let all_db_bundles = db.get_all_bundles(None)?;
+    let bundle_locs = db.get_all_bundle_locations().unwrap_or_default();
+    let dir_locs = db.get_all_directory_locations().unwrap_or_default();
     let mut catalog_items = Vec::with_capacity(all_db_bundles.len());
 
     for (dec, mut b) in all_db_bundles {
-        let _ = crate::location::resolver::apply_location_precedence(&mut b, db);
+        crate::location::resolver::apply_location_precedence_cached(
+            &mut b,
+            &bundle_locs,
+            &dir_locs,
+        );
         let (prim_dest, comp_dests, sidecar_dests) = match effective_mode {
             OrganizationMode::HierarchicalHardlinkHierarchy => {
                 let ops = db.get_bundle_operations(&b.bundle_id).unwrap_or_default();

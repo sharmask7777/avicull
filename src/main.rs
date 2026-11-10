@@ -1777,34 +1777,83 @@ fn execute_unmount(args: &avicull::cli::UnmountArgs) {
     }
 }
 
+/// Resolves the archive operating root directory hosting the `.avicull/manifest.sqlite` database.
+///
+/// If `db_path` is `<root>/.avicull/manifest.sqlite` (or `.avicull/manifest.sqlite`), strips the `.avicull`
+/// directory component to return `<root>` (or `.` if relative to current directory).
+/// This prevents generating catalogs inside `<input>/.avicull/catalog.html` or creating nested
+/// `.avicull/.avicull/` preview directories.
+fn resolve_operating_root_for_manifest(db_path: &Path) -> PathBuf {
+    if let Some(parent) = db_path.parent() {
+        if parent.file_name().is_some_and(|name| name == ".avicull") {
+            return parent
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+        }
+        if !parent.as_os_str().is_empty() {
+            return parent.to_path_buf();
+        }
+    }
+    PathBuf::from(".")
+}
+
+/// Resolves the SQLite manifest database path with mode-aware directory precedence.
+///
+/// Prioritizes explicit `--db` or `--output` flags when provided. Otherwise, checks both
+/// in-place (`<input>/.avicull/manifest.sqlite`) and hierarchy (`<input>/birds_hierarchy/.avicull/manifest.sqlite`)
+/// databases, preferring `inplace_db` for default/in-place mode or `hier_db` for hierarchy mode.
+fn resolve_manifest_db_path(
+    db_arg: Option<&Path>,
+    output_arg: Option<&Path>,
+    input_arg: Option<&Path>,
+    mode_arg: Option<OrganizationMode>,
+) -> PathBuf {
+    if let Some(db_p) = db_arg {
+        return db_p.to_path_buf();
+    }
+    if let Some(out) = output_arg {
+        return out.join(".avicull/manifest.sqlite");
+    }
+    let (hier_db, inplace_db) = if let Some(inp) = input_arg {
+        (
+            inp.join("birds_hierarchy/.avicull/manifest.sqlite"),
+            inp.join(".avicull/manifest.sqlite"),
+        )
+    } else {
+        (
+            PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite"),
+            PathBuf::from(".avicull/manifest.sqlite"),
+        )
+    };
+
+    match mode_arg {
+        Some(OrganizationMode::HierarchicalHardlinkHierarchy) => {
+            if hier_db.exists() {
+                hier_db
+            } else {
+                inplace_db
+            }
+        }
+        Some(OrganizationMode::InPlace | OrganizationMode::InPlaceRename) | None => {
+            if inplace_db.exists() {
+                inplace_db
+            } else {
+                hier_db
+            }
+        }
+    }
+}
+
 fn execute_correct(args: &CorrectArgs) -> Result<()> {
     println!("== avicull correct ==");
 
-    let db_path = if let Some(ref db_p) = args.db {
-        db_p.clone()
-    } else if let Some(ref out) = args.output {
-        out.join(".avicull/manifest.sqlite")
-    } else if let Some(ref inp) = args.input {
-        let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
-        let inplace_db = inp.join(".avicull/manifest.sqlite");
-        if hier_db.exists() {
-            hier_db
-        } else if inplace_db.exists() {
-            inplace_db
-        } else {
-            hier_db
-        }
-    } else {
-        let hier_db = PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite");
-        let inplace_db = PathBuf::from(".avicull/manifest.sqlite");
-        if hier_db.exists() {
-            hier_db
-        } else if inplace_db.exists() {
-            inplace_db
-        } else {
-            hier_db
-        }
-    };
+    let db_path = resolve_manifest_db_path(
+        args.db.as_deref(),
+        args.output.as_deref(),
+        args.input.as_deref(),
+        args.mode,
+    );
 
     if !db_path.exists() {
         return Err(anyhow!(
@@ -1830,30 +1879,11 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
             .output
             .clone()
             .or_else(|| args.input.as_ref().map(|p| p.join("birds_hierarchy")))
-            .or_else(|| {
-                db_path
-                    .parent()
-                    .and_then(|p| p.parent())
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .map(std::path::Path::to_path_buf)
-            })
-            .unwrap_or_else(|| {
-                if Path::new("birds_hierarchy").exists() {
-                    PathBuf::from("birds_hierarchy")
-                } else {
-                    PathBuf::from(".")
-                }
-            }),
+            .unwrap_or_else(|| resolve_operating_root_for_manifest(&db_path)),
         OrganizationMode::InPlace | OrganizationMode::InPlaceRename => args
             .input
             .clone()
-            .or_else(|| {
-                db_path
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .map(std::path::Path::to_path_buf)
-            })
-            .unwrap_or_else(|| PathBuf::from(".")),
+            .unwrap_or_else(|| resolve_operating_root_for_manifest(&db_path)),
     };
 
     let results = avicull::organizer::apply_bundle_correction_with_category(
@@ -1880,31 +1910,12 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
 fn execute_location(args: LocationArgs) -> Result<()> {
     println!("== avicull location ==");
 
-    let db_path = if let Some(ref db_p) = args.db {
-        db_p.clone()
-    } else if let Some(ref out) = args.output {
-        out.join(".avicull/manifest.sqlite")
-    } else if let Some(ref inp) = args.input {
-        let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
-        let inplace_db = inp.join(".avicull/manifest.sqlite");
-        if hier_db.exists() {
-            hier_db
-        } else if inplace_db.exists() {
-            inplace_db
-        } else {
-            hier_db
-        }
-    } else {
-        let hier_db = PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite");
-        let inplace_db = PathBuf::from(".avicull/manifest.sqlite");
-        if hier_db.exists() {
-            hier_db
-        } else if inplace_db.exists() {
-            inplace_db
-        } else {
-            hier_db
-        }
-    };
+    let db_path = resolve_manifest_db_path(
+        args.db.as_deref(),
+        args.output.as_deref(),
+        args.input.as_deref(),
+        None,
+    );
 
     if !db_path.exists() {
         return Err(anyhow!(
@@ -1949,14 +1960,10 @@ fn execute_location(args: LocationArgs) -> Result<()> {
         );
     }
 
-    let operating_root = db_path
-        .parent()
-        .and_then(|p| p.parent())
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
+    let operating_root = resolve_operating_root_for_manifest(&db_path);
     if operating_root.exists() {
         if let Ok(catalog_path) =
-            avicull::organizer::regenerate_catalog_from_manifest(&db, operating_root, None, None)
+            avicull::organizer::regenerate_catalog_from_manifest(&db, &operating_root, None, None)
         {
             println!(
                 "✓ Regenerated photo catalog with updated locations at '{}'",

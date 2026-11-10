@@ -83,6 +83,97 @@ pub fn apply_location_precedence(bundle: &mut AssetBundle, manifest: &ManifestDb
     Ok(())
 }
 
+/// Applies strict four-tier location precedence using in-memory pre-fetched override maps.
+/// Eliminates thousands of redundant SQLite queries over NFS/network storage.
+///
+/// # Arguments
+///
+/// * `bundle` - The mutable photo asset bundle whose location is to be resolved.
+/// * `bundle_locations` - Pre-fetched map of image-level bundle location overrides keyed by `bundle_id`.
+/// * `directory_locations` - Pre-fetched map of directory location overrides keyed by normalized directory path string.
+pub fn apply_location_precedence_cached(
+    bundle: &mut AssetBundle,
+    bundle_locations: &HashMap<String, ResolvedLocation>,
+    directory_locations: &HashMap<String, ResolvedLocation>,
+) {
+    // Tier 1: Hardware EXIF GPS coordinates strictly override everything
+    if let Some(coords) = bundle.gps_coords {
+        if coords.source == LocationSource::ExifGps {
+            return;
+        }
+    }
+
+    // Tier 2: Explicit image-level override
+    if let Some(img_loc) = bundle_locations.get(&bundle.bundle_id) {
+        bundle.resolved_location_name = Some(img_loc.name.clone());
+        bundle.gps_coords = Some(GpsCoordinate {
+            latitude: img_loc.latitude,
+            longitude: img_loc.longitude,
+            source: LocationSource::ImageLocationOverride,
+        });
+        return;
+    }
+
+    // Tier 3: Hierarchical directory/subdirectory override
+    let dir_to_check = if let Some(ref rel) = bundle.relative_path {
+        rel.parent().map(std::path::Path::to_path_buf)
+    } else {
+        bundle
+            .primary_image
+            .parent()
+            .map(std::path::Path::to_path_buf)
+    };
+
+    if let Some(ref dir_path) = dir_to_check {
+        let is_subfolder = dir_path.components().count() > 1;
+        let mut curr = Some(dir_path.as_path());
+        while let Some(p) = curr {
+            let s = p.to_string_lossy();
+            if !s.is_empty() && s != "." {
+                if let Some(dir_loc) = directory_locations.get(s.as_ref()) {
+                    let source = if is_subfolder {
+                        LocationSource::SubdirectoryGazetteer
+                    } else {
+                        LocationSource::TripFolderGazetteer
+                    };
+                    bundle.resolved_location_name = Some(dir_loc.name.clone());
+                    bundle.gps_coords = Some(GpsCoordinate {
+                        latitude: dir_loc.latitude,
+                        longitude: dir_loc.longitude,
+                        source,
+                    });
+                    return;
+                }
+            }
+            curr = p.parent();
+        }
+        if let Some(dir_loc) = directory_locations.get(".") {
+            let source = if is_subfolder {
+                LocationSource::SubdirectoryGazetteer
+            } else {
+                LocationSource::TripFolderGazetteer
+            };
+            bundle.resolved_location_name = Some(dir_loc.name.clone());
+            bundle.gps_coords = Some(GpsCoordinate {
+                latitude: dir_loc.latitude,
+                longitude: dir_loc.longitude,
+                source,
+            });
+            return;
+        }
+    }
+
+    // Tier 4: Trip folder name fallback if present in directory_locations
+    if let Some(trip_loc) = directory_locations.get(&bundle.trip_folder_name) {
+        bundle.resolved_location_name = Some(trip_loc.name.clone());
+        bundle.gps_coords = Some(GpsCoordinate {
+            latitude: trip_loc.latitude,
+            longitude: trip_loc.longitude,
+            source: LocationSource::TripFolderGazetteer,
+        });
+    }
+}
+
 /// Authoritative resolved geographic location for a trip directory.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ResolvedLocation {

@@ -251,166 +251,7 @@ pub fn apply_bundle_correction_with_category(
             "Photo query cannot be empty. Please specify an unambiguous file path or stem."
         ));
     }
-    let (is_explicit_root, clean_query) = if let Some(stripped) = query_trim.strip_prefix("./") {
-        (
-            !stripped.contains('/') && !stripped.contains('\\'),
-            stripped,
-        )
-    } else if let Some(stripped) = query_trim.strip_prefix(".\\") {
-        (
-            !stripped.contains('/') && !stripped.contains('\\'),
-            stripped,
-        )
-    } else {
-        (false, query_trim)
-    };
-    if clean_query.is_empty() {
-        return Err(anyhow!(
-            "Photo query cannot be empty. Please specify an unambiguous file path or stem."
-        ));
-    }
-    let has_path_separator = clean_query.contains('/') || clean_query.contains('\\');
-
-    let target_path = Path::new(clean_query);
-    let target_s = target_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
-    let target_s_prefix = if target_s.is_empty() {
-        String::new()
-    } else {
-        format!("{target_s}_")
-    };
-    let target_s_suffix = if target_s.is_empty() {
-        String::new()
-    } else {
-        format!("_{target_s}")
-    };
-
-    let query_stem = target_s;
-    let query_file_name = target_path
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or(clean_query);
-
-    let all_bundles = db.get_all_bundles(None)?;
-
-    let is_in_root = |b: &AssetBundle| -> bool {
-        b.relative_path.as_ref().map_or_else(
-            || b.trip_folder_name.is_empty(),
-            |p| p.parent().is_none_or(|par| par.as_os_str().is_empty()),
-        )
-    };
-
-    // Filter all bundles matching the query by bundle ID, path, or filename/stem
-    let mut matched_bundles: Vec<(BundleDecision, AssetBundle)> = all_bundles
-        .iter()
-        .filter(|(_, bundle)| {
-            if is_explicit_root && !is_in_root(bundle) {
-                return false;
-            }
-
-            if bundle.bundle_id == clean_query {
-                return true;
-            }
-
-            if has_path_separator {
-                if let Some(ref rel) = bundle.relative_path {
-                    if rel == target_path
-                        || rel.ends_with(target_path)
-                        || rel.with_extension("") == target_path
-                        || (rel.with_extension("") == target_path.with_extension("")
-                            && rel.parent() == target_path.parent())
-                    {
-                        return true;
-                    }
-                    if let (Some(rel_p), Some(target_p)) = (rel.parent(), target_path.parent()) {
-                        if rel_p == target_p && !target_s.is_empty() {
-                            let rel_s = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-                            if rel_s == target_s
-                                || target_s == bundle.original_stem
-                                || rel_s.starts_with(&target_s_prefix)
-                                || rel_s.ends_with(&target_s_suffix)
-                                || (!bundle.original_stem.is_empty()
-                                    && (target_s
-                                        .starts_with(&format!("{}_", bundle.original_stem))
-                                        || target_s
-                                            .ends_with(&format!("_{}", bundle.original_stem))))
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-                if bundle.primary_image.ends_with(target_path)
-                    || bundle
-                        .primary_image
-                        .with_extension("")
-                        .ends_with(target_path)
-                {
-                    return true;
-                }
-                for comp in &bundle.companion_images {
-                    if comp.ends_with(target_path) || comp.with_extension("").ends_with(target_path)
-                    {
-                        return true;
-                    }
-                }
-                for sc in &bundle.sidecar_files {
-                    if sc.ends_with(target_path) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            if bundle.original_stem == clean_query || bundle.original_stem == query_stem {
-                return true;
-            }
-            if !clean_query.is_empty()
-                && (bundle.original_stem.starts_with(&format!("{clean_query}_"))
-                    || bundle.original_stem.starts_with(&format!("{query_stem}_")))
-            {
-                return true;
-            }
-            if let Some(name) = bundle.primary_image.file_name().and_then(|n| n.to_str()) {
-                if name == query_file_name || name == clean_query {
-                    return true;
-                }
-            }
-            if let Some(stem) = bundle.primary_image.file_stem().and_then(|s| s.to_str()) {
-                if stem == query_stem {
-                    return true;
-                }
-            }
-            for comp in &bundle.companion_images {
-                if let Some(name) = comp.file_name().and_then(|n| n.to_str()) {
-                    if name == query_file_name || name == clean_query {
-                        return true;
-                    }
-                }
-                if let Some(stem) = comp.file_stem().and_then(|s| s.to_str()) {
-                    if stem == query_stem {
-                        return true;
-                    }
-                }
-            }
-            for sc in &bundle.sidecar_files {
-                if let Some(name) = sc.file_name().and_then(|n| n.to_str()) {
-                    if name == query_file_name || name == clean_query {
-                        return true;
-                    }
-                }
-            }
-            if let Some(ref rel) = bundle.relative_path {
-                if rel == Path::new(clean_query) || rel.ends_with(clean_query) {
-                    return true;
-                }
-            }
-            false
-        })
-        .cloned()
-        .collect();
+    let mut matched_bundles = db.find_candidate_bundle_entries_by_query(file_query)?;
 
     let (target_dec, target_bundle) = match matched_bundles.len() {
         0 => {
@@ -482,13 +323,13 @@ pub fn apply_bundle_correction_with_category(
     // Identify burst members if the bundle is part of a multi-frame burst
     let burst_members: Vec<(BundleDecision, AssetBundle)> =
         if let Some(ref b_id) = target_dec.burst_id {
+            let all_bundles = db.get_all_bundles(None)?;
             all_bundles
-                .iter()
+                .into_iter()
                 .filter(|(d, b)| {
                     d.burst_id.as_deref() == Some(b_id)
                         && b.trip_folder_name == target_bundle.trip_folder_name
                 })
-                .cloned()
                 .collect()
         } else {
             Vec::new()

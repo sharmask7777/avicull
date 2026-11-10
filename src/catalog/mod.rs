@@ -49,6 +49,20 @@ pub struct CatalogItem {
     pub category: AssetCategory,
 }
 
+impl CatalogItem {
+    /// Returns a reference to the active on-disk image path, favoring `current_path`
+    /// if it exists on disk (e.g. inside hierarchy output directory or post-rename),
+    /// and falling back to `primary_image`.
+    #[must_use]
+    pub fn active_primary_path(&self) -> &Path {
+        if self.current_path.exists() {
+            &self.current_path
+        } else {
+            &self.primary_image
+        }
+    }
+}
+
 /// Backward and forward compatible alias so calling code can reference ClassifiedBundleItem.
 pub type ClassifiedBundleItem = CatalogItem;
 
@@ -579,11 +593,7 @@ fn build_catalog_payload_item(
     existing_previews: &HashSet<String>,
     cached_thumbnails: &std::collections::HashMap<String, String>,
 ) -> (CatalogPayloadItem, Option<(String, String)>) {
-    let active_primary = if item.current_path.exists() {
-        &item.current_path
-    } else {
-        &item.primary_image
-    };
+    let active_primary = item.active_primary_path();
 
     let is_local = item.is_local.unwrap_or_else(|| {
         if crate::geo::is_dataless_file(active_primary) {
@@ -872,11 +882,7 @@ fn ensure_persistent_thumbnail_with_previews(
         return None;
     }
 
-    let active_primary = if item.current_path.exists() {
-        &item.current_path
-    } else {
-        &item.primary_image
-    };
+    let active_primary = item.active_primary_path();
 
     let mut generated = false;
     let previews_dir = output_root.join(".avicull").join("previews");
@@ -910,7 +916,7 @@ fn ensure_persistent_thumbnail_with_previews(
                     matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
                 });
             if is_web {
-                Some(active_primary.as_path())
+                Some(active_primary)
             } else {
                 None
             }
@@ -964,11 +970,7 @@ fn resolve_or_extract_preview(
         }
     }
 
-    let active_primary = if item.current_path.exists() {
-        &item.current_path
-    } else {
-        &item.primary_image
-    };
+    let active_primary = item.active_primary_path();
 
     // 3. Web-renderable primary image
     let is_web_img = active_primary
