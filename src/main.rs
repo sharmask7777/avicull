@@ -1192,16 +1192,18 @@ fn main() -> Result<()> {
                 decisions.len()
             );
 
-            // Preserve user manual overrides across burst consensus and re-runs
-            for (bundle, decision) in processable_discovered.iter().zip(decisions.iter_mut()) {
-                if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
-                    if existing_dec.is_user_override {
-                        decision
-                            .assigned_species_slug
-                            .clone_from(&existing_dec.assigned_species_slug);
-                        decision.routing_tier = existing_dec.routing_tier;
-                        decision.final_confidence = existing_dec.final_confidence;
-                        decision.is_user_override = true;
+            // Preserve user manual overrides across burst consensus and re-runs (unless --reclassify was passed)
+            if !args.reclassify {
+                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter_mut()) {
+                    if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
+                        if existing_dec.is_user_override {
+                            decision
+                                .assigned_species_slug
+                                .clone_from(&existing_dec.assigned_species_slug);
+                            decision.routing_tier = existing_dec.routing_tier;
+                            decision.final_confidence = existing_dec.final_confidence;
+                            decision.is_user_override = true;
+                        }
                     }
                 }
             }

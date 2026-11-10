@@ -409,6 +409,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       display: flex;
       flex-direction: column;
       transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: 300px 320px;
     }}
 
     .card:hover {{
@@ -1332,6 +1334,31 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   let selectedIds = new Set();
   let lastSelectedId = null;
 
+  const RAW_EXTENSIONS = new Set(['cr2', 'cr3', 'nef', 'arw', 'dng', 'orf', 'rw2', 'pef', 'raf', 'sr2', 'srf']);
+
+  function isRawFormat(path) {{
+    if (!path) return false;
+    const clean = String(path).split('?')[0].split('#')[0];
+    const parts = clean.split('.');
+    if (parts.length <= 1) return false;
+    const ext = parts[parts.length - 1].toLowerCase();
+    return RAW_EXTENSIONS.has(ext);
+  }}
+
+  // Pre-index search tokens on items for instant sub-millisecond filtering without memory pressure
+  items.forEach(item => {{
+    const itemCat = item.category || AssetCategory.NO_SUBJECT_DETECTED;
+    item._searchIndex = [
+      item.assigned_species,
+      item.scientific_name,
+      itemCat,
+      item.location_name,
+      item.capture_date,
+      item.primary_filename,
+      item.original_stem
+    ].filter(Boolean).join(' ').toLowerCase();
+  }});
+
   function escHtml(str) {{
     if (!str) return '';
     return String(str)
@@ -1384,6 +1411,8 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     const isLocal = item.is_local !== false;
     const localSrc = item.local_src || item.preview_url;
     if (!isLocal || !localSrc) return;
+    // Skip camera RAW formats that browsers cannot display, preventing wasteful multi-megabyte transfers over NFS
+    if (isRawFormat(localSrc)) return;
 
     const probe = new Image();
     probe.onload = () => {{
@@ -1446,13 +1475,14 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <svg class="preview-fallback-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path>
         </svg>
-        <div class="preview-fallback-text">${{filename}}</div>
+        <div class="preview-fallback-text">${{escHtml(filename)}}</div>
         <div class="preview-fallback-sub">Preview Unavailable (Cloud Evicted or Unsupported RAW)</div>
       </div>
     `;
   }}
 
   function getFilteredItems() {{
+    const q = searchQuery ? searchQuery.toLowerCase() : '';
     return items.filter(item => {{
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
@@ -1461,16 +1491,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
       if (!matchCategory) return false;
 
-      if (!searchQuery) return true;
+      if (!q) return true;
 
-      const q = searchQuery.toLowerCase();
-      const sp = (item.assigned_species || '').toLowerCase();
-      const sc = (item.scientific_name || '').toLowerCase();
-      const cat = itemCat.toLowerCase();
-      const loc = (item.location_name || '').toLowerCase();
-      const dt = (item.capture_date || '').toLowerCase();
-      const fn = (item.primary_filename || '').toLowerCase();
-      return sp.includes(q) || sc.includes(q) || cat.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
+      return item._searchIndex ? item._searchIndex.includes(q) : true;
     }});
   }}
 
@@ -1604,7 +1627,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = (item.thumb_src && !item.thumb_src.startsWith('data:'))
+      const initialSrc = (item.embedded_thumb_data_uri && item.embedded_thumb_data_uri.startsWith('data:image/'))
+        ? item.embedded_thumb_data_uri
+        : (item.thumb_src && !item.thumb_src.startsWith('data:'))
         ? item.thumb_src
         : (item.preview_url && !item.preview_url.startsWith('data:'))
         ? item.preview_url
@@ -1623,7 +1648,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
           </div>
           <div class="card-media">
-            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
+            <img src="${{initialSrc}}" alt="${{item.assigned_species}}" loading="lazy" decoding="async" data-local-src="${{item.local_src || item.current_path}}" data-thumb-src="${{item.thumb_src || item.preview_url}}" data-embedded-src="${{item.embedded_thumb_data_uri || ''}}" data-is-local="${{isLocal}}" onerror="handleImageError(this, '${{item.id}}')"/>
             <span class="badge-cloud">☁️ Cloud</span>
             <span class="badge-tier ${{tierBadgeClass}}">${{tierLabel}}</span>
           </div>
@@ -1661,8 +1686,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             if (img && item) {{
               if (item.embedded_thumb_data_uri && (!img.src || img.src.includes('data:image/svg') || img.src.includes('<svg'))) {{
                 img.src = item.embedded_thumb_data_uri;
+              }} else if (!item.embedded_thumb_data_uri && !isRawFormat(item.local_src || item.preview_url)) {{
+                attemptHighResSwap(img, item);
               }}
-              attemptHighResSwap(img, item);
             }}
             observer.unobserve(card);
           }}
@@ -1749,10 +1775,22 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
   }}
 
-  function handleSearch() {{
-    const el = document.getElementById('searchInput');
-    searchQuery = el ? el.value.trim() : '';
-    renderGallery();
+  let searchDebounceTimer = null;
+  function handleSearch(immediate = false) {{
+    if (searchDebounceTimer) {{
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }}
+    const execute = () => {{
+      const el = document.getElementById('searchInput');
+      searchQuery = el ? el.value.trim() : '';
+      renderGallery();
+    }};
+    if (immediate) {{
+      execute();
+    }} else {{
+      searchDebounceTimer = setTimeout(execute, 100);
+    }}
   }}
 
   function handleCorrectButtonClick(itemId) {{
@@ -1811,10 +1849,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       }};
       thumb.style.display = 'block';
 
-      // Upgrade modal thumb to high-res if available locally
+      // Upgrade modal thumb to high-res if available locally (skip RAW formats browsers cannot decode)
       if (activeModalItem.is_local !== false) {{
         const modalLocalSrc = activeModalItem.local_src || activeModalItem.preview_url;
-        if (modalLocalSrc) {{
+        if (modalLocalSrc && !isRawFormat(modalLocalSrc)) {{
           const modalProbe = new Image();
           modalProbe.onload = () => {{
             if (activeModalItem && activeModalItem.id === activeModalItems[0].id) {{
