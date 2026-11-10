@@ -594,6 +594,374 @@ fn test_cli_correct_ambiguous_file_fails_with_choices() {
 }
 
 #[test]
+fn test_cli_correct_duplicate_stem_across_subdirectories_in_place_mode() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("pictures_archive");
+    let trip1_dir = input_dir.join("Dubare - 2 and nagarhole 2024 /Processed - compressed");
+    let trip2_dir = input_dir.join("Kashmir and Dubare -1  2024/Processed/Dubare compressed");
+    fs::create_dir_all(&trip1_dir).unwrap();
+    fs::create_dir_all(&trip2_dir).unwrap();
+
+    let photo1 = trip1_dir.join("dubare_19.jpg");
+    let photo2 = trip2_dir.join("dubare_19.jpg");
+    File::create(&photo1)
+        .unwrap()
+        .write_all(b"JPEG DUBARE 19 TRIP 1")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"JPEG DUBARE 19 TRIP 2")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in default in-place mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(
+        org_output.status.success(),
+        "organize failed: stderr: {}",
+        String::from_utf8_lossy(&org_output.stderr)
+    );
+
+    // 2. Querying ambiguous bare stem "dubare_19" fails non-interactively
+    let ambiguous_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "dubare_19",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct with bare stem");
+
+    assert!(
+        !ambiguous_output.status.success(),
+        "Ambiguous file query should fail in non-interactive mode"
+    );
+    let stderr = String::from_utf8_lossy(&ambiguous_output.stderr);
+    assert!(
+        stderr.contains("Dubare - 2 and nagarhole 2024 /Processed - compressed/dubare_19.jpg"),
+        "stderr should list choice 1, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("Kashmir and Dubare -1  2024/Processed/Dubare compressed/dubare_19.jpg"),
+        "stderr should list choice 2, got: {stderr}"
+    );
+
+    // 3. Querying with exact relative path succeeds
+    let disambiguated_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "Dubare - 2 and nagarhole 2024 /Processed - compressed/dubare_19.jpg",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct with relative path");
+
+    assert!(
+        disambiguated_output.status.success(),
+        "Disambiguated correct failed: stderr: {}",
+        String::from_utf8_lossy(&disambiguated_output.stderr)
+    );
+
+    // 4. Verify manifest overrides only target photo1
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+
+    let b1 = bundles
+        .iter()
+        .find(|(_, b)| {
+            b.relative_path.as_ref().is_some_and(|p| {
+                p == Path::new(
+                    "Dubare - 2 and nagarhole 2024 /Processed - compressed/dubare_19.jpg",
+                )
+            })
+        })
+        .expect("Bundle 1 must exist");
+    assert_eq!(b1.0.assigned_species_slug, "Painted_Stork");
+    assert!(b1.0.is_user_override);
+
+    let b2 = bundles
+        .iter()
+        .find(|(_, b)| {
+            b.relative_path.as_ref().is_some_and(|p| {
+                p == Path::new(
+                    "Kashmir and Dubare -1  2024/Processed/Dubare compressed/dubare_19.jpg",
+                )
+            })
+        })
+        .expect("Bundle 2 must exist");
+    assert_ne!(b2.0.assigned_species_slug, "Painted_Stork");
+    assert!(!b2.0.is_user_override);
+}
+
+#[test]
+fn test_cli_correct_root_file_disambiguation_with_dot_slash() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Bharatpur");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let root_photo = input_dir.join("DSC_0001.JPG");
+    let sub_photo = trip_dir.join("DSC_0001.JPG");
+    File::create(&root_photo)
+        .unwrap()
+        .write_all(b"JPEG ROOT PHOTO")
+        .unwrap();
+    File::create(&sub_photo)
+        .unwrap()
+        .write_all(b"JPEG SUB PHOTO")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // 1. Organize in-place
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(org_output.status.success());
+
+    // 2. Query with bare stem fails with ambiguity
+    let ambiguous_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "DSC_0001",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct with bare stem");
+    assert!(!ambiguous_output.status.success());
+    let stderr = String::from_utf8_lossy(&ambiguous_output.stderr);
+    assert!(stderr.contains("Multiple photo bundles matched query 'DSC_0001'"));
+
+    // 3. Query with explicit root prefix "./DSC_0001.JPG" succeeds for root only
+    let root_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "./DSC_0001.JPG",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct with ./ prefix");
+    assert!(
+        root_output.status.success(),
+        "Query with ./DSC_0001.JPG must succeed for root photo: {}",
+        String::from_utf8_lossy(&root_output.stderr)
+    );
+
+    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    let bundles = db.get_all_bundles(None).unwrap();
+
+    let root_bundle = bundles
+        .iter()
+        .find(|(_, b)| {
+            b.relative_path
+                .as_ref()
+                .is_some_and(|p| p.parent().is_none_or(|par| par.as_os_str().is_empty()))
+        })
+        .expect("Root bundle must exist");
+    assert_eq!(root_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert!(root_bundle.0.is_user_override);
+
+    let sub_bundle = bundles
+        .iter()
+        .find(|(_, b)| b.trip_folder_name == "Bharatpur")
+        .expect("Subfolder bundle must exist");
+    assert_ne!(sub_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert!(!sub_bundle.0.is_user_override);
+}
+
+#[test]
+fn test_cli_correct_renamed_file_does_not_match_different_stem_in_same_directory() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let db_dir = input_dir.join(".avicull");
+    fs::create_dir_all(&db_dir).unwrap();
+    let db_path = db_dir.join("manifest.sqlite");
+
+    let db = ManifestDb::open_or_create(&db_path).unwrap();
+    db.record_run("run_test", "/fake/input", "/fake/output", false, "{}")
+        .unwrap();
+
+    let dummy_decision = avicull::types::BundleDecision {
+        bundle_id: "bundle_dsc_0001".to_string(),
+        burst_id: None,
+        detection_confidence: 0.95,
+        bbox_xyxy_norm: None,
+        assigned_species_slug: "House_Sparrow".to_string(),
+        frame_confidence: 0.95,
+        final_confidence: 0.95,
+        routing_tier: avicull::types::RoutingTier::ConfirmedSpecies,
+        top_predictions: vec![],
+        is_user_override: false,
+    };
+
+    // Record a bundle whose file has been renamed on disk with date and location prefix
+    db.record_bundle(
+        "run_test",
+        &avicull::types::AssetBundle {
+            bundle_id: "bundle_dsc_0001".to_string(),
+            source_inode: 9001,
+            trip_folder_name: "Bharatpur".to_string(),
+            original_stem: "DSC_0001".to_string(),
+            primary_image: std::path::PathBuf::from("Bharatpur/2024-05-01_Bharatpur_DSC_0001.JPG"),
+            companion_images: vec![],
+            sidecar_files: vec![],
+            capture_timestamp_ms: None,
+            gps_coords: None,
+            resolved_location_name: None,
+            relative_path: Some(std::path::PathBuf::from(
+                "Bharatpur/2024-05-01_Bharatpur_DSC_0001.JPG",
+            )),
+        },
+        &dummy_decision,
+    )
+    .unwrap();
+    drop(db);
+
+    // Querying for a DIFFERENT stem in the same folder: "Bharatpur/DSC_0002.JPG"
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "Bharatpur/DSC_0002.JPG",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct");
+
+    assert!(
+        !correct_output.status.success(),
+        "Query for nonexistent stem DSC_0002 must fail"
+    );
+    let stderr = String::from_utf8_lossy(&correct_output.stderr);
+    assert!(
+        stderr.contains("No photo bundle matching 'Bharatpur/DSC_0002.JPG' was found in manifest"),
+        "stderr should say not found, but got: {stderr}"
+    );
+}
+
+#[test]
+fn test_cli_correct_nonexistent_file_in_renamed_subdirectory_returns_not_found() {
+    let dir = tempdir().expect("create temp dir");
+    let input_dir = dir.path().join("Photos");
+    let trip_dir = input_dir.join("Bharatpur");
+    fs::create_dir_all(&trip_dir).unwrap();
+
+    let photo = trip_dir.join("IMG_0001.JPG");
+    let photo2 = trip_dir.join("IMG_0002.JPG");
+    File::create(&photo)
+        .unwrap()
+        .write_all(b"JPEG DATA 1")
+        .unwrap();
+    File::create(&photo2)
+        .unwrap()
+        .write_all(b"JPEG DATA 2")
+        .unwrap();
+
+    let fixture_models_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models");
+
+    // Organize in in-place-rename mode
+    let org_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place-rename",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize");
+    assert!(org_output.status.success());
+
+    // Re-run organize to scan the already-renamed files on disk
+    let org_output2 = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "organize",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--mode",
+            "in-place",
+            "--models-dir",
+            fixture_models_dir.to_str().unwrap(),
+            "--no-prompt",
+        ])
+        .output()
+        .expect("failed to run avicull organize 2");
+    assert!(org_output2.status.success());
+
+    // Query a nonexistent file in that same subdirectory
+    let correct_output = Command::new(env!("CARGO_BIN_EXE_avicull"))
+        .args([
+            "correct",
+            "--input",
+            input_dir.to_str().unwrap(),
+            "--file",
+            "Bharatpur/nonexistent_photo.jpg",
+            "--species",
+            "Painted Stork",
+        ])
+        .output()
+        .expect("failed to run avicull correct");
+
+    assert!(!correct_output.status.success());
+    let stderr = String::from_utf8_lossy(&correct_output.stderr);
+    assert!(
+        stderr.contains("No photo bundle matching 'Bharatpur/nonexistent_photo.jpg' was found"),
+        "Expected not found error, got: {stderr}"
+    );
+    assert!(
+        !stderr.contains("Multiple photo bundles matched"),
+        "Must not falsely report multiple matched bundles for nonexistent file: {stderr}"
+    );
+}
+
+#[test]
 fn test_cli_correct_burst_propagation() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("Photos");

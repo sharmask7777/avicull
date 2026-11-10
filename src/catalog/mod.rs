@@ -236,6 +236,9 @@ pub struct CatalogPayloadItem {
     pub top_predictions: Vec<PayloadPrediction>,
     #[serde(default)]
     pub category: String,
+    /// Archive-relative path of the primary asset for unambiguous CLI command generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_path: Option<String>,
 }
 
 /// Serializable species prediction candidate for the catalog.
@@ -383,6 +386,11 @@ pub fn generate_html_catalog(
             RoutingTier::NoBirdDetected => "NoBirdDetected",
         };
 
+        let relative_path = item
+            .subdirectory
+            .as_ref()
+            .map(|sub| format!("{sub}/{primary_filename}"));
+
         payload_items.push(CatalogPayloadItem {
             id: item.bundle_id.clone(),
             original_stem: item.original_stem.clone(),
@@ -405,6 +413,7 @@ pub fn generate_html_catalog(
             sidecar_files,
             top_predictions: top_preds,
             category: item.category.as_str().to_string(),
+            relative_path,
         });
     }
 

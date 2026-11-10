@@ -31,8 +31,8 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
 
     // Verify stats header
     await expect(page.locator('#statTotal')).toHaveText('7');
-    await expect(page.locator('#statConfirmed')).toHaveText('5');
-    await expect(page.locator('#statReview')).toHaveText('2');
+    await expect(page.locator('#statConfirmed')).toHaveText('7');
+    await expect(page.locator('#statReview')).toHaveText('0');
   });
 
   test('displays species name, date, and location on distinct lines', async ({ page }) => {
@@ -44,9 +44,9 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await expect(card1.locator('.card-date')).not.toBeEmpty();
     await expect(card1.locator('.card-location')).toContainText('K Gudi');
 
-    // Card 2: Great Black-backed Gull (New Zealand)
+    // Card 2: Kelp Gull (New Zealand regional taxon)
     const card2 = cards.nth(1);
-    await expect(card2.locator('.card-species-title')).toContainText('Great Black-backed Gull');
+    await expect(card2.locator('.card-species-title')).toContainText('Kelp Gull');
     await expect(card2.locator('.card-date')).not.toBeEmpty();
     await expect(card2.locator('.card-location')).toContainText('New Zealand');
 
@@ -60,8 +60,8 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await expect(insectCard).toHaveCount(1);
     await expect(insectCard.locator('.badge-category')).toHaveText('Insecta');
 
-    // Scenery card: Pangong Tso
-    const sceneryCard = page.locator('#galleryGrid .card').filter({ hasText: 'Pangong Tso' });
+    // Scenery card: Mountain Landscape
+    const sceneryCard = page.locator('#galleryGrid .card').filter({ hasText: 'Mountain Landscape' });
     await expect(sceneryCard).toHaveCount(1);
     await expect(sceneryCard.locator('.badge-category')).toHaveText('Scenery');
   });
