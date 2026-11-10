@@ -286,6 +286,124 @@ fn test_generate_html_catalog_cloud_evicted_error_handling() {
 }
 
 #[test]
+fn test_generate_html_catalog_reuses_existing_preview_without_reading_raw() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // 1. Pre-create the extracted preview file in .avicull/previews/
+    let previews_dir = dir.path().join(".avicull").join("previews");
+    fs::create_dir_all(&previews_dir).expect("create previews dir");
+    let existing_preview = previews_dir.join("IMG_EXISTING.jpg");
+    fs::write(&existing_preview, b"PRE_EXISTING_PREVIEW_BYTES").expect("write existing preview");
+
+    // 2. Primary image is a RAW file that contains NO embedded JPEG preview (would fail or stall if read)
+    let raw_file = dir.path().join("IMG_EXISTING.CR2");
+    fs::write(&raw_file, vec![0xEE; 2048]).expect("write dummy raw file");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-existing-preview".to_string(),
+        original_stem: "IMG_EXISTING".to_string(),
+        current_path: raw_file.clone(),
+        primary_image: raw_file,
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Tibetan Snowcock".to_string(),
+        scientific_name: Some("Tetraogallus tibetanus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.98,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: None,
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Existing Preview Trip",
+        &[item],
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog should succeed using existing preview");
+
+    // Verify catalog payload references the existing preview URL
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        html_content.contains(r#""preview_url":".avicull/previews/IMG_EXISTING.jpg""#),
+        "Catalog HTML preview_url must reference the existing preview without reading RAW"
+    );
+    assert!(
+        html_content.contains(r#""thumb_src":".avicull/previews/IMG_EXISTING.jpg""#),
+        "Catalog HTML thumb_src must reference the existing preview"
+    );
+
+    // Verify existing preview bytes were not overwritten
+    let preview_bytes = fs::read(&existing_preview).expect("read existing preview");
+    assert_eq!(
+        preview_bytes, b"PRE_EXISTING_PREVIEW_BYTES",
+        "Pre-existing preview must be preserved intact"
+    );
+}
+
+#[test]
+fn test_generate_html_catalog_cloud_evicted_dataless_does_not_read_raw() {
+    let dir = tempdir().expect("tempdir");
+    let catalog_path = dir.path().join("bird_catalog.html");
+
+    // Primary image is marked cloud-evicted (is_local: Some(false)).
+    // The RAW file does NOT have a pre-existing preview in .avicull/previews/.
+    let raw_file = dir.path().join("IMG_CLOUD.CR2");
+    // Write invalid bytes that cannot be parsed as JPEG or image
+    fs::write(&raw_file, vec![0xCC; 1024]).expect("write dummy raw file");
+
+    let item = CatalogItem {
+        bundle_id: "bundle-cloud-dataless".to_string(),
+        original_stem: "IMG_CLOUD".to_string(),
+        current_path: raw_file.clone(),
+        primary_image: raw_file,
+        companion_images: vec![],
+        sidecar_files: vec![],
+        relative_preview_path: None,
+        assigned_species: "Bearded Vulture".to_string(),
+        scientific_name: Some("Gypaetus barbatus".to_string()),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        confidence: 0.95,
+        capture_date: Some("2026-10-25".to_string()),
+        location_name: Some("Leh".to_string()),
+        location_source: None,
+        subdirectory: None,
+        top_predictions: vec![],
+        is_local: Some(false),
+        category: AssetCategory::Bird,
+    };
+
+    generate_html_catalog(
+        "Cloud Evicted Dataless Trip",
+        &[item],
+        OrganizationMode::InPlace,
+        &catalog_path,
+    )
+    .expect("generate_html_catalog must succeed gracefully on cloud-evicted items");
+
+    // Previews dir must NOT have IMG_CLOUD.jpg created
+    let previews_dir = dir.path().join(".avicull").join("previews");
+    let generated_preview = previews_dir.join("IMG_CLOUD.jpg");
+    assert!(
+        !generated_preview.exists(),
+        "Cloud-evicted RAW files without previews must not be read or extracted"
+    );
+
+    let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
+    assert!(
+        html_content.contains(r#""is_local":false"#),
+        "Item must be marked is_local: false in catalog payload"
+    );
+}
+
+#[test]
 fn test_generate_html_catalog_hierarchy_mode() {
     let dir = tempdir().expect("tempdir");
     let catalog_path = dir.path().join("bird_catalog.html");
