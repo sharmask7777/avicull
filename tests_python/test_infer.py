@@ -375,6 +375,45 @@ class TestAvianInferenceEngineMocked(unittest.TestCase):
             self.assertEqual(len(data), 1)
             self.assertEqual(data[0]["bundle_id"], "b1")
 
+    def test_batch_inference_emits_verbose_progress_to_stderr(self):
+        import io
+
+        engine = self._create_mock_engine()
+        img_path = os.path.join(self.models_dir, "bird_progress.jpg")
+        Image.new("RGB", (100, 100), color="blue").save(img_path)
+
+        batch_tasks = [
+            {
+                "bundle_id": "bundle_test_1",
+                "primary_image": img_path,
+                "trip_folder_name": "TripTest",
+                "region_code": "IN-KA",
+            }
+        ]
+        batch_json = os.path.join(self.models_dir, "batch_progress.json")
+        with open(batch_json, "w", encoding="utf-8") as f:
+            json.dump(batch_tasks, f)
+
+        batch_out = os.path.join(self.models_dir, "batch_progress_out.json")
+        cmd_batch = [
+            "infer.py",
+            "--models-dir",
+            self.models_dir,
+            "--batch-file",
+            batch_json,
+            "--output-file",
+            batch_out,
+        ]
+        fake_stderr = io.StringIO()
+        with (
+            patch("scripts.infer.AvianInferenceEngine", return_value=engine),
+            patch.object(sys, "argv", cmd_batch),
+            patch.object(sys, "stderr", fake_stderr),
+        ):
+            main()
+            output = fake_stderr.getvalue()
+            self.assertIn("[inference] Progress: 1/1 (100%)", output)
+
 
 class TestCategoryAnchorsAndGating(unittest.TestCase):
     def setUp(self):

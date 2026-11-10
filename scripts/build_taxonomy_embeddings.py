@@ -1858,9 +1858,12 @@ def compute_species_embeddings(
             emb = model.encode_text(tokens)
             emb /= emb.norm(dim=-1, keepdim=True)
             all_embeddings.append(emb.cpu())
-            if i % 10 == 0:
-                processed_count = min((i + 1) * batch_size, len(prompts))
-                logging.info(f"  Processed {processed_count}/{len(prompts)} species...")
+            processed_count = min((i + 1) * batch_size, len(prompts))
+            pct = (processed_count * 100) // len(prompts) if len(prompts) > 0 else 100
+            msg = (
+                f"[models] BioCLIP embedding progress: {processed_count}/{len(prompts)} ({pct}%)..."
+            )
+            print(msg, file=sys.stderr, flush=True)
 
     if not all_embeddings:
         return torch.empty((0, 512), dtype=torch.float32)
@@ -1891,7 +1894,13 @@ def build_taxonomy_pipeline(
     from safetensors.torch import save_file
 
     os.makedirs(models_dir, exist_ok=True)
+    print(
+        "[models] Fetching global bird taxonomy & multi-taxa categories...",
+        file=sys.stderr,
+        flush=True,
+    )
     entries = fetch_taxonomy_fn()
+    print(f"[models] Loaded {len(entries)} taxa records.", file=sys.stderr, flush=True)
 
     taxonomy_dicts = [entry.to_dict() for entry in entries]
     taxonomy_path = os.path.join(models_dir, "taxonomy.json")
@@ -1906,6 +1915,7 @@ def build_taxonomy_pipeline(
         import torch
 
         device = "mps" if torch.backends.mps.is_available() else "cpu"
+        print(f"[models] Initializing BioCLIP on {device.upper()}...", file=sys.stderr, flush=True)
         model, _, _ = open_clip.create_model_and_transforms("hf-hub:imageomics/bioclip")
         tokenizer = open_clip.get_tokenizer("hf-hub:imageomics/bioclip")
         model.to(device).eval()
@@ -1917,6 +1927,7 @@ def build_taxonomy_pipeline(
             batch_size=256,
         )
 
+    print(f"[models] Saving embeddings to '{safetensors_path}'...", file=sys.stderr, flush=True)
     save_file({"embeddings": embeddings_tensor}, safetensors_path)
 
     if copy_yolo_fn is not None:
@@ -1926,6 +1937,7 @@ def build_taxonomy_pipeline(
 
         yolo_target = os.path.join(models_dir, "yolo11n.pt")
         if not os.path.exists(yolo_target):
+            print("[models] Initializing YOLO11 detector weights...", file=sys.stderr, flush=True)
             YOLO("yolo11n.pt")
             import shutil
 
@@ -1936,6 +1948,12 @@ def build_taxonomy_pipeline(
     manifest_path = os.path.join(models_dir, "manifest.json")
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
+
+    print(
+        f"[models] Verified {len(manifest)} model artifacts in '{models_dir}'.",
+        file=sys.stderr,
+        flush=True,
+    )
 
     return manifest
 

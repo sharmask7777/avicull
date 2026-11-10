@@ -187,6 +187,10 @@ pub struct ScanArgs {
     /// Fallback default longitude
     #[arg(long)]
     pub default_lon: Option<f64>,
+
+    /// Enable verbose progress output
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
 }
 
 #[derive(Args, Debug)]
@@ -266,6 +270,10 @@ pub struct OrganizeArgs {
     /// Maximum cache size budget for chunked processing loop (default: 5GB)
     #[arg(long, default_value = "5GB")]
     pub max_cache_size: String,
+
+    /// Enable verbose progress output
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
 }
 
 #[derive(Args, Debug)]
@@ -289,6 +297,10 @@ pub struct RelinkArgs {
     /// Specific run_id to relink (defaults to latest run)
     #[arg(long)]
     pub run_id: Option<String>,
+
+    /// Enable verbose progress output
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
 }
 
 #[derive(Args, Debug)]
@@ -308,6 +320,10 @@ pub struct CleanArgs {
     /// Specific run_id to clean (defaults to latest run)
     #[arg(long)]
     pub run_id: Option<String>,
+
+    /// Enable verbose progress output
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
 }
 
 #[derive(Args, Debug)]

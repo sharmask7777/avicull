@@ -191,7 +191,7 @@ fn run_batch_inference(
     let output_file_str = output_file.to_string_lossy();
     let infer_script_str = infer_script.to_string_lossy();
 
-    let output = std::process::Command::new("uv")
+    let mut child = std::process::Command::new("uv")
         .args([
             "run",
             "--with",
@@ -209,10 +209,23 @@ fn run_batch_inference(
             "--geo-prior-weight",
             &geo_prior_weight.to_string(),
         ])
-        .output()?;
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
 
-    if !output.status.success() {
-        let err_msg = String::from_utf8_lossy(&output.stderr);
+    let mut err_lines = Vec::new();
+    if let Some(stderr) = child.stderr.take() {
+        use std::io::BufRead;
+        let reader = std::io::BufReader::new(stderr);
+        for line in reader.lines().map_while(std::result::Result::ok) {
+            eprintln!("{line}");
+            err_lines.push(line);
+        }
+    }
+
+    let status = child.wait()?;
+    if !status.success() {
+        let err_msg = err_lines.join("\n");
         return Err(anyhow!("Python inference runner failed: {err_msg}"));
     }
 
@@ -261,6 +274,16 @@ fn run_fallback_parallel_classification(
     bundle_regions: &std::collections::HashMap<String, String>,
 ) -> std::collections::HashMap<String, ClassifiedBundleItem> {
     use rayon::prelude::*;
+    let total = new_bundles.len();
+    let completed = std::sync::atomic::AtomicUsize::new(0);
+    let interval = if total <= 20 {
+        5
+    } else if total <= 100 {
+        10
+    } else {
+        25
+    };
+
     new_bundles
         .par_iter()
         .map(|bundle| {
@@ -356,6 +379,15 @@ fn run_fallback_parallel_classification(
                     posteriors: vec![],
                 }
             };
+
+            let count = completed.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            if count.is_multiple_of(interval) || count == total {
+                let pct = (count * 100).checked_div(total).unwrap_or(100);
+                eprintln!(
+                    "[classification] Fallback progress: {count}/{total} ({pct}%) bundles processed..."
+                );
+            }
+
             (bundle.bundle_id.clone(), item)
         })
         .collect()
@@ -479,9 +511,14 @@ fn main() -> Result<()> {
             validate_volume_and_disjointness(&args.input, &output_dir)?;
             println!("✓ APFS same-volume and path validation succeeded.");
 
+            println!("Scanning source directory '{}'...", args.input.display());
             let mut bundles = scan_input_tree_with_skip(&args.input, Some(&output_dir))?;
             println!("✓ Discovered {} asset bundles.", bundles.len());
 
+            println!(
+                "Resolving EXIF metadata and GPS coordinates across {} bundles...",
+                bundles.len()
+            );
             let def_coords = match (args.default_lat, args.default_lon) {
                 (Some(la), Some(lo)) => Some((la, lo)),
                 _ => None,
@@ -590,6 +627,7 @@ fn main() -> Result<()> {
                 }
             }
 
+            println!("Scanning source directory '{}'...", args.input.display());
             let mut all_discovered = scan_input_tree_with_skip(&args.input, skip_dir.as_deref())?;
             for bundle in &mut all_discovered {
                 if let Some((_, old_bundle)) = existing_bundle_map.get_by_bundle(bundle) {
@@ -630,6 +668,10 @@ fn main() -> Result<()> {
                 }
             }
 
+            println!(
+                "Resolving EXIF metadata and GPS coordinates across {} bundles...",
+                all_discovered.len()
+            );
             let def_coords = match (args.default_lat, args.default_lon) {
                 (Some(la), Some(lo)) => Some((la, lo)),
                 _ => None,
@@ -639,6 +681,17 @@ fn main() -> Result<()> {
                 args.locations_file.as_deref(),
                 def_coords,
             )?;
+            let with_gps_count = all_discovered
+                .iter()
+                .filter(|b| b.gps_coords.is_some())
+                .count();
+            if args.verbose || with_gps_count > 0 {
+                println!(
+                    "✓ Resolved GPS coordinates for {}/{} bundles.",
+                    with_gps_count,
+                    all_discovered.len()
+                );
+            }
 
             // Location resolution via Gazetteer and Path Inference for bundles lacking EXIF GPS
             let mut bundle_regions: std::collections::HashMap<String, String> =
@@ -1055,16 +1108,29 @@ fn main() -> Result<()> {
 
                 // Extract embedded preview for RAW formats if companion missing
                 let previews_dir = operating_root.join(".avicull").join("previews");
-                for bundle in &processable_chunk {
-                    let is_web = bundle
-                        .primary_image
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .is_some_and(|e| {
-                            matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
-                        });
-                    if !is_web && bundle.companion_images.is_empty() {
-                        let _ = std::fs::create_dir_all(&previews_dir);
+                let raw_bundles_to_extract: Vec<_> = processable_chunk
+                    .iter()
+                    .filter(|b| {
+                        let is_web = b
+                            .primary_image
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .is_some_and(|e| {
+                                matches!(e.to_lowercase().as_str(), "jpg" | "jpeg" | "png" | "webp")
+                            });
+                        !is_web && b.companion_images.is_empty()
+                    })
+                    .collect();
+
+                if !raw_bundles_to_extract.is_empty() {
+                    let _ = std::fs::create_dir_all(&previews_dir);
+                    let raw_total = raw_bundles_to_extract.len();
+                    if args.verbose || raw_total > 5 {
+                        println!(
+                            "  Extracting embedded preview JPEGs for {raw_total} RAW photo bundle(s)..."
+                        );
+                    }
+                    for (idx, bundle) in raw_bundles_to_extract.iter().enumerate() {
                         let preview_path =
                             previews_dir.join(format!("{}.jpg", bundle.original_stem));
                         if !preview_path.exists() {
@@ -1075,6 +1141,10 @@ fn main() -> Result<()> {
                                     let _ = std::fs::write(&preview_path, preview_bytes);
                                 }
                             }
+                        }
+                        if args.verbose && ((idx + 1).is_multiple_of(50) || (idx + 1) == raw_total)
+                        {
+                            println!("    Extracted previews: {}/{}...", idx + 1, raw_total);
                         }
                     }
                 }
@@ -1110,6 +1180,16 @@ fn main() -> Result<()> {
                 0.80,
                 conf_mode,
                 args.min_confidence,
+            );
+            let unique_bursts = decisions
+                .iter()
+                .filter_map(|d| d.burst_id.as_deref())
+                .collect::<std::collections::HashSet<_>>()
+                .len();
+            println!(
+                "✓ Formed {} burst clusters across {} photo bundles.",
+                unique_bursts,
+                decisions.len()
             );
 
             // Preserve user manual overrides across burst consensus and re-runs
@@ -1173,11 +1253,16 @@ fn main() -> Result<()> {
                     catalog_items.push(cat_item);
                 }
             } else if args.mode == OrganizationMode::InPlaceRename {
+                let total_renames = processable_discovered.len();
                 println!(
-                    "Executing in-place file renames (dry_run: {})...",
+                    "Executing in-place file renames for {total_renames} bundles (dry_run: {})...",
                     args.dry_run
                 );
-                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter()) {
+                for (idx, (bundle, decision)) in processable_discovered
+                    .iter()
+                    .zip(decisions.iter())
+                    .enumerate()
+                {
                     let renames = if decision.routing_tier == RoutingTier::NoBirdDetected {
                         // Bundles where no bird is detected are preserved in-place without renaming.
                         Vec::new()
@@ -1221,6 +1306,15 @@ fn main() -> Result<()> {
                     }
                     total_ops_count += renames.len();
 
+                    if args.verbose || (idx + 1).is_multiple_of(50) || (idx + 1) == total_renames {
+                        println!(
+                            "  Renamed {}/{} bundles ({} operations recorded)...",
+                            idx + 1,
+                            total_renames,
+                            total_ops_count
+                        );
+                    }
+
                     let rename_map: std::collections::HashMap<_, _> = renames.into_iter().collect();
 
                     let new_primary = rename_map
@@ -1247,10 +1341,20 @@ fn main() -> Result<()> {
                     );
                     catalog_items.push(cat_item);
                 }
+                println!("✓ In-place renaming complete: {total_ops_count} operations recorded.");
             } else {
-                println!("Materializing hard links (dry_run: {})...", args.dry_run);
+                let total_links = processable_discovered.len();
+                println!(
+                    "Materializing hard links for {total_links} bundles into '{}' (dry_run: {})...",
+                    operating_root.display(),
+                    args.dry_run
+                );
                 let mut total_ops = Vec::new();
-                for (bundle, decision) in processable_discovered.iter().zip(decisions.iter()) {
+                for (idx, (bundle, decision)) in processable_discovered
+                    .iter()
+                    .zip(decisions.iter())
+                    .enumerate()
+                {
                     let ops = materialize_bundle_hardlinks(
                         bundle,
                         decision,
@@ -1292,9 +1396,19 @@ fn main() -> Result<()> {
                     catalog_items.push(cat_item);
 
                     total_ops.extend(ops);
+
+                    if args.verbose || (idx + 1).is_multiple_of(50) || (idx + 1) == total_links {
+                        println!(
+                            "  Hardlinked {}/{} bundles ({} links created)...",
+                            idx + 1,
+                            total_links,
+                            total_ops.len()
+                        );
+                    }
                 }
                 total_ops_count = total_ops.len();
                 db.record_hardlink_operations(&total_ops)?;
+                println!("✓ Hardlink materialization complete: {total_ops_count} links created.");
             }
 
             db.complete_run(&run_id)?;
@@ -1395,8 +1509,13 @@ fn main() -> Result<()> {
             let unlinked = clean_run_hardlinks(&db, &run_id)?;
             println!("Unlinked {unlinked} previous hard links.");
 
+            let total_relink = cached_bundles.len();
+            println!(
+                "Materializing hard links for {total_relink} bundles into '{}'...",
+                output_dir.display()
+            );
             let mut new_ops = Vec::new();
-            for (mut dec, bundle) in cached_bundles {
+            for (idx, (mut dec, bundle)) in cached_bundles.into_iter().enumerate() {
                 if dec.final_confidence >= args.min_confidence {
                     dec.routing_tier = RoutingTier::ConfirmedSpecies;
                 } else if dec.detection_confidence >= 0.25 {
@@ -1408,6 +1527,14 @@ fn main() -> Result<()> {
                 db.update_bundle_routing_tier(&bundle.bundle_id, dec.routing_tier)?;
                 let ops = materialize_bundle_hardlinks(&bundle, &dec, &output_dir, &run_id, false)?;
                 new_ops.extend(ops);
+                if args.verbose || (idx + 1).is_multiple_of(50) || (idx + 1) == total_relink {
+                    println!(
+                        "  Relinked {}/{} bundles ({} links created)...",
+                        idx + 1,
+                        total_relink,
+                        new_ops.len()
+                    );
+                }
             }
 
             db.record_hardlink_operations(&new_ops)?;
