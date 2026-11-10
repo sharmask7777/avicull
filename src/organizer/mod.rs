@@ -616,3 +616,46 @@ pub fn materialize_chunk_with_retry(
 pub fn clean_run_inplace(db: &ManifestDb, run_id: &str) -> Result<usize> {
     db.rollback_inplace_renames(run_id)
 }
+
+/// Determines whether an existing cached photo bundle should be re-evaluated and reclassified.
+///
+/// # Invariants & Reclassification Precedence
+/// 1. **User Overrides are Permanent & Inviolable**:
+///    If `existing_decision.is_user_override` is `true`, this function returns `false` under all
+///    circumstances. Explicit human corrections recorded via `avicull correct` or the HTML catalog
+///    must never be clobbered by automatic reclassification or flag sweeps.
+/// 2. **Explicit `--reclassify` Opt-In**:
+///    If `force_reclassify` is `true`, all non-override cached bundles are queued for re-classification.
+/// 3. **Spatial & Coordinate Prior Updates**:
+///    If `bundle.gps_coords != old_bundle.gps_coords`, the bundle's geographic location has changed
+///    (e.g. from newly assigned EXIF, parent directory gazetteer resolution, or catalog override),
+///    requiring Bayesian spatial-temporal prior re-evaluation (`true`).
+/// 4. **Idempotent Retention**:
+///    Bundles with existing valid classifications and identical coordinates return `false`.
+///
+/// # Arguments
+/// * `bundle` - The currently discovered asset bundle with up-to-date resolved coordinates.
+/// * `existing_decision` - The previously recorded decision from the SQLite manifest.
+/// * `old_bundle` - The cached asset bundle metadata from the SQLite manifest.
+/// * `force_reclassify` - Whether the user supplied `--reclassify`.
+///
+/// # Returns
+/// `true` if the bundle requires re-classification; `false` if the cached decision should be reused.
+#[must_use]
+pub fn should_reclassify_bundle(
+    bundle: &AssetBundle,
+    existing_decision: &BundleDecision,
+    old_bundle: &AssetBundle,
+    force_reclassify: bool,
+) -> bool {
+    if existing_decision.is_user_override {
+        return false;
+    }
+    if force_reclassify {
+        return true;
+    }
+    if bundle.gps_coords != old_bundle.gps_coords {
+        return true;
+    }
+    false
+}

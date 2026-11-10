@@ -798,26 +798,37 @@ fn main() -> Result<()> {
             let mut cached_items = std::collections::HashMap::new();
 
             for bundle in &all_discovered {
-                if let Some((existing_decision, _)) = existing_bundle_map.get_by_bundle(bundle) {
-                    let posteriors: Vec<(String, f32)> = existing_decision
-                        .top_predictions
-                        .iter()
-                        .map(|p| (p.taxon_id.clone(), p.combined_score))
-                        .collect();
+                if let Some((existing_decision, old_bundle)) =
+                    existing_bundle_map.get_by_bundle(bundle)
+                {
+                    if avicull::organizer::should_reclassify_bundle(
+                        bundle,
+                        existing_decision,
+                        old_bundle,
+                        args.reclassify,
+                    ) {
+                        new_bundles.push(bundle);
+                    } else {
+                        let posteriors: Vec<(String, f32)> = existing_decision
+                            .top_predictions
+                            .iter()
+                            .map(|p| (p.taxon_id.clone(), p.combined_score))
+                            .collect();
 
-                    cached_items.insert(
-                        bundle.bundle_id.clone(),
-                        ClassifiedBundleItem {
-                            bundle_id: bundle.bundle_id.clone(),
-                            trip_folder: bundle.trip_folder_name.clone(),
-                            capture_timestamp_ms: bundle.capture_timestamp_ms,
-                            detection_confidence: existing_decision.detection_confidence,
-                            bbox_norm: existing_decision.bbox_xyxy_norm,
-                            embedding: Vec::new(),
-                            top_predictions: existing_decision.top_predictions.clone(),
-                            posteriors,
-                        },
-                    );
+                        cached_items.insert(
+                            bundle.bundle_id.clone(),
+                            ClassifiedBundleItem {
+                                bundle_id: bundle.bundle_id.clone(),
+                                trip_folder: bundle.trip_folder_name.clone(),
+                                capture_timestamp_ms: bundle.capture_timestamp_ms,
+                                detection_confidence: existing_decision.detection_confidence,
+                                bbox_norm: existing_decision.bbox_xyxy_norm,
+                                embedding: Vec::new(),
+                                top_predictions: existing_decision.top_predictions.clone(),
+                                posteriors,
+                            },
+                        );
+                    }
                 } else {
                     new_bundles.push(bundle);
                 }
@@ -825,7 +836,7 @@ fn main() -> Result<()> {
 
             if !existing_bundle_map.is_empty() {
                 println!(
-                    "Manifest status: {} bundles already cached, {} new bundles detected to process.",
+                    "Manifest status: {} bundles already cached, {} new/reclassified bundles detected to process.",
                     cached_items.len(),
                     new_bundles.len()
                 );
@@ -864,6 +875,18 @@ fn main() -> Result<()> {
                 }
                 generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
 
+                let unclassified_count = cached_items
+                    .values()
+                    .filter(|item| {
+                        item.detection_confidence == 0.0 && item.top_predictions.is_empty()
+                    })
+                    .count();
+                if unclassified_count > 0 && !args.reclassify {
+                    println!(
+                        "Tip: {unclassified_count} cached photos have no bird detected. Pass `--reclassify` to re-run neural detection and classification."
+                    );
+                }
+
                 println!(
                     "✓ All {} photo bundles are already up to date in '{}'.",
                     all_discovered.len(),
@@ -872,14 +895,10 @@ fn main() -> Result<()> {
                 return Ok(());
             }
 
+            let models_dir = resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?;
+
             let conf_mode: ConfidenceMode =
                 args.confidence_mode.parse().map_err(|e| anyhow!("{e}"))?;
-
-            let models_dir = if new_bundles.is_empty() {
-                None
-            } else {
-                resolve_or_prompt_models_dir(args.models_dir, args.no_prompt)?
-            };
 
             // Initialize models only if we have new bundles to process
             let detector: Box<dyn BirdDetector> = if let Some(ref m_dir) = models_dir {

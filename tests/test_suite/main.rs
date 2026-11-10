@@ -56,6 +56,7 @@ mod test_path_parser;
 mod test_portable_deserialization;
 mod test_preview_extractor;
 mod test_property_invariants;
+mod test_reclassify_unclassified_bundles;
 mod test_reconcile_moves;
 mod test_regional_prior;
 mod test_remote_cache;
