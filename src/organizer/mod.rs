@@ -171,6 +171,8 @@ pub fn build_output_destination_path(
         stripped
     } else if let Some(stripped) = clean_slug.strip_prefix(&format!("{cat}/")) {
         stripped
+    } else if clean_slug.eq_ignore_ascii_case(cat) {
+        ""
     } else {
         clean_slug
     };

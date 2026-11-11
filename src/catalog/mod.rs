@@ -24,11 +24,16 @@ use std::sync::LazyLock;
 /// Curated non-avian taxon entry for catalog dynamic autocomplete.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CuratedTaxonEntry {
+    /// Unique identifier for this taxon or motif entry.
     pub taxon_id: String,
+    /// Taxonomic or photographic genre category (e.g. `Mammalia`, `Insecta`, `Scenery`).
     pub category: String,
+    /// Human-readable common name.
     pub common_name: String,
+    /// Optional binomial scientific name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scientific_name: Option<String>,
+    /// Search aliases and colloquial variants for client-side fuzzy autocomplete.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
 }
@@ -38,6 +43,9 @@ static CURATED_MULTI_TAXA: LazyLock<Vec<CuratedTaxonEntry>> = LazyLock::new(|| {
 });
 
 /// Returns a clone of the curated non-avian multi-taxa entries for catalog autocomplete.
+///
+/// # Returns
+/// A vector of [`CuratedTaxonEntry`] structs loaded from embedded static data.
 #[must_use]
 pub fn load_curated_multi_taxa() -> Vec<CuratedTaxonEntry> {
     CURATED_MULTI_TAXA.clone()

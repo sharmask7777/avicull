@@ -1961,7 +1961,7 @@
           </div>
           <div class="card-body">
             <div class="card-species-title">
-              ${categoryBadgeMarkup} • <span>${item.assigned_species}</span>
+              ${categoryBadgeMarkup}${item.assigned_species ? ` • <span>${item.assigned_species}</span>` : ''}
             </div>
             ${scientificMarkup}
             ${dateMarkup}
@@ -2555,13 +2555,19 @@ fi
         commands.push(`  fi`);
       }
     } else if (CATALOG_DATA.mode === 'in-place-rename') {
-      // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
+      // In-place rename format: <stem>_<Category>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = item.original_stem;
       const datePart = item.capture_date ? item.capture_date.replace(/[-:/]/g, '') : '';
       const locPart = item.location_name ? sanitizeSlug(item.location_name) : '';
 
       let tags = [];
-      if (newSlug) tags.push(newSlug);
+      const isUnclassified = !newSlug || newSlug.startsWith('_No_') || cat === 'No_Subject_Detected' || cat === 'No_Bird_Detected';
+      if (isUnclassified) {
+        tags.push(newSlug || '_No_Subject_Detected');
+      } else {
+        if (cat) tags.push(cat);
+        if (newSlug && newSlug.toLowerCase() !== cat.toLowerCase()) tags.push(newSlug);
+      }
       if (datePart && datePart.toLowerCase() !== 'unknown') tags.push(datePart);
       if (locPart && locPart.toLowerCase() !== 'unknown') tags.push(locPart);
 

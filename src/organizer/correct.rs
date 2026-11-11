@@ -14,8 +14,8 @@ use crate::organizer::{
 };
 use crate::storage::detect_storage_backend;
 use crate::types::{
-    is_known_bird_slug, AssetBundle, AssetCategory, BundleDecision, Classification,
-    OrganizationMode, RoutingTier,
+    is_known_bird_slug, is_known_botanical_slug, AssetBundle, AssetCategory, BundleDecision,
+    Classification, OrganizationMode, RoutingTier,
 };
 use anyhow::{anyhow, Context, Result};
 use std::fs;
@@ -478,13 +478,13 @@ pub fn apply_bundle_correction_with_category(
             let cat = AssetCategory::from_slug(species_to_check);
             if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
                 normalized_category = cat.as_str().to_string();
+            } else if is_known_botanical_slug(species_to_check) {
+                normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+                is_no_bird = true;
             } else if suggestion_declined || !has_bird_suggestion {
-                if cat == AssetCategory::NoSubjectDetected {
-                    normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
-                    is_no_bird = true;
-                } else {
-                    normalized_category = cat.as_str().to_string();
-                }
+                // When explicitly categorized as Bird with a novel custom species or hybrid
+                // that is not in the standard taxonomy, respect the user's category selection.
+                normalized_category = "Bird".to_string();
             }
         }
     } else if normalized_category == AssetCategory::NoSubjectDetected.as_str() {

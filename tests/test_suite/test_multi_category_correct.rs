@@ -120,6 +120,147 @@ fn test_correct_non_avian_granular_and_top_level_inplace() -> anyhow::Result<()>
 }
 
 #[test]
+fn test_correct_custom_avian_hybrid_without_suggestion_preserves_bird() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let input_dir = dir.path().join("input");
+    fs::create_dir_all(&input_dir)?;
+    let img_path = input_dir.join("DSC_0005.JPG");
+    fs::write(&img_path, b"fake jpeg payload")?;
+
+    let db_path = input_dir.join(".avicull").join("manifest.sqlite");
+    fs::create_dir_all(db_path.parent().unwrap())?;
+    let db = ManifestDb::open_or_create(&db_path)?;
+
+    let run_id = "run_hybrid_test";
+    db.record_run(
+        run_id,
+        &input_dir,
+        input_dir.join("birds_hierarchy"),
+        false,
+        "{}",
+    )?;
+
+    let src_meta = fs::metadata(&img_path)?;
+    let src_ino = src_meta.ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_hybrid".to_string(),
+        source_inode: src_ino,
+        trip_folder_name: "trip".to_string(),
+        original_stem: "DSC_0005".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0005.JPG")),
+    };
+    let dec = BundleDecision {
+        bundle_id: "b_hybrid".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        classification: Classification::granular(AssetCategory::Bird, "House_Sparrow"),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+    db.record_bundles(run_id, &[dec], &[bundle])?;
+
+    let res = apply_bundle_correction_with_category(
+        &db,
+        &input_dir,
+        OrganizationMode::InPlace,
+        "DSC_0005",
+        "Bird",
+        "Custom_Avian_Hybrid",
+        Some(&input_dir),
+        false,
+    )?;
+
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].0.category(), &AssetCategory::Bird);
+    assert_eq!(res[0].0.entity_slug(), Some("Custom_Avian_Hybrid"));
+    assert_eq!(res[0].0.assigned_species_slug(), "Custom_Avian_Hybrid");
+    assert_eq!(res[0].0.routing_tier, RoutingTier::ConfirmedSpecies);
+    assert!(res[0].0.is_user_override);
+
+    Ok(())
+}
+
+#[test]
+fn test_correct_botanical_species_demotes_to_no_subject_detected() -> anyhow::Result<()> {
+    let dir = tempdir()?;
+    let input_dir = dir.path().join("input");
+    fs::create_dir_all(&input_dir)?;
+    let img_path = input_dir.join("DSC_0006.JPG");
+    fs::write(&img_path, b"fake jpeg payload")?;
+
+    let db_path = input_dir.join(".avicull").join("manifest.sqlite");
+    fs::create_dir_all(db_path.parent().unwrap())?;
+    let db = ManifestDb::open_or_create(&db_path)?;
+
+    let run_id = "run_botanical_test";
+    db.record_run(
+        run_id,
+        &input_dir,
+        input_dir.join("birds_hierarchy"),
+        false,
+        "{}",
+    )?;
+
+    let src_meta = fs::metadata(&img_path)?;
+    let src_ino = src_meta.ino();
+
+    let bundle = AssetBundle {
+        bundle_id: "b_botanical".to_string(),
+        source_inode: src_ino,
+        trip_folder_name: "trip".to_string(),
+        original_stem: "DSC_0006".to_string(),
+        primary_image: img_path.clone(),
+        companion_images: vec![],
+        sidecar_files: vec![],
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from("DSC_0006.JPG")),
+    };
+    let dec = BundleDecision {
+        bundle_id: "b_botanical".to_string(),
+        burst_id: None,
+        detection_confidence: 0.9,
+        bbox_xyxy_norm: None,
+        top_predictions: vec![],
+        frame_confidence: 0.9,
+        final_confidence: 0.9,
+        classification: Classification::granular(AssetCategory::Bird, "House_Sparrow"),
+        routing_tier: RoutingTier::ConfirmedSpecies,
+        is_user_override: false,
+    };
+    db.record_bundles(run_id, &[dec], &[bundle])?;
+
+    let res = apply_bundle_correction_with_category(
+        &db,
+        &input_dir,
+        OrganizationMode::InPlace,
+        "DSC_0006",
+        "Bird",
+        "Sacred_Lotus",
+        Some(&input_dir),
+        false,
+    )?;
+
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].0.category(), &AssetCategory::NoSubjectDetected);
+    assert_eq!(res[0].0.routing_tier, RoutingTier::NoBirdDetected);
+
+    Ok(())
+}
+
+#[test]
 fn test_correct_non_avian_top_level_hierarchy_and_rename() -> anyhow::Result<()> {
     // Test hierarchy mode with top-level Scenery
     let dir = tempdir()?;

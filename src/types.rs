@@ -9,7 +9,7 @@
 //! - [`OrganizationMode`]: The file organization strategy (`InPlace`, `InPlaceRename`, `HierarchicalHardlinkHierarchy`).
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
@@ -97,6 +97,53 @@ pub fn is_known_bird_slug(slug: &str) -> bool {
     }
     let spaces_hyph = clean.replace('-', " ");
     KNOWN_BIRD_SET.contains(&spaces_hyph)
+}
+
+static KNOWN_BOTANICAL_SET: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    let mut set = HashSet::new();
+    let names = [
+        "banyan_tree",
+        "sacred_lotus",
+        "rhododendron",
+        "rhododendron_arboreum",
+        "wild_mushroom",
+        "indian_lotus",
+        "water_lily",
+        "indian_banyan",
+        "vada_tree",
+        "ficus_benghalensis",
+        "nelumbo_nucifera",
+        "lotus",
+    ];
+    for name in names {
+        set.insert(name);
+    }
+    set
+});
+
+/// Checks whether an entity slug or name corresponds to a known botanical or flora motif.
+///
+/// # Arguments
+/// * `slug` - Raw species or entity string.
+///
+/// # Returns
+/// `true` if the slug matches a known botanical/flora entity.
+#[must_use]
+pub fn is_known_botanical_slug(slug: &str) -> bool {
+    let lower = slug.to_lowercase();
+    let clean = lower.trim_start_matches('_');
+    if clean.is_empty() {
+        return false;
+    }
+    if KNOWN_BOTANICAL_SET.contains(clean) {
+        return true;
+    }
+    let hyph = clean.replace('-', "_");
+    if KNOWN_BOTANICAL_SET.contains(hyph.as_str()) {
+        return true;
+    }
+    let spaces = clean.replace('_', " ");
+    KNOWN_BOTANICAL_SET.contains(spaces.as_str())
 }
 
 static CURATED_MULTI_TAXA_MAP: LazyLock<HashMap<String, AssetCategory>> = LazyLock::new(|| {
@@ -485,8 +532,33 @@ pub struct Classification {
     pub entity_slug: Option<String>,
 }
 
+impl Default for Classification {
+    fn default() -> Self {
+        Self {
+            category: AssetCategory::NoSubjectDetected,
+            entity_slug: None,
+        }
+    }
+}
+
+impl std::fmt::Display for Classification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(ref slug) = self.entity_slug {
+            write!(f, "{}:{}", self.category, slug)
+        } else {
+            write!(f, "{}", self.category)
+        }
+    }
+}
+
 impl Classification {
     /// Constructs a top-level category classification without a granular species/entity.
+    ///
+    /// # Arguments
+    /// * `category` - Broad domain category ([`AssetCategory`]).
+    ///
+    /// # Returns
+    /// A top-level [`Classification`] with `entity_slug: None`.
     #[must_use]
     pub fn top_level(category: AssetCategory) -> Self {
         Self {
@@ -496,6 +568,13 @@ impl Classification {
     }
 
     /// Constructs a granular species or entity classification.
+    ///
+    /// # Arguments
+    /// * `category` - Broad domain category ([`AssetCategory`]).
+    /// * `entity_slug` - Granular entity or species directory slug.
+    ///
+    /// # Returns
+    /// A granular [`Classification`] with `entity_slug: Some(slug)`.
     #[must_use]
     pub fn granular(category: AssetCategory, entity_slug: impl Into<String>) -> Self {
         let slug = entity_slug.into();
@@ -511,6 +590,12 @@ impl Classification {
     }
 
     /// Resolves classification from a species or entity slug.
+    ///
+    /// # Arguments
+    /// * `slug` - Raw species or entity directory slug.
+    ///
+    /// # Returns
+    /// The resolved [`Classification`] target.
     #[must_use]
     pub fn from_slug(slug: &str) -> Self {
         let cat = AssetCategory::from_slug(slug);
@@ -521,11 +606,48 @@ impl Classification {
             Some(RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string())
         } else if trimmed == "_No_Subject_Detected" || trimmed == "No_Subject_Detected" {
             Some(RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string())
+        } else if trimmed.eq_ignore_ascii_case(cat.as_str()) {
+            None
         } else {
             Some(trimmed.to_string())
         };
         Self {
             category: cat,
+            entity_slug,
+        }
+    }
+
+    /// Reconstructs a [`Classification`] from database fields (`category` and `assigned_species_slug`).
+    ///
+    /// # Arguments
+    /// * `category` - Resolved taxonomic category ([`AssetCategory`]).
+    /// * `assigned_species_slug` - Stored species or entity slug string.
+    ///
+    /// # Returns
+    /// A structured [`Classification`] with normalized entity slug.
+    #[must_use]
+    pub fn from_db_fields(category: AssetCategory, assigned_species_slug: &str) -> Self {
+        let trimmed = assigned_species_slug.trim();
+        let entity_slug = if trimmed.is_empty() {
+            None
+        } else if trimmed == RoutingTier::SENTINEL_NO_BIRD_DETECTED
+            || trimmed == "No_Bird_Detected"
+            || trimmed == "NoBirdDetected"
+        {
+            Some(RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string())
+        } else if trimmed == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+            || trimmed == "No_Subject_Detected"
+            || trimmed == "NoSubjectDetected"
+        {
+            Some(RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string())
+        } else if trimmed.eq_ignore_ascii_case(category.as_str()) || trimmed.starts_with('_') {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+
+        Self {
+            category,
             entity_slug,
         }
     }
@@ -608,18 +730,27 @@ impl<'de> Deserialize<'de> for BundleDecision {
 
 impl BundleDecision {
     /// Returns the primary domain category.
+    ///
+    /// # Returns
+    /// A reference to the [`AssetCategory`] of this bundle decision.
     #[must_use]
     pub fn category(&self) -> &AssetCategory {
         &self.classification.category
     }
 
     /// Returns the optional granular species or entity slug.
+    ///
+    /// # Returns
+    /// `Some(&str)` containing the entity slug, or `None` if classified at the top-level genre.
     #[must_use]
     pub fn entity_slug(&self) -> Option<&str> {
         self.classification.entity_slug.as_deref()
     }
 
     /// Backwards-compatible slug accessor for logging and legacy formatters.
+    ///
+    /// # Returns
+    /// A string slice of the assigned species slug, or sentinel if unclassified.
     #[must_use]
     pub fn assigned_species_slug(&self) -> &str {
         if let Some(slug) = self.classification.entity_slug.as_deref() {
@@ -632,6 +763,9 @@ impl BundleDecision {
     }
 
     /// Returns destination path tokens: `(category, optional_subfolder)`.
+    ///
+    /// # Returns
+    /// A tuple of `(&str, Option<&str>)` representing the category name and optional subfolder.
     #[must_use]
     pub fn destination_path_tokens(&self) -> (&str, Option<&str>) {
         (self.category().as_str(), self.entity_slug())
