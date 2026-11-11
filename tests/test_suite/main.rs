@@ -23,6 +23,7 @@
 mod test_burst;
 mod test_catalog;
 mod test_catalog_html_generation;
+mod test_catalog_multi_taxa;
 mod test_catalog_snapshot;
 mod test_chunk_processing;
 mod test_classification_db;

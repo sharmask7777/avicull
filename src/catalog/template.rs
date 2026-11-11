@@ -3519,6 +3519,7 @@ mod tests {
             stats: stats.clone(),
             items: vec![],
             species_list: vec!["House Sparrow".to_string()],
+            multi_taxa: vec![],
         };
 
         let html_hierarchy = render_catalog_html(&payload_hierarchy);
@@ -3538,6 +3539,7 @@ mod tests {
             stats,
             items: vec![],
             species_list: vec![],
+            multi_taxa: vec![],
         };
 
         let html_inplace = render_catalog_html(&payload_inplace);
@@ -3578,6 +3580,7 @@ mod tests {
             },
             items: vec![],
             species_list: vec![],
+            multi_taxa: vec![],
         };
 
         let html = render_catalog_html(&payload);

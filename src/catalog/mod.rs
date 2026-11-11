@@ -19,6 +19,29 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
+
+/// Curated non-avian taxon entry for catalog dynamic autocomplete.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuratedTaxonEntry {
+    pub taxon_id: String,
+    pub category: String,
+    pub common_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+}
+
+static CURATED_MULTI_TAXA: LazyLock<Vec<CuratedTaxonEntry>> = LazyLock::new(|| {
+    serde_json::from_str(crate::types::CURATED_MULTI_TAXA_JSON).unwrap_or_default()
+});
+
+/// Returns a clone of the curated non-avian multi-taxa entries for catalog autocomplete.
+#[must_use]
+pub fn load_curated_multi_taxa() -> Vec<CuratedTaxonEntry> {
+    CURATED_MULTI_TAXA.clone()
+}
 
 /// Standard default filename for the HTML bird photo catalog.
 pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.html";
@@ -220,6 +243,8 @@ pub struct CatalogPayload {
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
     pub species_list: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_taxa: Vec<CuratedTaxonEntry>,
 }
 
 /// JSON representation of an individual item in the catalog.
@@ -482,6 +507,7 @@ pub fn generate_html_catalog(
         stats,
         items: payload_items,
         species_list,
+        multi_taxa: load_curated_multi_taxa(),
     };
 
     let html_content = template::render_catalog_html(&payload);

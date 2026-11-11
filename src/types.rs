@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-static CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
+pub const CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
 static TAXONOMY_JSON: &str = include_str!("../data/taxonomy.json");
 
 static KNOWN_BIRD_SET: LazyLock<std::collections::HashSet<String>> = LazyLock::new(|| {
