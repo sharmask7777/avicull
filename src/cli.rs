@@ -3,6 +3,7 @@
 //! Defines Clap subcommands, options, and flags for `avicull`:
 //! - `scan`: Validates filesystem volumes, lists bundles, and checks gazetteer resolution.
 //! - `organize`: Core end-to-end pipeline (detection, classification, burst consensus, hard links).
+//! - `organize-all`: Sequentially organizes subdirectories into independent catalogs and rolls up root catalog.
 //! - `correct`: Interactive or automated species mislabel override.
 //! - `location`: Explicit geolocation assignment.
 //! - `help`: Comprehensive built-in documentation reader.
@@ -33,6 +34,10 @@ pub enum Commands {
 
     /// Run detection, classification, burst smoothing, and populate hard-linked species tree
     Organize(OrganizeArgs),
+
+    /// Sequentially organize immediate subdirectories into independent catalogs and produce an aggregated root catalog
+    #[command(name = "organize-all")]
+    OrganizeAll(OrganizeAllArgs),
 
     /// Re-materialize hard links from cached SQLite predictions without re-running ML inference
     Relink(RelinkArgs),
@@ -274,6 +279,66 @@ pub struct OrganizeArgs {
     /// Enable verbose progress output
     #[arg(short, long, default_value_t = false)]
     pub verbose: bool,
+}
+
+/// Arguments for the `organize-all` batch subcommand.
+#[derive(Args, Debug, Clone)]
+pub struct OrganizeAllArgs {
+    /// Read-only root directory containing trip subdirectories (defaults to current directory)
+    #[arg(short, long, default_value = ".")]
+    pub input: PathBuf,
+
+    /// Target root directory in hierarchy mode (defaults to `<INPUT>/birds_hierarchy`)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Skip generating the aggregated root catalog after all subdirectories finish
+    #[arg(long, default_value_t = false)]
+    pub no_parent_catalog: bool,
+
+    /// Organization mode: [in-place | in-place-rename | hierarchy] (default: in-place)
+    #[arg(long, value_enum, default_value_t = OrganizationMode::InPlace)]
+    pub mode: OrganizationMode,
+
+    /// Run non-interactively without prompting
+    #[arg(long, default_value_t = false)]
+    pub no_prompt: bool,
+
+    /// Force re-running detection and classification even if subdirectories are already organized
+    #[arg(long, default_value_t = false)]
+    pub force: bool,
+
+    /// Enable verbose progress reporting
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
+
+    /// Rayon worker thread count for I/O and preprocessing
+    #[arg(long)]
+    pub threads: Option<usize>,
+
+    /// Directory containing exported .onnx and .safetensors files
+    #[arg(long)]
+    pub models_dir: Option<PathBuf>,
+
+    /// Fallback default latitude
+    #[arg(long)]
+    pub default_lat: Option<f64>,
+
+    /// Fallback default longitude
+    #[arg(long)]
+    pub default_lon: Option<f64>,
+
+    /// Optional TOML file mapping trip folder keywords to {lat, lon}
+    #[arg(long)]
+    pub locations_file: Option<PathBuf>,
+
+    /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
+    #[arg(long, default_value_t = 0.65)]
+    pub min_confidence: f32,
+
+    /// YOLO11 bird detection confidence floor (default: 0.25)
+    #[arg(long, default_value_t = 0.25)]
+    pub min_detect: f32,
 }
 
 #[derive(Args, Debug)]

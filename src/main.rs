@@ -1759,6 +1759,10 @@ fn main() -> Result<()> {
         Commands::Unmount(args) => {
             execute_unmount(&args);
         }
+
+        Commands::OrganizeAll(_args) => {
+            anyhow::bail!("organize-all implementation in progress");
+        }
     }
 
     Ok(())
