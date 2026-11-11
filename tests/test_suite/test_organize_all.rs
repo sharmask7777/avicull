@@ -112,3 +112,33 @@ fn test_cli_parse_organize_all_shorthands() {
         _ => panic!("Expected Commands::OrganizeAll"),
     }
 }
+
+#[test]
+fn test_run_organize_function_interface() {
+    let temp = tempfile::tempdir().unwrap();
+    let args = avicull::cli::OrganizeArgs {
+        input: temp.path().to_path_buf(),
+        output: None,
+        dry_run: false,
+        force: false,
+        reclassify: false,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+        burst_window_ms: 3000,
+        confidence_mode: "burst-consensus".to_string(),
+        mode: avicull::types::OrganizationMode::InPlace,
+        geo_prior_weight: 1.0,
+        locations_file: None,
+        default_lat: None,
+        default_lon: None,
+        models_dir: None,
+        threads: Some(1),
+        location: None,
+        no_prompt: true,
+        max_cache_size: "5GB".to_string(),
+        verbose: false,
+    };
+    avicull::organizer::run_organize(&args).unwrap();
+    assert!(temp.path().join(".avicull/manifest.sqlite").exists());
+    assert!(temp.path().join("catalog.html").exists());
+}
