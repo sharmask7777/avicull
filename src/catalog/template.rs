@@ -368,6 +368,25 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       border-color: var(--accent-blue);
     }}
 
+    .cat-pill {{
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+      user-select: none;
+    }}
+
+    .cat-pill:hover, .cat-pill.active {{
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+    }}
+
     .badge-category {{
       display: inline-block;
       font-size: 0.7rem;
@@ -1229,7 +1248,7 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 <div class="modal-backdrop" id="correctionModal">
   <div class="modal-box">
     <div class="modal-header">
-      <h2>Correct Bird Species</h2>
+      <h2>Correct Classification</h2>
       <button class="modal-close" onclick="closeModal()">&times;</button>
     </div>
     <div class="modal-body">
@@ -1241,13 +1260,31 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         </div>
       </div>
 
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Category:
+        </label>
+        <div class="category-pills" id="modalCategoryPills" style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <button type="button" class="cat-pill active" data-category="Bird" onclick="selectModalCategory('Bird')">Bird</button>
+          <button type="button" class="cat-pill" data-category="Mammalia" onclick="selectModalCategory('Mammalia')">Mammalia</button>
+          <button type="button" class="cat-pill" data-category="Reptilia" onclick="selectModalCategory('Reptilia')">Reptilia</button>
+          <button type="button" class="cat-pill" data-category="Amphibia" onclick="selectModalCategory('Amphibia')">Amphibia</button>
+          <button type="button" class="cat-pill" data-category="Insecta" onclick="selectModalCategory('Insecta')">Insecta</button>
+          <button type="button" class="cat-pill" data-category="Scenery" onclick="selectModalCategory('Scenery')">Scenery</button>
+          <button type="button" class="cat-pill" data-category="Portrait" onclick="selectModalCategory('Portrait')">Portrait</button>
+          <button type="button" class="cat-pill" data-category="Architecture" onclick="selectModalCategory('Architecture')">Architecture</button>
+          <button type="button" class="cat-pill" data-category="Abstract" onclick="selectModalCategory('Abstract')">Abstract</button>
+          <button type="button" class="cat-pill" data-category="No_Subject_Detected" onclick="selectModalCategory('No_Subject_Detected')">No Subject</button>
+        </div>
+      </div>
+
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
-            Select Correct Species (eBird Taxonomy Autocomplete):
+          <label id="modalSpeciesLabel" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
+            Select Correct Species / Subject:
           </label>
           <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-            Mark as No Subject (False Positive)
+            Mark as No Bird Detected
           </button>
         </div>
         <div class="autocomplete-wrap">
@@ -1461,11 +1498,13 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
   const items = CATALOG_DATA.items || [];
   const speciesList = CATALOG_DATA.species_list || [];
+  const multiTaxaList = CATALOG_DATA.multi_taxa || [];
   let currentFilter = 'all';
   let currentCategory = 'all';
   let searchQuery = '';
   let activeModalItem = null;
   let activeModalItems = [];
+  let activeModalCategory = 'Bird';
   let batchCommands = [];
   let selectedIds = new Set();
   let lastSelectedId = null;
@@ -2188,15 +2227,82 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (input) input.value = '';
     const suggestions = document.getElementById('speciesSuggestions');
     if (suggestions) suggestions.classList.remove('open');
-    const cmdOutput = document.getElementById('commandOutput');
-    if (cmdOutput) {{
-      cmdOutput.textContent = isMulti
-        ? `Select a species from autocomplete above to generate commands for all ${{activeModalItems.length}} photos...`
-        : "Select a species from the autocomplete search above to generate avicull correct commands...";
+
+    let initCat = 'Bird';
+    if (activeModalItem && activeModalItem.category) {{
+      const cat = activeModalItem.category;
+      if (cat === 'No_Subject_Detected' || cat === 'NoSubjectDetected' || cat === 'No_Bird_Detected') {{
+        initCat = 'No_Subject_Detected';
+      }} else {{
+        initCat = cat;
+      }}
     }}
+    selectModalCategory(initCat);
 
     const modal = document.getElementById('correctionModal');
     if (modal) modal.classList.add('open');
+  }}
+
+  function selectModalCategory(cat) {{
+    activeModalCategory = cat;
+    const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
+    pills.forEach(p => {{
+      if (p.getAttribute('data-category') === cat) {{
+        p.classList.add('active');
+      }} else {{
+        p.classList.remove('active');
+      }}
+    }});
+
+    const input = document.getElementById('speciesSearchInput');
+    const suggestionsEl = document.getElementById('speciesSuggestions');
+    const label = document.getElementById('modalSpeciesLabel');
+    if (suggestionsEl) suggestionsEl.classList.remove('open');
+
+    if (!input) return;
+
+    if (cat === 'No_Subject_Detected') {{
+      input.value = '';
+      input.disabled = true;
+      input.placeholder = 'No subject detected in photo';
+      if (label) label.textContent = 'Classification: No Subject';
+      selectSpecies("No Subject Detected", "No_Subject_Detected");
+      return;
+    }}
+
+    input.disabled = false;
+    const placeholders = {{
+      'Bird': 'Start typing bird name (e.g. Painted Stork)...',
+      'Mammalia': 'Start typing mammal name (e.g. Snow Leopard, Tiger)...',
+      'Reptilia': 'Start typing reptile name (e.g. Indian Cobra)...',
+      'Amphibia': 'Start typing amphibian name (e.g. Indian Bullfrog)...',
+      'Insecta': 'Start typing insect name (e.g. Monarch Butterfly)...',
+      'Scenery': 'Optional scene description (or leave blank for top-level Scenery)...',
+      'Portrait': 'Optional portrait description (or leave blank for top-level Portrait)...',
+      'Architecture': 'Optional architecture description (or leave blank for top-level Architecture)...',
+      'Abstract': 'Optional abstract motif (or leave blank for top-level Abstract)...'
+    }};
+    input.placeholder = placeholders[cat] || `Start typing ${{cat}} subject name...`;
+    if (label) {{
+      label.textContent = (cat === 'Bird' || cat === 'Mammalia' || cat === 'Reptilia' || cat === 'Amphibia' || cat === 'Insecta')
+        ? `Select Correct ${{cat}} Species:`
+        : `Select Correct ${{cat}} Subject (Optional):`;
+    }}
+
+    if (!input.value.trim()) {{
+      if (cat === 'Scenery' || cat === 'Portrait' || cat === 'Architecture' || cat === 'Abstract' || cat === 'Mammalia' || cat === 'Reptilia' || cat === 'Amphibia' || cat === 'Insecta') {{
+        selectSpecies('', cat);
+      }} else {{
+        const cmdOutput = document.getElementById('commandOutput');
+        if (cmdOutput) {{
+          cmdOutput.textContent = activeModalItems.length > 1
+            ? `Select a species from autocomplete above to generate commands for all ${{activeModalItems.length}} photos...`
+            : "Select a species from the autocomplete search above to generate avicull correct commands...";
+        }}
+      }}
+    }} else {{
+      handleSpeciesAutocomplete();
+    }}
   }}
 
   function closeModal() {{
@@ -2263,20 +2369,88 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (!input || !suggestionsEl) return;
 
     const val = input.value.trim();
-    if (!val || val.length < 2) {{
+    if (!val) {{
+      suggestionsEl.classList.remove('open');
+      if (activeModalCategory === 'Scenery' || activeModalCategory === 'Portrait' || activeModalCategory === 'Architecture' || activeModalCategory === 'Abstract' || activeModalCategory === 'Mammalia' || activeModalCategory === 'Reptilia' || activeModalCategory === 'Amphibia' || activeModalCategory === 'Insecta') {{
+        selectSpecies('', activeModalCategory);
+      }}
+      return;
+    }}
+
+    // Real-time update of command preview as the user types
+    selectSpecies(val, activeModalCategory);
+
+    if (val.length < 2) {{
       suggestionsEl.classList.remove('open');
       return;
     }}
 
-    const matches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
+    let matches = [];
+    if (activeModalCategory === 'Bird') {{
+      const birdMatches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
+      matches = birdMatches.map(s => ({{
+        name: s,
+        category: 'Bird',
+        sub: 'Bird'
+      }}));
+    }} else {{
+      const normVal = normalizeAutocompleteString(val);
+      const queryTokens = normalizeAutocompleteTokens(val);
+      const candidates = multiTaxaList.filter(t => t.category.toLowerCase() === activeModalCategory.toLowerCase());
+
+      let scored = [];
+      for (const cand of candidates) {{
+        const cName = cand.common_name;
+        const normCandStr = normalizeAutocompleteString(cName);
+        const candTokens = normalizeAutocompleteTokens(cName);
+        const aliases = cand.aliases || [];
+        const normAliases = aliases.map(a => normalizeAutocompleteString(a));
+
+        const matchInName = queryTokens.every(qTok =>
+          candTokens.some(cTok => cTok.includes(qTok))
+        );
+        const matchInAlias = aliases.length > 0 && queryTokens.every(qTok =>
+          normAliases.some(a => a.includes(qTok))
+        );
+        const matchInSci = cand.scientific_name && normalizeAutocompleteString(cand.scientific_name).includes(normVal);
+
+        if (!matchInName && !matchInAlias && !matchInSci) continue;
+
+        let rank = 3;
+        if (normCandStr.startsWith(normVal)) {{
+          rank = 1;
+        }} else if (matchInName) {{
+          rank = 2;
+        }}
+
+        scored.push({{
+          name: cName,
+          category: cand.category,
+          sub: cand.scientific_name || cand.category,
+          rank: rank,
+          length: cName.length
+        }});
+      }}
+
+      scored.sort((a, b) => {{
+        if (a.rank !== b.rank) return a.rank - b.rank;
+        return a.name.localeCompare(b.name);
+      }});
+
+      matches = scored.slice(0, 15);
+    }}
+
     if (matches.length === 0) {{
       suggestionsEl.classList.remove('open');
       return;
     }}
 
-    suggestionsEl.innerHTML = matches.map(s => `
-      <div class="suggestion-item" onclick="selectSpecies('${{s.replace(/'/g, "\\'")}}')">${{s}}</div>
-    `).join('');
+    suggestionsEl.innerHTML = matches.map(item => {{
+      const sub = (item.category !== 'Bird' && item.sub && item.sub !== item.category)
+        ? `<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 8px;">(${{item.sub}})</span>`
+        : '';
+      return `<div class="suggestion-item" onclick="selectSpecies('${{item.name.replace(/'/g, "\\'")}}', '${{item.category}}')">${{item.name}}${{sub}}</div>`;
+    }}).join('');
     suggestionsEl.classList.add('open');
   }}
 
@@ -2365,11 +2539,13 @@ fi
     return AssetCategory.NO_SUBJECT_DETECTED;
   }}
 
-  function buildMoveCommandsForItem(item, species) {{
+  function buildMoveCommandsForItem(item, species, category) {{
     if (!item) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
-    const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
+    const isNoSubject = species === 'No Subject Detected' || species === '_No_Subject_Detected' || species.toLowerCase() === 'no subject detected' || species.toLowerCase() === 'no_subject_detected';
+    const isAnyNoSubject = isNoBird || isNoSubject || category === 'No_Subject_Detected';
+    const newSlug = isNoBird ? '_No_Bird_Detected' : (isNoSubject || category === 'No_Subject_Detected' ? '_No_Subject_Detected' : (species ? sanitizeSlug(species) : ''));
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {{
@@ -2381,10 +2557,14 @@ fi
     const targetFile = (targetItem && (targetItem.relative_path || targetItem.original_stem)) || (activeModalItem && (activeModalItem.relative_path || activeModalItem.original_stem)) || stem;
     const escTargetFile = escapeShellArg(targetFile);
     const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || AssetCategory.NO_SUBJECT_DETECTED;
-    const cat = resolveTargetCategory(species, itemCat);
+    const cat = isAnyNoSubject ? 'No_Subject_Detected' : (category || resolveTargetCategory(species, itemCat));
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}"`);
+    if (newSlug) {{
+      commands.push(`  avicull correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --species "${{newSlug}}" --file "${{escTargetFile}}"`);
+    }} else {{
+      commands.push(`  avicull correct --category "${{cat}}" --file "${{escTargetFile}}" 2>/dev/null || $AVICULL_CMD correct --category "${{cat}}" --file "${{escTargetFile}}"`);
+    }}
     commands.push(`else`);
 
     const currentPath = item.current_path;
@@ -2395,7 +2575,11 @@ fi
     const isLocal = item.is_local !== false;
 
     if (isHierarchy) {{
-      const targetDir = isNoBird ? `birds_hierarchy/_No_Bird_Detected` : `birds_hierarchy/${{cat}}/${{newSlug}}`;
+      const targetDir = isNoBird
+        ? `birds_hierarchy/_No_Bird_Detected`
+        : (isNoSubject || category === 'No_Subject_Detected'
+          ? `birds_hierarchy/_No_Subject_Detected`
+          : (newSlug ? `birds_hierarchy/${{cat}}/${{newSlug}}` : `birds_hierarchy/${{cat}}`));
       commands.push(`  mkdir -p "${{targetDir}}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       const newPath = `${{targetDir}}/${{filename}}`;
@@ -2481,38 +2665,57 @@ fi
     return commands;
   }}
 
-  function buildMoveCommands(species) {{
+  function buildMoveCommands(species, category) {{
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return [];
+    const cat = category || activeModalCategory || 'Bird';
     if (targets.length === 1) {{
-      return buildMoveCommandsForItem(targets[0], species);
+      return buildMoveCommandsForItem(targets[0], species, cat);
     }}
     // Concatenate commands for all targets
     let allCommands = [];
     for (const it of targets) {{
-      allCommands.push(...buildMoveCommandsForItem(it, species));
+      allCommands.push(...buildMoveCommandsForItem(it, species, cat));
     }}
     return allCommands;
   }}
 
   function markNoBirdDetected() {{
-    selectSpecies("No Bird Detected");
+    activeModalCategory = 'No_Subject_Detected';
+    const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
+    pills.forEach(p => {{
+      if (p.getAttribute('data-category') === 'No_Subject_Detected') {{
+        p.classList.add('active');
+      }} else {{
+        p.classList.remove('active');
+      }}
+    }});
+    const input = document.getElementById('speciesSearchInput');
+    if (input) {{
+      input.disabled = false;
+      input.value = 'No Bird Detected';
+    }}
+    const label = document.getElementById('modalSpeciesLabel');
+    if (label) label.textContent = 'Classification: No Bird Detected';
+    selectSpecies("No Bird Detected", "No_Subject_Detected");
   }}
 
-  function selectSpecies(species) {{
+  function selectSpecies(species, category) {{
     const input = document.getElementById('speciesSearchInput');
-    if (input) input.value = species;
+    if (input && species !== undefined && input.value !== species) input.value = species;
     const suggestions = document.getElementById('speciesSuggestions');
     if (suggestions) suggestions.classList.remove('open');
+
+    const cat = category || activeModalCategory || 'Bird';
 
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return;
 
     for (const it of targets) {{
-      it._pendingCommands = buildMoveCommandsForItem(it, species);
+      it._pendingCommands = buildMoveCommandsForItem(it, species, cat);
     }}
 
-    const commands = buildMoveCommands(species);
+    const commands = buildMoveCommands(species, cat);
     const cmdStr = commands.join('\n');
     const cmdOutput = document.getElementById('commandOutput');
     if (cmdOutput) cmdOutput.textContent = cmdStr;
@@ -2554,7 +2757,7 @@ fi
     if (targets.length === 0) return;
 
     for (const it of targets) {{
-      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
+      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '', activeModalCategory);
       if (cmds && cmds.length > 0) {{
         const itemKey = it.relative_path || it.id || it.original_stem;
         const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && (b.key ? b.key === itemKey : b.stem === it.original_stem)));
