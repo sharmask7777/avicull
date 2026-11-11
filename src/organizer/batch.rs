@@ -11,7 +11,7 @@
 
 use crate::cli::{OrganizeAllArgs, OrganizeArgs};
 use crate::organizer::run_organize;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -146,6 +146,9 @@ pub fn build_parent_organize_args(args: &OrganizeAllArgs) -> OrganizeArgs {
 /// organizes each child folder with independent catalogs and manifests, and optionally
 /// rolls up all child manifests into a unified root catalog.
 ///
+/// Fault-tolerant: if an individual child folder encounters an error, logs a warning
+/// and proceeds with the remaining folders. If all child folders fail, returns an error.
+///
 /// # Arguments
 /// * `args` - Configuration parameters defining input path, mode, and ML options.
 ///
@@ -153,9 +156,16 @@ pub fn build_parent_organize_args(args: &OrganizeAllArgs) -> OrganizeArgs {
 /// `Ok(())` upon successful execution.
 ///
 /// # Errors
-/// Returns error if directory traversal or any child/parent organize step fails.
+/// Returns error if directory traversal fails or all child directories fail to organize.
 pub fn run_organize_all(args: &OrganizeAllArgs) -> Result<()> {
     println!("== avicull organize-all ==");
+    if let Some(t) = args.threads {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(t)
+            .build_global()
+            .ok();
+    }
+
     println!(
         "Scanning '{}' for immediate subdirectories...",
         args.input.display()
@@ -167,23 +177,46 @@ pub fn run_organize_all(args: &OrganizeAllArgs) -> Result<()> {
         child_dirs.len()
     );
 
+    let total_count = child_dirs.len();
+    let mut successful_count = 0;
+    let mut failed_subdirs: Vec<(PathBuf, anyhow::Error)> = Vec::new();
+
     for (idx, child_dir) in child_dirs.iter().enumerate() {
         println!(
             "\n[{}/{}] Organizing subdirectory '{}'...",
             idx + 1,
-            child_dirs.len(),
+            total_count,
             child_dir.display()
         );
         let child_args = build_child_organize_args(child_dir, args);
-        run_organize(&child_args).with_context(|| {
-            format!(
-                "Failed to organize child subdirectory '{}'",
-                child_dir.display()
-            )
-        })?;
+        match run_organize(&child_args) {
+            Ok(()) => {
+                successful_count += 1;
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to organize child subdirectory '{}': {e}",
+                    child_dir.display()
+                );
+                failed_subdirs.push((child_dir.clone(), e));
+            }
+        }
     }
 
-    if !args.no_parent_catalog {
+    println!("\nOrganized {successful_count}/{total_count} subdirectories successfully.");
+
+    if !failed_subdirs.is_empty() {
+        eprintln!("\nFailed subdirectories:");
+        for (failed_dir, err) in &failed_subdirs {
+            eprintln!("  - {}: {err}", failed_dir.display());
+        }
+    }
+
+    if total_count > 0 && successful_count == 0 {
+        bail!("All {total_count} child subdirectories failed to organize.");
+    }
+
+    if !args.no_parent_catalog && successful_count > 0 {
         println!(
             "\n[Rollup] Generating aggregated parent catalog for '{}'...",
             args.input.display()

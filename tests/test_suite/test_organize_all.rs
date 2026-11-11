@@ -215,6 +215,103 @@ fn test_organize_all_mock_directory_structure() {
 }
 
 #[test]
+fn test_organize_all_fault_tolerance_on_child_error() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+
+    // Directory A: normal valid trip
+    let trip_a = root.join("Trip Good");
+    // Directory B: will be simulated as an invalid child (e.g. unreadable file or permission issues)
+    let trip_b = root.join("Trip Failing");
+    // Directory C: normal valid trip after the failing one
+    let trip_c = root.join("Trip Also Good");
+
+    std::fs::create_dir_all(&trip_a).unwrap();
+    std::fs::create_dir_all(&trip_b).unwrap();
+    std::fs::create_dir_all(&trip_c).unwrap();
+
+    std::fs::write(trip_a.join("photo_a.jpg"), b"fake_jpeg_a").unwrap();
+    std::fs::write(trip_c.join("photo_c.jpg"), b"fake_jpeg_c").unwrap();
+
+    // In trip_b, create a directory with the name .avicull that is actually a file,
+    // or remove write permissions so run_organize will fail.
+    // Creating a regular file named `.avicull` inside `trip_b` causes `fs::create_dir_all` inside
+    // `ManifestDb::open` or bundle processing to fail.
+    std::fs::write(trip_b.join(".avicull"), b"not a directory").unwrap();
+
+    let all_args = avicull::cli::OrganizeAllArgs {
+        input: root.to_path_buf(),
+        output: None,
+        no_parent_catalog: false,
+        mode: avicull::types::OrganizationMode::InPlace,
+        no_prompt: true,
+        force: false,
+        verbose: false,
+        threads: Some(1),
+        models_dir: None,
+        default_lat: None,
+        default_lon: None,
+        locations_file: None,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+    };
+
+    // Should succeed overall because trip_a and trip_c succeed, even though trip_b fails
+    let res = avicull::organizer::run_organize_all(&all_args);
+    assert!(
+        res.is_ok(),
+        "Expected organize_all to tolerate child failure, but failed: {res:?}"
+    );
+
+    // Trip A and Trip C should have catalogs and manifests
+    assert!(trip_a.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_a.join("catalog.html").exists());
+    assert!(trip_c.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_c.join("catalog.html").exists());
+
+    // Root parent catalog should also have been created
+    assert!(root.join(".avicull/manifest.sqlite").exists());
+    assert!(root.join("catalog.html").exists());
+}
+
+#[test]
+fn test_organize_all_all_children_failing_returns_error() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+
+    let trip_fail1 = root.join("Fail1");
+    let trip_fail2 = root.join("Fail2");
+    std::fs::create_dir_all(&trip_fail1).unwrap();
+    std::fs::create_dir_all(&trip_fail2).unwrap();
+
+    std::fs::write(trip_fail1.join(".avicull"), b"not a directory").unwrap();
+    std::fs::write(trip_fail2.join(".avicull"), b"not a directory").unwrap();
+
+    let all_args = avicull::cli::OrganizeAllArgs {
+        input: root.to_path_buf(),
+        output: None,
+        no_parent_catalog: false,
+        mode: avicull::types::OrganizationMode::InPlace,
+        no_prompt: true,
+        force: false,
+        verbose: false,
+        threads: Some(1),
+        models_dir: None,
+        default_lat: None,
+        default_lon: None,
+        locations_file: None,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+    };
+
+    let res = avicull::organizer::run_organize_all(&all_args);
+    assert!(
+        res.is_err(),
+        "Expected organize_all to fail when ALL child directories fail"
+    );
+}
+
+#[test]
 fn test_help_includes_organize_all() {
     let help = avicull::help::render_help(None);
     assert!(
