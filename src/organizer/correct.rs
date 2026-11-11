@@ -41,7 +41,8 @@ pub struct SpeciesTypoSuggestion {
 
 /// Checks if standard I/O is interactive or forced via the test environment variable.
 fn is_interactive_session() -> bool {
-    if std::env::var("AVICULL_NO_PROMPT").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true")) {
+    if std::env::var("AVICULL_NO_PROMPT").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    {
         return false;
     }
     if cfg!(test)
@@ -477,11 +478,10 @@ pub fn apply_bundle_correction_with_category(
             let cat = AssetCategory::from_slug(species_to_check);
             if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
                 normalized_category = cat.as_str().to_string();
-            } else if suggestion_declined {
-                normalized_category = "Bird".to_string();
-            } else if !has_bird_suggestion {
-                if category.eq_ignore_ascii_case("bird") {
-                    normalized_category = "Bird".to_string();
+            } else if suggestion_declined || !has_bird_suggestion {
+                if cat == AssetCategory::NoSubjectDetected {
+                    normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+                    is_no_bird = true;
                 } else {
                     normalized_category = cat.as_str().to_string();
                 }

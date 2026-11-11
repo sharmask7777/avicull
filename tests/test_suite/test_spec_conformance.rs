@@ -39,7 +39,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Tibetan_Snowcock".to_string()),
+        classification: avicull::types::Classification::from_slug("Tibetan_Snowcock"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -93,7 +93,7 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Tibetan_Snowcock".to_string()),
+        classification: avicull::types::Classification::from_slug("Tibetan_Snowcock"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -172,7 +172,7 @@ fn test_incremental_auto_detection_of_newer_files() {
             top_predictions: vec![],
             frame_confidence: 0.90,
             final_confidence: 0.90,
-            classification: avicull::types::Classification::from_slug(&"Painted_Stork".to_string()),
+            classification: avicull::types::Classification::from_slug("Painted_Stork"),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: false,
         })
@@ -215,7 +215,7 @@ fn test_incremental_auto_detection_of_newer_files() {
         top_predictions: vec![],
         frame_confidence: 0.92,
         final_confidence: 0.92,
-        classification: avicull::types::Classification::from_slug(&"Painted_Stork".to_string()),
+        classification: avicull::types::Classification::from_slug("Painted_Stork"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -270,7 +270,7 @@ fn test_inplace_mode_sqlite_cache_hit_by_inode_on_subsequent_runs() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -332,7 +332,7 @@ fn test_no_bird_detected_routes_to_special_tier_folder() {
         top_predictions: vec![],
         frame_confidence: 0.05,
         final_confidence: 0.05,
-        classification: avicull::types::Classification::from_slug(&"Unknown_Bird".to_string()),
+        classification: avicull::types::Classification::from_slug("Unknown_Bird"),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -377,7 +377,7 @@ fn test_force_recomputation_bypasses_cache() {
         top_predictions: vec![],
         frame_confidence: 0.90,
         final_confidence: 0.90,
-        classification: avicull::types::Classification::from_slug(&"Old_Species".to_string()),
+        classification: avicull::types::Classification::from_slug("Old_Species"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -591,7 +591,7 @@ fn test_hierarchy_organize_multi_taxa_category_routing() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Malabar_Giant_Squirrel".to_string()),
+        classification: avicull::types::Classification::from_slug("Malabar_Giant_Squirrel"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -604,7 +604,7 @@ fn test_hierarchy_organize_multi_taxa_category_routing() {
         top_predictions: vec![],
         frame_confidence: 0.98,
         final_confidence: 0.98,
-        classification: avicull::types::Classification::from_slug(&"White_throated_Kingfisher".to_string()),
+        classification: avicull::types::Classification::from_slug("White_throated_Kingfisher"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -661,7 +661,7 @@ fn test_no_subject_detected_contains_unclassified_files_with_symlink_to_no_bird_
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.0,
-        classification: avicull::types::Classification::from_slug(&"No_Subject_Detected".to_string()),
+        classification: avicull::types::Classification::from_slug("No_Subject_Detected"),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };

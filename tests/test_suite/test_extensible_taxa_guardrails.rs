@@ -335,8 +335,14 @@ fn test_burst_clustering_operations_on_arbitrary_category_items() {
     );
 
     // Scenery frames must be in their own burst
-    assert_eq!(decisions[3].assigned_species_slug(), "Scenery_western_ghats");
-    assert_eq!(decisions[4].assigned_species_slug(), "Scenery_western_ghats");
+    assert_eq!(
+        decisions[3].assigned_species_slug(),
+        "Scenery_western_ghats"
+    );
+    assert_eq!(
+        decisions[4].assigned_species_slug(),
+        "Scenery_western_ghats"
+    );
     assert_eq!(decisions[3].burst_id, decisions[4].burst_id);
     assert_ne!(decisions[3].burst_id, decisions[2].burst_id);
 }

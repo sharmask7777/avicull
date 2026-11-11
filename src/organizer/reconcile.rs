@@ -239,7 +239,8 @@ pub fn reconcile_manual_disk_moves(
                 )?;
 
                 let mut updated_dec = existing_decision.clone();
-                updated_dec.classification = Classification::granular(target_category, &target_slug);
+                updated_dec.classification =
+                    Classification::granular(target_category, &target_slug);
                 updated_dec.routing_tier = target_tier;
                 updated_dec.final_confidence = 1.0;
                 updated_dec.is_user_override = true;

@@ -62,7 +62,8 @@ fn test_burst_consensus_smoothing_5_frames() {
     // and RoutingTier::ConfirmedSpecies
     for (idx, d) in decisions.iter().enumerate() {
         assert_eq!(
-            d.assigned_species_slug(), "White-throated_Kingfisher",
+            d.assigned_species_slug(),
+            "White-throated_Kingfisher",
             "Frame {} must be smoothed to White-throated Kingfisher",
             idx
         );

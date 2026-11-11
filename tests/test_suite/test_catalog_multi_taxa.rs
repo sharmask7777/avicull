@@ -50,15 +50,22 @@ fn test_catalog_data_embeds_multi_taxa() -> anyhow::Result<()> {
         .expect("multi_taxa array");
     assert!(!multi_taxa.is_empty());
 
-    let has_snow_leopard = multi_taxa.iter().any(|entry| {
-        entry["category"] == "Mammalia" && entry["common_name"] == "Snow Leopard"
-    });
-    assert!(has_snow_leopard, "multi_taxa must include Snow Leopard under Mammalia");
+    let has_snow_leopard = multi_taxa
+        .iter()
+        .any(|entry| entry["category"] == "Mammalia" && entry["common_name"] == "Snow Leopard");
+    assert!(
+        has_snow_leopard,
+        "multi_taxa must include Snow Leopard under Mammalia"
+    );
 
-    let has_reptilia = multi_taxa.iter().any(|entry| entry["category"] == "Reptilia");
+    let has_reptilia = multi_taxa
+        .iter()
+        .any(|entry| entry["category"] == "Reptilia");
     assert!(has_reptilia, "multi_taxa must include Reptilia category");
 
-    let has_insecta = multi_taxa.iter().any(|entry| entry["category"] == "Insecta");
+    let has_insecta = multi_taxa
+        .iter()
+        .any(|entry| entry["category"] == "Insecta");
     assert!(has_insecta, "multi_taxa must include Insecta category");
 
     // Invariant 3: item category is Mammalia

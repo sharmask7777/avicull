@@ -202,7 +202,7 @@ fn test_clean_hardlink_operations_unlinks_without_affecting_source() {
         }],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Barn_Swallow".to_string()),
+        classification: avicull::types::Classification::from_slug("Barn_Swallow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

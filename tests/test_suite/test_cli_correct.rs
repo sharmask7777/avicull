@@ -223,7 +223,8 @@ fn test_cli_correct_preserves_override_on_subsequent_organize_rerun() {
         .expect("DSC_0002 must exist in manifest");
 
     assert_eq!(
-        b2.0.assigned_species_slug(), "Black-necked_Stork",
+        b2.0.assigned_species_slug(),
+        "Black-necked_Stork",
         "Override species slug must be preserved across organize re-runs"
     );
     assert!(
@@ -902,7 +903,7 @@ fn test_cli_correct_renamed_file_does_not_match_different_stem_in_same_directory
         burst_id: None,
         detection_confidence: 0.95,
         bbox_xyxy_norm: None,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         frame_confidence: 0.95,
         final_confidence: 0.95,
         routing_tier: avicull::types::RoutingTier::ConfirmedSpecies,
@@ -1148,7 +1149,8 @@ fn test_cli_correct_burst_propagation() {
     assert_eq!(bundles_after.len(), 3);
     for (dec, bundle) in &bundles_after {
         assert_eq!(
-            dec.assigned_species_slug(), "Painted_Stork",
+            dec.assigned_species_slug(),
+            "Painted_Stork",
             "Bundle {} was not reclassified",
             bundle.original_stem
         );
@@ -1375,7 +1377,8 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
     assert_eq!(bundles.len(), 2);
     for (dec, b) in &bundles {
         assert_eq!(
-            dec.assigned_species_slug(), "Painted_Stork",
+            dec.assigned_species_slug(),
+            "Painted_Stork",
             "Bundle {} was not reclassified in in-place mode",
             b.original_stem
         );

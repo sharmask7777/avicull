@@ -32,7 +32,10 @@ fn test_bundle_decision_classification_accessors() {
     assert_eq!(dec.category(), &AssetCategory::Mammalia);
     assert_eq!(dec.entity_slug(), Some("Snow_Leopard"));
     assert_eq!(dec.assigned_species_slug(), "Snow_Leopard");
-    assert_eq!(dec.destination_path_tokens(), ("Mammalia", Some("Snow_Leopard")));
+    assert_eq!(
+        dec.destination_path_tokens(),
+        ("Mammalia", Some("Snow_Leopard"))
+    );
 
     let top_dec = BundleDecision {
         classification: Classification::top_level(AssetCategory::Scenery),

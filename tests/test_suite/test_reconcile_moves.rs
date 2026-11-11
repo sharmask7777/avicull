@@ -51,7 +51,7 @@ fn test_reconcile_manual_species_directory_move() {
         top_predictions: vec![],
         frame_confidence: 0.75,
         final_confidence: 0.75,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -160,7 +160,7 @@ fn test_reconcile_promote_from_needs_review_to_confirmed_same_species() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -244,7 +244,7 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -330,7 +330,7 @@ fn test_reconcile_does_not_mark_auto_no_bird_as_user_override() {
         }],
         frame_confidence: 0.10,
         final_confidence: 0.10,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -407,7 +407,7 @@ fn test_reconcile_stem_matching_when_inode_differs() {
         top_predictions: vec![],
         frame_confidence: 0.60,
         final_confidence: 0.60,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -485,7 +485,7 @@ fn test_reconcile_inplace_manual_filename_rename() {
         top_predictions: vec![],
         frame_confidence: 0.85,
         final_confidence: 0.85,
-        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
+        classification: avicull::types::Classification::from_slug("Mallard"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -598,7 +598,7 @@ fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Rose-ringed_Parakeet".to_string()),
+        classification: avicull::types::Classification::from_slug("Rose-ringed_Parakeet"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -626,7 +626,8 @@ fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
 
     let (db_dec, _) = map.get("bundle_parakeet").unwrap();
     assert_eq!(
-        db_dec.assigned_species_slug(), "Rose-ringed_Parakeet",
+        db_dec.assigned_species_slug(),
+        "Rose-ringed_Parakeet",
         "Species should remain Rose-ringed_Parakeet and not be changed to _No_Bird_Detected"
     );
     assert_eq!(
@@ -835,7 +836,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        classification: avicull::types::Classification::from_slug(&"Common_Kingfisher".to_string()),
+        classification: avicull::types::Classification::from_slug("Common_Kingfisher"),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -848,7 +849,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        classification: avicull::types::Classification::from_slug(&"Indian_Palm_Squirrel".to_string()),
+        classification: avicull::types::Classification::from_slug("Indian_Palm_Squirrel"),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -966,7 +967,7 @@ fn test_apply_bundle_correction_rejects_or_corrects_non_bird_assigned_to_bird() 
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -1054,7 +1055,7 @@ fn test_apply_bundle_correction_with_botanical_category_normalizes_to_no_subject
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -1136,7 +1137,7 @@ fn test_reconcile_manual_disk_moves_never_resolves_botanical_or_non_bird_to_bird
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.9,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

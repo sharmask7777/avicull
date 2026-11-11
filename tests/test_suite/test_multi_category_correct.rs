@@ -24,7 +24,7 @@ fn test_correct_non_avian_granular_and_top_level_inplace() -> anyhow::Result<()>
     db.record_run(
         run_id,
         &input_dir,
-        &input_dir.join("birds_hierarchy"),
+        input_dir.join("birds_hierarchy"),
         false,
         "{}",
     )?;

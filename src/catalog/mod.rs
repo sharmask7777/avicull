@@ -1152,7 +1152,9 @@ fn fallback_curated_species() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{GpsCoordinate, LocationSource, RoutingTier, SpeciesPrediction};
+    use crate::types::{
+        Classification, GpsCoordinate, LocationSource, RoutingTier, SpeciesPrediction,
+    };
 
     #[test]
     fn test_catalog_item_default() {
@@ -1240,7 +1242,7 @@ mod tests {
             top_predictions: vec![],
             frame_confidence: 0.1,
             final_confidence: 0.1,
-            classification: Classification::top_level(AssetCategory::NoSubjectDetected),
+            classification: Classification::from_slug(RoutingTier::SENTINEL_NO_BIRD_DETECTED),
             routing_tier: RoutingTier::NoBirdDetected,
             is_user_override: false,
         };

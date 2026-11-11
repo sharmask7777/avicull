@@ -1265,16 +1265,16 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
           Category:
         </label>
         <div class="category-pills" id="modalCategoryPills" style="display: flex; flex-wrap: wrap; gap: 6px;">
-          <button type="button" class="cat-pill active" data-category="Bird" onclick="selectModalCategory('Bird')">Bird</button>
-          <button type="button" class="cat-pill" data-category="Mammalia" onclick="selectModalCategory('Mammalia')">Mammalia</button>
-          <button type="button" class="cat-pill" data-category="Reptilia" onclick="selectModalCategory('Reptilia')">Reptilia</button>
-          <button type="button" class="cat-pill" data-category="Amphibia" onclick="selectModalCategory('Amphibia')">Amphibia</button>
-          <button type="button" class="cat-pill" data-category="Insecta" onclick="selectModalCategory('Insecta')">Insecta</button>
-          <button type="button" class="cat-pill" data-category="Scenery" onclick="selectModalCategory('Scenery')">Scenery</button>
-          <button type="button" class="cat-pill" data-category="Portrait" onclick="selectModalCategory('Portrait')">Portrait</button>
-          <button type="button" class="cat-pill" data-category="Architecture" onclick="selectModalCategory('Architecture')">Architecture</button>
-          <button type="button" class="cat-pill" data-category="Abstract" onclick="selectModalCategory('Abstract')">Abstract</button>
-          <button type="button" class="cat-pill" data-category="No_Subject_Detected" onclick="selectModalCategory('No_Subject_Detected')">No Subject</button>
+          <button type="button" class="cat-pill active" data-modal-category="Bird" onclick="selectModalCategory('Bird')">Bird</button>
+          <button type="button" class="cat-pill" data-modal-category="Mammalia" onclick="selectModalCategory('Mammalia')">Mammalia</button>
+          <button type="button" class="cat-pill" data-modal-category="Reptilia" onclick="selectModalCategory('Reptilia')">Reptilia</button>
+          <button type="button" class="cat-pill" data-modal-category="Amphibia" onclick="selectModalCategory('Amphibia')">Amphibia</button>
+          <button type="button" class="cat-pill" data-modal-category="Insecta" onclick="selectModalCategory('Insecta')">Insecta</button>
+          <button type="button" class="cat-pill" data-modal-category="Scenery" onclick="selectModalCategory('Scenery')">Scenery</button>
+          <button type="button" class="cat-pill" data-modal-category="Portrait" onclick="selectModalCategory('Portrait')">Portrait</button>
+          <button type="button" class="cat-pill" data-modal-category="Architecture" onclick="selectModalCategory('Architecture')">Architecture</button>
+          <button type="button" class="cat-pill" data-modal-category="Abstract" onclick="selectModalCategory('Abstract')">Abstract</button>
+          <button type="button" class="cat-pill" data-modal-category="No_Subject_Detected" onclick="selectModalCategory('No_Subject_Detected')">No Subject</button>
         </div>
       </div>
 
@@ -2245,14 +2245,16 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
   function selectModalCategory(cat) {{
     activeModalCategory = cat;
-    const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
-    pills.forEach(p => {{
-      if (p.getAttribute('data-category') === cat) {{
-        p.classList.add('active');
-      }} else {{
-        p.classList.remove('active');
-      }}
-    }});
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {{
+      const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
+      pills.forEach(p => {{
+        if (p.getAttribute('data-modal-category') === cat) {{
+          p.classList.add('active');
+        }} else {{
+          p.classList.remove('active');
+        }}
+      }});
+    }}
 
     const input = document.getElementById('speciesSearchInput');
     const suggestionsEl = document.getElementById('speciesSuggestions');
@@ -2668,7 +2670,7 @@ fi
   function buildMoveCommands(species, category) {{
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return [];
-    const cat = category || activeModalCategory || 'Bird';
+    const cat = category || activeModalCategory;
     if (targets.length === 1) {{
       return buildMoveCommandsForItem(targets[0], species, cat);
     }}
@@ -2682,14 +2684,16 @@ fi
 
   function markNoBirdDetected() {{
     activeModalCategory = 'No_Subject_Detected';
-    const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
-    pills.forEach(p => {{
-      if (p.getAttribute('data-category') === 'No_Subject_Detected') {{
-        p.classList.add('active');
-      }} else {{
-        p.classList.remove('active');
-      }}
-    }});
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {{
+      const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
+      pills.forEach(p => {{
+        if (p.getAttribute('data-modal-category') === 'No_Subject_Detected') {{
+          p.classList.add('active');
+        }} else {{
+          p.classList.remove('active');
+        }}
+      }});
+    }}
     const input = document.getElementById('speciesSearchInput');
     if (input) {{
       input.disabled = false;
@@ -2706,7 +2710,7 @@ fi
     const suggestions = document.getElementById('speciesSuggestions');
     if (suggestions) suggestions.classList.remove('open');
 
-    const cat = category || activeModalCategory || 'Bird';
+    const cat = category || activeModalCategory;
 
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return;

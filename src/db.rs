@@ -2427,11 +2427,17 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             None => None,
         };
 
-        let entity_slug = if assigned_species_slug.is_empty()
-            || assigned_species_slug.starts_with('_')
-            || assigned_species_slug == "No_Subject_Detected"
+        let entity_slug = if assigned_species_slug.is_empty() {
+            None
+        } else if assigned_species_slug == RoutingTier::SENTINEL_NO_BIRD_DETECTED
             || assigned_species_slug == "No_Bird_Detected"
         {
+            Some(RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string())
+        } else if assigned_species_slug == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+            || assigned_species_slug == "No_Subject_Detected"
+        {
+            Some(RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string())
+        } else if assigned_species_slug.starts_with('_') {
             None
         } else {
             Some(assigned_species_slug)

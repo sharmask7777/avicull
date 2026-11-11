@@ -54,7 +54,7 @@ fn test_db_lifecycle_record_and_query() {
         }],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        classification: avicull::types::Classification::from_slug(&"Painted_Stork".to_string()),
+        classification: avicull::types::Classification::from_slug("Painted_Stork"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -136,7 +136,7 @@ fn test_update_bundle_routing_tier() {
         top_predictions: vec![],
         frame_confidence: 0.60,
         final_confidence: 0.60,
-        classification: avicull::types::Classification::from_slug(&"Common_Merganser".to_string()),
+        classification: avicull::types::Classification::from_slug("Common_Merganser"),
         routing_tier: RoutingTier::NeedsReview, // Initially NeedsReview
         is_user_override: false,
     };
@@ -180,7 +180,7 @@ fn dummy_decision() -> BundleDecision {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Passer_domesticus".to_string()),
+        classification: avicull::types::Classification::from_slug("Passer_domesticus"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     }
@@ -529,7 +529,7 @@ fn test_insert_bundle_decision_zero_embedding_stored_as_null() {
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.0,
-        classification: avicull::types::Classification::from_slug(&"_No_Subject_Detected".to_string()),
+        classification: avicull::types::Classification::from_slug("_No_Subject_Detected"),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -571,7 +571,7 @@ fn test_insert_bundle_decision_preserves_existing_embedding_when_none_provided()
         top_predictions: vec![],
         frame_confidence: 0.90,
         final_confidence: 0.90,
-        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -615,7 +615,7 @@ fn test_query_decisions_preserves_user_override_bird_category() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        classification: avicull::types::Classification::from_slug(&"Unlisted_Rare_Finch".to_string()),
+        classification: avicull::types::Classification::from_slug("Unlisted_Rare_Finch"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };
@@ -673,7 +673,7 @@ fn test_migrate_preserves_user_override_in_bundles_table() {
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        classification: avicull::types::Classification::from_slug(&"Unlisted_Rare_Finch".to_string()),
+        classification: avicull::types::Classification::from_slug("Unlisted_Rare_Finch"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };
@@ -752,7 +752,7 @@ fn test_migrate_purges_botanical_and_bogus_fallbacks_even_with_user_override() {
             top_predictions: vec![],
             frame_confidence: 0.0,
             final_confidence: 1.0,
-            classification: avicull::types::Classification::from_slug(&slug.to_string()),
+            classification: avicull::types::Classification::from_slug(slug),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: is_override,
         };

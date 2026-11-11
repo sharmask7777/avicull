@@ -515,13 +515,12 @@ impl Classification {
     pub fn from_slug(slug: &str) -> Self {
         let cat = AssetCategory::from_slug(slug);
         let trimmed = slug.trim();
-        let entity_slug = if trimmed.is_empty()
-            || trimmed == "_No_Bird_Detected"
-            || trimmed == "_No_Subject_Detected"
-            || trimmed == "No_Subject_Detected"
-            || trimmed == "No_Bird_Detected"
-        {
+        let entity_slug = if trimmed.is_empty() {
             None
+        } else if trimmed == "_No_Bird_Detected" || trimmed == "No_Bird_Detected" {
+            Some(RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string())
+        } else if trimmed == "_No_Subject_Detected" || trimmed == "No_Subject_Detected" {
+            Some(RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string())
         } else {
             Some(trimmed.to_string())
         };
@@ -533,7 +532,7 @@ impl Classification {
 }
 
 /// Final classification, routing tier, and confidence decision for an [`AssetBundle`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BundleDecision {
     /// Identifier matching [`AssetBundle::bundle_id`].
     pub bundle_id: String,
@@ -556,6 +555,55 @@ pub struct BundleDecision {
     /// Whether this decision was forced by explicit human curation or manual override.
     #[serde(default)]
     pub is_user_override: bool,
+}
+
+#[derive(Deserialize)]
+struct BundleDecisionHelper {
+    bundle_id: String,
+    #[serde(default)]
+    burst_id: Option<String>,
+    detection_confidence: f32,
+    #[serde(default)]
+    bbox_xyxy_norm: Option<[f32; 4]>,
+    #[serde(default)]
+    top_predictions: Vec<SpeciesPrediction>,
+    frame_confidence: f32,
+    final_confidence: f32,
+    #[serde(default)]
+    classification: Option<Classification>,
+    #[serde(default)]
+    assigned_species_slug: Option<String>,
+    routing_tier: RoutingTier,
+    #[serde(default)]
+    is_user_override: bool,
+}
+
+impl<'de> Deserialize<'de> for BundleDecision {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let helper = BundleDecisionHelper::deserialize(deserializer)?;
+        let classification = if let Some(cls) = helper.classification {
+            cls
+        } else if let Some(slug) = helper.assigned_species_slug {
+            Classification::from_slug(&slug)
+        } else {
+            Classification::top_level(AssetCategory::Bird)
+        };
+        Ok(Self {
+            bundle_id: helper.bundle_id,
+            burst_id: helper.burst_id,
+            detection_confidence: helper.detection_confidence,
+            bbox_xyxy_norm: helper.bbox_xyxy_norm,
+            top_predictions: helper.top_predictions,
+            frame_confidence: helper.frame_confidence,
+            final_confidence: helper.final_confidence,
+            classification,
+            routing_tier: helper.routing_tier,
+            is_user_override: helper.is_user_override,
+        })
+    }
 }
 
 impl BundleDecision {

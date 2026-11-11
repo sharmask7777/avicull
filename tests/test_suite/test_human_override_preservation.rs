@@ -109,7 +109,8 @@ fn test_organize_preserves_human_overrides_unless_reclassify_passed() {
         "User override must be preserved on normal organize re-run"
     );
     assert_eq!(
-        preserved_dec.assigned_species_slug(), "Golden_Eagle",
+        preserved_dec.assigned_species_slug(),
+        "Golden_Eagle",
         "Species must remain Golden Eagle"
     );
 

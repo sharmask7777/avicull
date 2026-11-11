@@ -78,7 +78,7 @@ fn test_cli_e2e_full_lifecycle() {
             top_predictions: vec![],
             frame_confidence: conf,
             final_confidence: conf,
-            classification: avicull::types::Classification::from_slug(&slug.to_string()),
+            classification: avicull::types::Classification::from_slug(slug),
             routing_tier: if conf >= 0.65 {
                 RoutingTier::ConfirmedSpecies
             } else {
