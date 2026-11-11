@@ -6,12 +6,14 @@
 //! - Converts species common names into cross-platform filesystem slugs.
 //! - Routes assets into `Species_Slug/`, `_Needs_Review/Species_Slug/`, or `_No_Bird_Detected/`.
 
+pub mod batch;
 pub mod chunk;
 pub mod correct;
 pub mod engine;
 pub mod inplace;
 pub mod reconcile;
 pub use crate::catalog::DEFAULT_CATALOG_FILENAME;
+pub use batch::*;
 pub use chunk::*;
 pub use correct::*;
 pub use engine::*;

@@ -142,3 +142,74 @@ fn test_run_organize_function_interface() {
     assert!(temp.path().join(".avicull/manifest.sqlite").exists());
     assert!(temp.path().join("catalog.html").exists());
 }
+
+#[test]
+fn test_organize_all_mock_directory_structure() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+
+    // Create mock directories
+    let trip_a = root.join("Trip Alpha");
+    let trip_b = root.join("Trip Beta");
+    let empty_trip = root.join("Empty Trip");
+    let skipped_hier = root.join("birds_hierarchy");
+    let skipped_hidden = root.join(".hidden_trip");
+    let skipped_photoslib = root.join("Test.photoslibrary");
+    let skipped_eadir = root.join("@eaDir");
+
+    for d in [
+        &trip_a,
+        &trip_b,
+        &empty_trip,
+        &skipped_hier,
+        &skipped_hidden,
+        &skipped_photoslib,
+        &skipped_eadir,
+    ] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+
+    // Copy fixture samples into trip_a and trip_b
+    std::fs::write(trip_a.join("photo1.jpg"), b"fake_jpeg_1").unwrap();
+    std::fs::write(trip_b.join("photo2.jpg"), b"fake_jpeg_2").unwrap();
+
+    let all_args = avicull::cli::OrganizeAllArgs {
+        input: root.to_path_buf(),
+        output: None,
+        no_parent_catalog: false,
+        mode: avicull::types::OrganizationMode::InPlace,
+        no_prompt: true,
+        force: false,
+        verbose: true,
+        threads: Some(1),
+        models_dir: None,
+        default_lat: None,
+        default_lon: None,
+        locations_file: None,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+    };
+
+    avicull::organizer::run_organize_all(&all_args).unwrap();
+
+    // Verify child outputs
+    assert!(trip_a.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_a.join("catalog.html").exists());
+    assert!(trip_b.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_b.join("catalog.html").exists());
+    assert!(empty_trip.join(".avicull/manifest.sqlite").exists());
+    assert!(empty_trip.join("catalog.html").exists());
+
+    // Verify skipped directories were untouched
+    assert!(!skipped_hier.join(".avicull").exists());
+    assert!(!skipped_hidden.join(".avicull").exists());
+    assert!(!skipped_photoslib.join(".avicull").exists());
+    assert!(!skipped_eadir.join(".avicull").exists());
+
+    // Verify root rollup catalog
+    assert!(root.join(".avicull/manifest.sqlite").exists());
+    assert!(root.join("catalog.html").exists());
+
+    // Verify idempotent re-run
+    avicull::organizer::run_organize_all(&all_args).unwrap();
+}

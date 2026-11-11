@@ -363,8 +363,8 @@ fn main() -> Result<()> {
             execute_unmount(&args);
         }
 
-        Commands::OrganizeAll(_args) => {
-            anyhow::bail!("organize-all implementation in progress");
+        Commands::OrganizeAll(all_args) => {
+            avicull::organizer::run_organize_all(&all_args)?;
         }
     }
 
