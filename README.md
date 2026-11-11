@@ -399,7 +399,21 @@ Use `--force` to re-run neural network detection and classification on all photo
 avicull organize --input /Volumes/Photos/Leh --force
 ```
 
-### 2. Standalone Offline HTML Photo Catalog (`catalog.html`)
+### 2. `organize-all`: Batch Subdirectory Organization & Hierarchical Rollup
+
+When managing large photo archives with multiple distinct trip folders (e.g. `/Volumes/pictures/` containing `Leh 2024/`, `Gir 2026/`, `coorg Dec 2025/`), running `organize-all` organizes each immediate subdirectory sequentially and aggregates them into a root catalog:
+
+```bash
+avicull organize-all --input /Volumes/pictures
+```
+
+Key features:
+- **Per-Subdirectory Isolation**: Each immediate child directory is organized independently with its own self-contained `.avicull/manifest.sqlite` and `<trip>/catalog.html`.
+- **Fault-Tolerant Execution**: If processing encounters an issue in one child subdirectory, `avicull` logs a warning and continues processing subsequent subdirectories without terminating the entire batch job.
+- **Hierarchical Manifest Rollup**: After all subdirectories finish, `organize-all` rolls up bundles, decisions, and location metadata into `<input>/.avicull/manifest.sqlite` and generates an aggregated root `<input>/catalog.html`.
+- **Option Forwarding**: Accepts all standard `organize` arguments (`--mode`, `--min-confidence`, `--min-detect`, `--burst-window-ms`, `--threads`, `--reclassify`, `--no-prompt`, `--dry-run`, etc.) and forwards them to each subdirectory.
+
+### 3. Standalone Offline HTML Photo Catalog (`catalog.html`)
 
 Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` dashboard located at `<input>/catalog.html` (in in-place mode) or `<output>/catalog.html` (in hierarchy mode). (A `bird_catalog.html` symlink is maintained for backward compatibility).
 
