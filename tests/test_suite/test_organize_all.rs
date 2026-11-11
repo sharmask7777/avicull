@@ -213,3 +213,12 @@ fn test_organize_all_mock_directory_structure() {
     // Verify idempotent re-run
     avicull::organizer::run_organize_all(&all_args).unwrap();
 }
+
+#[test]
+fn test_help_includes_organize_all() {
+    let help = avicull::help::render_help(None);
+    assert!(
+        help.contains("organize-all"),
+        "Expected CLI help reference to document 'organize-all', but got:\n{help}"
+    );
+}

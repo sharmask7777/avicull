@@ -238,16 +238,17 @@ impl HelpTopic {
                  cosmetic in-place descriptive renaming (--mode in-place-rename), and zero-copy APFS\n\
                  hard-linked species hierarchies (--mode hierarchy).\n\n\
                  COMMANDS:\n\
-                   scan        Pre-flight audit of volume hardlink support and location resolution\n\
-                   organize    Scan photo archive, run AI classification, rename in-place or link\n\
-                   relink      Re-materialize output hard links from cached SQLite database\n\
-                   clean       Losslessly revert in-place renames or unlink generated hard links\n\
-                   report      Export species summary counts and review manifests\n\
-                   correct     Override classification for a photo bundle and update manifest\n\
-                   location    Set or update geographic location per directory, subdirectory or image\n\
-                   models      Check status of neural weights and eBird taxonomy cache\n\
-                   update      Check for newer releases or self-update to latest binary\n\
-                   help        Display interactive topic guides and troubleshooting documentation\n\n\
+                   scan          Pre-flight audit of volume hardlink support and location resolution\n\
+                   organize      Scan photo archive, run AI classification, rename in-place or link\n\
+                   organize-all  Batch process trip subdirectories and generate aggregated catalog\n\
+                   relink        Re-materialize output hard links from cached SQLite database\n\
+                   clean         Losslessly revert in-place renames or unlink generated hard links\n\
+                   report        Export species summary counts and review manifests\n\
+                   correct       Override classification for a photo bundle and update manifest\n\
+                   location      Set or update geographic location per directory, subdirectory or image\n\
+                   models        Check status of neural weights and eBird taxonomy cache\n\
+                   update        Check for newer releases or self-update to latest binary\n\
+                   help          Display interactive topic guides and troubleshooting documentation\n\n\
                  FLAGS & OPTIONS:\n\
                    --input <DIR>            Source trip directory\n\
                    --output <DIR>           Target output directory (defaults to <INPUT>/birds_hierarchy in hierarchy mode)\n\
