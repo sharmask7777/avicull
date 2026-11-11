@@ -41,6 +41,20 @@ pub struct SpeciesTypoSuggestion {
 
 /// Checks if standard I/O is interactive or forced via the test environment variable.
 fn is_interactive_session() -> bool {
+    if std::env::var("AVICULL_NO_PROMPT").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true")) {
+        return false;
+    }
+    if cfg!(test)
+        || std::env::current_exe().is_ok_and(|exe| {
+            exe.file_name().is_some_and(|name| {
+                let s = name.to_string_lossy();
+                s.contains("test_suite") || s.starts_with("test")
+            })
+        })
+    {
+        return std::env::var("AVICULL_FORCE_INTERACTIVE")
+            .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    }
     (std::io::stdin().is_terminal() && std::io::stdout().is_terminal())
         || std::env::var("AVICULL_FORCE_INTERACTIVE")
             .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -412,7 +426,7 @@ pub fn apply_bundle_correction_with_category(
 
     let mut suggestion_declined = false;
     let mut has_bird_suggestion = false;
-    if !is_no_bird {
+    if normalized_category == "Bird" && !is_no_bird && !species_to_check.is_empty() {
         let taxonomy = load_taxonomy_records();
         if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
             has_bird_suggestion = true;
@@ -455,14 +469,19 @@ pub fn apply_bundle_correction_with_category(
     if normalized_category == "Bird" {
         if is_no_bird {
             normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+        } else if species_to_check.trim().is_empty() {
+            return Err(anyhow!(
+                "Species name cannot be empty for category Bird. If no bird is detected, use --category No_Subject_Detected or --species _No_Bird_Detected"
+            ));
         } else if !is_known_bird_slug(species_to_check) {
             let cat = AssetCategory::from_slug(species_to_check);
             if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
                 normalized_category = cat.as_str().to_string();
-            } else if suggestion_declined || !has_bird_suggestion {
-                if cat == AssetCategory::NoSubjectDetected {
-                    normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
-                    is_no_bird = true;
+            } else if suggestion_declined {
+                normalized_category = "Bird".to_string();
+            } else if !has_bird_suggestion {
+                if category.eq_ignore_ascii_case("bird") {
+                    normalized_category = "Bird".to_string();
                 } else {
                     normalized_category = cat.as_str().to_string();
                 }
@@ -486,6 +505,8 @@ pub fn apply_bundle_correction_with_category(
         }
     } else if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
         (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
+    } else if species_to_check.trim().is_empty() {
+        (RoutingTier::ConfirmedSpecies, String::new())
     } else {
         (
             RoutingTier::ConfirmedSpecies,
@@ -593,7 +614,11 @@ pub fn apply_bundle_correction_with_category(
                             .parse()
                             .unwrap_or(AssetCategory::NoSubjectDetected);
                         let mut new_dec = decision.clone();
-                        new_dec.classification = Classification::granular(norm_cat, &target_slug);
+                        new_dec.classification = if target_slug.is_empty() {
+                            Classification::top_level(norm_cat)
+                        } else {
+                            Classification::granular(norm_cat, &target_slug)
+                        };
                         new_dec.routing_tier = routing_tier;
                         new_dec.final_confidence = 1.0;
                         new_dec.is_user_override = true;
@@ -693,7 +718,11 @@ pub fn apply_bundle_correction_with_category(
             .parse()
             .unwrap_or(AssetCategory::NoSubjectDetected);
         let mut updated_dec = decision;
-        updated_dec.classification = Classification::granular(norm_cat, &target_slug);
+        updated_dec.classification = if target_slug.is_empty() {
+            Classification::top_level(norm_cat)
+        } else {
+            Classification::granular(norm_cat, &target_slug)
+        };
         updated_dec.routing_tier = routing_tier;
         updated_dec.final_confidence = 1.0;
         updated_dec.is_user_override = true;

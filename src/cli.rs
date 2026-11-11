@@ -451,7 +451,7 @@ pub struct CorrectArgs {
     pub file: String,
 
     /// Correct species name or directory slug (e.g. "Painted Stork" or "Painted_Stork")
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     pub species: String,
 
     /// Correct category (e.g. "Bird", "Mammalia", "Insecta", "Scenery") (default: "Bird")

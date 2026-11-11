@@ -176,10 +176,22 @@ pub fn build_output_destination_path(
     };
 
     match routing_tier {
-        RoutingTier::ConfirmedSpecies => output_root.join(cat).join(effective_subject),
-        RoutingTier::NeedsReview => output_root
-            .join(RoutingTier::DIR_NEEDS_REVIEW)
-            .join(effective_subject),
+        RoutingTier::ConfirmedSpecies => {
+            if effective_subject.is_empty() {
+                output_root.join(cat)
+            } else {
+                output_root.join(cat).join(effective_subject)
+            }
+        }
+        RoutingTier::NeedsReview => {
+            if effective_subject.is_empty() {
+                output_root.join(RoutingTier::DIR_NEEDS_REVIEW)
+            } else {
+                output_root
+                    .join(RoutingTier::DIR_NEEDS_REVIEW)
+                    .join(effective_subject)
+            }
+        }
         RoutingTier::NoBirdDetected => output_root.join(RoutingTier::DIR_NO_SUBJECT_DETECTED),
     }
 }

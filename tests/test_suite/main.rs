@@ -55,6 +55,7 @@ mod test_inplace_rename;
 mod test_location_precedence;
 mod test_location_resolver;
 mod test_mount_lifecycle;
+mod test_multi_category_correct;
 mod test_organize_all;
 mod test_organizer;
 mod test_path_parser;

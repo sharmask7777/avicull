@@ -574,7 +574,13 @@ impl BundleDecision {
     /// Backwards-compatible slug accessor for logging and legacy formatters.
     #[must_use]
     pub fn assigned_species_slug(&self) -> &str {
-        self.classification.entity_slug.as_deref().unwrap_or("")
+        if let Some(slug) = self.classification.entity_slug.as_deref() {
+            slug
+        } else if self.routing_tier == RoutingTier::NoBirdDetected {
+            RoutingTier::SENTINEL_NO_BIRD_DETECTED
+        } else {
+            ""
+        }
     }
 
     /// Returns destination path tokens: `(category, optional_subfolder)`.
