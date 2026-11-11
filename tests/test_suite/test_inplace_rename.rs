@@ -378,7 +378,7 @@ fn test_inplace_mode_skips_rename_when_no_bird_detected() {
         top_predictions: vec![],
         frame_confidence: 0.05,
         final_confidence: 0.05,
-        assigned_species_slug: "Unknown_Bird".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Unknown_Bird".to_string()),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -851,7 +851,7 @@ fn test_reconcile_inplace_renames_cleanses_botanical_and_bogus_fallback_filename
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 1.0,
-        assigned_species_slug: "Sacred_Lotus".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Sacred_Lotus".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };
@@ -890,7 +890,7 @@ fn test_reconcile_inplace_renames_cleanses_botanical_and_bogus_fallback_filename
     let (dec, _) = existing_bundle_map
         .get("bundle_3082")
         .expect("bundle in map");
-    assert_eq!(dec.assigned_species_slug, "_No_Subject_Detected");
+    assert_eq!(dec.assigned_species_slug(), "_No_Subject_Detected");
     assert_eq!(dec.routing_tier, RoutingTier::NoBirdDetected);
 }
 

@@ -25,6 +25,7 @@ mod test_catalog;
 mod test_catalog_html_generation;
 mod test_catalog_snapshot;
 mod test_chunk_processing;
+mod test_classification_types;
 mod test_classifier;
 mod test_clean_rollback;
 mod test_cli_correct;

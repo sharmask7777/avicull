@@ -104,8 +104,8 @@ impl CatalogItem {
 
         let (assigned_species, scientific_name, routing_tier) = match decision.routing_tier {
             RoutingTier::NoBirdDetected => {
-                let sentinel = if decision.assigned_species_slug.contains("Subject")
-                    || decision.assigned_species_slug.contains("subject")
+                let sentinel = if decision.assigned_species_slug().contains("Subject")
+                    || decision.assigned_species_slug().contains("subject")
                 {
                     RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
                 } else {
@@ -115,7 +115,7 @@ impl CatalogItem {
             }
             _ => {
                 if category == AssetCategory::NoSubjectDetected
-                    && !crate::types::is_known_bird_slug(&decision.assigned_species_slug)
+                    && !crate::types::is_known_bird_slug(decision.assigned_species_slug())
                 {
                     (
                         RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
@@ -123,7 +123,7 @@ impl CatalogItem {
                         RoutingTier::NoBirdDetected,
                     )
                 } else if decision.is_user_override {
-                    let cleaned = decision.assigned_species_slug.replace('_', " ");
+                    let cleaned = decision.assigned_species_slug().replace('_', " ");
                     (cleaned, None, decision.routing_tier)
                 } else if let Some(top) = decision.top_predictions.first() {
                     (
@@ -132,7 +132,7 @@ impl CatalogItem {
                         decision.routing_tier,
                     )
                 } else {
-                    let cleaned = decision.assigned_species_slug.replace('_', " ");
+                    let cleaned = decision.assigned_species_slug().replace('_', " ");
                     (cleaned, None, decision.routing_tier)
                 }
             }
@@ -1175,7 +1175,7 @@ mod tests {
             }],
             frame_confidence: 0.93,
             final_confidence: 0.93,
-            assigned_species_slug: "House_Sparrow".to_string(),
+            classification: Classification::granular(AssetCategory::Bird, "House_Sparrow"),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: false,
         };
@@ -1214,7 +1214,7 @@ mod tests {
             top_predictions: vec![],
             frame_confidence: 0.1,
             final_confidence: 0.1,
-            assigned_species_slug: "_No_Bird_Detected".to_string(),
+            classification: Classification::top_level(AssetCategory::NoSubjectDetected),
             routing_tier: RoutingTier::NoBirdDetected,
             is_user_override: false,
         };
@@ -1250,7 +1250,7 @@ mod tests {
             top_predictions: vec![],
             frame_confidence: 0.8,
             final_confidence: 0.8,
-            assigned_species_slug: "Eurasian_Tree_Sparrow".to_string(),
+            classification: Classification::granular(AssetCategory::Bird, "Eurasian_Tree_Sparrow"),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: true,
         };

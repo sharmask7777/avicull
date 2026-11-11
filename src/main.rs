@@ -216,7 +216,7 @@ fn main() -> Result<()> {
                         b.bundle_id,
                         b.trip_folder_name,
                         b.original_stem,
-                        dec.assigned_species_slug,
+                        dec.assigned_species_slug(),
                         dec.final_confidence,
                         dec.routing_tier
                     );
@@ -226,7 +226,7 @@ fn main() -> Result<()> {
                 let mut species_stats: BTreeMap<String, (usize, f32)> = BTreeMap::new();
                 for (dec, _) in &cached {
                     let entry = species_stats
-                        .entry(dec.assigned_species_slug.clone())
+                        .entry(dec.assigned_species_slug().to_string())
                         .or_insert((0, 0.0));
                     entry.0 += 1;
                     entry.1 += dec.final_confidence;
@@ -253,7 +253,7 @@ fn main() -> Result<()> {
                             "bundle_id": b.bundle_id,
                             "trip_folder": b.trip_folder_name,
                             "original_stem": b.original_stem,
-                            "assigned_species_slug": dec.assigned_species_slug,
+                            "assigned_species_slug": dec.assigned_species_slug(),
                             "final_confidence": dec.final_confidence,
                             "routing_tier": format!("{:?}", dec.routing_tier),
                         })
@@ -634,7 +634,9 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
     for (updated_dec, bundle) in &results {
         println!(
             "✓ Reclassified '{}' to '{}' (routing_tier: {:?}, is_user_override: 1).",
-            bundle.original_stem, updated_dec.assigned_species_slug, updated_dec.routing_tier
+            bundle.original_stem,
+            updated_dec.assigned_species_slug(),
+            updated_dec.routing_tier
         );
     }
 

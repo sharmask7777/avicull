@@ -209,7 +209,11 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         return AssetCategory::NoSubjectDetected;
     }
 
-    let from_slug = AssetCategory::from_slug(&decision.assigned_species_slug);
+    if decision.category() != &AssetCategory::NoSubjectDetected {
+        return decision.category().clone();
+    }
+
+    let from_slug = AssetCategory::from_slug(decision.assigned_species_slug());
     if from_slug != AssetCategory::NoSubjectDetected {
         return from_slug;
     }
@@ -249,7 +253,7 @@ pub fn compute_target_dir_with_category(
     build_output_destination_path(
         output_root,
         category,
-        &decision.assigned_species_slug,
+        decision.assigned_species_slug(),
         decision.routing_tier,
     )
 }

@@ -32,14 +32,14 @@ fn test_diverse_species_routing_not_collapsed_to_single_species() {
             top_predictions: vec![pred],
             frame_confidence: conf,
             final_confidence: conf,
-            assigned_species_slug: slug.to_string(),
+            classification: avicull::types::Classification::from_slug(&slug.to_string()),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: false,
         });
     }
 
     let unique_slugs: std::collections::HashSet<_> =
-        decisions.iter().map(|d| &d.assigned_species_slug).collect();
+        decisions.iter().map(|d| d.assigned_species_slug().to_string()).collect();
 
     assert_eq!(
         unique_slugs.len(),

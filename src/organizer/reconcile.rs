@@ -14,7 +14,7 @@ use crate::organizer::inplace::{
 };
 use crate::organizer::sanitize_species_slug;
 use crate::scanner::decompose_filename;
-use crate::types::{is_known_bird_slug, AssetCategory, RoutingTier};
+use crate::types::{is_known_bird_slug, AssetCategory, Classification, RoutingTier};
 use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -220,7 +220,7 @@ pub fn reconcile_manual_disk_moves(
             let is_override = if target_tier == RoutingTier::NoBirdDetected {
                 existing_decision.routing_tier != RoutingTier::NoBirdDetected
             } else {
-                let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+                let is_species_diff = existing_decision.assigned_species_slug() != target_slug;
                 let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
                     && target_tier == RoutingTier::ConfirmedSpecies;
                 let is_tier_diff = existing_decision.routing_tier != target_tier;
@@ -239,7 +239,7 @@ pub fn reconcile_manual_disk_moves(
                 )?;
 
                 let mut updated_dec = existing_decision.clone();
-                updated_dec.assigned_species_slug.clone_from(&target_slug);
+                updated_dec.classification = Classification::granular(target_category, &target_slug);
                 updated_dec.routing_tier = target_tier;
                 updated_dec.final_confidence = 1.0;
                 updated_dec.is_user_override = true;
@@ -516,7 +516,7 @@ pub fn reconcile_inplace_manual_renames(
         } else if target_tier == RoutingTier::NoBirdDetected {
             existing_decision.routing_tier != RoutingTier::NoBirdDetected
         } else {
-            let is_species_diff = existing_decision.assigned_species_slug != target_slug;
+            let is_species_diff = existing_decision.assigned_species_slug() != target_slug;
             let is_promoted = existing_decision.routing_tier == RoutingTier::NeedsReview
                 && target_tier == RoutingTier::ConfirmedSpecies;
             let is_tier_diff = existing_decision.routing_tier != target_tier;
@@ -587,7 +587,7 @@ pub fn reconcile_inplace_manual_renames(
             }
 
             let mut updated_dec = existing_decision;
-            updated_dec.assigned_species_slug = target_slug;
+            updated_dec.classification = Classification::granular(target_cat, &target_slug);
             updated_dec.routing_tier = target_tier;
             updated_dec.final_confidence = 1.0;
             updated_dec.is_user_override = !needs_stem_cleansing;

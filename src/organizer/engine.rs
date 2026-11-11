@@ -1150,8 +1150,8 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             if let Some((existing_dec, _)) = existing_bundle_map.get_by_bundle(bundle) {
                 if existing_dec.is_user_override {
                     decision
-                        .assigned_species_slug
-                        .clone_from(&existing_dec.assigned_species_slug);
+                        .classification
+                        .clone_from(&existing_dec.classification);
                     decision.routing_tier = existing_dec.routing_tier;
                     decision.final_confidence = existing_dec.final_confidence;
                     decision.is_user_override = true;
@@ -1226,14 +1226,14 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
                         if let Some(top) = decision.top_predictions.first() {
                             top.common_name.clone()
                         } else {
-                            decision.assigned_species_slug.clone()
+                            decision.assigned_species_slug().to_string()
                         }
                     }
                     RoutingTier::NeedsReview => {
                         if let Some(top) = decision.top_predictions.first() {
                             format!("Needs_Review_{}", top.common_name)
                         } else {
-                            format!("Needs_Review_{}", decision.assigned_species_slug)
+                            format!("Needs_Review_{}", decision.assigned_species_slug())
                         }
                     }
                     RoutingTier::NoBirdDetected => unreachable!(),

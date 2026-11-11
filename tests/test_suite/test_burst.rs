@@ -62,7 +62,7 @@ fn test_burst_consensus_smoothing_5_frames() {
     // and RoutingTier::ConfirmedSpecies
     for (idx, d) in decisions.iter().enumerate() {
         assert_eq!(
-            d.assigned_species_slug, "White-throated_Kingfisher",
+            d.assigned_species_slug(), "White-throated_Kingfisher",
             "Frame {} must be smoothed to White-throated Kingfisher",
             idx
         );
@@ -132,9 +132,9 @@ fn test_burst_split_when_camera_pans_to_different_bird() {
         decisions[0].burst_id, decisions[1].burst_id,
         "Low visual similarity must split burst"
     );
-    assert_eq!(decisions[0].assigned_species_slug, "Painted_Stork");
+    assert_eq!(decisions[0].assigned_species_slug(), "Painted_Stork");
     assert_eq!(
-        decisions[1].assigned_species_slug,
+        decisions[1].assigned_species_slug(),
         "Streak-throated_Swallow"
     );
 }
@@ -187,10 +187,10 @@ fn test_burst_consensus_fallback_when_winner_not_in_frame_posteriors() {
     let decisions = smooth_burst_consensus(&items, 3000, 0.80, ConfidenceMode::PerFrame, 0.65);
     assert_eq!(decisions.len(), 2);
     // Frame 0 has chukar1 with 0.95
-    assert_eq!(decisions[0].assigned_species_slug, "Chukar");
+    assert_eq!(decisions[0].assigned_species_slug(), "Chukar");
     assert_eq!(decisions[0].final_confidence, 0.95);
     // Frame 1 was smoothed to Chukar, but under PerFrame mode fallback to 0.0 because chukar1 is not in its posteriors
-    assert_eq!(decisions[1].assigned_species_slug, "Chukar");
+    assert_eq!(decisions[1].assigned_species_slug(), "Chukar");
     assert_eq!(decisions[1].final_confidence, 0.0);
 }
 
@@ -229,7 +229,7 @@ fn test_burst_consensus_empty_and_missing_timestamps() {
         0.65,
     );
     assert_eq!(single_decision.len(), 1);
-    assert_eq!(single_decision[0].assigned_species_slug, "Species");
+    assert_eq!(single_decision[0].assigned_species_slug(), "Species");
 
     // Multiple items with None timestamps should safely form separate bursts
     let mut item2 = single_item.clone();
@@ -277,7 +277,7 @@ fn test_burst_consensus_non_avian_categories_route_without_bird_detector_gate() 
     );
     assert_eq!(decisions.len(), 1);
     assert_eq!(
-        decisions[0].assigned_species_slug,
+        decisions[0].assigned_species_slug(),
         "Mammalia_Malabar_Giant_Squirrel"
     );
     assert_eq!(

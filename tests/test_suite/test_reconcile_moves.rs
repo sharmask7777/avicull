@@ -51,7 +51,7 @@ fn test_reconcile_manual_species_directory_move() {
         top_predictions: vec![],
         frame_confidence: 0.75,
         final_confidence: 0.75,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -93,7 +93,7 @@ fn test_reconcile_manual_species_directory_move() {
 
     // 4. Verify in-memory map was updated
     let (mem_dec, _) = map.get("DSC_0001_bundle").unwrap();
-    assert_eq!(mem_dec.assigned_species_slug, "Northern_Pintail");
+    assert_eq!(mem_dec.assigned_species_slug(), "Northern_Pintail");
     assert_eq!(mem_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(mem_dec.final_confidence, 1.0);
     assert!(mem_dec.is_user_override);
@@ -101,7 +101,7 @@ fn test_reconcile_manual_species_directory_move() {
     // 5. Verify SQLite database was updated
     let fresh_map = db.get_existing_bundle_map().unwrap();
     let (db_dec, _) = fresh_map.get("DSC_0001_bundle").unwrap();
-    assert_eq!(db_dec.assigned_species_slug, "Northern_Pintail");
+    assert_eq!(db_dec.assigned_species_slug(), "Northern_Pintail");
     assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
@@ -160,7 +160,7 @@ fn test_reconcile_promote_from_needs_review_to_confirmed_same_species() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -194,7 +194,7 @@ fn test_reconcile_promote_from_needs_review_to_confirmed_same_species() {
     assert_eq!(count, 1);
 
     let (db_dec, _) = map.get("DSC_0002_bundle").unwrap();
-    assert_eq!(db_dec.assigned_species_slug, "Mallard");
+    assert_eq!(db_dec.assigned_species_slug(), "Mallard");
     assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
@@ -244,7 +244,7 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -277,7 +277,7 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
     assert_eq!(count, 1);
 
     let (db_dec, _) = map.get("DSC_0003_bundle").unwrap();
-    assert_eq!(db_dec.assigned_species_slug, "_No_Bird_Detected");
+    assert_eq!(db_dec.assigned_species_slug(), "_No_Bird_Detected");
     assert_eq!(db_dec.routing_tier, RoutingTier::NoBirdDetected);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
@@ -330,7 +330,7 @@ fn test_reconcile_does_not_mark_auto_no_bird_as_user_override() {
         }],
         frame_confidence: 0.10,
         final_confidence: 0.10,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -360,7 +360,7 @@ fn test_reconcile_does_not_mark_auto_no_bird_as_user_override() {
     assert_eq!(count, 0);
 
     let (mem_dec, _) = map.get("DSC_0099_bundle").unwrap();
-    assert_eq!(mem_dec.assigned_species_slug, "Mallard");
+    assert_eq!(mem_dec.assigned_species_slug(), "Mallard");
     assert_eq!(mem_dec.routing_tier, RoutingTier::NoBirdDetected);
     assert!(
         !mem_dec.is_user_override,
@@ -407,7 +407,7 @@ fn test_reconcile_stem_matching_when_inode_differs() {
         top_predictions: vec![],
         frame_confidence: 0.60,
         final_confidence: 0.60,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -437,7 +437,7 @@ fn test_reconcile_stem_matching_when_inode_differs() {
     assert_eq!(count, 1);
 
     let (db_dec, _) = map.get("DSC_0004_bundle").unwrap();
-    assert_eq!(db_dec.assigned_species_slug, "Northern_Pintail");
+    assert_eq!(db_dec.assigned_species_slug(), "Northern_Pintail");
     assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
@@ -485,7 +485,7 @@ fn test_reconcile_inplace_manual_filename_rename() {
         top_predictions: vec![],
         frame_confidence: 0.85,
         final_confidence: 0.85,
-        assigned_species_slug: "Mallard".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Mallard".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -548,7 +548,7 @@ fn test_reconcile_inplace_manual_filename_rename() {
     let (db_dec, _) = fresh_map
         .get("DSC_0001_bundle")
         .expect("bundle must exist in manifest");
-    assert_eq!(db_dec.assigned_species_slug, "Northern_Pintail");
+    assert_eq!(db_dec.assigned_species_slug(), "Northern_Pintail");
     assert_eq!(db_dec.routing_tier, RoutingTier::ConfirmedSpecies);
     assert_eq!(db_dec.final_confidence, 1.0);
     assert!(db_dec.is_user_override);
@@ -598,7 +598,7 @@ fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        assigned_species_slug: "Rose-ringed_Parakeet".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Rose-ringed_Parakeet".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -626,7 +626,7 @@ fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
 
     let (db_dec, _) = map.get("bundle_parakeet").unwrap();
     assert_eq!(
-        db_dec.assigned_species_slug, "Rose-ringed_Parakeet",
+        db_dec.assigned_species_slug(), "Rose-ringed_Parakeet",
         "Species should remain Rose-ringed_Parakeet and not be changed to _No_Bird_Detected"
     );
     assert_eq!(
@@ -748,7 +748,7 @@ fn test_reconciliation_handles_deleted_files() {
         .values()
         .find(|(_, b)| b.original_stem == "IMG_0001")
         .expect("IMG_0001 must exist in manifest");
-    assert_eq!(dec1.assigned_species_slug, "Mallard");
+    assert_eq!(dec1.assigned_species_slug(), "Mallard");
     assert!(dec1.is_user_override);
 
     // 6. Verify bird_catalog.html reflects surviving files:
@@ -835,7 +835,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        assigned_species_slug: "Common_Kingfisher".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Common_Kingfisher".to_string()),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -848,7 +848,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
         top_predictions: vec![],
         frame_confidence: 0.70,
         final_confidence: 0.70,
-        assigned_species_slug: "Indian_Palm_Squirrel".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Indian_Palm_Squirrel".to_string()),
         routing_tier: RoutingTier::NeedsReview,
         is_user_override: false,
     };
@@ -886,7 +886,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
     // Verify bird update
     let (mem_dec_bird, _) = map.get("bundle_bird_0042").unwrap();
     assert_eq!(
-        mem_dec_bird.assigned_species_slug,
+        mem_dec_bird.assigned_species_slug(),
         "white-throated_kingfisher"
     );
     assert_eq!(mem_dec_bird.routing_tier, RoutingTier::ConfirmedSpecies);
@@ -895,7 +895,7 @@ fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
     // Verify mammal update
     let (mem_dec_mammal, _) = map.get("bundle_mammal_0105").unwrap();
     assert_eq!(
-        mem_dec_mammal.assigned_species_slug,
+        mem_dec_mammal.assigned_species_slug(),
         "malabar_giant_squirrel"
     );
     assert_eq!(mem_dec_mammal.routing_tier, RoutingTier::ConfirmedSpecies);
@@ -966,7 +966,7 @@ fn test_apply_bundle_correction_rejects_or_corrects_non_bird_assigned_to_bird() 
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -1054,7 +1054,7 @@ fn test_apply_bundle_correction_with_botanical_category_normalizes_to_no_subject
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -1136,7 +1136,7 @@ fn test_reconcile_manual_disk_moves_never_resolves_botanical_or_non_bird_to_bird
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.9,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

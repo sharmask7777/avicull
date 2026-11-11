@@ -97,7 +97,7 @@ fn test_db_was_dataless_schema_and_pending_failures() {
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

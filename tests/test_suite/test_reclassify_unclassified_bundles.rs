@@ -41,7 +41,7 @@ fn create_valid_decision(bundle_id: &str, is_override: bool) -> BundleDecision {
         }],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug(&"House_Sparrow".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: is_override,
     }
@@ -56,7 +56,7 @@ fn create_mock_failed_decision(bundle_id: &str) -> BundleDecision {
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.0,
-        assigned_species_slug: RoutingTier::DIR_NO_BIRD_DETECTED.to_string(),
+        classification: avicull::types::Classification::from_slug(&RoutingTier::DIR_NO_BIRD_DETECTED.to_string()),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     }

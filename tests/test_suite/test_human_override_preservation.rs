@@ -83,7 +83,7 @@ fn test_organize_preserves_human_overrides_unless_reclassify_passed() {
         overridden_dec.is_user_override,
         "Override must be recorded in SQLite"
     );
-    assert_eq!(overridden_dec.assigned_species_slug, "Golden_Eagle");
+    assert_eq!(overridden_dec.assigned_species_slug(), "Golden_Eagle");
 
     // 3. Re-run organize in non-destructive mode WITHOUT --reclassify
     let status2 = Command::new(env!("CARGO_BIN_EXE_avicull"))
@@ -109,7 +109,7 @@ fn test_organize_preserves_human_overrides_unless_reclassify_passed() {
         "User override must be preserved on normal organize re-run"
     );
     assert_eq!(
-        preserved_dec.assigned_species_slug, "Golden_Eagle",
+        preserved_dec.assigned_species_slug(), "Golden_Eagle",
         "Species must remain Golden Eagle"
     );
 

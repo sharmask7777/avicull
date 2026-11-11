@@ -66,7 +66,7 @@ fn test_bundle_decision_serialization_roundtrip() {
         top_predictions: vec![prediction],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        assigned_species_slug: "Painted_Stork".to_string(),
+        classification: avicull::types::Classification::from_slug(&"Painted_Stork".to_string()),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };

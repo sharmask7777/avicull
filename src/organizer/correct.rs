@@ -14,7 +14,8 @@ use crate::organizer::{
 };
 use crate::storage::detect_storage_backend;
 use crate::types::{
-    is_known_bird_slug, AssetBundle, AssetCategory, BundleDecision, OrganizationMode, RoutingTier,
+    is_known_bird_slug, AssetBundle, AssetCategory, BundleDecision, Classification,
+    OrganizationMode, RoutingTier,
 };
 use anyhow::{anyhow, Context, Result};
 use std::fs;
@@ -282,7 +283,7 @@ pub fn apply_bundle_correction_with_category(
                         rel,
                         b.trip_folder_name,
                         date,
-                        dec.assigned_species_slug
+                        dec.assigned_species_slug()
                     );
                 }
                 print!(
@@ -588,8 +589,11 @@ pub fn apply_bundle_correction_with_category(
                     }
 
                     if !moved_any {
+                        let norm_cat: AssetCategory = normalized_category
+                            .parse()
+                            .unwrap_or(AssetCategory::NoSubjectDetected);
                         let mut new_dec = decision.clone();
-                        new_dec.assigned_species_slug.clone_from(&target_slug);
+                        new_dec.classification = Classification::granular(norm_cat, &target_slug);
                         new_dec.routing_tier = routing_tier;
                         new_dec.final_confidence = 1.0;
                         new_dec.is_user_override = true;
@@ -685,8 +689,11 @@ pub fn apply_bundle_correction_with_category(
             }
         }
 
+        let norm_cat: AssetCategory = normalized_category
+            .parse()
+            .unwrap_or(AssetCategory::NoSubjectDetected);
         let mut updated_dec = decision;
-        updated_dec.assigned_species_slug.clone_from(&target_slug);
+        updated_dec.classification = Classification::granular(norm_cat, &target_slug);
         updated_dec.routing_tier = routing_tier;
         updated_dec.final_confidence = 1.0;
         updated_dec.is_user_override = true;

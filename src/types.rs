@@ -473,6 +473,65 @@ impl SpeciesPrediction {
 /// Domain-extensible alias for [`SpeciesPrediction`].
 pub type TaxonPrediction = SpeciesPrediction;
 
+/// Strongly-typed classification target encompassing broad category and optional granular entity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Classification {
+    /// Domain category: Bird, Mammalia, Reptilia, Amphibia, Insecta,
+    /// Scenery, Portrait, Architecture, Abstract, NoSubjectDetected
+    pub category: AssetCategory,
+
+    /// Granular entity or species slug, or `None` for top-level kingdom or genre filing.
+    /// e.g. `Some("Snow_Leopard")`, `Some("Mountain")`, or `None` for top-level "Mammalia" / "Scenery".
+    pub entity_slug: Option<String>,
+}
+
+impl Classification {
+    /// Constructs a top-level category classification without a granular species/entity.
+    #[must_use]
+    pub fn top_level(category: AssetCategory) -> Self {
+        Self {
+            category,
+            entity_slug: None,
+        }
+    }
+
+    /// Constructs a granular species or entity classification.
+    #[must_use]
+    pub fn granular(category: AssetCategory, entity_slug: impl Into<String>) -> Self {
+        let slug = entity_slug.into();
+        let entity_slug = if slug.trim().is_empty() {
+            None
+        } else {
+            Some(slug)
+        };
+        Self {
+            category,
+            entity_slug,
+        }
+    }
+
+    /// Resolves classification from a species or entity slug.
+    #[must_use]
+    pub fn from_slug(slug: &str) -> Self {
+        let cat = AssetCategory::from_slug(slug);
+        let trimmed = slug.trim();
+        let entity_slug = if trimmed.is_empty()
+            || trimmed == "_No_Bird_Detected"
+            || trimmed == "_No_Subject_Detected"
+            || trimmed == "No_Subject_Detected"
+            || trimmed == "No_Bird_Detected"
+        {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+        Self {
+            category: cat,
+            entity_slug,
+        }
+    }
+}
+
 /// Final classification, routing tier, and confidence decision for an [`AssetBundle`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BundleDecision {
@@ -490,13 +549,39 @@ pub struct BundleDecision {
     pub frame_confidence: f32,
     /// Final confidence score (after burst consensus pooling) written to filenames.
     pub final_confidence: f32,
-    /// Sanitized directory slug assigned for organization (e.g., `"Painted_Stork"`).
-    pub assigned_species_slug: String,
+    /// Strongly-typed classification target.
+    pub classification: Classification,
     /// Destination sorting tier based on detection and classification thresholds.
     pub routing_tier: RoutingTier,
     /// Whether this decision was forced by explicit human curation or manual override.
     #[serde(default)]
     pub is_user_override: bool,
+}
+
+impl BundleDecision {
+    /// Returns the primary domain category.
+    #[must_use]
+    pub fn category(&self) -> &AssetCategory {
+        &self.classification.category
+    }
+
+    /// Returns the optional granular species or entity slug.
+    #[must_use]
+    pub fn entity_slug(&self) -> Option<&str> {
+        self.classification.entity_slug.as_deref()
+    }
+
+    /// Backwards-compatible slug accessor for logging and legacy formatters.
+    #[must_use]
+    pub fn assigned_species_slug(&self) -> &str {
+        self.classification.entity_slug.as_deref().unwrap_or("")
+    }
+
+    /// Returns destination path tokens: `(category, optional_subfolder)`.
+    #[must_use]
+    pub fn destination_path_tokens(&self) -> (&str, Option<&str>) {
+        (self.category().as_str(), self.entity_slug())
+    }
 }
 
 /// Sorting tier governing where an asset is organized within the destination hierarchy.
