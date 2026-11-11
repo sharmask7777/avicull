@@ -56,8 +56,11 @@ fn test_resolver_with_interactive_input() {
     assert!(loc.name.to_lowercase().contains("saul kere"));
     assert_eq!(loc.region_code, "IN-KA");
 
-    // Output should contain candidate prompt text
+    // Output should contain candidate prompt text and the entire resolved directory path
     let prompt_output = String::from_utf8(output).unwrap();
+    assert!(prompt_output.contains(
+        "Resolve location for directory: \"pictures_bangalore-2025-/saul kere apr 19 2026\""
+    ));
     assert!(prompt_output.contains("[1]"));
 
     // Second run: should pull from SQLite cache without asking input
@@ -288,4 +291,42 @@ fn test_resolver_diverse_trips_non_interactive() {
             rel_path, loc.region_code, expected_region
         );
     }
+}
+
+#[test]
+fn test_nested_subdirectories_location_prompt_contains_full_resolved_path() {
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("manifest.sqlite");
+    let manifest = ManifestDb::open(&db_path).unwrap();
+    let engine = GazetteerEngine::load_embedded().unwrap();
+
+    // Nested directory structure: "2025/Ladakh/scenery"
+    let nested_trip_path = "2025/Ladakh/scenery".to_string();
+    let trips = vec![(
+        nested_trip_path.clone(),
+        vec!["scenery".to_string(), "ladakh".to_string()],
+    )];
+
+    let mut input = Cursor::new("s\n"); // skip prompt
+    let mut output = Vec::new();
+
+    let _ = resolve_trip_locations(
+        &trips,
+        &engine,
+        &manifest,
+        &mut input,
+        &mut output,
+        true, // is_interactive
+        None,
+    )
+    .unwrap();
+
+    let prompt_output = String::from_utf8(output).unwrap();
+    // Invariant: The prompt must display the entire resolved path "2025/Ladakh/scenery",
+    // not just the leaf directory "scenery".
+    assert!(
+        prompt_output.contains("Resolve location for directory: \"2025/Ladakh/scenery\""),
+        "Expected prompt to contain full resolved path '2025/Ladakh/scenery', but got:\n{}",
+        prompt_output
+    );
 }
