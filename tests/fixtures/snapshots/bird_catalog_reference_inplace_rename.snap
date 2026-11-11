@@ -648,6 +648,118 @@
       color: #64748b;
     }
 
+    /* Pagination Bar */
+    .pagination-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 32px;
+      padding: 16px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+    }
+
+    .pagination-info {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pagination-btn {
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+      background: #1e293b;
+      border-color: #3b82f6;
+    }
+
+    .pagination-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .pagination-pages {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pagination-page-btn {
+      min-width: 34px;
+      height: 34px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pagination-page-btn:hover {
+      border-color: #3b82f6;
+      color: var(--text-primary);
+    }
+
+    .pagination-page-btn.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .pagination-ellipsis {
+      padding: 0 4px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    .pagination-page-size {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .pagination-select {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .pagination-select:focus {
+      border-color: #3b82f6;
+    }
+
     /* Modal Backdrop and Drawer */
     .modal-backdrop {
       position: fixed;
@@ -1033,6 +1145,25 @@
   <div class="gallery-grid" id="galleryGrid">
     <!-- Populated by JavaScript -->
   </div>
+
+  <!-- Pagination Controls Bar -->
+  <div class="pagination-bar" id="paginationBar">
+    <div class="pagination-info" id="paginationInfo">Showing 0 of 0 photos</div>
+    <div class="pagination-controls" id="paginationControls">
+      <button class="pagination-btn" id="btnPrevPage" onclick="goToPrevPage()">Previous</button>
+      <div class="pagination-pages" id="paginationPages"></div>
+      <button class="pagination-btn" id="btnNextPage" onclick="goToNextPage()">Next</button>
+    </div>
+    <div class="pagination-page-size">
+      <label for="pageSizeSelect">Per page:</label>
+      <select id="pageSizeSelect" class="pagination-select" onchange="handlePageSizeChange(this.value)">
+        <option value="60" selected>60</option>
+        <option value="120">120</option>
+        <option value="240">240</option>
+        <option value="all">All</option>
+      </select>
+    </div>
+  </div>
 </div>
 
 <!-- Floating Multi-Selection Action Bar -->
@@ -1296,6 +1427,38 @@
   let selectedIds = new Set();
   let lastSelectedId = null;
 
+  let currentPage = 1;
+  let pageSize = 60;
+  let thumbnailBatchToken = 0;
+  let highResUpgradeQueue = [];
+  let highResActiveWorkers = 0;
+  const MAX_HIGH_RES_CONCURRENCY = 2;
+
+  const RAW_EXTENSIONS = new Set(['cr2', 'cr3', 'nef', 'arw', 'dng', 'orf', 'rw2', 'pef', 'raf', 'sr2', 'srf']);
+
+  function isRawFormat(path) {
+    if (!path) return false;
+    const clean = String(path).split('?')[0].split('#')[0];
+    const parts = clean.split('.');
+    if (parts.length <= 1) return false;
+    const ext = parts[parts.length - 1].toLowerCase();
+    return RAW_EXTENSIONS.has(ext);
+  }
+
+  // Pre-index search tokens on items for instant sub-millisecond filtering without memory pressure
+  items.forEach(item => {
+    const itemCat = item.category || AssetCategory.NO_SUBJECT_DETECTED;
+    item._searchIndex = [
+      item.assigned_species,
+      item.scientific_name,
+      itemCat,
+      item.location_name,
+      item.capture_date,
+      item.primary_filename,
+      item.original_stem
+    ].filter(Boolean).join(' ').toLowerCase();
+  });
+
   function escHtml(str) {
     if (!str) return '';
     return String(str)
@@ -1348,6 +1511,8 @@
     const isLocal = item.is_local !== false;
     const localSrc = item.local_src || item.preview_url;
     if (!isLocal || !localSrc) return;
+    // Skip camera RAW formats that browsers cannot display, preventing wasteful multi-megabyte transfers over NFS
+    if (isRawFormat(localSrc)) return;
 
     const probe = new Image();
     probe.onload = () => {
@@ -1410,13 +1575,14 @@
         <svg class="preview-fallback-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path>
         </svg>
-        <div class="preview-fallback-text">${filename}</div>
+        <div class="preview-fallback-text">${escHtml(filename)}</div>
         <div class="preview-fallback-sub">Preview Unavailable (Cloud Evicted or Unsupported RAW)</div>
       </div>
     `;
   }
 
   function getFilteredItems() {
+    const q = searchQuery ? searchQuery.toLowerCase() : '';
     return items.filter(item => {
       const matchFilter = currentFilter === 'all' || item.routing_tier === currentFilter;
       if (!matchFilter) return false;
@@ -1425,16 +1591,9 @@
       const matchCategory = currentCategory === 'all' || itemCat.toLowerCase() === currentCategory.toLowerCase();
       if (!matchCategory) return false;
 
-      if (!searchQuery) return true;
+      if (!q) return true;
 
-      const q = searchQuery.toLowerCase();
-      const sp = (item.assigned_species || '').toLowerCase();
-      const sc = (item.scientific_name || '').toLowerCase();
-      const cat = itemCat.toLowerCase();
-      const loc = (item.location_name || '').toLowerCase();
-      const dt = (item.capture_date || '').toLowerCase();
-      const fn = (item.primary_filename || '').toLowerCase();
-      return sp.includes(q) || sc.includes(q) || cat.includes(q) || loc.includes(q) || dt.includes(q) || fn.includes(q);
+      return item._searchIndex ? item._searchIndex.includes(q) : true;
     });
   }
 
@@ -1456,14 +1615,16 @@
     }
 
     // Update selection state on cards
-    document.querySelectorAll('.card').forEach(card => {
-      const id = card.id ? card.id.replace(/^card-/, '') : '';
-      if (selectedIds.has(id)) {
-        card.classList.add('selected');
-      } else {
-        card.classList.remove('selected');
-      }
-    });
+    if (typeof document.querySelectorAll === 'function') {
+      document.querySelectorAll('.card').forEach(card => {
+        const id = card.id ? card.id.replace(/^card-/, '') : '';
+        if (selectedIds.has(id)) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+    }
   }
 
   function handleCardClick(itemId, event) {
@@ -1525,18 +1686,184 @@
     openModal(Array.from(selectedIds));
   }
 
+  function updatePaginationBar(totalItems, totalPages, startIndex, endIndex) {
+    const bar = document.getElementById('paginationBar');
+    if (!bar) return;
+
+    if (totalItems === 0) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+
+    const info = document.getElementById('paginationInfo');
+    if (info) {
+      if (pageSize === 'all' || totalItems <= pageSize) {
+        info.textContent = `Showing all ${totalItems} photo${totalItems === 1 ? '' : 's'}`;
+      } else {
+        info.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalItems} photos`;
+      }
+    }
+
+    const btnPrev = document.getElementById('btnPrevPage');
+    if (btnPrev) {
+      btnPrev.disabled = (currentPage <= 1 || pageSize === 'all');
+    }
+
+    const btnNext = document.getElementById('btnNextPage');
+    if (btnNext) {
+      btnNext.disabled = (currentPage >= totalPages || pageSize === 'all');
+    }
+
+    const pagesContainer = document.getElementById('paginationPages');
+    if (pagesContainer) {
+      if (totalPages <= 1 || pageSize === 'all') {
+        pagesContainer.innerHTML = '';
+      } else {
+        const pages = [];
+        if (totalPages <= 7) {
+          for (let p = 1; p <= totalPages; p++) pages.push(p);
+        } else {
+          pages.push(1);
+          if (currentPage > 3) pages.push('...');
+          const start = Math.max(2, currentPage - 1);
+          const end = Math.min(totalPages - 1, currentPage + 1);
+          for (let p = start; p <= end; p++) pages.push(p);
+          if (currentPage < totalPages - 2) pages.push('...');
+          pages.push(totalPages);
+        }
+
+        pagesContainer.innerHTML = pages.map(p => {
+          if (p === '...') {
+            return `<span class="pagination-ellipsis">&hellip;</span>`;
+          }
+          const activeClass = p === currentPage ? ' active' : '';
+          return `<button class="pagination-page-btn${activeClass}" onclick="setPage(${p})">${p}</button>`;
+        }).join('');
+      }
+    }
+  }
+
+  function goToPrevPage() {
+    if (currentPage > 1) {
+      currentPage--;
+      renderGallery();
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }
+
+  function goToNextPage() {
+    const filtered = getFilteredItems();
+    const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderGallery();
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }
+
+  function setPage(p) {
+    const pageNum = parseInt(p, 10);
+    currentPage = isNaN(pageNum) ? 1 : Math.max(1, pageNum);
+    renderGallery();
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  function handlePageSizeChange(val) {
+    pageSize = val === 'all' ? 'all' : (parseInt(val, 10) || 60);
+    const sel = document.getElementById('pageSizeSelect');
+    if (sel && sel.value !== String(val)) {
+      sel.value = String(val);
+    }
+    currentPage = 1;
+    renderGallery();
+  }
+
+  function onAllThumbnailsRendered(token, pageItems) {
+    if (token !== thumbnailBatchToken) return;
+
+    // Build the queue of eligible cards for high-res upgrade:
+    // Only upgrade cards whose local high-res source is available, decodable (not RAW),
+    // and distinct from the thumbnail.
+    const queue = [];
+    pageItems.forEach(item => {
+      if (item.is_local === false) return;
+      const localSrc = item.local_src || item.preview_url;
+      if (!localSrc || isRawFormat(localSrc)) return;
+      const card = document.getElementById('card-' + item.id);
+      if (!card) return;
+      const img = card.querySelector('img');
+      if (!img || img.src.endsWith(localSrc)) return;
+      queue.push({ item, card, img, localSrc });
+    });
+
+    highResUpgradeQueue = queue;
+
+    function pumpQueue() {
+      if (token !== thumbnailBatchToken) return;
+      while (highResActiveWorkers < MAX_HIGH_RES_CONCURRENCY && highResUpgradeQueue.length > 0) {
+        const job = highResUpgradeQueue.shift();
+        highResActiveWorkers++;
+
+        const probe = new Image();
+        probe.onload = () => {
+          if (token !== thumbnailBatchToken) return;
+          highResActiveWorkers--;
+          const isAttached = (typeof document !== 'undefined' && document.body && typeof document.body.contains === 'function')
+            ? document.body.contains(job.img)
+            : true;
+          if (isAttached) {
+            job.img.src = job.localSrc;
+          }
+          pumpQueue();
+        };
+        probe.onerror = () => {
+          if (token !== thumbnailBatchToken) return;
+          highResActiveWorkers--;
+          if (job.card && job.card.classList && typeof job.card.classList.add === 'function') {
+            job.card.classList.add('evicted');
+          }
+          pumpQueue();
+        };
+        probe.src = job.localSrc;
+      }
+    }
+
+    pumpQueue();
+  }
+
   function renderGallery() {
     const grid = document.getElementById('galleryGrid');
     if (!grid) return;
 
     const filtered = getFilteredItems();
+    const totalItems = filtered.length;
+    const paginationBar = document.getElementById('paginationBar');
 
-    if (filtered.length === 0) {
+    if (totalItems === 0) {
       grid.innerHTML = `<div class="empty-state"><h3>No photos matched your filter or search query.</h3></div>`;
+      if (paginationBar) paginationBar.style.display = 'none';
       return;
     }
+    if (paginationBar) paginationBar.style.display = 'flex';
 
-    grid.innerHTML = filtered.map(item => {
+    const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(totalItems / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const startIndex = pageSize === 'all' ? 0 : (currentPage - 1) * pageSize;
+    const endIndex = pageSize === 'all' ? totalItems : Math.min(startIndex + pageSize, totalItems);
+    const pageItems = filtered.slice(startIndex, endIndex);
+
+    updatePaginationBar(totalItems, totalPages, startIndex, endIndex);
+
+    grid.innerHTML = pageItems.map(item => {
       const confPct = Math.round(item.confidence * 100);
       let tierBadgeClass = "badge-confirmed";
       let tierLabel = `${confPct}%`;
@@ -1568,7 +1895,9 @@
       ` : '';
 
       const isLocal = item.is_local !== false;
-      const initialSrc = (item.thumb_src && !item.thumb_src.startsWith('data:'))
+      const initialSrc = (item.embedded_thumb_data_uri && item.embedded_thumb_data_uri.startsWith('data:image/'))
+        ? item.embedded_thumb_data_uri
+        : (item.thumb_src && !item.thumb_src.startsWith('data:'))
         ? item.thumb_src
         : (item.preview_url && !item.preview_url.startsWith('data:'))
         ? item.preview_url
@@ -1587,7 +1916,7 @@
             <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
           </div>
           <div class="card-media">
-            <img src="${initialSrc}" alt="${item.assigned_species}" loading="lazy" data-local-src="${item.local_src || item.current_path}" data-thumb-src="${item.thumb_src || item.preview_url}" data-embedded-src="${item.embedded_thumb_data_uri || ''}" data-is-local="${isLocal}" onerror="handleImageError(this, '${item.id}')"/>
+            <img src="${initialSrc}" alt="${item.assigned_species}" loading="lazy" decoding="async" data-local-src="${item.local_src || item.current_path}" data-thumb-src="${item.thumb_src || item.preview_url}" data-embedded-src="${item.embedded_thumb_data_uri || ''}" data-is-local="${isLocal}" onerror="handleImageError(this, '${item.id}')"/>
             <span class="badge-cloud">☁️ Cloud</span>
             <span class="badge-tier ${tierBadgeClass}">${tierLabel}</span>
           </div>
@@ -1610,46 +1939,51 @@
       `;
     }).join('');
 
-    // Progressive background high-res probing using IntersectionObserver to prevent memory exhaustion and UI hangs
-    if (typeof window !== 'undefined' && window.IntersectionObserver) {
-      if (window._highResObserver) {
-        window._highResObserver.disconnect();
-      }
-      window._highResObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const card = entry.target;
-            const itemId = card.id ? card.id.replace(/^card-/, '') : null;
-            const item = items.find(i => i.id === itemId);
-            const img = card.querySelector('img');
-            if (img && item) {
-              if (item.embedded_thumb_data_uri && (!img.src || img.src.includes('data:image/svg') || img.src.includes('<svg'))) {
-                img.src = item.embedded_thumb_data_uri;
-              }
-              attemptHighResSwap(img, item);
-            }
-            observer.unobserve(card);
-          }
-        });
-      }, { rootMargin: '200px' });
+    // Cancel any previous high-res upgrade queue
+    const currentToken = ++thumbnailBatchToken;
+    highResUpgradeQueue = [];
+    highResActiveWorkers = 0;
 
-      filtered.forEach(item => {
-        const card = document.getElementById('card-' + item.id);
-        if (card) window._highResObserver.observe(card);
-      });
+    // Two-Phase Loading:
+    // Only thumbnails render first. High-res replacement begins ONLY when all
+    // thumbnails in the currently active page batch have finished rendering.
+    const cardImages = (grid && typeof grid.querySelectorAll === 'function')
+      ? Array.from(grid.querySelectorAll('.card-media img'))
+      : [];
+    let settledCount = 0;
+    const totalToSettle = cardImages.length;
+
+    function checkAllThumbnailsSettled() {
+      if (currentToken !== thumbnailBatchToken) return;
+      if (settledCount >= totalToSettle) {
+        onAllThumbnailsRendered(currentToken, pageItems);
+      }
+    }
+
+    if (totalToSettle === 0) {
+      onAllThumbnailsRendered(currentToken, pageItems);
     } else {
-      filtered.slice(0, 30).forEach(item => {
-        const card = document.getElementById('card-' + item.id);
-        if (card) {
-          const img = card.querySelector('img');
-          if (img) attemptHighResSwap(img, item);
+      cardImages.forEach(img => {
+        if (img.complete) {
+          settledCount++;
+        } else {
+          const onSettled = () => {
+            img.removeEventListener('load', onSettled);
+            img.removeEventListener('error', onSettled);
+            settledCount++;
+            checkAllThumbnailsSettled();
+          };
+          img.addEventListener('load', onSettled);
+          img.addEventListener('error', onSettled);
         }
       });
+      checkAllThumbnailsSettled();
     }
   }
 
   function setCategoryFilter(category, btn) {
     currentCategory = category;
+    currentPage = 1;
     document.querySelectorAll('.category-pills .pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
     renderGallery();
@@ -1657,6 +1991,7 @@
 
   function setFilter(tier, btn) {
     currentFilter = tier;
+    currentPage = 1;
     document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
     if (btn) btn.classList.add('active');
 
@@ -1713,10 +2048,23 @@
     if (elNoSub) elNoSub.textContent = counts.No_Subject_Detected;
   }
 
-  function handleSearch() {
-    const el = document.getElementById('searchInput');
-    searchQuery = el ? el.value.trim() : '';
-    renderGallery();
+  let searchDebounceTimer = null;
+  function handleSearch(immediate = false) {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+    const execute = () => {
+      const el = document.getElementById('searchInput');
+      searchQuery = el ? el.value.trim() : '';
+      currentPage = 1;
+      renderGallery();
+    };
+    if (immediate) {
+      execute();
+    } else {
+      searchDebounceTimer = setTimeout(execute, 100);
+    }
   }
 
   function handleCorrectButtonClick(itemId) {
@@ -1775,10 +2123,10 @@
       };
       thumb.style.display = 'block';
 
-      // Upgrade modal thumb to high-res if available locally
+      // Upgrade modal thumb to high-res if available locally (skip RAW formats browsers cannot decode)
       if (activeModalItem.is_local !== false) {
         const modalLocalSrc = activeModalItem.local_src || activeModalItem.preview_url;
-        if (modalLocalSrc) {
+        if (modalLocalSrc && !isRawFormat(modalLocalSrc)) {
           const modalProbe = new Image();
           modalProbe.onload = () => {
             if (activeModalItem && activeModalItem.id === activeModalItems[0].id) {
@@ -3032,6 +3380,10 @@ fi
     window.selectSpecies = selectSpecies;
     window.setCategoryFilter = setCategoryFilter;
     window.setFilter = setFilter;
+    window.goToPrevPage = goToPrevPage;
+    window.goToNextPage = goToNextPage;
+    window.setPage = setPage;
+    window.handlePageSizeChange = handlePageSizeChange;
   }
 
   // Initialize on load

@@ -216,7 +216,7 @@ pub struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
-    /// Re-evaluate and reclassify photo bundles even if previously cached (preserves explicit user overrides)
+    /// Force full neural network re-detection and re-classification from scratch across all photo bundles, re-doing the entire archive (does not retain previous cached predictions or overrides)
     #[arg(long, default_value_t = false)]
     pub reclassify: bool,
 

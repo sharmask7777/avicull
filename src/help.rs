@@ -101,7 +101,11 @@ impl HelpTopic {
                     avicull clean --input /Volumes/Photos/Trips/Leh\n\n\
                  8. Inspect Manifest Database:\n\
                     View classification manifest statistics and burst clustering records:\n\
-                    avicull report --db /Volumes/Photos/Trips/Leh/.avicull/manifest.sqlite\n"
+                    avicull report --db /Volumes/Photos/Trips/Leh/.avicull/manifest.sqlite\n\n\
+                 9. Full Archive Re-Classification (--reclassify):\n\
+                    Re-run neural detection and classification from scratch across all photos,\n\
+                    doing the entire archive again without retaining previous predictions or overrides:\n\
+                    avicull organize --input /Volumes/Photos/Trips/Leh --reclassify\n"
             }
             HelpTopic::Organize => {
                 "THE ORGANIZE PIPELINE\n\
@@ -141,7 +145,16 @@ impl HelpTopic {
                     - Dynamic search and filter by species, date, location, and confidence tiers.\n\
                     - High-res lightbox modal with EXIF details and ML predictions.\n\
                     - In-browser mislabel correction modal with eBird taxonomy search and\n\
-                      one-click generation of 'apply_corrections.sh' batch shell scripts.\n"
+                      one-click generation of 'apply_corrections.sh' batch shell scripts.\n\n\
+                 7. Incremental Re-Runs & Human Override Preservation:\n\
+                    - Normal Re-Runs (Default):\n\
+                      Re-running 'avicull organize' is fully incremental: untouched files reuse\n\
+                      cached predictions from '.avicull/manifest.sqlite', and all human corrections\n\
+                      applied via 'avicull correct' or the HTML catalog are strictly preserved.\n\
+                    - Full Re-Classification (--reclassify):\n\
+                      Supplying '--reclassify' forces full neural network re-detection and\n\
+                      re-classification from scratch across the entire archive, re-doing all\n\
+                      photo bundles and resetting prior classifications.\n"
             }
             HelpTopic::Scan => {
                 "PRE-FLIGHT ARCHIVE SCANNING & LOCATION RESOLUTION\n\
@@ -171,8 +184,10 @@ impl HelpTopic {
                     avicull verifies upfront via 'st_dev' that input and output reside on the same\n\
                     volume before processing.\n\n\
                  4. Incremental Updates & Manifest SQLite:\n\
-                    Subsequent runs query SQLite to skip already-processed bundles.\n\
-                    Only newly added or modified photo bundles undergo neural network inference.\n\n\
+                    Subsequent runs query SQLite to skip already-processed bundles and preserve\n\
+                    human-overridden classifications in non-destructive mode.\n\
+                    Only newly added or modified photo bundles undergo neural network inference,\n\
+                    unless '--reclassify' is supplied to re-evaluate the entire archive from scratch.\n\n\
                  5. The exFAT Warning:\n\
                     exFAT drives do NOT support hard links. If copying to external drives, format\n\
                     as APFS (for Mac) or NTFS (using 'rsync -aH' to preserve links on Windows).\n"
@@ -259,6 +274,7 @@ impl HelpTopic {
                    --min-detect <FLOAT>     YOLO11 bird detection floor (default: 0.25)\n\
                    --burst-window-ms <MS>   Time window for burst clustering in milliseconds (default: 3000)\n\
                    --force                  Re-run neural network inference even if photos were previously classified\n\
+                   --reclassify             Force full neural re-detection and re-classification from scratch across the entire archive\n\
                    --no-prompt              Run non-interactively without prompting\n\n\
                  Run 'avicull help <TOPIC>' for deep dives on:\n\
                    quickstart, organize, scan, invariants, models, update\n"

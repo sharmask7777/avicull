@@ -102,7 +102,7 @@ The ManifestStore acts as the persistent ledger for an archive. It survives re-r
 An explicit human classification or location override submitted to correct automated neural inferences.
 *Avoid:* Manual tag, user edit
 
-A UserCorrection takes absolute precedence over neural predictions and spatial priors in all subsequent catalog generations and filesystem reorganizations.
+A UserCorrection takes absolute precedence over neural predictions and spatial priors across subsequent catalog generations, normal incremental runs, and filesystem reorganizations unless explicitly discarded by an archive-wide reclassification pass.
 
 ### DeltaScan
 An incremental traversal pass that consults previous manifest records to bypass neural inference and metadata extraction for unmodified assets.
@@ -120,7 +120,7 @@ The CatalogView runs entirely client-side without a running backend server, load
 A strict four-tier hierarchy determining when previously evaluated asset bundles undergo re-inference versus cache reuse during organization passes.
 *Avoid:* Re-run check, reclassify rule
 
-Reclassification precedence prevents unnecessary re-inference of unchanged assets while guaranteeing that human overrides remain inviolable, explicit CLI requests force updates, and coordinate shifts trigger re-evaluation against regional biodiversity checklists.
+Reclassification precedence prevents unnecessary re-inference of unchanged assets by ensuring explicit archive-wide reclassification requests force full re-evaluation, normal incremental runs keep human overrides intact, coordinate shifts trigger re-evaluation for non-overridden assets against regional biodiversity checklists, and unchanged bundles reuse cached decisions.
 
 ## Flagged ambiguities
 

@@ -509,4 +509,71 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       await expect(page.locator('#batchCount')).not.toHaveText('0');
     });
   });
+
+  test.describe('Pagination & Thumbnail-First Rendering', () => {
+    test('renders pagination controls and displays initial showing count', async ({ page }) => {
+      const paginationBar = page.locator('#paginationBar');
+      await expect(paginationBar).toBeVisible();
+
+      const paginationInfo = page.locator('#paginationInfo');
+      await expect(paginationInfo).toContainText('Showing all 8 photos');
+
+      // Default pageSize is 60; for 8 items, Prev and Next should be disabled
+      await expect(page.locator('#btnPrevPage')).toBeDisabled();
+      await expect(page.locator('#btnNextPage')).toBeDisabled();
+    });
+
+    test('supports changing page size and navigating pages', async ({ page }) => {
+      // Switch page size to 4 items per page via handlePageSizeChange
+      await page.evaluate(() => {
+        (window as any).handlePageSizeChange('4');
+      });
+
+      // Page 1: shows 4 cards, Showing 1-4 of 8 photos
+      await expect(page.locator('#galleryGrid .card')).toHaveCount(4);
+      await expect(page.locator('#paginationInfo')).toContainText('Showing 1–4 of 8 photos');
+      await expect(page.locator('#btnPrevPage')).toBeDisabled();
+      await expect(page.locator('#btnNextPage')).toBeEnabled();
+
+      // Navigate to Next page (Page 2)
+      await page.locator('#btnNextPage').click();
+      await expect(page.locator('#galleryGrid .card')).toHaveCount(4);
+      await expect(page.locator('#paginationInfo')).toContainText('Showing 5–8 of 8 photos');
+      await expect(page.locator('#btnPrevPage')).toBeEnabled();
+      await expect(page.locator('#btnNextPage')).toBeDisabled();
+
+      // Navigate back to Previous page (Page 1)
+      await page.locator('#btnPrevPage').click();
+      await expect(page.locator('#galleryGrid .card')).toHaveCount(4);
+      await expect(page.locator('#paginationInfo')).toContainText('Showing 1–4 of 8 photos');
+      await expect(page.locator('#btnPrevPage')).toBeDisabled();
+    });
+
+    test('search resets to page 1 and lazy loads filtered matches', async ({ page }) => {
+      // Set page size to 4 and go to page 2
+      await page.evaluate(() => {
+        (window as any).handlePageSizeChange('4');
+        (window as any).setPage(2);
+      });
+      await expect(page.locator('#paginationInfo')).toContainText('Showing 5–8 of 8 photos');
+
+      // Now search for "House Sparrow" (matches exactly 1 card)
+      const searchInput = page.locator('#searchInput');
+      await searchInput.fill('House Sparrow');
+
+      // Wait for debounce and rendering
+      await expect(page.locator('#galleryGrid .card')).toHaveCount(1);
+      await expect(page.locator('#paginationInfo')).toContainText('Showing all 1 photo');
+    });
+
+    test('renders cards with inline thumbnail data URIs first', async ({ page }) => {
+      const cards = page.locator('#galleryGrid .card');
+      const firstCardImg = cards.first().locator('img');
+      const src = await firstCardImg.getAttribute('src');
+      expect(src).toBeTruthy();
+      // Verify initialSrc is either an embedded data URI or a thumbnail, not a raw camera file
+      expect(src).not.toMatch(/\.cr2$/i);
+      expect(src).not.toMatch(/\.nef$/i);
+    });
+  });
 });
