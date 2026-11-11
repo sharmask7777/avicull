@@ -73,7 +73,15 @@ Never hardcode personal photographer directories, private trip names, or ad-hoc 
 Never rely on hardcoded paths relative to the current working directory to locate companion scripts or model assets. Binaries executed outside repository workspaces (e.g. on external mounts or system installations) must resolve bundled assets via a fallback ladder: working directory, executable parent path, and embedded asset extraction to standard cache locations (`~/.cache/avicull/`).
 
 ### Reclassification Precedence & Incremental Cache Protection
-Never unconditionally re-infer unclassified or zero-confidence assets across repeated incremental runs, as non-subject photos legitimately yield zero confidence. Incremental pipelines must enforce strict reclassification precedence: user overrides remain permanently inviolable; explicit CLI reclassification flags force re-evaluation; coordinate or metadata changes trigger targeted re-inference; and unchanged bundles reuse cached manifest decisions without redundant execution.
+Never unconditionally re-infer unclassified or zero-confidence assets across repeated incremental runs, as non-subject photos legitimately yield zero confidence. Incremental pipelines must enforce strict reclassification precedence: explicit archive-wide CLI reclassification flags (`--reclassify`) force full re-evaluation over cached predictions and prior overrides; normal incremental runs strictly preserve user overrides (including across burst consensus and coordinate updates); coordinate or metadata changes trigger targeted re-inference on non-overridden assets; and unchanged bundles reuse cached manifest decisions without redundant execution.
+
+## Client-Side Catalog UI & Network Mount Responsiveness
+
+### Bounded Pagination & Two-Phase Image Loading
+Keep interactive HTML galleries (`src/catalog/template.rs`) bounded via client-side pagination rather than rendering full archives in one flat grid with CSS `content-visibility` virtualization, which causes WebKit/Safari scroll blanking below sticky headers and escapes Chromium-only test suites. On high-latency network mounts, defer full-resolution local image probes until all inline thumbnails on the active page have settled, throttle high-resolution upgrade concurrency, skip non-browser camera RAW formats, and cancel pending probe batches whenever pagination or search filters change. See [catalog-scroll-blanking-and-two-phase-nfs-pagination.md](docs/solutions/performance-issues/catalog-scroll-blanking-and-two-phase-nfs-pagination.md).
+
+### Headless DOM Feature Guards & Fixture Regeneration
+Guard optional browser DOM traversal and document lifecycle APIs behind capability checks in client-side catalog scripts so extracted inline `<script>` blocks continue executing cleanly under minimal Node DOM stubs in Rust integration tests. Whenever `src/catalog/template.rs` markup or scripts change, regenerate static test fixtures via the fixture generator example before running Playwright suites.
 
 ---
 
