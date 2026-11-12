@@ -75,6 +75,9 @@ Never rely on hardcoded paths relative to the current working directory to locat
 ### Reclassification Precedence & Incremental Cache Protection
 Never unconditionally re-infer unclassified or zero-confidence assets across repeated incremental runs, as non-subject photos legitimately yield zero confidence. Incremental pipelines must enforce strict reclassification precedence: explicit archive-wide CLI reclassification flags (`--reclassify`) force full re-evaluation over cached predictions and prior overrides; normal incremental runs strictly preserve user overrides (including across burst consensus and coordinate updates); coordinate or metadata changes trigger targeted re-inference on non-overridden assets; and unchanged bundles reuse cached manifest decisions without redundant execution.
 
+### Tolerant Geolocation Input & Universal Coordinate Normalization
+Functions and CLI commands that accept user-provided geographic coordinates must never assume clean decimal-only inputs (`f64, f64`). Coordinate parsers must accept Google Maps URLs (`?q=` and `/@lat,lon`), Degrees Minutes Seconds (DMS), cardinal direction annotations (`N`, `S`, `E`, `W`), and automatically correct inverted `(lon, lat)` pairs when $|\text{lon}| > 90^\circ$. Interactive prompts must provide concrete format examples and immediately echo the resolved place name and administrative region code. See [universal-geolocation-parsing-and-interactive-disambiguation.md](docs/solutions/logic-errors/universal-geolocation-parsing-and-interactive-disambiguation.md).
+
 ## Client-Side Catalog UI & Network Mount Responsiveness
 
 ### Bounded Pagination & Two-Phase Image Loading

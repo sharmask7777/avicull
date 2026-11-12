@@ -1347,9 +1347,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
         <div>
           <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
-            Location (Place Name or Latitude, Longitude):
+            Location (Place Name, Coordinates, DMS, or Google Maps URL):
           </label>
-          <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. Leh, Ladakh or 34.1526, 77.5771" autocomplete="off" oninput="handleLocationInput()"/>
+          <input type="text" id="locationInput" class="autocomplete-input" placeholder="e.g. 34.1526, 77.5771, 34°09'N 77°34'E, Google Maps URL, or Leh" autocomplete="off" oninput="handleLocationInput()"/>
         </div>
 
         <div style="margin-top: 10px; margin-bottom: 6px;">

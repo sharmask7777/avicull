@@ -194,30 +194,30 @@ pub fn resolve_from_override(
     override_str: &str,
     engine: &GazetteerEngine,
 ) -> Option<ResolvedLocation> {
-    let parts: Vec<&str> = override_str.split(',').map(str::trim).collect();
-    if parts.len() == 2 {
-        if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
-            // Find nearest gazetteer entry within territorial bounds (e.g. 300 km)
-            // to avoid latching onto distant continental checklists in remote waters.
-            let nearest = engine.find_nearest(lat, lon, Some(300.0));
-            let (name, region_code) = if let Some((entry, dist_km)) = nearest {
-                if dist_km < 25.0 {
-                    (entry.name.clone(), entry.region_code.clone())
-                } else {
-                    (format!("{lat:.4}, {lon:.4}"), entry.region_code.clone())
-                }
-            } else {
-                (format!("{lat:.4}, {lon:.4}"), String::new())
-            };
+    if let Some(parsed) = crate::location::coord_parser::parse_coordinates(override_str) {
+        let lat = parsed.latitude;
+        let lon = parsed.longitude;
 
-            return Some(ResolvedLocation {
-                name,
-                region_code,
-                latitude: lat,
-                longitude: lon,
-                source: "override_coord".to_string(),
-            });
-        }
+        // Find nearest gazetteer entry within territorial bounds (e.g. 300 km)
+        // to avoid latching onto distant continental checklists in remote waters.
+        let nearest = engine.find_nearest(lat, lon, Some(300.0));
+        let (name, region_code) = if let Some((entry, dist_km)) = nearest {
+            if dist_km < 25.0 {
+                (entry.name.clone(), entry.region_code.clone())
+            } else {
+                (format!("{lat:.4}, {lon:.4}"), entry.region_code.clone())
+            }
+        } else {
+            (format!("{lat:.4}, {lon:.4}"), String::new())
+        };
+
+        return Some(ResolvedLocation {
+            name,
+            region_code,
+            latitude: lat,
+            longitude: lon,
+            source: "override_coord".to_string(),
+        });
     }
 
     let matches = engine.search(override_str, 1);
@@ -303,11 +303,15 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
             if ranked.is_empty() {
                 writeln!(
                     writer,
-                    "\nNo automatic location matches for directory: \"{trip_key}\""
+                    "\n📍 No automatic location matches for directory: \"{trip_key}\""
+                )?;
+                writeln!(
+                    writer,
+                    "   Supported input formats:\n   • Coordinates: \"34.1526, 77.5771\", \"34.1526° N, 77.5771° E\", \"34° 09' 09\" N, 77° 34' 37\" E\"\n   • Google Maps: \"https://maps.google.com/?q=...\" or URL with @lat,lon\n   • Place Name:  \"Leh\", \"Bharatpur\", \"Corbett\""
                 )?;
                 write!(
                     writer,
-                    "Enter location name, coordinates (lat,lon), or press Enter to skip: "
+                    "Enter place name, coordinates, URL, or press Enter to skip: "
                 )?;
                 writer.flush()?;
 
@@ -320,13 +324,32 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                     && !trimmed.eq_ignore_ascii_case("skip")
                 {
                     if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
+                        writeln!(
+                            writer,
+                            "   ✔ Resolved: \"{}\" ({}) [Region: {}]",
+                            custom_loc.name,
+                            format_coord(custom_loc.latitude, custom_loc.longitude),
+                            if custom_loc.region_code.is_empty() {
+                                "None"
+                            } else {
+                                &custom_loc.region_code
+                            }
+                        )?;
                         manifest.set_directory_location(trip_key, &custom_loc)?;
                         resolved_map.insert(trip_key.clone(), custom_loc);
+                    } else {
+                        writeln!(
+                            writer,
+                            "   ⚠ Could not resolve location from \"{trimmed}\". Skipping."
+                        )?;
                     }
                 }
             } else {
-                writeln!(writer, "\nResolve location for directory: \"{trip_key}\"")?;
-                writeln!(writer, "Candidate locations:")?;
+                writeln!(
+                    writer,
+                    "\n📍 Resolve location for directory: \"{trip_key}\""
+                )?;
+                writeln!(writer, "Candidate locations from gazetteer:")?;
                 for (i, (entry, _score)) in ranked.iter().enumerate() {
                     let coord_str = format_coord(entry.latitude, entry.longitude);
                     let region_suffix = if entry.region_code.is_empty() {
@@ -345,9 +368,13 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                     )?;
                 }
                 writeln!(writer, "  [s] Skip / No location")?;
+                writeln!(
+                    writer,
+                    "   Custom input examples:\n   • Coordinates: \"34.1526, 77.5771\" or \"34.1526° N, 77.5771° E\"\n   • DMS:         \"34° 09' 09\" N, 77° 34' 37\" E\"\n   • Google Maps: \"https://maps.google.com/?q=34.1526,77.5771\"\n   • Place Name:  \"Leh, Ladakh\" or \"Corbett\""
+                )?;
                 write!(
                     writer,
-                    "Select option [1-{}], enter custom location/coords, or 's' to skip: ",
+                    "Select option [1-{}], custom input, or 's' to skip: ",
                     ranked.len()
                 )?;
                 writer.flush()?;
@@ -373,16 +400,43 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                             longitude: entry.longitude,
                             source: "interactive_gazetteer".to_string(),
                         };
+                        writeln!(
+                            writer,
+                            "   ✔ Selected: \"{}\" ({}) [Region: {}]",
+                            loc.name,
+                            format_coord(loc.latitude, loc.longitude),
+                            if loc.region_code.is_empty() {
+                                "None"
+                            } else {
+                                &loc.region_code
+                            }
+                        )?;
                         manifest.set_directory_location(trip_key, &loc)?;
                         resolved_map.insert(trip_key.clone(), loc);
                         continue;
                     }
                 }
 
-                // If user entered custom text or coords:
+                // If user entered custom text, coords, or Google Maps URL:
                 if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
+                    writeln!(
+                        writer,
+                        "   ✔ Resolved: \"{}\" ({}) [Region: {}]",
+                        custom_loc.name,
+                        format_coord(custom_loc.latitude, custom_loc.longitude),
+                        if custom_loc.region_code.is_empty() {
+                            "None"
+                        } else {
+                            &custom_loc.region_code
+                        }
+                    )?;
                     manifest.set_directory_location(trip_key, &custom_loc)?;
                     resolved_map.insert(trip_key.clone(), custom_loc);
+                } else {
+                    writeln!(
+                        writer,
+                        "   ⚠ Could not resolve location from \"{trimmed}\". Skipping."
+                    )?;
                 }
             }
         } else {
