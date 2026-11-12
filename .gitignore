@@ -21,3 +21,4 @@ tests/e2e/fixtures/*.html
 .context/compound-engineering/
 .compound-engineering/*.local.yaml
 uv.lock
+.superpowers/

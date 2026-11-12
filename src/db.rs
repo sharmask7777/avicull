@@ -9,8 +9,8 @@
 //!   on subsequent runs.
 
 use crate::types::{
-    AssetBundle, AssetCategory, AvicullError, BundleDecision, OrganizationMode, RoutingTier,
-    SpeciesPrediction,
+    AssetBundle, AssetCategory, AvicullError, BundleDecision, Classification, OrganizationMode,
+    RoutingTier, SpeciesPrediction,
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -487,15 +487,12 @@ impl ManifestDb {
 
                 let category = if dec.routing_tier == RoutingTier::NoBirdDetected {
                     AssetCategory::NoSubjectDetected
+                } else if dec.category() != &AssetCategory::NoSubjectDetected {
+                    dec.category().clone()
+                } else if let Some(top) = dec.top_predictions.first() {
+                    top.category()
                 } else {
-                    let from_slug = AssetCategory::from_slug(&dec.assigned_species_slug);
-                    if from_slug != AssetCategory::NoSubjectDetected {
-                        from_slug
-                    } else if let Some(top) = dec.top_predictions.first() {
-                        top.category()
-                    } else {
-                        AssetCategory::NoSubjectDetected
-                    }
+                    AssetCategory::NoSubjectDetected
                 };
 
                 tx.execute(
@@ -519,7 +516,7 @@ impl ManifestDb {
                         dec.burst_id,
                         dec.detection_confidence,
                         bbox_json,
-                        dec.assigned_species_slug,
+                        dec.assigned_species_slug(),
                         dec.frame_confidence,
                         dec.final_confidence,
                         routing_tier_str,
@@ -1217,10 +1214,10 @@ impl ManifestDb {
     ) -> Result<Vec<(BundleDecision, AssetBundle)>> {
         let conn = self.lock_conn()?;
         let query = if run_id.is_some() {
-            "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug, frame_conf, final_conf, routing_tier, top5_predictions_json, bundle_json, is_user_override, relative_path
+            "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug, frame_conf, final_conf, routing_tier, top5_predictions_json, bundle_json, is_user_override, relative_path, category
              FROM bundles WHERE run_id = ?1"
         } else {
-            "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug, frame_conf, final_conf, routing_tier, top5_predictions_json, bundle_json, is_user_override, relative_path
+            "SELECT bundle_id, burst_id, detection_conf, bbox_json, assigned_species_slug, frame_conf, final_conf, routing_tier, top5_predictions_json, bundle_json, is_user_override, relative_path, category
              FROM bundles"
         };
 
@@ -1238,6 +1235,7 @@ impl ManifestDb {
             let bundle_json: String = row.get(9)?;
             let is_user_override_val: i64 = row.get(10).unwrap_or(0);
             let relative_path_str: Option<String> = row.get(11).unwrap_or(None);
+            let category_str: Option<String> = row.get(12).unwrap_or(None);
 
             let bbox_xyxy_norm: Option<[f32; 4]> = serde_json::from_str(&bbox_json).ok();
             let top_predictions: Vec<SpeciesPrediction> =
@@ -1261,6 +1259,11 @@ impl ManifestDb {
                 _ => RoutingTier::NoBirdDetected,
             };
 
+            let category = category_str
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_else(|| AssetCategory::from_slug(&assigned_species_slug));
+            let classification = Classification::from_db_fields(category, &assigned_species_slug);
+
             let decision = BundleDecision {
                 bundle_id,
                 burst_id,
@@ -1269,7 +1272,7 @@ impl ManifestDb {
                 top_predictions,
                 frame_confidence,
                 final_confidence,
-                assigned_species_slug,
+                classification,
                 routing_tier,
                 is_user_override: is_user_override_val != 0,
             };
@@ -2311,7 +2314,7 @@ pub fn insert_bundle_decision(
             decision.burst_id,
             decision.detection_confidence,
             bbox_json,
-            decision.assigned_species_slug,
+            decision.assigned_species_slug(),
             decision.frame_confidence,
             decision.final_confidence,
             routing_tier_str,
@@ -2413,6 +2416,9 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             None => None,
         };
 
+        let classification =
+            Classification::from_db_fields(category.clone(), &assigned_species_slug);
+
         let decision = BundleDecision {
             bundle_id,
             burst_id,
@@ -2421,7 +2427,7 @@ pub fn query_decisions(conn: &Connection) -> Result<Vec<QueriedDecision>> {
             top_predictions,
             frame_confidence,
             final_confidence,
-            assigned_species_slug,
+            classification,
             routing_tier,
             is_user_override: is_override_bool,
         };

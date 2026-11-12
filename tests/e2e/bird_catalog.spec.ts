@@ -268,17 +268,17 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       await expect(commandBox).toContainText('IMG_1001');
     });
 
-    test('"Mark as No Bird Detected" button sets species and updates command preview', async ({ page }) => {
+    test('"No Subject" category pill sets unclassified state and updates command preview', async ({ page }) => {
       // Open modal for card 1
       await page.locator('#card-bundle-1 .btn-correct').click();
       await expect(page.locator('#correctionModal')).toHaveClass(/open/);
 
-      // Click "Mark as No Bird Detected" button
-      await page.locator('#btnMarkNoBird').click();
+      // Click "No Subject" category pill
+      await page.locator('#modalCategoryPills button[data-modal-category="No_Subject_Detected"]').click();
 
-      await expect(page.locator('#speciesSearchInput')).toHaveValue('No Bird Detected');
+      await expect(page.locator('#modalSpeciesLabel')).toHaveText('Classification: No Subject');
       const commandBox = page.locator('#commandOutput');
-      await expect(commandBox).toContainText('_No_Bird_Detected');
+      await expect(commandBox).toContainText('No_Subject_Detected');
     });
 
     test('"Add to Batch Script" adds correction to batch, closes modal, and updates header counter', async ({ page }) => {

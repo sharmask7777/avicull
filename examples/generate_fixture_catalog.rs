@@ -280,6 +280,7 @@ fn create_payload() -> CatalogPayload {
         stats,
         items,
         species_list,
+        multi_taxa: avicull::catalog::load_curated_multi_taxa(),
     }
 }
 

@@ -157,7 +157,7 @@ fn test_materialize_hardlinks_and_idempotency_and_clean() {
         top_predictions: vec![],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        assigned_species_slug: "Painted_Stork".to_string(),
+        classification: avicull::types::Classification::from_slug("Painted_Stork"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -268,7 +268,7 @@ fn test_collision_across_trips_prefixes_trip_name() {
         top_predictions: vec![],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        assigned_species_slug: "Painted_Stork".to_string(),
+        classification: avicull::types::Classification::from_slug("Painted_Stork"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -347,7 +347,7 @@ fn test_numbered_counter_collision_resolution_on_duplicate_stems() {
         top_predictions: vec![],
         frame_confidence: 0.90,
         final_confidence: 0.90,
-        assigned_species_slug: "Chukar".to_string(),
+        classification: avicull::types::Classification::from_slug("Chukar"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -472,7 +472,7 @@ fn test_materialize_hardlinks_with_date_and_location() {
         top_predictions: vec![],
         frame_confidence: 0.98,
         final_confidence: 0.98,
-        assigned_species_slug: "Brahminy_Kite".to_string(),
+        classification: avicull::types::Classification::from_slug("Brahminy_Kite"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

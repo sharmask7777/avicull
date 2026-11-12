@@ -58,7 +58,7 @@ fn test_cli_correct_subcommand_updates_manifest_and_hardlink() {
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(bundles.len(), 1);
-    let initial_slug = bundles[0].0.assigned_species_slug.clone();
+    let initial_slug = bundles[0].0.assigned_species_slug();
     assert_ne!(initial_slug, "Painted_Stork");
 
     // 2. Call avicull correct --file "DSC_0001" --species "Painted Stork"
@@ -85,7 +85,7 @@ fn test_cli_correct_subcommand_updates_manifest_and_hardlink() {
     let updated_bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(updated_bundles.len(), 1);
     let (decision, _bundle) = &updated_bundles[0];
-    assert_eq!(decision.assigned_species_slug, "Painted_Stork");
+    assert_eq!(decision.assigned_species_slug(), "Painted_Stork");
     assert_eq!(decision.routing_tier, RoutingTier::ConfirmedSpecies);
     assert!(
         (decision.final_confidence - 1.0).abs() < f32::EPSILON,
@@ -223,7 +223,8 @@ fn test_cli_correct_preserves_override_on_subsequent_organize_rerun() {
         .expect("DSC_0002 must exist in manifest");
 
     assert_eq!(
-        b2.0.assigned_species_slug, "Black-necked_Stork",
+        b2.0.assigned_species_slug(),
+        "Black-necked_Stork",
         "Override species slug must be preserved across organize re-runs"
     );
     assert!(
@@ -381,7 +382,7 @@ fn test_cli_correct_inplace_mode_updates_manifest_and_renames() {
         .iter()
         .find(|(_, b)| b.original_stem == "DSC_0005")
         .expect("DSC_0005 must exist in manifest");
-    assert_eq!(b5.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(b5.0.assigned_species_slug(), "Painted_Stork");
     assert!(b5.0.is_user_override);
     assert_eq!(b5.0.routing_tier, RoutingTier::ConfirmedSpecies);
 }
@@ -465,7 +466,7 @@ fn test_cli_correct_inplace_rename_mode() {
         .iter()
         .find(|(_, b)| b.original_stem == "DSC_0005")
         .expect("DSC_0005 must exist in manifest");
-    assert_eq!(b5.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(b5.0.assigned_species_slug(), "Painted_Stork");
     assert!(b5.0.is_user_override);
     assert_eq!(b5.0.routing_tier, RoutingTier::ConfirmedSpecies);
 
@@ -582,14 +583,14 @@ fn test_cli_correct_ambiguous_file_fails_with_choices() {
         .iter()
         .find(|(_, b)| b.trip_folder_name == "Bharatpur")
         .expect("Bharatpur bundle must exist");
-    assert_eq!(bharatpur_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(bharatpur_bundle.0.assigned_species_slug(), "Painted_Stork");
     assert!(bharatpur_bundle.0.is_user_override);
 
     let corbett_bundle = bundles
         .iter()
         .find(|(_, b)| b.trip_folder_name == "Corbett")
         .expect("Corbett bundle must exist");
-    assert_ne!(corbett_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert_ne!(corbett_bundle.0.assigned_species_slug(), "Painted_Stork");
     assert!(!corbett_bundle.0.is_user_override);
 }
 
@@ -698,7 +699,7 @@ fn test_cli_correct_duplicate_stem_across_subdirectories_in_place_mode() {
             })
         })
         .expect("Bundle 1 must exist");
-    assert_eq!(b1.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(b1.0.assigned_species_slug(), "Painted_Stork");
     assert!(b1.0.is_user_override);
 
     let b2 = bundles
@@ -711,7 +712,7 @@ fn test_cli_correct_duplicate_stem_across_subdirectories_in_place_mode() {
             })
         })
         .expect("Bundle 2 must exist");
-    assert_ne!(b2.0.assigned_species_slug, "Painted_Stork");
+    assert_ne!(b2.0.assigned_species_slug(), "Painted_Stork");
     assert!(!b2.0.is_user_override);
 }
 
@@ -780,13 +781,13 @@ fn test_cli_correct_does_not_falsely_match_prefix_stem_photo() {
         .iter()
         .find(|(_, b)| b.original_stem == "dubare")
         .expect("dubare must exist");
-    assert_ne!(b_base.0.assigned_species_slug, "Indian_Roller");
+    assert_ne!(b_base.0.assigned_species_slug(), "Indian_Roller");
 
     let b_num = bundles
         .iter()
         .find(|(_, b)| b.original_stem == "dubare_19")
         .expect("dubare_19 must exist");
-    assert_eq!(b_num.0.assigned_species_slug, "Indian_Roller");
+    assert_eq!(b_num.0.assigned_species_slug(), "Indian_Roller");
     assert!(b_num.0.is_user_override);
 }
 
@@ -874,14 +875,14 @@ fn test_cli_correct_root_file_disambiguation_with_dot_slash() {
                 .is_some_and(|p| p.parent().is_none_or(|par| par.as_os_str().is_empty()))
         })
         .expect("Root bundle must exist");
-    assert_eq!(root_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(root_bundle.0.assigned_species_slug(), "Painted_Stork");
     assert!(root_bundle.0.is_user_override);
 
     let sub_bundle = bundles
         .iter()
         .find(|(_, b)| b.trip_folder_name == "Bharatpur")
         .expect("Subfolder bundle must exist");
-    assert_ne!(sub_bundle.0.assigned_species_slug, "Painted_Stork");
+    assert_ne!(sub_bundle.0.assigned_species_slug(), "Painted_Stork");
     assert!(!sub_bundle.0.is_user_override);
 }
 
@@ -902,7 +903,7 @@ fn test_cli_correct_renamed_file_does_not_match_different_stem_in_same_directory
         burst_id: None,
         detection_confidence: 0.95,
         bbox_xyxy_norm: None,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         frame_confidence: 0.95,
         final_confidence: 0.95,
         routing_tier: avicull::types::RoutingTier::ConfirmedSpecies,
@@ -1118,7 +1119,7 @@ fn test_cli_correct_burst_propagation() {
     assert_eq!(bundles_before.len(), 3);
     for (dec, _) in &bundles_before {
         assert_eq!(dec.burst_id.as_deref(), Some("burst-0001"));
-        assert_ne!(dec.assigned_species_slug, "Painted_Stork");
+        assert_ne!(dec.assigned_species_slug(), "Painted_Stork");
         assert!(!dec.is_user_override);
     }
 
@@ -1148,7 +1149,8 @@ fn test_cli_correct_burst_propagation() {
     assert_eq!(bundles_after.len(), 3);
     for (dec, bundle) in &bundles_after {
         assert_eq!(
-            dec.assigned_species_slug, "Painted_Stork",
+            dec.assigned_species_slug(),
+            "Painted_Stork",
             "Bundle {} was not reclassified",
             bundle.original_stem
         );
@@ -1297,10 +1299,10 @@ fn test_cli_correct_burst_not_propagated_without_flag_in_non_interactive() {
         .find(|(_, b)| b.original_stem == "DSC_0002")
         .unwrap();
 
-    assert_eq!(b1.0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(b1.0.assigned_species_slug(), "Painted_Stork");
     assert!(b1.0.is_user_override);
 
-    assert_ne!(b2.0.assigned_species_slug, "Painted_Stork");
+    assert_ne!(b2.0.assigned_species_slug(), "Painted_Stork");
     assert!(!b2.0.is_user_override);
 }
 
@@ -1375,7 +1377,8 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
     assert_eq!(bundles.len(), 2);
     for (dec, b) in &bundles {
         assert_eq!(
-            dec.assigned_species_slug, "Painted_Stork",
+            dec.assigned_species_slug(),
+            "Painted_Stork",
             "Bundle {} was not reclassified in in-place mode",
             b.original_stem
         );
@@ -1495,7 +1498,7 @@ fn test_cli_correct_fuzzy_species_matching() {
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(bundles.len(), 1);
-    assert_eq!(bundles[0].0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(bundles[0].0.assigned_species_slug(), "Painted_Stork");
     assert!(bundles[0].0.is_user_override);
 
     // 3. Non-interactive correction with typo "Mallrd"
@@ -1526,7 +1529,7 @@ fn test_cli_correct_fuzzy_species_matching() {
     );
 
     let updated_bundles = db.get_all_bundles(None).unwrap();
-    assert_eq!(updated_bundles[0].0.assigned_species_slug, "Mallrd");
+    assert_eq!(updated_bundles[0].0.assigned_species_slug(), "Mallrd");
     assert!(updated_bundles[0].0.is_user_override);
 }
 
@@ -1647,7 +1650,7 @@ fn test_cli_correct_no_bird_detected_variants() {
         .find(|(_, b)| b.original_stem == "DSC_0010")
         .expect("DSC_0010 bundle");
     assert_eq!(b10.0.routing_tier, RoutingTier::NoBirdDetected);
-    assert_eq!(b10.0.assigned_species_slug, "_No_Bird_Detected");
+    assert_eq!(b10.0.assigned_species_slug(), "_No_Bird_Detected");
     let no_bird_dir = output_dir.join("_No_Bird_Detected");
     assert!(no_bird_dir.exists());
     let entries: Vec<_> = fs::read_dir(&no_bird_dir)
@@ -1688,7 +1691,7 @@ fn test_cli_correct_no_bird_detected_variants() {
         .find(|(_, b)| b.original_stem == "DSC_0020")
         .expect("DSC_0020 bundle");
     assert_eq!(b20.0.routing_tier, RoutingTier::NoBirdDetected);
-    assert_eq!(b20.0.assigned_species_slug, "_No_Bird_Detected");
+    assert_eq!(b20.0.assigned_species_slug(), "_No_Bird_Detected");
     let entries2: Vec<_> = fs::read_dir(&no_bird_dir)
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -1708,7 +1711,7 @@ fn test_cli_correct_no_bird_detected_variants() {
         .find(|(_, b)| b.original_stem == "DSC_0020")
         .expect("DSC_0020 bundle");
     assert_eq!(b20.0.routing_tier, RoutingTier::NoBirdDetected);
-    assert_eq!(b20.0.assigned_species_slug, "_No_Bird_Detected");
+    assert_eq!(b20.0.assigned_species_slug(), "_No_Bird_Detected");
 }
 
 #[test]
@@ -1779,7 +1782,7 @@ fn test_cli_correct_subcommand_overrides_category_and_species_simultaneously() {
     let bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(bundles.len(), 1);
     let (decision, _bundle) = &bundles[0];
-    assert_eq!(decision.assigned_species_slug, "Malabar_Giant_Squirrel");
+    assert_eq!(decision.assigned_species_slug(), "Malabar_Giant_Squirrel");
     assert!(decision.is_user_override);
 
     // 4. Verify hardlink exists under birds_hierarchy/Mammalia/Malabar_Giant_Squirrel/

@@ -72,6 +72,12 @@ The primary domain classification dividing assets into broad visual and biodiver
 
 Categories partition the archive into distinct branches such as birds, other wildlife, botanical subjects, landscapes, portraits, architecture, or non-subject images. This partitioning prevents bird classification models from forcing non-avian photos into avian species categories.
 
+### ClassificationTarget
+A strongly typed pair binding an `AssetCategory` to an optional granular entity or species slug.
+*Avoid:* Species string, category slug
+
+ClassificationTarget decouples broad domain categories from specific species entities. It enables top-level kingdom or genre filing when granular species names are blank (routing to `birds_hierarchy/<Category>/` and `<Stem>_<Category>.<ext>`), while preserving explicit human curation for novel avian hybrids and multi-taxa wildlife without fragile string prefix sniffing.
+
 ### SpatialPrior
 A probability distribution over geographic taxa derived from capture coordinates or inferred waypoint proximity, weighting species likelihoods against visual evidence.
 *Avoid:* Location filter, regional heuristic

@@ -171,15 +171,29 @@ pub fn build_output_destination_path(
         stripped
     } else if let Some(stripped) = clean_slug.strip_prefix(&format!("{cat}/")) {
         stripped
+    } else if clean_slug.eq_ignore_ascii_case(cat) {
+        ""
     } else {
         clean_slug
     };
 
     match routing_tier {
-        RoutingTier::ConfirmedSpecies => output_root.join(cat).join(effective_subject),
-        RoutingTier::NeedsReview => output_root
-            .join(RoutingTier::DIR_NEEDS_REVIEW)
-            .join(effective_subject),
+        RoutingTier::ConfirmedSpecies => {
+            if effective_subject.is_empty() {
+                output_root.join(cat)
+            } else {
+                output_root.join(cat).join(effective_subject)
+            }
+        }
+        RoutingTier::NeedsReview => {
+            if effective_subject.is_empty() {
+                output_root.join(RoutingTier::DIR_NEEDS_REVIEW)
+            } else {
+                output_root
+                    .join(RoutingTier::DIR_NEEDS_REVIEW)
+                    .join(effective_subject)
+            }
+        }
         RoutingTier::NoBirdDetected => output_root.join(RoutingTier::DIR_NO_SUBJECT_DETECTED),
     }
 }
@@ -209,7 +223,11 @@ pub fn resolve_category_for_decision(decision: &BundleDecision) -> AssetCategory
         return AssetCategory::NoSubjectDetected;
     }
 
-    let from_slug = AssetCategory::from_slug(&decision.assigned_species_slug);
+    if decision.category() != &AssetCategory::NoSubjectDetected {
+        return decision.category().clone();
+    }
+
+    let from_slug = AssetCategory::from_slug(decision.assigned_species_slug());
     if from_slug != AssetCategory::NoSubjectDetected {
         return from_slug;
     }
@@ -249,7 +267,7 @@ pub fn compute_target_dir_with_category(
     build_output_destination_path(
         output_root,
         category,
-        &decision.assigned_species_slug,
+        decision.assigned_species_slug(),
         decision.routing_tier,
     )
 }

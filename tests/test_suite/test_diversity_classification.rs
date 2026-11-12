@@ -32,14 +32,16 @@ fn test_diverse_species_routing_not_collapsed_to_single_species() {
             top_predictions: vec![pred],
             frame_confidence: conf,
             final_confidence: conf,
-            assigned_species_slug: slug.to_string(),
+            classification: avicull::types::Classification::from_slug(slug),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: false,
         });
     }
 
-    let unique_slugs: std::collections::HashSet<_> =
-        decisions.iter().map(|d| &d.assigned_species_slug).collect();
+    let unique_slugs: std::collections::HashSet<_> = decisions
+        .iter()
+        .map(|d| d.assigned_species_slug().to_string())
+        .collect();
 
     assert_eq!(
         unique_slugs.len(),
@@ -47,10 +49,10 @@ fn test_diverse_species_routing_not_collapsed_to_single_species() {
         "Expected 4 distinct species slugs, but found {}",
         unique_slugs.len()
     );
-    assert!(unique_slugs.contains(&"Black_Redstart".to_string()));
-    assert!(unique_slugs.contains(&"House_Sparrow".to_string()));
-    assert!(unique_slugs.contains(&"Citrine_Wagtail".to_string()));
-    assert!(unique_slugs.contains(&"Tibetan_Snowcock".to_string()));
+    assert!(unique_slugs.contains("Black_Redstart"));
+    assert!(unique_slugs.contains("House_Sparrow"));
+    assert!(unique_slugs.contains("Citrine_Wagtail"));
+    assert!(unique_slugs.contains("Tibetan_Snowcock"));
 }
 
 #[test]

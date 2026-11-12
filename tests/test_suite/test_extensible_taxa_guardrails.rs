@@ -316,11 +316,11 @@ fn test_burst_clustering_operations_on_arbitrary_category_items() {
 
     // Mammalia frames must be in the same burst
     assert_eq!(
-        decisions[0].assigned_species_slug,
+        decisions[0].assigned_species_slug(),
         "Mammalia_malabar_giant_squirrel"
     );
     assert_eq!(
-        decisions[1].assigned_species_slug,
+        decisions[1].assigned_species_slug(),
         "Mammalia_malabar_giant_squirrel"
     );
     assert_eq!(decisions[0].routing_tier, RoutingTier::ConfirmedSpecies);
@@ -328,15 +328,21 @@ fn test_burst_clustering_operations_on_arbitrary_category_items() {
     assert_eq!(decisions[0].burst_id, decisions[1].burst_id);
 
     // Insect frame must be in a DIFFERENT burst despite being close in time (category partitioning)
-    assert_eq!(decisions[2].assigned_species_slug, "Insecta_common_mime");
+    assert_eq!(decisions[2].assigned_species_slug(), "Insecta_common_mime");
     assert_ne!(
         decisions[2].burst_id, decisions[0].burst_id,
         "Insecta item must not merge into Mammalia burst"
     );
 
     // Scenery frames must be in their own burst
-    assert_eq!(decisions[3].assigned_species_slug, "Scenery_western_ghats");
-    assert_eq!(decisions[4].assigned_species_slug, "Scenery_western_ghats");
+    assert_eq!(
+        decisions[3].assigned_species_slug(),
+        "Scenery_western_ghats"
+    );
+    assert_eq!(
+        decisions[4].assigned_species_slug(),
+        "Scenery_western_ghats"
+    );
     assert_eq!(decisions[3].burst_id, decisions[4].burst_id);
     assert_ne!(decisions[3].burst_id, decisions[2].burst_id);
 }

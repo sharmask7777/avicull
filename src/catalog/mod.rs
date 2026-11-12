@@ -19,6 +19,37 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
+
+/// Curated non-avian taxon entry for catalog dynamic autocomplete.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CuratedTaxonEntry {
+    /// Unique identifier for this taxon or motif entry.
+    pub taxon_id: String,
+    /// Taxonomic or photographic genre category (e.g. `Mammalia`, `Insecta`, `Scenery`).
+    pub category: String,
+    /// Human-readable common name.
+    pub common_name: String,
+    /// Optional binomial scientific name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scientific_name: Option<String>,
+    /// Search aliases and colloquial variants for client-side fuzzy autocomplete.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+}
+
+static CURATED_MULTI_TAXA: LazyLock<Vec<CuratedTaxonEntry>> = LazyLock::new(|| {
+    serde_json::from_str(crate::types::CURATED_MULTI_TAXA_JSON).unwrap_or_default()
+});
+
+/// Returns a clone of the curated non-avian multi-taxa entries for catalog autocomplete.
+///
+/// # Returns
+/// A vector of [`CuratedTaxonEntry`] structs loaded from embedded static data.
+#[must_use]
+pub fn load_curated_multi_taxa() -> Vec<CuratedTaxonEntry> {
+    CURATED_MULTI_TAXA.clone()
+}
 
 /// Standard default filename for the HTML bird photo catalog.
 pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.html";
@@ -104,8 +135,8 @@ impl CatalogItem {
 
         let (assigned_species, scientific_name, routing_tier) = match decision.routing_tier {
             RoutingTier::NoBirdDetected => {
-                let sentinel = if decision.assigned_species_slug.contains("Subject")
-                    || decision.assigned_species_slug.contains("subject")
+                let sentinel = if decision.assigned_species_slug().contains("Subject")
+                    || decision.assigned_species_slug().contains("subject")
                 {
                     RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
                 } else {
@@ -115,7 +146,7 @@ impl CatalogItem {
             }
             _ => {
                 if category == AssetCategory::NoSubjectDetected
-                    && !crate::types::is_known_bird_slug(&decision.assigned_species_slug)
+                    && !crate::types::is_known_bird_slug(decision.assigned_species_slug())
                 {
                     (
                         RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
@@ -123,7 +154,7 @@ impl CatalogItem {
                         RoutingTier::NoBirdDetected,
                     )
                 } else if decision.is_user_override {
-                    let cleaned = decision.assigned_species_slug.replace('_', " ");
+                    let cleaned = decision.assigned_species_slug().replace('_', " ");
                     (cleaned, None, decision.routing_tier)
                 } else if let Some(top) = decision.top_predictions.first() {
                     (
@@ -132,7 +163,7 @@ impl CatalogItem {
                         decision.routing_tier,
                     )
                 } else {
-                    let cleaned = decision.assigned_species_slug.replace('_', " ");
+                    let cleaned = decision.assigned_species_slug().replace('_', " ");
                     (cleaned, None, decision.routing_tier)
                 }
             }
@@ -220,6 +251,8 @@ pub struct CatalogPayload {
     pub stats: CatalogStats,
     pub items: Vec<CatalogPayloadItem>,
     pub species_list: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub multi_taxa: Vec<CuratedTaxonEntry>,
 }
 
 /// JSON representation of an individual item in the catalog.
@@ -482,6 +515,7 @@ pub fn generate_html_catalog(
         stats,
         items: payload_items,
         species_list,
+        multi_taxa: load_curated_multi_taxa(),
     };
 
     let html_content = template::render_catalog_html(&payload);
@@ -1126,7 +1160,9 @@ fn fallback_curated_species() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{GpsCoordinate, LocationSource, RoutingTier, SpeciesPrediction};
+    use crate::types::{
+        Classification, GpsCoordinate, LocationSource, RoutingTier, SpeciesPrediction,
+    };
 
     #[test]
     fn test_catalog_item_default() {
@@ -1175,7 +1211,7 @@ mod tests {
             }],
             frame_confidence: 0.93,
             final_confidence: 0.93,
-            assigned_species_slug: "House_Sparrow".to_string(),
+            classification: Classification::granular(AssetCategory::Bird, "House_Sparrow"),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: false,
         };
@@ -1214,7 +1250,7 @@ mod tests {
             top_predictions: vec![],
             frame_confidence: 0.1,
             final_confidence: 0.1,
-            assigned_species_slug: "_No_Bird_Detected".to_string(),
+            classification: Classification::from_slug(RoutingTier::SENTINEL_NO_BIRD_DETECTED),
             routing_tier: RoutingTier::NoBirdDetected,
             is_user_override: false,
         };
@@ -1250,7 +1286,7 @@ mod tests {
             top_predictions: vec![],
             frame_confidence: 0.8,
             final_confidence: 0.8,
-            assigned_species_slug: "Eurasian_Tree_Sparrow".to_string(),
+            classification: Classification::granular(AssetCategory::Bird, "Eurasian_Tree_Sparrow"),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: true,
         };

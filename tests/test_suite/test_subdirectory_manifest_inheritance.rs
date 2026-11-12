@@ -42,7 +42,7 @@ fn sample_bundle(subdir: &str, stem: &str) -> (BundleDecision, AssetBundle) {
         }],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        assigned_species_slug: "Indian_Peafowl".into(),
+        classification: avicull::types::Classification::from_slug("Indian_Peafowl"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };

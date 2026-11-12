@@ -54,7 +54,7 @@ fn test_db_lifecycle_record_and_query() {
         }],
         frame_confidence: 0.96,
         final_confidence: 0.96,
-        assigned_species_slug: "Painted_Stork".to_string(),
+        classification: avicull::types::Classification::from_slug("Painted_Stork"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -94,7 +94,7 @@ fn test_db_lifecycle_record_and_query() {
         .get_all_bundles(Some(run_id))
         .expect("get_all_bundles failed");
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].0.assigned_species_slug, "Painted_Stork");
+    assert_eq!(loaded[0].0.assigned_species_slug(), "Painted_Stork");
     assert_eq!(loaded[0].1.original_stem, "DSC_4011");
 }
 
@@ -136,7 +136,7 @@ fn test_update_bundle_routing_tier() {
         top_predictions: vec![],
         frame_confidence: 0.60,
         final_confidence: 0.60,
-        assigned_species_slug: "Common_Merganser".to_string(),
+        classification: avicull::types::Classification::from_slug("Common_Merganser"),
         routing_tier: RoutingTier::NeedsReview, // Initially NeedsReview
         is_user_override: false,
     };
@@ -180,7 +180,7 @@ fn dummy_decision() -> BundleDecision {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        assigned_species_slug: "Passer_domesticus".to_string(),
+        classification: avicull::types::Classification::from_slug("Passer_domesticus"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     }
@@ -295,7 +295,7 @@ fn test_insert_and_query_with_512_dim_embedding() {
 
     let mut decision = dummy_decision();
     decision.bundle_id = "mammal_001".to_string();
-    decision.assigned_species_slug = "Malabar_Giant_Squirrel".to_string();
+    decision.classification = avicull::types::Classification::from_slug("Malabar_Giant_Squirrel");
 
     let embedding: Vec<f32> = (0..512).map(|i| (i as f32) / 512.0).collect();
 
@@ -307,7 +307,7 @@ fn test_insert_and_query_with_512_dim_embedding() {
 
     let (dec, cat, emb) = &results[0];
     assert_eq!(dec.bundle_id, "mammal_001");
-    assert_eq!(dec.assigned_species_slug, "Malabar_Giant_Squirrel");
+    assert_eq!(dec.assigned_species_slug(), "Malabar_Giant_Squirrel");
     assert_eq!(*cat, AssetCategory::Mammalia);
 
     let queried_emb = emb.as_ref().expect("expected embedding");
@@ -365,7 +365,7 @@ fn test_legacy_schema_migration_without_data_loss() {
     assert_eq!(results.len(), 1);
     let (dec, cat, emb) = &results[0];
     assert_eq!(dec.bundle_id, "legacy_001");
-    assert_eq!(dec.assigned_species_slug, "Painted_Stork");
+    assert_eq!(dec.assigned_species_slug(), "Painted_Stork");
     assert_eq!(
         *cat,
         AssetCategory::Bird,
@@ -479,7 +479,10 @@ fn test_legacy_schema_migration_and_query_decisions_reconciles_all_non_avian_cat
     let results = query_decisions(&conn).expect("query_decisions failed");
     let lookup: std::collections::HashMap<String, (AssetCategory, String)> = results
         .into_iter()
-        .map(|(dec, cat, _)| (dec.bundle_id, (cat, dec.assigned_species_slug)))
+        .map(|(dec, cat, _)| {
+            let slug = dec.assigned_species_slug().to_string();
+            (dec.bundle_id, (cat, slug))
+        })
         .collect();
 
     // 1. Himalayan Marmot must be Mammalia, not Bird
@@ -526,7 +529,7 @@ fn test_insert_bundle_decision_zero_embedding_stored_as_null() {
         top_predictions: vec![],
         frame_confidence: 0.0,
         final_confidence: 0.0,
-        assigned_species_slug: "_No_Subject_Detected".to_string(),
+        classification: avicull::types::Classification::from_slug("_No_Subject_Detected"),
         routing_tier: RoutingTier::NoBirdDetected,
         is_user_override: false,
     };
@@ -568,7 +571,7 @@ fn test_insert_bundle_decision_preserves_existing_embedding_when_none_provided()
         top_predictions: vec![],
         frame_confidence: 0.90,
         final_confidence: 0.90,
-        assigned_species_slug: "House_Sparrow".to_string(),
+        classification: avicull::types::Classification::from_slug("House_Sparrow"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: false,
     };
@@ -612,7 +615,7 @@ fn test_query_decisions_preserves_user_override_bird_category() {
         top_predictions: vec![],
         frame_confidence: 0.95,
         final_confidence: 0.95,
-        assigned_species_slug: "Unlisted_Rare_Finch".to_string(),
+        classification: avicull::types::Classification::from_slug("Unlisted_Rare_Finch"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };
@@ -670,7 +673,7 @@ fn test_migrate_preserves_user_override_in_bundles_table() {
         top_predictions: vec![],
         frame_confidence: 0.9,
         final_confidence: 0.9,
-        assigned_species_slug: "Unlisted_Rare_Finch".to_string(),
+        classification: avicull::types::Classification::from_slug("Unlisted_Rare_Finch"),
         routing_tier: RoutingTier::ConfirmedSpecies,
         is_user_override: true,
     };
@@ -749,7 +752,7 @@ fn test_migrate_purges_botanical_and_bogus_fallbacks_even_with_user_override() {
             top_predictions: vec![],
             frame_confidence: 0.0,
             final_confidence: 1.0,
-            assigned_species_slug: slug.to_string(),
+            classification: avicull::types::Classification::from_slug(slug),
             routing_tier: RoutingTier::ConfirmedSpecies,
             is_user_override: is_override,
         };

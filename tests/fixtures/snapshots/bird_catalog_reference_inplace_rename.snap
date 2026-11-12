@@ -325,6 +325,25 @@
       border-color: var(--accent-blue);
     }
 
+    .cat-pill {
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .cat-pill:hover, .cat-pill.active {
+      background: var(--accent-blue);
+      color: #ffffff;
+      border-color: var(--accent-blue);
+    }
+
     .badge-category {
       display: inline-block;
       font-size: 0.7rem;
@@ -1186,7 +1205,7 @@
 <div class="modal-backdrop" id="correctionModal">
   <div class="modal-box">
     <div class="modal-header">
-      <h2>Correct Bird Species</h2>
+      <h2>Correct Classification</h2>
       <button class="modal-close" onclick="closeModal()">&times;</button>
     </div>
     <div class="modal-body">
@@ -1198,15 +1217,28 @@
         </div>
       </div>
 
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
-            Select Correct Species (eBird Taxonomy Autocomplete):
-          </label>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-            Mark as No Subject (False Positive)
-          </button>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Category:
+        </label>
+        <div class="category-pills" id="modalCategoryPills" style="display: flex; flex-wrap: wrap; gap: 6px;">
+          <button type="button" class="cat-pill active" data-modal-category="Bird" onclick="selectModalCategory('Bird')">Bird</button>
+          <button type="button" class="cat-pill" data-modal-category="Mammalia" onclick="selectModalCategory('Mammalia')">Mammalia</button>
+          <button type="button" class="cat-pill" data-modal-category="Reptilia" onclick="selectModalCategory('Reptilia')">Reptilia</button>
+          <button type="button" class="cat-pill" data-modal-category="Amphibia" onclick="selectModalCategory('Amphibia')">Amphibia</button>
+          <button type="button" class="cat-pill" data-modal-category="Insecta" onclick="selectModalCategory('Insecta')">Insecta</button>
+          <button type="button" class="cat-pill" data-modal-category="Scenery" onclick="selectModalCategory('Scenery')">Scenery</button>
+          <button type="button" class="cat-pill" data-modal-category="Portrait" onclick="selectModalCategory('Portrait')">Portrait</button>
+          <button type="button" class="cat-pill" data-modal-category="Architecture" onclick="selectModalCategory('Architecture')">Architecture</button>
+          <button type="button" class="cat-pill" data-modal-category="Abstract" onclick="selectModalCategory('Abstract')">Abstract</button>
+          <button type="button" class="cat-pill" data-modal-category="No_Subject_Detected" onclick="selectModalCategory('No_Subject_Detected')">No Subject</button>
         </div>
+      </div>
+
+      <div>
+        <label id="modalSpeciesLabel" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Select Correct Species / Subject:
+        </label>
         <div class="autocomplete-wrap">
           <input type="text" id="speciesSearchInput" class="autocomplete-input" placeholder="Start typing bird name (e.g. Painted Stork)..." autocomplete="off" oninput="handleSpeciesAutocomplete()"/>
           <div class="suggestions-list" id="speciesSuggestions"></div>
@@ -1381,7 +1413,7 @@
 
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
-{"trip_name":"Avicull Snapshot Test Suite","mode":"in-place-rename","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0,"architecture_count":0,"portrait_count":0,"abstract_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird","relative_path":"ranthambore oct 2025/1X7A0806.jpg"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird","relative_path":"coorg Dec 2025/r7/1X7A8099.jpg"}],"species_list":["<NORMALIZED_SPECIES_LIST>"]}
+{"trip_name":"Avicull Snapshot Test Suite","mode":"in-place-rename","catalog_dir":"<NORMALIZED_CATALOG_DIR>","trip_location_name":"Ranthambore","directories":["coorg Dec 2025","coorg Dec 2025/r7","ranthambore oct 2025"],"generated_at":"<NORMALIZED_GENERATED_AT>","stats":{"total_photos":2,"species_count":2,"confirmed_count":1,"needs_review_count":1,"no_bird_count":0,"bird_count":2,"mammalia_count":0,"insecta_count":0,"reptilia_count":0,"amphibia_count":0,"scenery_count":0,"architecture_count":0,"portrait_count":0,"abstract_count":0,"no_subject_count":0},"items":[{"id":"bundle_1","original_stem":"1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore","current_path":"ranthambore oct 2025/processed/1X7A0806.jpg","primary_filename":"1X7A0806.jpg","preview_url":".avicull/previews/1X7A0806.jpg","local_src":"ranthambore oct 2025/processed/1X7A0806.jpg","thumb_src":".avicull/previews/1X7A0806_Needs_Review_Red-vented_Bulbul_20251002_Ranthambore.jpg","is_local":true,"assigned_species":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","routing_tier":"ConfirmedSpecies","confidence":0.94,"capture_date":"2025-10-02","location_name":"Ranthambore","location_source":"trip_gazetteer","subdirectory":"ranthambore oct 2025","companion_files":[],"sidecar_files":["ranthambore oct 2025/processed/1X7A0806.jpg.xmp"],"top_predictions":[{"common_name":"Red-vented Bulbul","scientific_name":"Pycnonotus cafer","score":0.94},{"common_name":"Black Drongo","scientific_name":"Dicrurus macrocercus","score":0.05}],"category":"Bird","relative_path":"ranthambore oct 2025/1X7A0806.jpg"},{"id":"bundle_2","original_stem":"1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg","current_path":"coorg Dec 2025/r7/processed/1X7A8099.jpg","primary_filename":"1X7A8099.jpg","preview_url":".avicull/previews/1X7A8099.jpg","local_src":"coorg Dec 2025/r7/processed/1X7A8099.jpg","thumb_src":".avicull/previews/1X7A8099_Needs_Review_Purple_Finch_20251221_Coorg.jpg","is_local":true,"assigned_species":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","routing_tier":"NeedsReview","confidence":0.65,"capture_date":"2025-12-21","location_name":"Coorg","location_source":"trip_gazetteer","subdirectory":"coorg Dec 2025/r7","companion_files":[],"sidecar_files":["coorg Dec 2025/r7/processed/1X7A8099.jpg.xmp"],"top_predictions":[{"common_name":"Common Rosefinch","scientific_name":"Carpodacus erythrinus","score":0.65},{"common_name":"Purple Finch","scientific_name":"Haemorhous purpureus","score":0.003}],"category":"Bird","relative_path":"coorg Dec 2025/r7/1X7A8099.jpg"}],"species_list":["<NORMALIZED_SPECIES_LIST>"],"multi_taxa":[{"taxon_id":"mamm_mal_sq1","category":"Mammalia","common_name":"Malabar Giant Squirrel","scientific_name":"Ratufa indica","aliases":["Indian Giant Squirrel"]},{"taxon_id":"mamm_tiger1","category":"Mammalia","common_name":"Bengal Tiger","scientific_name":"Panthera tigris tigris","aliases":["Tiger","Royal Bengal Tiger"]},{"taxon_id":"mamm_lion1","category":"Mammalia","common_name":"Asiatic Lion","scientific_name":"Panthera leo leo","aliases":["Lion","Persian Lion"]},{"taxon_id":"mamm_ind_leop1","category":"Mammalia","common_name":"Indian Leopard","scientific_name":"Panthera pardus fusca","aliases":["Leopard"]},{"taxon_id":"mamm_snow_leop1","category":"Mammalia","common_name":"Snow Leopard","scientific_name":"Panthera uncia","aliases":["Ounce"]},{"taxon_id":"mamm_eleph1","category":"Mammalia","common_name":"Asian Elephant","scientific_name":"Elephas maximus","aliases":["Indian Elephant"]},{"taxon_id":"mamm_chital1","category":"Mammalia","common_name":"Chital","scientific_name":"Axis axis","aliases":["Spotted Deer","Axis Deer"]},{"taxon_id":"mamm_sambar1","category":"Mammalia","common_name":"Sambar","scientific_name":"Rusa unicolor","aliases":["Sambar Deer"]},{"taxon_id":"mamm_red_panda1","category":"Mammalia","common_name":"Red Panda","scientific_name":"Ailurus fulgens","aliases":["Lesser Panda"]},{"taxon_id":"mamm_rhesus1","category":"Mammalia","common_name":"Rhesus Macaque","scientific_name":"Macaca mulatta","aliases":["Rhesus Monkey"]},{"taxon_id":"mamm_langur1","category":"Mammalia","common_name":"Gray Langur","scientific_name":"Semnopithecus entellus","aliases":["Hanuman Langur"]},{"taxon_id":"mamm_wild_yak1","category":"Mammalia","common_name":"Wild Yak","scientific_name":"Bos mutus","aliases":["Wild Yak","Yak"]},{"taxon_id":"mamm_dom_yak1","category":"Mammalia","common_name":"Domestic Yak","scientific_name":"Bos grunniens","aliases":["Domestic Yak","Himalayan Yak"]},{"taxon_id":"mamm_wool_hare1","category":"Mammalia","common_name":"Woolly Hare","scientific_name":"Lepus oiostolus","aliases":["Woolly Hare","Tibetan Hare","Mountain Hare"]},{"taxon_id":"mamm_him_marmot1","category":"Mammalia","common_name":"Himalayan Marmot","scientific_name":"Marmota himalayana","aliases":["Himalayan Marmot"]},{"taxon_id":"mamm_bharal1","category":"Mammalia","common_name":"Bharal","scientific_name":"Pseudois nayaur","aliases":["Blue Sheep","Bharal"]},{"taxon_id":"mamm_lion2","category":"Mammalia","common_name":"African Lion","scientific_name":"Panthera leo melanochaita","aliases":["Lion","Simba"]},{"taxon_id":"mamm_jaguar1","category":"Mammalia","common_name":"Jaguar","scientific_name":"Panthera onca","aliases":["El Tigre"]},{"taxon_id":"mamm_cheetah1","category":"Mammalia","common_name":"Cheetah","scientific_name":"Acinonyx jubatus","aliases":["Hunting Leopard"]},{"taxon_id":"mamm_cougar1","category":"Mammalia","common_name":"Cougar","scientific_name":"Puma concolor","aliases":["Mountain Lion","Puma","Panther"]},{"taxon_id":"mamm_caracal1","category":"Mammalia","common_name":"Caracal","scientific_name":"Caracal caracal","aliases":["Desert Lynx"]},{"taxon_id":"mamm_serval1","category":"Mammalia","common_name":"Serval","scientific_name":"Leptailurus serval","aliases":["Tierboskat"]},{"taxon_id":"mamm_eur_lynx1","category":"Mammalia","common_name":"Eurasian Lynx","scientific_name":"Lynx lynx","aliases":["Northern Lynx"]},{"taxon_id":"mamm_can_lynx1","category":"Mammalia","common_name":"Canada Lynx","scientific_name":"Lynx canadensis"},{"taxon_id":"mamm_bobcat1","category":"Mammalia","common_name":"Bobcat","scientific_name":"Lynx rufus","aliases":["Red Lynx"]},{"taxon_id":"mamm_ocelot1","category":"Mammalia","common_name":"Ocelot","scientific_name":"Leopardus pardalis","aliases":["Painted Leopard"]},{"taxon_id":"mamm_cloud_leop1","category":"Mammalia","common_name":"Clouded Leopard","scientific_name":"Neofelis nebulosa"},{"taxon_id":"mamm_gray_wolf1","category":"Mammalia","common_name":"Gray Wolf","scientific_name":"Canis lupus","aliases":["Timber Wolf","Wolf"]},{"taxon_id":"mamm_coyote1","category":"Mammalia","common_name":"Coyote","scientific_name":"Canis latrans","aliases":["Prairie Wolf"]},{"taxon_id":"mamm_dhole1","category":"Mammalia","common_name":"Dhole","scientific_name":"Cuon alpinus","aliases":["Asiatic Wild Dog","Indian Wild Dog"]},{"taxon_id":"mamm_af_wild_dog1","category":"Mammalia","common_name":"African Wild Dog","scientific_name":"Lycaon pictus","aliases":["Painted Dog","Cape Hunting Dog"]},{"taxon_id":"mamm_red_fox1","category":"Mammalia","common_name":"Red Fox","scientific_name":"Vulpes vulpes","aliases":["Fox"]},{"taxon_id":"mamm_arctic_fox1","category":"Mammalia","common_name":"Arctic Fox","scientific_name":"Vulpes lagopus","aliases":["Polar Fox","White Fox"]},{"taxon_id":"mamm_fennec_fox1","category":"Mammalia","common_name":"Fennec Fox","scientific_name":"Vulpes zerda","aliases":["Desert Fox"]},{"taxon_id":"mamm_bl_jackal1","category":"Mammalia","common_name":"Black-backed Jackal","scientific_name":"Lupulella mesomelas","aliases":["Silver-backed Jackal"]},{"taxon_id":"mamm_gold_jackal1","category":"Mammalia","common_name":"Golden Jackal","scientific_name":"Canis aureus","aliases":["Common Jackal"]},{"taxon_id":"mamm_dingo1","category":"Mammalia","common_name":"Dingo","scientific_name":"Canis dingo","aliases":["Australian Wild Dog"]},{"taxon_id":"mamm_grizzly1","category":"Mammalia","common_name":"Brown Bear","scientific_name":"Ursus arctos","aliases":["Grizzly Bear","Kodiak Bear"]},{"taxon_id":"mamm_polar_bear1","category":"Mammalia","common_name":"Polar Bear","scientific_name":"Ursus maritimus","aliases":["White Bear","Ice Bear"]},{"taxon_id":"mamm_am_black_bear1","category":"Mammalia","common_name":"American Black Bear","scientific_name":"Ursus americanus","aliases":["Black Bear"]},{"taxon_id":"mamm_as_black_bear1","category":"Mammalia","common_name":"Asian Black Bear","scientific_name":"Ursus thibetanus","aliases":["Moon Bear"]},{"taxon_id":"mamm_giant_panda1","category":"Mammalia","common_name":"Giant Panda","scientific_name":"Ailuropoda melanoleuca","aliases":["Panda Bear"]},{"taxon_id":"mamm_sloth_bear1","category":"Mammalia","common_name":"Sloth Bear","scientific_name":"Melursus ursinus","aliases":["Labiatated Bear"]},{"taxon_id":"mamm_sun_bear1","category":"Mammalia","common_name":"Sun Bear","scientific_name":"Helarctos malayanus","aliases":["Malayan Sun Bear","Honey Bear"]},{"taxon_id":"mamm_spect_bear1","category":"Mammalia","common_name":"Spectacled Bear","scientific_name":"Tremarctos ornatus","aliases":["Andean Bear"]},{"taxon_id":"mamm_spotted_hyena1","category":"Mammalia","common_name":"Spotted Hyena","scientific_name":"Crocuta crocuta","aliases":["Laughing Hyena"]},{"taxon_id":"mamm_striped_hyena1","category":"Mammalia","common_name":"Striped Hyena","scientific_name":"Hyaena hyaena"},{"taxon_id":"mamm_meerkat1","category":"Mammalia","common_name":"Meerkat","scientific_name":"Suricata suricatta","aliases":["Suricate"]},{"taxon_id":"mamm_wolverine1","category":"Mammalia","common_name":"Wolverine","scientific_name":"Gulo gulo","aliases":["Glutton","Carcajou"]},{"taxon_id":"mamm_eur_badger1","category":"Mammalia","common_name":"Eurasian Badger","scientific_name":"Meles meles","aliases":["Badger"]},{"taxon_id":"mamm_honey_badger1","category":"Mammalia","common_name":"Honey Badger","scientific_name":"Mellivora capensis","aliases":["Ratel"]},{"taxon_id":"mamm_sea_otter1","category":"Mammalia","common_name":"Sea Otter","scientific_name":"Enhydra lutris"},{"taxon_id":"mamm_giant_otter1","category":"Mammalia","common_name":"Giant Otter","scientific_name":"Pteronura brasiliensis","aliases":["Giant River Otter"]},{"taxon_id":"mamm_eur_otter1","category":"Mammalia","common_name":"Eurasian Otter","scientific_name":"Lutra lutra","aliases":["European Otter"]},{"taxon_id":"mamm_raccoon1","category":"Mammalia","common_name":"Raccoon","scientific_name":"Procyon lotor","aliases":["Common Raccoon"]},{"taxon_id":"mamm_coati1","category":"Mammalia","common_name":"White-nosed Coati","scientific_name":"Nasua narica","aliases":["Coatimundi"]},{"taxon_id":"mamm_walrus1","category":"Mammalia","common_name":"Walrus","scientific_name":"Odobenus rosmarus","aliases":["Morsea"]},{"taxon_id":"mamm_ca_sea_lion1","category":"Mammalia","common_name":"California Sea Lion","scientific_name":"Zalophus californianus","aliases":["Sea Lion"]},{"taxon_id":"mamm_harbor_seal1","category":"Mammalia","common_name":"Harbor Seal","scientific_name":"Phoca vitulina","aliases":["Common Seal"]},{"taxon_id":"mamm_leopard_seal1","category":"Mammalia","common_name":"Leopard Seal","scientific_name":"Hydrurga leptonyx","aliases":["Sea Leopard"]},{"taxon_id":"mamm_s_elephant_seal1","category":"Mammalia","common_name":"Southern Elephant Seal","scientific_name":"Mirounga leonina","aliases":["Elephant Seal"]},{"taxon_id":"mamm_af_bush_eleph1","category":"Mammalia","common_name":"African Bush Elephant","scientific_name":"Loxodonta africana","aliases":["Savanna Elephant"]},{"taxon_id":"mamm_af_for_eleph1","category":"Mammalia","common_name":"African Forest Elephant","scientific_name":"Loxodonta cyclotis"},{"taxon_id":"mamm_white_rhino1","category":"Mammalia","common_name":"White Rhinoceros","scientific_name":"Ceratotherium simum","aliases":["Square-lipped Rhinoceros"]},{"taxon_id":"mamm_black_rhino1","category":"Mammalia","common_name":"Black Rhinoceros","scientific_name":"Diceros bicornis","aliases":["Hook-lipped Rhinoceros"]},{"taxon_id":"mamm_ind_rhino1","category":"Mammalia","common_name":"Indian Rhinoceros","scientific_name":"Rhinoceros unicornis","aliases":["Greater One-horned Rhinoceros"]},{"taxon_id":"mamm_plains_zebra1","category":"Mammalia","common_name":"Plains Zebra","scientific_name":"Equus quagga","aliases":["Common Zebra"]},{"taxon_id":"mamm_mountain_zebra1","category":"Mammalia","common_name":"Mountain Zebra","scientific_name":"Equus zebra"},{"taxon_id":"mamm_grevys_zebra1","category":"Mammalia","common_name":"Grévy's Zebra","scientific_name":"Equus grevyi","aliases":["Imperial Zebra"]},{"taxon_id":"mamm_onager1","category":"Mammalia","common_name":"Onager","scientific_name":"Equus hemionus","aliases":["Asiatic Wild Ass","Khur"]},{"taxon_id":"mamm_kiang1","category":"Mammalia","common_name":"Kiang","scientific_name":"Equus kiang","aliases":["Tibetan Wild Ass"]},{"taxon_id":"mamm_bairds_tapir1","category":"Mammalia","common_name":"Baird's Tapir","scientific_name":"Tapirus bairdii","aliases":["Central American Tapir"]},{"taxon_id":"mamm_malayan_tapir1","category":"Mammalia","common_name":"Malayan Tapir","scientific_name":"Tapirus indicus","aliases":["Asian Tapir"]},{"taxon_id":"mamm_giraffe1","category":"Mammalia","common_name":"Giraffe","scientific_name":"Giraffa camelopardalis","aliases":["Northern Giraffe","Southern Giraffe"]},{"taxon_id":"mamm_okapi1","category":"Mammalia","common_name":"Okapi","scientific_name":"Okapia johnstoni","aliases":["Forest Giraffe"]},{"taxon_id":"mamm_hippo1","category":"Mammalia","common_name":"Hippopotamus","scientific_name":"Hippopotamus amphibius","aliases":["Common Hippo","River Horse"]},{"taxon_id":"mamm_pygmy_hippo1","category":"Mammalia","common_name":"Pygmy Hippopotamus","scientific_name":"Choeropsis liberiensis"},{"taxon_id":"mamm_bact_camel1","category":"Mammalia","common_name":"Wild Bactrian Camel","scientific_name":"Camelus ferus","aliases":["Two-humped Camel"]},{"taxon_id":"mamm_drom_camel1","category":"Mammalia","common_name":"Dromedary","scientific_name":"Camelus dromedarius","aliases":["Arabian Camel","One-humped Camel"]},{"taxon_id":"mamm_llama1","category":"Mammalia","common_name":"Llama","scientific_name":"Lama glama"},{"taxon_id":"mamm_alpaca1","category":"Mammalia","common_name":"Alpaca","scientific_name":"Vicugna pacos"},{"taxon_id":"mamm_guanaco1","category":"Mammalia","common_name":"Guanaco","scientific_name":"Lama guanicoe"},{"taxon_id":"mamm_vicuna1","category":"Mammalia","common_name":"Vicuña","scientific_name":"Vicugna vicugna"},{"taxon_id":"mamm_warthog1","category":"Mammalia","common_name":"Common Warthog","scientific_name":"Phacochoerus africanus","aliases":["Warthog"]},{"taxon_id":"mamm_wild_boar1","category":"Mammalia","common_name":"Wild Boar","scientific_name":"Sus scrofa","aliases":["Wild Pig","Razorback"]},{"taxon_id":"mamm_af_buffalo1","category":"Mammalia","common_name":"African Buffalo","scientific_name":"Syncerus caffer","aliases":["Cape Buffalo"]},{"taxon_id":"mamm_am_bison1","category":"Mammalia","common_name":"American Bison","scientific_name":"Bison bison","aliases":["Buffalo","Plains Bison"]},{"taxon_id":"mamm_wisent1","category":"Mammalia","common_name":"European Bison","scientific_name":"Bison bonasus","aliases":["Wisent"]},{"taxon_id":"mamm_gaur1","category":"Mammalia","common_name":"Gaur","scientific_name":"Bos gaurus","aliases":["Indian Bison"]},{"taxon_id":"mamm_water_buffalo1","category":"Mammalia","common_name":"Wild Water Buffalo","scientific_name":"Bubalus arnee","aliases":["Asian Buffalo"]},{"taxon_id":"mamm_blue_wildebeest1","category":"Mammalia","common_name":"Blue Wildebeest","scientific_name":"Connochaetes taurinus","aliases":["Brindled Gnu"]},{"taxon_id":"mamm_black_wildebeest1","category":"Mammalia","common_name":"Black Wildebeest","scientific_name":"Connochaetes gnou","aliases":["White-tailed Gnu"]},{"taxon_id":"mamm_impala1","category":"Mammalia","common_name":"Impala","scientific_name":"Aepyceros melampus"},{"taxon_id":"mamm_springbok1","category":"Mammalia","common_name":"Springbok","scientific_name":"Antidorcas marsupialis"},{"taxon_id":"mamm_gemsbok1","category":"Mammalia","common_name":"Gemsbok","scientific_name":"Oryx gazella","aliases":["South African Oryx"]},{"taxon_id":"mamm_scimitar_oryx1","category":"Mammalia","common_name":"Scimitar-horned Oryx","scientific_name":"Oryx dammah","aliases":["Sahara Oryx"]},{"taxon_id":"mamm_greater_kudu1","category":"Mammalia","common_name":"Greater Kudu","scientific_name":"Tragelaphus strepsiceros","aliases":["Kudu"]},{"taxon_id":"mamm_common_eland1","category":"Mammalia","common_name":"Common Eland","scientific_name":"Taurotragus oryx","aliases":["Eland"]},{"taxon_id":"mamm_blackbuck1","category":"Mammalia","common_name":"Blackbuck","scientific_name":"Antilope cervicapra","aliases":["Indian Antelope"]},{"taxon_id":"mamm_chinkara1","category":"Mammalia","common_name":"Chinkara","scientific_name":"Gazella bennettii","aliases":["Indian Gazelle"]},{"taxon_id":"mamm_nilgai1","category":"Mammalia","common_name":"Nilgai","scientific_name":"Boselaphus tragocamelus","aliases":["Blue Bull"]},{"taxon_id":"mamm_four_horn1","category":"Mammalia","common_name":"Four-horned Antelope","scientific_name":"Tetracerus quadricornis","aliases":["Chousingha"]},{"taxon_id":"mamm_tib_antelope1","category":"Mammalia","common_name":"Tibetan Antelope","scientific_name":"Pantholops hodgsonii","aliases":["Chiru"]},{"taxon_id":"mamm_tib_gazelle1","category":"Mammalia","common_name":"Tibetan Gazelle","scientific_name":"Procapra picticaudata","aliases":["Goa"]},{"taxon_id":"mamm_saiga1","category":"Mammalia","common_name":"Saiga Antelope","scientific_name":"Saiga tatarica","aliases":["Saiga"]},{"taxon_id":"mamm_muskox1","category":"Mammalia","common_name":"Muskox","scientific_name":"Ovibos moschatus","aliases":["Musk Ox"]},{"taxon_id":"mamm_bighorn_sheep1","category":"Mammalia","common_name":"Bighorn Sheep","scientific_name":"Ovis canadensis","aliases":["Mountain Sheep"]},{"taxon_id":"mamm_dall_sheep1","category":"Mammalia","common_name":"Dall Sheep","scientific_name":"Ovis dalli","aliases":["Thinhorn Sheep"]},{"taxon_id":"mamm_argali1","category":"Mammalia","common_name":"Argali","scientific_name":"Ovis ammon","aliases":["Mountain Sheep"]},{"taxon_id":"mamm_mountain_goat1","category":"Mammalia","common_name":"Mountain Goat","scientific_name":"Oreamnos americanus","aliases":["Rocky Mountain Goat"]},{"taxon_id":"mamm_alpine_ibex1","category":"Mammalia","common_name":"Alpine Ibex","scientific_name":"Capra ibex","aliases":["Steinbock"]},{"taxon_id":"mamm_siberian_ibex1","category":"Mammalia","common_name":"Siberian Ibex","scientific_name":"Capra sibirica","aliases":["Asiatic Ibex"]},{"taxon_id":"mamm_markhor1","category":"Mammalia","common_name":"Markhor","scientific_name":"Capra falconeri"},{"taxon_id":"mamm_chamois1","category":"Mammalia","common_name":"Alpine Chamois","scientific_name":"Rupicapra rupicapra","aliases":["Chamois"]},{"taxon_id":"mamm_nilgiri_tahr1","category":"Mammalia","common_name":"Nilgiri Tahr","scientific_name":"Nilgiritragus hylocrius","aliases":["Ibex of Nilgiris"]},{"taxon_id":"mamm_him_tahr1","category":"Mammalia","common_name":"Himalayan Tahr","scientific_name":"Hemitragus jemlahicus"},{"taxon_id":"mamm_moose1","category":"Mammalia","common_name":"Moose","scientific_name":"Alces alces","aliases":["Eurasian Elk"]},{"taxon_id":"mamm_elk1","category":"Mammalia","common_name":"Elk","scientific_name":"Cervus canadensis","aliases":["Wapiti"]},{"taxon_id":"mamm_red_deer1","category":"Mammalia","common_name":"Red Deer","scientific_name":"Cervus elaphus","aliases":["European Red Deer"]},{"taxon_id":"mamm_wh_deer1","category":"Mammalia","common_name":"White-tailed Deer","scientific_name":"Odocoileus virginianus","aliases":["Virginia Deer"]},{"taxon_id":"mamm_mule_deer1","category":"Mammalia","common_name":"Mule Deer","scientific_name":"Odocoileus hemionus","aliases":["Black-tailed Deer"]},{"taxon_id":"mamm_reindeer1","category":"Mammalia","common_name":"Reindeer","scientific_name":"Rangifer tarandus","aliases":["Caribou"]},{"taxon_id":"mamm_fallow_deer1","category":"Mammalia","common_name":"Fallow Deer","scientific_name":"Dama dama"},{"taxon_id":"mamm_roe_deer1","category":"Mammalia","common_name":"European Roe Deer","scientific_name":"Capreolus capreolus","aliases":["Roe Deer"]},{"taxon_id":"mamm_barasingha1","category":"Mammalia","common_name":"Barasingha","scientific_name":"Rucervus duvaucelii","aliases":["Swamp Deer"]},{"taxon_id":"mamm_muntjac1","category":"Mammalia","common_name":"Indian Muntjac","scientific_name":"Muntiacus muntjak","aliases":["Barking Deer"]},{"taxon_id":"mamm_blue_whale1","category":"Mammalia","common_name":"Blue Whale","scientific_name":"Balaenoptera musculus","aliases":["Sulphur-bottom Whale"]},{"taxon_id":"mamm_humpback1","category":"Mammalia","common_name":"Humpback Whale","scientific_name":"Megaptera novaeangliae"},{"taxon_id":"mamm_orca1","category":"Mammalia","common_name":"Orca","scientific_name":"Orcinus orca","aliases":["Killer Whale"]},{"taxon_id":"mamm_sperm_whale1","category":"Mammalia","common_name":"Sperm Whale","scientific_name":"Physeter macrocephalus","aliases":["Cachalot"]},{"taxon_id":"mamm_bottlenose_dol1","category":"Mammalia","common_name":"Common Bottlenose Dolphin","scientific_name":"Tursiops truncatus","aliases":["Bottlenose Dolphin"]},{"taxon_id":"mamm_spinner_dol1","category":"Mammalia","common_name":"Spinner Dolphin","scientific_name":"Stenella longirostris"},{"taxon_id":"mamm_ganga_dol1","category":"Mammalia","common_name":"Ganges River Dolphin","scientific_name":"Platanista gangetica","aliases":["Susu"]},{"taxon_id":"mamm_chimpanzee1","category":"Mammalia","common_name":"Chimpanzee","scientific_name":"Pan troglodytes","aliases":["Common Chimpanzee","Chimp"]},{"taxon_id":"mamm_bonobo1","category":"Mammalia","common_name":"Bonobo","scientific_name":"Pan paniscus","aliases":["Pygmy Chimpanzee"]},{"taxon_id":"mamm_w_gorilla1","category":"Mammalia","common_name":"Western Gorilla","scientific_name":"Gorilla gorilla","aliases":["Western Lowland Gorilla"]},{"taxon_id":"mamm_e_gorilla1","category":"Mammalia","common_name":"Eastern Gorilla","scientific_name":"Gorilla beringei","aliases":["Mountain Gorilla"]},{"taxon_id":"mamm_bor_orang1","category":"Mammalia","common_name":"Bornean Orangutan","scientific_name":"Pongo pygmaeus","aliases":["Orangutan"]},{"taxon_id":"mamm_sum_orang1","category":"Mammalia","common_name":"Sumatran Orangutan","scientific_name":"Pongo abelii"},{"taxon_id":"mamm_lar_gibbon1","category":"Mammalia","common_name":"Lar Gibbon","scientific_name":"Hylobates lar","aliases":["White-handed Gibbon"]},{"taxon_id":"mamm_hoolock1","category":"Mammalia","common_name":"Western Hoolock Gibbon","scientific_name":"Hoolock hoolock","aliases":["Hoolock"]},{"taxon_id":"mamm_olive_baboon1","category":"Mammalia","common_name":"Olive Baboon","scientific_name":"Papio anubis","aliases":["Anubis Baboon"]},{"taxon_id":"mamm_chacma_baboon1","category":"Mammalia","common_name":"Chacma Baboon","scientific_name":"Papio ursinus","aliases":["Cape Baboon"]},{"taxon_id":"mamm_gelada1","category":"Mammalia","common_name":"Gelada","scientific_name":"Theropithecus gelada","aliases":["Bleeding-heart Baboon"]},{"taxon_id":"mamm_mandrill1","category":"Mammalia","common_name":"Mandrill","scientific_name":"Mandrillus sphinx"},{"taxon_id":"mamm_japanese_mac1","category":"Mammalia","common_name":"Japanese Macaque","scientific_name":"Macaca fuscata","aliases":["Snow Monkey"]},{"taxon_id":"mamm_lion_tail_mac1","category":"Mammalia","common_name":"Lion-tailed Macaque","scientific_name":"Macaca silenus","aliases":["Wanderoo"]},{"taxon_id":"mamm_bonnet_mac1","category":"Mammalia","common_name":"Bonnet Macaque","scientific_name":"Macaca radiata"},{"taxon_id":"mamm_proboscis_monk1","category":"Mammalia","common_name":"Proboscis Monkey","scientific_name":"Nasalis larvatus","aliases":["Long-nosed Monkey"]},{"taxon_id":"mamm_howler_monk1","category":"Mammalia","common_name":"Mantled Howler","scientific_name":"Alouatta palliata","aliases":["Howler Monkey"]},{"taxon_id":"mamm_capuchin1","category":"Mammalia","common_name":"White-headed Capuchin","scientific_name":"Cebus capucinus","aliases":["Capuchin Monkey"]},{"taxon_id":"mamm_squirrel_monk1","category":"Mammalia","common_name":"Common Squirrel Monkey","scientific_name":"Saimiri sciureus"},{"taxon_id":"mamm_ring_tail_lem1","category":"Mammalia","common_name":"Ring-tailed Lemur","scientific_name":"Lemur catta","aliases":["Lemur"]},{"taxon_id":"mamm_indri1","category":"Mammalia","common_name":"Indri","scientific_name":"Indri indri","aliases":["Babakoto"]},{"taxon_id":"mamm_am_beaver1","category":"Mammalia","common_name":"North American Beaver","scientific_name":"Castor canadensis","aliases":["Beaver"]},{"taxon_id":"mamm_eur_beaver1","category":"Mammalia","common_name":"Eurasian Beaver","scientific_name":"Castor fiber"},{"taxon_id":"mamm_capybara1","category":"Mammalia","common_name":"Capybara","scientific_name":"Hydrochoerus hydrochaeris","aliases":["Giant Cavy"]},{"taxon_id":"mamm_crest_porcupine1","category":"Mammalia","common_name":"Indian Crested Porcupine","scientific_name":"Hystrix indica","aliases":["Porcupine"]},{"taxon_id":"mamm_na_porcupine1","category":"Mammalia","common_name":"North American Porcupine","scientific_name":"Erethizon dorsatum"},{"taxon_id":"mamm_woodchuck1","category":"Mammalia","common_name":"Groundhog","scientific_name":"Marmota monax","aliases":["Woodchuck"]},{"taxon_id":"mamm_alpine_marmot1","category":"Mammalia","common_name":"Alpine Marmot","scientific_name":"Marmota marmota"},{"taxon_id":"mamm_bl_tail_prairie1","category":"Mammalia","common_name":"Black-tailed Prairie Dog","scientific_name":"Cynomys ludovicianus","aliases":["Prairie Dog"]},{"taxon_id":"mamm_eur_red_sq1","category":"Mammalia","common_name":"Eurasian Red Squirrel","scientific_name":"Sciurus vulgaris","aliases":["Red Squirrel"]},{"taxon_id":"mamm_ea_gray_sq1","category":"Mammalia","common_name":"Eastern Gray Squirrel","scientific_name":"Sciurus carolinensis","aliases":["Gray Squirrel"]},{"taxon_id":"mamm_fox_sq1","category":"Mammalia","common_name":"Fox Squirrel","scientific_name":"Sciurus niger"},{"taxon_id":"mamm_eur_hare1","category":"Mammalia","common_name":"European Hare","scientific_name":"Lepus europaeus","aliases":["Brown Hare"]},{"taxon_id":"mamm_snowshoe_hare1","category":"Mammalia","common_name":"Snowshoe Hare","scientific_name":"Lepus americanus","aliases":["Varying Hare"]},{"taxon_id":"mamm_am_pika1","category":"Mammalia","common_name":"American Pika","scientific_name":"Ochotona princeps","aliases":["Pika"]},{"taxon_id":"mamm_roy_pika1","category":"Mammalia","common_name":"Royle's Pika","scientific_name":"Ochotona roylei","aliases":["Himalayan Pika"]},{"taxon_id":"mamm_red_kangaroo1","category":"Mammalia","common_name":"Red Kangaroo","scientific_name":"Osphranter rufus","aliases":["Kangaroo"]},{"taxon_id":"mamm_e_gray_kang1","category":"Mammalia","common_name":"Eastern Gray Kangaroo","scientific_name":"Macropus giganteus"},{"taxon_id":"mamm_koala1","category":"Mammalia","common_name":"Koala","scientific_name":"Phascolarctos cinereus","aliases":["Koala Bear"]},{"taxon_id":"mamm_platypus1","category":"Mammalia","common_name":"Platypus","scientific_name":"Ornithorhynchus anatinus","aliases":["Duck-billed Platypus"]},{"taxon_id":"mamm_sh_echidna1","category":"Mammalia","common_name":"Short-beaked Echidna","scientific_name":"Tachyglossus aculeatus","aliases":["Spiny Anteater"]},{"taxon_id":"mamm_tas_devil1","category":"Mammalia","common_name":"Tasmanian Devil","scientific_name":"Sarcophilus harrisii"},{"taxon_id":"mamm_com_wombat1","category":"Mammalia","common_name":"Common Wombat","scientific_name":"Vombatus ursinus","aliases":["Wombat"]},{"taxon_id":"mamm_quokka1","category":"Mammalia","common_name":"Quokka","scientific_name":"Setonix brachyurus"},{"taxon_id":"mamm_sugar_glider1","category":"Mammalia","common_name":"Sugar Glider","scientific_name":"Petaurus breviceps"},{"taxon_id":"mamm_brush_possum1","category":"Mammalia","common_name":"Common Brushtail Possum","scientific_name":"Trichosurus vulpecula","aliases":["Brushtail Possum"]},{"taxon_id":"mamm_virg_opossum1","category":"Mammalia","common_name":"Virginia Opossum","scientific_name":"Didelphis virginiana","aliases":["North American Opossum"]},{"taxon_id":"mamm_giant_anteater1","category":"Mammalia","common_name":"Giant Anteater","scientific_name":"Myrmecophaga tridactyla","aliases":["Ant Bear"]},{"taxon_id":"mamm_br_sloth1","category":"Mammalia","common_name":"Brown-throated Sloth","scientific_name":"Bradypus variegatus","aliases":["Three-toed Sloth"]},{"taxon_id":"mamm_nine_band_arm1","category":"Mammalia","common_name":"Nine-banded Armadillo","scientific_name":"Dasypus novemcinctus","aliases":["Armadillo"]},{"taxon_id":"mamm_aardvark1","category":"Mammalia","common_name":"Aardvark","scientific_name":"Orycteropus afer","aliases":["Antbear"]},{"taxon_id":"mamm_indian_pang1","category":"Mammalia","common_name":"Indian Pangolin","scientific_name":"Manis crassicaudata","aliases":["Scaly Anteater"]},{"taxon_id":"mamm_fruit_bat1","category":"Mammalia","common_name":"Indian Flying Fox","scientific_name":"Pteropus giganteus","aliases":["Greater Indian Fruit Bat"]},{"taxon_id":"mamm_vamp_bat1","category":"Mammalia","common_name":"Common Vampire Bat","scientific_name":"Desmodus rotundus","aliases":["Vampire Bat"]},{"taxon_id":"mamm_little_brown_bat1","category":"Mammalia","common_name":"Little Brown Bat","scientific_name":"Myotis lucifugus"},{"taxon_id":"ins_peacock1","category":"Insecta","common_name":"Malabar Banded Peacock","scientific_name":"Papilio buddha","aliases":["Banded Peacock","Peacock Butterfly"]},{"taxon_id":"ins_monarch1","category":"Insecta","common_name":"Monarch Butterfly","scientific_name":"Danaus plexippus","aliases":["Monarch"]},{"taxon_id":"ins_mormon1","category":"Insecta","common_name":"Common Mormon","scientific_name":"Papilio polytes","aliases":["Mormon Butterfly"]},{"taxon_id":"ins_blue_mormon1","category":"Insecta","common_name":"Blue Mormon","scientific_name":"Papilio polymnestor"},{"taxon_id":"ins_jezebel1","category":"Insecta","common_name":"Common Jezebel","scientific_name":"Delias eucharis"},{"taxon_id":"ins_blue_tiger1","category":"Insecta","common_name":"Blue Tiger","scientific_name":"Tirumala limniace"},{"taxon_id":"ins_crimson_rose1","category":"Insecta","common_name":"Crimson Rose","scientific_name":"Pachliopta hector"},{"taxon_id":"ins_globe_skimmer1","category":"Insecta","common_name":"Globe Skimmer","scientific_name":"Pantala flavescens","aliases":["Wandering Glider"]},{"taxon_id":"ins_green_darner1","category":"Insecta","common_name":"Common Green Darner","scientific_name":"Anax junius","aliases":["Green Darner"]},{"taxon_id":"scen_aurora","category":"Scenery","common_name":"Aurora Borealis","scientific_name":"Aurora Borealis","aliases":["Northern Lights"]},{"taxon_id":"scen_mountain","category":"Scenery","common_name":"Mountain Landscape","scientific_name":"Mountain Landscape","aliases":["Mountains","Alpine Peak"]},{"taxon_id":"scen_valley","category":"Scenery","common_name":"Arid Mountain Valley","scientific_name":"Mountain Valley","aliases":["Mountain Pass","Barren Valley","River Valley","Canyon"]},{"taxon_id":"scen_waterfall","category":"Scenery","common_name":"Waterfall","scientific_name":"Waterfall","aliases":["Cascades"]},{"taxon_id":"scen_forest","category":"Scenery","common_name":"Forest Canopy","scientific_name":"Forest Canopy","aliases":["Woodland","Forest"]},{"taxon_id":"scen_sunset","category":"Scenery","common_name":"Sunset Sky","scientific_name":"Sunset Sky","aliases":["Sunrise","Golden Hour"]},{"taxon_id":"scen_desert","category":"Scenery","common_name":"Desert Dunes","scientific_name":"Desert Dunes","aliases":["Sand Dunes"]},{"taxon_id":"scen_coastline","category":"Scenery","common_name":"Ocean Coastline","scientific_name":"Ocean Coastline","aliases":["Seashore","Coast"]},{"taxon_id":"scen_night_sky","category":"Scenery","common_name":"Starry Night Sky","scientific_name":"Starry Night Sky","aliases":["Milky Way","Astrophotography"]},{"taxon_id":"scen_rainbow","category":"Scenery","common_name":"Rainbow over Landscape","scientific_name":"Rainbow","aliases":["Rainbow","Rainbow Sky"]},{"taxon_id":"rept_mugger_croc","category":"Reptilia","common_name":"Mugger Crocodile","scientific_name":"Crocodylus palustris","aliases":["Marsh Crocodile","Broad-snouted Crocodile"]},{"taxon_id":"rept_bengal_monitor","category":"Reptilia","common_name":"Bengal Monitor","scientific_name":"Varanus bengalensis","aliases":["Common Indian Monitor","Monitor Lizard"]},{"taxon_id":"rept_indian_rock_python","category":"Reptilia","common_name":"Indian Rock Python","scientific_name":"Python molurus","aliases":["Black-tailed Python","Indian Python"]},{"taxon_id":"amph_indian_bullfrog","category":"Amphibia","common_name":"Indian Bullfrog","scientific_name":"Hoplobatrachus tigerinus","aliases":["Indus Valley Bullfrog","Bullfrog"]},{"taxon_id":"amph_common_indian_toad","category":"Amphibia","common_name":"Common Indian Toad","scientific_name":"Duttaphrynus melanostictus","aliases":["Asian Common Toad","Black-spined Toad"]},{"taxon_id":"arch_monument","category":"Architecture","common_name":"Monumental Architecture","scientific_name":"Monumentum Architecturae","aliases":["Mausoleum","Monument","Memorial"]},{"taxon_id":"arch_hindu_temple","category":"Architecture","common_name":"Historic Stone Temple","scientific_name":"Templum Sanctuarium","aliases":["Mandir","Gopuram","Ancient Temple"]},{"taxon_id":"arch_fort_palace","category":"Architecture","common_name":"Historic Fort and Palace","scientific_name":"Castellum Fortalitia","aliases":["Fortress","Ancient Fort","Citadel"]},{"taxon_id":"arch_modern_building","category":"Architecture","common_name":"Modern Urban Skyscraper","scientific_name":"Architectura Urbana","aliases":["Tower","Skyscraper","Contemporary Architecture"]},{"taxon_id":"port_close_up","category":"Portrait","common_name":"Close-up Human Portrait","scientific_name":"Homo sapiens faciei","aliases":["Headshot","Facial Portrait"]},{"taxon_id":"port_cultural","category":"Portrait","common_name":"Cultural Street Portrait","scientific_name":"Homo sapiens cultus","aliases":["Street Portrait","Environmental Portrait"]},{"taxon_id":"abst_water_ripples","category":"Abstract","common_name":"Water Ripples and Refraction Texture","scientific_name":"Textura Aquae","aliases":["Water Texture","Fluid Reflection"]},{"taxon_id":"abst_minimal_geometry","category":"Abstract","common_name":"Minimalist Geometric Pattern","scientific_name":"Pattern Geometria","aliases":["Abstract Geometry","Architectural Shadow Pattern"]}]}
 </script>
 
 <script>
@@ -1418,11 +1450,13 @@
 
   const items = CATALOG_DATA.items || [];
   const speciesList = CATALOG_DATA.species_list || [];
+  const multiTaxaList = CATALOG_DATA.multi_taxa || [];
   let currentFilter = 'all';
   let currentCategory = 'all';
   let searchQuery = '';
   let activeModalItem = null;
   let activeModalItems = [];
+  let activeModalCategory = 'Bird';
   let batchCommands = [];
   let selectedIds = new Set();
   let lastSelectedId = null;
@@ -1922,7 +1956,7 @@
           </div>
           <div class="card-body">
             <div class="card-species-title">
-              ${categoryBadgeMarkup} • <span>${item.assigned_species}</span>
+              ${categoryBadgeMarkup}${item.assigned_species ? ` • <span>${item.assigned_species}</span>` : ''}
             </div>
             ${scientificMarkup}
             ${dateMarkup}
@@ -2145,15 +2179,84 @@
     if (input) input.value = '';
     const suggestions = document.getElementById('speciesSuggestions');
     if (suggestions) suggestions.classList.remove('open');
-    const cmdOutput = document.getElementById('commandOutput');
-    if (cmdOutput) {
-      cmdOutput.textContent = isMulti
-        ? `Select a species from autocomplete above to generate commands for all ${activeModalItems.length} photos...`
-        : "Select a species from the autocomplete search above to generate avicull correct commands...";
+
+    let initCat = 'Bird';
+    if (activeModalItem && activeModalItem.category) {
+      const cat = activeModalItem.category;
+      if (cat === 'No_Subject_Detected' || cat === 'NoSubjectDetected' || cat === 'No_Bird_Detected') {
+        initCat = 'No_Subject_Detected';
+      } else {
+        initCat = cat;
+      }
     }
+    selectModalCategory(initCat);
 
     const modal = document.getElementById('correctionModal');
     if (modal) modal.classList.add('open');
+  }
+
+  function selectModalCategory(cat) {
+    activeModalCategory = cat;
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+      const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
+      pills.forEach(p => {
+        if (p.getAttribute('data-modal-category') === cat) {
+          p.classList.add('active');
+        } else {
+          p.classList.remove('active');
+        }
+      });
+    }
+
+    const input = document.getElementById('speciesSearchInput');
+    const suggestionsEl = document.getElementById('speciesSuggestions');
+    const label = document.getElementById('modalSpeciesLabel');
+    if (suggestionsEl) suggestionsEl.classList.remove('open');
+
+    if (!input) return;
+
+    if (cat === 'No_Subject_Detected') {
+      input.value = '';
+      input.disabled = true;
+      input.placeholder = 'No subject detected in photo';
+      if (label) label.textContent = 'Classification: No Subject';
+      selectSpecies("No Subject Detected", "No_Subject_Detected");
+      return;
+    }
+
+    input.disabled = false;
+    const placeholders = {
+      'Bird': 'Start typing bird name (e.g. Painted Stork)...',
+      'Mammalia': 'Start typing mammal name (e.g. Snow Leopard, Tiger)...',
+      'Reptilia': 'Start typing reptile name (e.g. Indian Cobra)...',
+      'Amphibia': 'Start typing amphibian name (e.g. Indian Bullfrog)...',
+      'Insecta': 'Start typing insect name (e.g. Monarch Butterfly)...',
+      'Scenery': 'Optional scene description (or leave blank for top-level Scenery)...',
+      'Portrait': 'Optional portrait description (or leave blank for top-level Portrait)...',
+      'Architecture': 'Optional architecture description (or leave blank for top-level Architecture)...',
+      'Abstract': 'Optional abstract motif (or leave blank for top-level Abstract)...'
+    };
+    input.placeholder = placeholders[cat] || `Start typing ${cat} subject name...`;
+    if (label) {
+      label.textContent = (cat === 'Bird' || cat === 'Mammalia' || cat === 'Reptilia' || cat === 'Amphibia' || cat === 'Insecta')
+        ? `Select Correct ${cat} Species:`
+        : `Select Correct ${cat} Subject (Optional):`;
+    }
+
+    if (!input.value.trim()) {
+      if (cat === 'Scenery' || cat === 'Portrait' || cat === 'Architecture' || cat === 'Abstract' || cat === 'Mammalia' || cat === 'Reptilia' || cat === 'Amphibia' || cat === 'Insecta') {
+        selectSpecies('', cat);
+      } else {
+        const cmdOutput = document.getElementById('commandOutput');
+        if (cmdOutput) {
+          cmdOutput.textContent = activeModalItems.length > 1
+            ? `Select a species from autocomplete above to generate commands for all ${activeModalItems.length} photos...`
+            : "Select a species from the autocomplete search above to generate avicull correct commands...";
+        }
+      }
+    } else {
+      handleSpeciesAutocomplete();
+    }
   }
 
   function closeModal() {
@@ -2220,20 +2323,88 @@
     if (!input || !suggestionsEl) return;
 
     const val = input.value.trim();
-    if (!val || val.length < 2) {
+    if (!val) {
+      suggestionsEl.classList.remove('open');
+      if (activeModalCategory === 'Scenery' || activeModalCategory === 'Portrait' || activeModalCategory === 'Architecture' || activeModalCategory === 'Abstract' || activeModalCategory === 'Mammalia' || activeModalCategory === 'Reptilia' || activeModalCategory === 'Amphibia' || activeModalCategory === 'Insecta') {
+        selectSpecies('', activeModalCategory);
+      }
+      return;
+    }
+
+    // Real-time update of command preview as the user types
+    selectSpecies(val, activeModalCategory);
+
+    if (val.length < 2) {
       suggestionsEl.classList.remove('open');
       return;
     }
 
-    const matches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
+    let matches = [];
+    if (activeModalCategory === 'Bird') {
+      const birdMatches = searchSpeciesAutocomplete(val, speciesList).slice(0, 15);
+      matches = birdMatches.map(s => ({
+        name: s,
+        category: 'Bird',
+        sub: 'Bird'
+      }));
+    } else {
+      const normVal = normalizeAutocompleteString(val);
+      const queryTokens = normalizeAutocompleteTokens(val);
+      const candidates = multiTaxaList.filter(t => t.category.toLowerCase() === activeModalCategory.toLowerCase());
+
+      let scored = [];
+      for (const cand of candidates) {
+        const cName = cand.common_name;
+        const normCandStr = normalizeAutocompleteString(cName);
+        const candTokens = normalizeAutocompleteTokens(cName);
+        const aliases = cand.aliases || [];
+        const normAliases = aliases.map(a => normalizeAutocompleteString(a));
+
+        const matchInName = queryTokens.every(qTok =>
+          candTokens.some(cTok => cTok.includes(qTok))
+        );
+        const matchInAlias = aliases.length > 0 && queryTokens.every(qTok =>
+          normAliases.some(a => a.includes(qTok))
+        );
+        const matchInSci = cand.scientific_name && normalizeAutocompleteString(cand.scientific_name).includes(normVal);
+
+        if (!matchInName && !matchInAlias && !matchInSci) continue;
+
+        let rank = 3;
+        if (normCandStr.startsWith(normVal)) {
+          rank = 1;
+        } else if (matchInName) {
+          rank = 2;
+        }
+
+        scored.push({
+          name: cName,
+          category: cand.category,
+          sub: cand.scientific_name || cand.category,
+          rank: rank,
+          length: cName.length
+        });
+      }
+
+      scored.sort((a, b) => {
+        if (a.rank !== b.rank) return a.rank - b.rank;
+        return a.name.localeCompare(b.name);
+      });
+
+      matches = scored.slice(0, 15);
+    }
+
     if (matches.length === 0) {
       suggestionsEl.classList.remove('open');
       return;
     }
 
-    suggestionsEl.innerHTML = matches.map(s => `
-      <div class="suggestion-item" onclick="selectSpecies('${s.replace(/'/g, "\\'")}')">${s}</div>
-    `).join('');
+    suggestionsEl.innerHTML = matches.map(item => {
+      const sub = (item.category !== 'Bird' && item.sub && item.sub !== item.category)
+        ? `<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 8px;">(${item.sub})</span>`
+        : '';
+      return `<div class="suggestion-item" onclick="selectSpecies('${item.name.replace(/'/g, "\\'")}', '${item.category}')">${item.name}${sub}</div>`;
+    }).join('');
     suggestionsEl.classList.add('open');
   }
 
@@ -2322,11 +2493,13 @@ fi
     return AssetCategory.NO_SUBJECT_DETECTED;
   }
 
-  function buildMoveCommandsForItem(item, species) {
+  function buildMoveCommandsForItem(item, species, category) {
     if (!item) return [];
     const isHierarchy = CATALOG_DATA.mode === 'hierarchy';
     const isNoBird = species === 'No Bird Detected' || species === '_No_Bird_Detected' || species.toLowerCase() === 'no bird detected' || species.toLowerCase() === 'no_bird_detected';
-    const newSlug = isNoBird ? '_No_Bird_Detected' : sanitizeSlug(species);
+    const isNoSubject = species === 'No Subject Detected' || species === '_No_Subject_Detected' || species.toLowerCase() === 'no subject detected' || species.toLowerCase() === 'no_subject_detected';
+    const isAnyNoSubject = isNoBird || isNoSubject || category === 'No_Subject_Detected';
+    const newSlug = isNoBird ? '_No_Bird_Detected' : (isNoSubject || category === 'No_Subject_Detected' ? '_No_Subject_Detected' : (species ? sanitizeSlug(species) : ''));
 
     let commands = [];
     if (CATALOG_DATA.catalog_dir) {
@@ -2338,10 +2511,14 @@ fi
     const targetFile = (targetItem && (targetItem.relative_path || targetItem.original_stem)) || (activeModalItem && (activeModalItem.relative_path || activeModalItem.original_stem)) || stem;
     const escTargetFile = escapeShellArg(targetFile);
     const itemCat = (targetItem && targetItem.category) || (activeModalItem && activeModalItem.category) || AssetCategory.NO_SUBJECT_DETECTED;
-    const cat = resolveTargetCategory(species, itemCat);
+    const cat = isAnyNoSubject ? 'No_Subject_Detected' : (category || resolveTargetCategory(species, itemCat));
     commands.push(findAvicullCmd().trim());
     commands.push(`if [ -n "$AVICULL_CMD" ]; then`);
-    commands.push(`  avicull correct --category "${cat}" --species "${newSlug}" --file "${escTargetFile}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${newSlug}" --file "${escTargetFile}"`);
+    if (newSlug) {
+      commands.push(`  avicull correct --category "${cat}" --species "${newSlug}" --file "${escTargetFile}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --species "${newSlug}" --file "${escTargetFile}"`);
+    } else {
+      commands.push(`  avicull correct --category "${cat}" --file "${escTargetFile}" 2>/dev/null || $AVICULL_CMD correct --category "${cat}" --file "${escTargetFile}"`);
+    }
     commands.push(`else`);
 
     const currentPath = item.current_path;
@@ -2352,7 +2529,11 @@ fi
     const isLocal = item.is_local !== false;
 
     if (isHierarchy) {
-      const targetDir = isNoBird ? `birds_hierarchy/_No_Bird_Detected` : `birds_hierarchy/${cat}/${newSlug}`;
+      const targetDir = isNoBird
+        ? `birds_hierarchy/_No_Bird_Detected`
+        : (isNoSubject || category === 'No_Subject_Detected'
+          ? `birds_hierarchy/_No_Subject_Detected`
+          : (newSlug ? `birds_hierarchy/${cat}/${newSlug}` : `birds_hierarchy/${cat}`));
       commands.push(`  mkdir -p "${targetDir}"`);
       const filename = lastSlash >= 0 ? currentPath.substring(lastSlash + 1) : currentPath;
       const newPath = `${targetDir}/${filename}`;
@@ -2369,13 +2550,19 @@ fi
         commands.push(`  fi`);
       }
     } else if (CATALOG_DATA.mode === 'in-place-rename') {
-      // In-place rename format: <stem>_<Species>[_<Date>][_<Location>].<ext>
+      // In-place rename format: <stem>_<Category>_<Species>[_<Date>][_<Location>].<ext>
       const originalStem = item.original_stem;
       const datePart = item.capture_date ? item.capture_date.replace(/[-:/]/g, '') : '';
       const locPart = item.location_name ? sanitizeSlug(item.location_name) : '';
 
       let tags = [];
-      if (newSlug) tags.push(newSlug);
+      const isUnclassified = !newSlug || newSlug.startsWith('_No_') || cat === 'No_Subject_Detected' || cat === 'No_Bird_Detected';
+      if (isUnclassified) {
+        tags.push(newSlug || '_No_Subject_Detected');
+      } else {
+        if (cat) tags.push(cat);
+        if (newSlug && newSlug.toLowerCase() !== cat.toLowerCase()) tags.push(newSlug);
+      }
       if (datePart && datePart.toLowerCase() !== 'unknown') tags.push(datePart);
       if (locPart && locPart.toLowerCase() !== 'unknown') tags.push(locPart);
 
@@ -2438,38 +2625,37 @@ fi
     return commands;
   }
 
-  function buildMoveCommands(species) {
+  function buildMoveCommands(species, category) {
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return [];
+    const cat = category || activeModalCategory;
     if (targets.length === 1) {
-      return buildMoveCommandsForItem(targets[0], species);
+      return buildMoveCommandsForItem(targets[0], species, cat);
     }
     // Concatenate commands for all targets
     let allCommands = [];
     for (const it of targets) {
-      allCommands.push(...buildMoveCommandsForItem(it, species));
+      allCommands.push(...buildMoveCommandsForItem(it, species, cat));
     }
     return allCommands;
   }
 
-  function markNoBirdDetected() {
-    selectSpecies("No Bird Detected");
-  }
-
-  function selectSpecies(species) {
+  function selectSpecies(species, category) {
     const input = document.getElementById('speciesSearchInput');
-    if (input) input.value = species;
+    if (input && species !== undefined && input.value !== species) input.value = species;
     const suggestions = document.getElementById('speciesSuggestions');
     if (suggestions) suggestions.classList.remove('open');
+
+    const cat = category || activeModalCategory;
 
     const targets = activeModalItems.length > 0 ? activeModalItems : (activeModalItem ? [activeModalItem] : []);
     if (targets.length === 0) return;
 
     for (const it of targets) {
-      it._pendingCommands = buildMoveCommandsForItem(it, species);
+      it._pendingCommands = buildMoveCommandsForItem(it, species, cat);
     }
 
-    const commands = buildMoveCommands(species);
+    const commands = buildMoveCommands(species, cat);
     const cmdStr = commands.join('\n');
     const cmdOutput = document.getElementById('commandOutput');
     if (cmdOutput) cmdOutput.textContent = cmdStr;
@@ -2511,7 +2697,7 @@ fi
     if (targets.length === 0) return;
 
     for (const it of targets) {
-      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '');
+      const cmds = it._pendingCommands || buildMoveCommandsForItem(it, document.getElementById('speciesSearchInput')?.value || '', activeModalCategory);
       if (cmds && cmds.length > 0) {
         const itemKey = it.relative_path || it.id || it.original_stem;
         const existingIdx = batchCommands.findIndex(b => (typeof b === 'object' && b && (b.key ? b.key === itemKey : b.stem === it.original_stem)));

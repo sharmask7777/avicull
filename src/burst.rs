@@ -28,7 +28,9 @@
 //!    Depending on [`ConfidenceMode`], either the consensus score $C^*$ or the per-frame posterior $P(s^* | I_m)$
 //!    is recorded on each bundle decision.
 
-use crate::types::{AssetCategory, BundleDecision, ConfidenceMode, RoutingTier, SpeciesPrediction};
+use crate::types::{
+    AssetCategory, BundleDecision, Classification, ConfidenceMode, RoutingTier, SpeciesPrediction,
+};
 use std::collections::HashMap;
 
 /// An intermediate representation of an image bundle with neural embeddings and posteriors ready for burst smoothing.
@@ -256,7 +258,7 @@ pub fn smooth_burst_consensus(
                     top_predictions: item.top_predictions.clone(),
                     frame_confidence: frame_conf,
                     final_confidence: final_conf,
-                    assigned_species_slug: assigned_slug.clone(),
+                    classification: Classification::from_slug(&assigned_slug),
                     routing_tier,
                     is_user_override: false,
                 });
