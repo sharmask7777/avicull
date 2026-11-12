@@ -5,10 +5,12 @@
 //! - [`path_parser`]: Extracts candidate location tokens from folder hierarchies, stripping dates, camera models, and noise words.
 //! - [`resolver`]: Coordinates the multi-level cascade from GPS coordinates to directory gazetteers.
 
+pub mod coord_parser;
 pub mod gazetteer;
 pub mod path_parser;
 pub mod resolver;
 
+pub use coord_parser::*;
 pub use gazetteer::*;
 pub use path_parser::*;
 pub use resolver::*;

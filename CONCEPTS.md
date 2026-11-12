@@ -48,6 +48,10 @@ Dataless files appear as normal directory entries but lack local disk blocks. Re
 
 ### EmbeddedAssetResolver
 A mechanism that locates companion runtime scripts and checklist data by prioritizing workspace paths, falling back to binary-adjacent paths, and unpacking compiled-in binary payloads to a user cache directory.
+
+### GeolocationNormalizer
+A parser and validator that extracts geographic coordinates `(latitude, longitude)` from diverse real-world user formats including Google Maps URLs, cardinal degrees (`34.15° N, 77.58° E`), Degrees Minutes Seconds (DMS), and inverted `(lon, lat)` pairs, resolving them against regional gazetteers and eBird regional checklists.
+*Avoid:* Lat/lon parser, string splitter
 *Avoid:* Path finder, script locator
 
 When executing outside a development repository (such as on network storage or external drives), the resolver ensures inference engines and biodiversity checklists remain accessible by extracting embedded fallback assets into persistent local cache storage without requiring manual path configuration.
