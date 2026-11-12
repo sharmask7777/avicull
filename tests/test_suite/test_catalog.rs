@@ -1447,11 +1447,10 @@ fn test_catalog_no_bird_detected_support_and_command_generation() {
         "Catalog payload species_list must include 'No Bird Detected'"
     );
 
-    // 2. Verify modal contains the dedicated button for No Bird Detected (False Positive)
+    // 2. Verify modal contains No Subject category pill
     assert!(
-        html_content.contains("Mark as No Bird Detected (False Positive)")
-            || html_content.contains("markNoBirdDetected"),
-        "Catalog template must contain a button or handler to mark as No Bird Detected"
+        html_content.contains(r#"data-modal-category="No_Subject_Detected""#),
+        "Catalog template must contain a category pill to mark as No Subject"
     );
 
     // 3. Test buildMoveCommands in JS via Node.js for both hierarchy and inplace modes

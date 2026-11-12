@@ -1279,14 +1279,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       </div>
 
       <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-          <label id="modalSpeciesLabel" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0;">
-            Select Correct Species / Subject:
-          </label>
-          <button type="button" class="btn btn-secondary btn-sm" id="btnMarkNoBird" onclick="markNoBirdDetected()" style="padding: 4px 10px; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
-            Mark as No Bird Detected
-          </button>
-        </div>
+        <label id="modalSpeciesLabel" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Select Correct Species / Subject:
+        </label>
         <div class="autocomplete-wrap">
           <input type="text" id="speciesSearchInput" class="autocomplete-input" placeholder="Start typing bird name (e.g. Painted Stork)..." autocomplete="off" oninput="handleSpeciesAutocomplete()"/>
           <div class="suggestions-list" id="speciesSuggestions"></div>
@@ -2686,28 +2681,6 @@ fi
       allCommands.push(...buildMoveCommandsForItem(it, species, cat));
     }}
     return allCommands;
-  }}
-
-  function markNoBirdDetected() {{
-    activeModalCategory = 'No_Subject_Detected';
-    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {{
-      const pills = document.querySelectorAll('#modalCategoryPills .cat-pill');
-      pills.forEach(p => {{
-        if (p.getAttribute('data-modal-category') === 'No_Subject_Detected') {{
-          p.classList.add('active');
-        }} else {{
-          p.classList.remove('active');
-        }}
-      }});
-    }}
-    const input = document.getElementById('speciesSearchInput');
-    if (input) {{
-      input.disabled = false;
-      input.value = 'No Bird Detected';
-    }}
-    const label = document.getElementById('modalSpeciesLabel');
-    if (label) label.textContent = 'Classification: No Bird Detected';
-    selectSpecies("No Bird Detected", "No_Subject_Detected");
   }}
 
   function selectSpecies(species, category) {{
