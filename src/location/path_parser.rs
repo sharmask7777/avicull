@@ -287,11 +287,7 @@ fn is_date_token(s: &str) -> bool {
         }
     }
 
-    if all_date_components && (has_year || has_month) {
-        return true;
-    }
-
-    false
+    all_date_components && (has_year || has_month)
 }
 
 fn is_file_component(s: &str) -> bool {

@@ -528,10 +528,7 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
-            if name == "@eaDir" || name.ends_with(".photoslibrary") {
-                return false;
-            }
-            true
+            !(name == "@eaDir" || name.ends_with(".photoslibrary"))
         })
         .filter_map(std::result::Result::ok)
     {

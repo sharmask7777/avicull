@@ -92,8 +92,7 @@ pub fn reconcile_manual_disk_moves(
         // Determine target species slug and routing tier from directory path components
         let dir_components: Vec<&str> = rel_path
             .parent()
-            .map(|p| p.iter().filter_map(|c| c.to_str()).collect())
-            .unwrap_or_default();
+            .map_or_default(|p| p.iter().filter_map(|c| c.to_str()).collect());
 
         if dir_components.is_empty() {
             // File is placed directly in output root, not inside a species folder
@@ -238,7 +237,7 @@ pub fn reconcile_manual_disk_moves(
                     1.0,
                 )?;
 
-                let mut updated_dec = existing_decision.clone();
+                let mut updated_dec = existing_decision;
                 updated_dec.classification =
                     Classification::granular(target_category, &target_slug);
                 updated_dec.routing_tier = target_tier;

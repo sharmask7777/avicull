@@ -545,12 +545,24 @@ pub fn apply_bundle_correction_with_category(
     let storage_root = input_root.unwrap_or(operating_root);
     let storage_backend = detect_storage_backend(storage_root);
 
-    for (decision, bundle) in bundles_to_update {
+    for (mut decision, bundle) in bundles_to_update {
         // Inspect locality prior to movement/rename so dataless stubs can be evicted post-rename
         let primary_locality = storage_backend.inspect_locality(&bundle.primary_image).ok();
         let was_dataless = primary_locality
             .as_ref()
             .is_some_and(|loc| loc.is_dataless || !loc.pre_existing_local);
+
+        let norm_cat: AssetCategory = normalized_category
+            .parse()
+            .unwrap_or(AssetCategory::NoSubjectDetected);
+        decision.classification = if target_slug.is_empty() {
+            Classification::top_level(norm_cat)
+        } else {
+            Classification::granular(norm_cat, &target_slug)
+        };
+        decision.routing_tier = routing_tier;
+        decision.final_confidence = 1.0;
+        decision.is_user_override = true;
 
         db.update_bundle_override_with_category(
             &bundle.bundle_id,
@@ -610,25 +622,12 @@ pub fn apply_bundle_correction_with_category(
                     }
 
                     if !moved_any {
-                        let norm_cat: AssetCategory = normalized_category
-                            .parse()
-                            .unwrap_or(AssetCategory::NoSubjectDetected);
-                        let mut new_dec = decision.clone();
-                        new_dec.classification = if target_slug.is_empty() {
-                            Classification::top_level(norm_cat)
-                        } else {
-                            Classification::granular(norm_cat, &target_slug)
-                        };
-                        new_dec.routing_tier = routing_tier;
-                        new_dec.final_confidence = 1.0;
-                        new_dec.is_user_override = true;
-
                         let latest_run = db
                             .get_latest_run_id()?
                             .unwrap_or_else(|| "run-manual".to_string());
                         let materialized = materialize_bundle_hardlinks_with_category(
                             &bundle,
-                            &new_dec,
+                            &decision,
                             &normalized_category,
                             operating_root,
                             &latest_run,
@@ -714,19 +713,7 @@ pub fn apply_bundle_correction_with_category(
             }
         }
 
-        let norm_cat: AssetCategory = normalized_category
-            .parse()
-            .unwrap_or(AssetCategory::NoSubjectDetected);
-        let mut updated_dec = decision;
-        updated_dec.classification = if target_slug.is_empty() {
-            Classification::top_level(norm_cat)
-        } else {
-            Classification::granular(norm_cat, &target_slug)
-        };
-        updated_dec.routing_tier = routing_tier;
-        updated_dec.final_confidence = 1.0;
-        updated_dec.is_user_override = true;
-        results.push((updated_dec, bundle));
+        results.push((decision, bundle));
     }
 
     if mode == OrganizationMode::HierarchicalHardlinkHierarchy && operating_root.exists() {
