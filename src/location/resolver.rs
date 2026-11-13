@@ -266,6 +266,20 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
             continue;
         }
 
+        // If this directory was explicitly skipped in a past run, do not prompt again.
+        // Explicitly notify the user that it was skipped earlier and show how to assign a location and reclassify.
+        if manifest.is_directory_location_skipped(trip_key)? {
+            writeln!(
+                writer,
+                "\nℹ Skipping location resolution for \"{trip_key}\" (previously skipped)."
+            )?;
+            writeln!(
+                writer,
+                "  To assign a location and reclassify this directory, run:\n    avicull location --dir \"{trip_key}\" --location \"<LOCATION>\" --reclassify\n"
+            )?;
+            continue;
+        }
+
         // 2. Query candidates from tokens
         let mut candidate_map: HashMap<
             (String, String),
@@ -315,14 +329,14 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                 reader.read_line(&mut line)?;
                 let trimmed = line.trim();
 
-                if !trimmed.is_empty()
-                    && !trimmed.eq_ignore_ascii_case("s")
-                    && !trimmed.eq_ignore_ascii_case("skip")
+                if trimmed.is_empty()
+                    || trimmed.eq_ignore_ascii_case("s")
+                    || trimmed.eq_ignore_ascii_case("skip")
                 {
-                    if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
-                        manifest.set_directory_location(trip_key, &custom_loc)?;
-                        resolved_map.insert(trip_key.clone(), custom_loc);
-                    }
+                    manifest.mark_directory_location_skipped(trip_key)?;
+                } else if let Some(custom_loc) = resolve_from_override(trimmed, engine) {
+                    manifest.set_directory_location(trip_key, &custom_loc)?;
+                    resolved_map.insert(trip_key.clone(), custom_loc);
                 }
             } else {
                 writeln!(writer, "\nResolve location for directory: \"{trip_key}\"")?;
@@ -360,6 +374,7 @@ pub fn resolve_trip_locations<R: BufRead, W: Write>(
                     || trimmed.eq_ignore_ascii_case("s")
                     || trimmed.eq_ignore_ascii_case("skip")
                 {
+                    manifest.mark_directory_location_skipped(trip_key)?;
                     continue;
                 }
 

@@ -287,6 +287,11 @@ impl ManifestDb {
                 updated_at INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS skipped_directory_locations (
+                path_key TEXT PRIMARY KEY,
+                updated_at INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
@@ -1415,7 +1420,66 @@ impl ManifestDb {
                 updated_at,
             ],
         )?;
+        // If directory location was previously marked skipped, remove the skip marker
+        conn.execute(
+            "DELETE FROM skipped_directory_locations WHERE path_key = ?1",
+            params![path_key],
+        )?;
         Ok(())
+    }
+
+    /// Marks a directory path as skipped for location resolution by the user.
+    ///
+    /// # Arguments
+    /// * `path_key` - Directory path string or trip key.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn mark_directory_location_skipped(&self, path_key: &str) -> Result<()> {
+        let conn = self.lock_conn()?;
+        let updated_at = Utc::now().timestamp_millis();
+        conn.execute(
+            "INSERT OR REPLACE INTO skipped_directory_locations (path_key, updated_at) VALUES (?1, ?2)",
+            params![path_key, updated_at],
+        )?;
+        Ok(())
+    }
+
+    /// Checks if a directory path was previously skipped for location resolution.
+    ///
+    /// # Arguments
+    /// * `path_key` - Directory path string or trip key.
+    ///
+    /// # Returns
+    /// True if the directory was marked as skipped, false otherwise.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn is_directory_location_skipped(&self, path_key: &str) -> Result<bool> {
+        let conn = self.lock_conn()?;
+        let mut stmt =
+            conn.prepare("SELECT 1 FROM skipped_directory_locations WHERE path_key = ?1")?;
+        let mut rows = stmt.query(params![path_key])?;
+        Ok(rows.next()?.is_some())
+    }
+
+    /// Retrieves all directory paths marked as skipped for location resolution.
+    ///
+    /// # Returns
+    /// A set of `path_key` strings that were skipped.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_all_skipped_directory_locations(&self) -> Result<std::collections::HashSet<String>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare("SELECT path_key FROM skipped_directory_locations")?;
+        let mut set = std::collections::HashSet::new();
+        let mut rows = stmt.query([])?;
+        while let Some(row) = rows.next()? {
+            let path_key: String = row.get(0)?;
+            set.insert(path_key);
+        }
+        Ok(set)
     }
 
     /// Retrieves the resolved location for a specific photo bundle, if explicitly overridden.
@@ -1945,6 +2009,20 @@ impl ManifestDb {
                     source: src,
                 };
                 let _ = self.set_directory_location(&k, &loc);
+            }
+        }
+
+        // Import child skipped directory locations
+        if let Ok(child_skipped) = child_db.get_all_skipped_directory_locations() {
+            for key in child_skipped {
+                let full_key = if key == "." || key.is_empty() {
+                    rel_subdir.to_string_lossy().to_string()
+                } else if !Path::new(&key).starts_with(rel_subdir) {
+                    rel_subdir.join(&key).to_string_lossy().to_string()
+                } else {
+                    key
+                };
+                let _ = self.mark_directory_location_skipped(&full_key);
             }
         }
 

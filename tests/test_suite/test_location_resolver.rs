@@ -85,6 +85,88 @@ fn test_resolver_with_interactive_input() {
 }
 
 #[test]
+fn test_resolver_explicit_skip_persistence_and_reclassify_hint() {
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("manifest.sqlite");
+    let manifest = ManifestDb::open(&db_path).unwrap();
+    let engine = GazetteerEngine::load_embedded().unwrap();
+
+    let trips = vec![(
+        "pictures_bangalore-2025-/mystery trip apr 2026".to_string(),
+        vec!["mystery trip".to_string()],
+    )];
+
+    // 1. First run: user skips interactive prompt by entering "s"
+    let mut input = Cursor::new("s\n");
+    let mut output = Vec::new();
+
+    let resolved = resolve_trip_locations(
+        &trips,
+        &engine,
+        &manifest,
+        &mut input,
+        &mut output,
+        true,
+        None,
+    )
+    .unwrap();
+
+    assert!(resolved.is_empty());
+    assert!(manifest
+        .is_directory_location_skipped("pictures_bangalore-2025-/mystery trip apr 2026")
+        .unwrap());
+
+    // 2. Second run: prompt should NOT be re-shown; it should explicitly say it was skipped earlier
+    // and provide the exact command to reclassify.
+    let mut second_input = Cursor::new(""); // empty input would fail or block if prompt appeared
+    let mut second_output = Vec::new();
+
+    let resolved_second = resolve_trip_locations(
+        &trips,
+        &engine,
+        &manifest,
+        &mut second_input,
+        &mut second_output,
+        true,
+        None,
+    )
+    .unwrap();
+
+    assert!(resolved_second.is_empty());
+    let prompt_second = String::from_utf8(second_output).unwrap();
+    assert!(
+        prompt_second.contains("Skipping location resolution for \"pictures_bangalore-2025-/mystery trip apr 2026\" (previously skipped)."),
+        "Output did not indicate previous skip: {}",
+        prompt_second
+    );
+    assert!(
+        prompt_second.contains("To assign a location and reclassify this directory, run:"),
+        "Output did not contain reclassify intro: {}",
+        prompt_second
+    );
+    assert!(
+        prompt_second.contains("avicull location --dir \"pictures_bangalore-2025-/mystery trip apr 2026\" --location \"<LOCATION>\" --reclassify"),
+        "Output did not contain expected command: {}",
+        prompt_second
+    );
+
+    // 3. Setting a location via location command clears skipped state
+    let new_loc = avicull::location::resolver::ResolvedLocation {
+        name: "Cubbon Park".to_string(),
+        region_code: "IN-KA".to_string(),
+        latitude: 12.9763,
+        longitude: 77.5929,
+        source: "override_gazetteer".to_string(),
+    };
+    manifest
+        .set_directory_location("pictures_bangalore-2025-/mystery trip apr 2026", &new_loc)
+        .unwrap();
+    assert!(!manifest
+        .is_directory_location_skipped("pictures_bangalore-2025-/mystery trip apr 2026")
+        .unwrap());
+}
+
+#[test]
 fn test_resolver_non_interactive_confident_and_skipped() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("manifest.sqlite");
