@@ -23,7 +23,10 @@ from typing import Any, NamedTuple
 # Suppress noisy logs & warnings
 warnings.filterwarnings("ignore")
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_VERBOSITY"] = "error"
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
@@ -414,6 +417,42 @@ def classify_category_anchors(
     )
 
 
+def load_vision_model(
+    model_name: str = "hf-hub:imageomics/bioclip",
+    device: str | torch.device = "cpu",
+) -> tuple[torch.nn.Module, Any]:
+    """Loads vision model and preprocessing transform, enforcing local offline cache.
+
+    First attempts to load strictly from local Hugging Face cache using
+    `HF_HUB_OFFLINE=1` to prevent outbound HTTP requests, ETag latency,
+    and unauthenticated rate limit warnings. If local cache is empty,
+    temporarily allows online download before re-enforcing offline mode.
+
+    # Arguments
+    * `model_name` - Model identifier or Hub repository name.
+    * `device` - Compute device (`cpu` or `mps`).
+
+    # Returns
+    Tuple of `(vision_backbone, preprocess_transform)`.
+    """
+    try:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        model, _, preprocess = open_clip.create_model_and_transforms(model_name)
+    except Exception:
+        # Fall back to online Hub download if local cache is not populated yet
+        os.environ.pop("HF_HUB_OFFLINE", None)
+        os.environ.pop("TRANSFORMERS_OFFLINE", None)
+        model, _, preprocess = open_clip.create_model_and_transforms(model_name)
+    finally:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    vision_model = model.visual.to(device)
+    vision_model.eval()
+    return vision_model, preprocess
+
+
 class AvianInferenceEngine:
     def __init__(self, models_dir: str):
         self.models_dir = models_dir
@@ -442,10 +481,9 @@ class AvianInferenceEngine:
         self.detector = YOLO(yolo_path)
 
         # 5. Load BioCLIP Vision Model
-        model, _, preprocess = open_clip.create_model_and_transforms("hf-hub:imageomics/bioclip")
-        self.vision_model = model.visual.to(self.device)
-        self.vision_model.eval()
-        self.preprocess = preprocess
+        self.vision_model, self.preprocess = load_vision_model(
+            "hf-hub:imageomics/bioclip", self.device
+        )
 
     def load_regional_checklists(self) -> None:
         """Loads eBird regional checklist species sets from data/regional_checklists.json."""

@@ -18,9 +18,16 @@ import os
 import re
 import sys
 import urllib.request
+import warnings
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
+
+# Suppress noisy Hugging Face Hub unauthenticated warnings
+warnings.filterwarnings("ignore")
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_VERBOSITY"] = "error"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 if TYPE_CHECKING:
     import torch
