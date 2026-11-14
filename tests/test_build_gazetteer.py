@@ -300,7 +300,7 @@ def test_build_gazetteer_execution(tmp_path, monkeypatch):
     with open(inv_file, "w", encoding="utf-8") as f:
         json.dump(invalid_taxonomy, f)
 
-    with pytest.raises(ValueError, match="Taxon ID .* not found in taxonomy.json"):
+    with pytest.raises(ValueError, match=r"Taxon ID .* not found in taxonomy.json"):
         bg.build_gazetteer(str(inv_file))
 
 

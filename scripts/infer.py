@@ -439,7 +439,7 @@ def load_vision_model(
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
         model, _, preprocess = open_clip.create_model_and_transforms(model_name)
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         # Fall back to online Hub download if local cache is not populated yet
         os.environ.pop("HF_HUB_OFFLINE", None)
         os.environ.pop("TRANSFORMERS_OFFLINE", None)
@@ -505,7 +505,7 @@ class AvianInferenceEngine:
                         data = json.load(f)
                         self.regional_checklists = {k: set(v) for k, v in data.items()}
                         break
-                except Exception as e:
+                except (OSError, json.JSONDecodeError) as e:
                     logging.warning(f"Failed to load regional checklists from {path}: {e}")
 
     def get_regional_prior_tensor(self, region_code: str) -> torch.Tensor | None:
@@ -614,7 +614,7 @@ class AvianInferenceEngine:
             max_dim = max(img.size)
             if max_dim > 1600:
                 img.thumbnail((1600, 1600), Image.Resampling.BILINEAR)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             return {
                 "error": f"Failed to open image: {e}",
                 "category": AssetCategory.UNKNOWN.value,

@@ -53,8 +53,8 @@ All public types, functions, structs, and module roots must carry clear docstrin
 ### Pure Functions & Immutable Data Models
 All mathematical transformations, coordinate calculations, and metadata parsers must be pure functions free of side effects. Data records must use `@dataclass(frozen=True)` or `NamedTuple`.
 
-### Strict Type Rigor & Static Analysis
-All Python code must pass `ruff check .`, `ruff format --check .`, and `mypy scripts/` with zero errors.
+### Strict Type Rigor, Static Analysis & Architectural Contracts
+All Python code must pass `ruff check .` (enforcing bugbear, pie, eradicate, and clean exception handling), `ruff format --check .`, `mypy scripts/` with strict type checks, and `import-linter` (`lint-imports`) with zero contract violations. Offline data compilation pipelines (`build_gazetteer`, `build_taxonomy_embeddings`, `export_models`) must remain decoupled and cycle-free from runtime inference (`infer.py`).
 
 ### Isolated Deterministic Tooling via `uv`
 Python tools and test runners must execute via `uv run` for ephemeral, reproducible environment isolation.

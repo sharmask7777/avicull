@@ -28,7 +28,7 @@ if ! curl -s --connect-timeout 2 -I https://pypi.org >/dev/null 2>&1; then
 fi
 
 # 1. Linting with Ruff
-echo -e "${BOLD}[1/4] Checking Python code formatting and linting (ruff check)...${NC}"
+echo -e "${BOLD}[1/5] Checking Python code formatting and linting (ruff check)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with ruff ruff check .; then
     echo -e "${GREEN}✓ ruff check passed.${NC}\n"
 else
@@ -37,7 +37,7 @@ else
 fi
 
 # 2. Format check with Ruff
-echo -e "${BOLD}[2/4] Checking Python code formatting style (ruff format --check)...${NC}"
+echo -e "${BOLD}[2/5] Checking Python code formatting style (ruff format --check)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with ruff ruff format --check .; then
     echo -e "${GREEN}✓ ruff format check passed.${NC}\n"
 else
@@ -46,7 +46,7 @@ else
 fi
 
 # 3. Type checking with Mypy
-echo -e "${BOLD}[3/4] Running static type checking (mypy scripts/)...${NC}"
+echo -e "${BOLD}[3/5] Running static type checking (mypy scripts/)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with mypy --with pytest mypy scripts/; then
     echo -e "${GREEN}✓ mypy type checking passed.${NC}\n"
 else
@@ -54,8 +54,17 @@ else
     exit 1
 fi
 
-# 4. Unit & Integration tests with Coverage Gate
-echo -e "${BOLD}[4/4] Running Python test suite with blocking coverage gate (pytest --cov-fail-under=80)...${NC}"
+# 4. Architectural linting with import-linter
+echo -e "${BOLD}[4/5] Checking architecture contracts (lint-imports)...${NC}"
+if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with import-linter lint-imports; then
+    echo -e "${GREEN}✓ Architectural import contracts satisfied.${NC}\n"
+else
+    echo -e "${RED}✗ Architectural import contracts violated.${NC}\n"
+    exit 1
+fi
+
+# 5. Unit & Integration tests with Coverage Gate
+echo -e "${BOLD}[5/5] Running Python test suite with blocking coverage gate (pytest --cov-fail-under=80)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with pytest --with pytest-cov --with torch --with safetensors --with open-clip-torch --with ultralytics --with pillow \
     pytest tests/ tests_python/ --cov=scripts --cov-fail-under=80 --cov-report=term-missing; then
     echo -e "${GREEN}✓ All Python tests passed and met blocking code coverage gate (>= 80%).${NC}\n"
