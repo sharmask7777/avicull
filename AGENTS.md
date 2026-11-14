@@ -117,10 +117,11 @@ All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject
 2. **Blocking Build-Time Code Coverage Gate ($\ge 80\%$)**:
    - Automated test coverage across all Python modules under `scripts/` is enforced by `pytest-cov` with `--cov-fail-under=80`.
    - Any pull request or commit dropping Python coverage below 80% is blocked by pre-push hooks and CI.
-3. **Static Analysis & Type Rigor**:
-   - Code must pass `ruff check .` with zero errors.
+3. **Static Analysis, Type Rigor & Architectural Contracts**:
+   - Code must pass `ruff check .` with zero errors across strict rulesets (`E, F, W, I, UP, B, SIM, BLE, ERA, RUF, PIE, T10, FA, TRY`).
    - Code must be formatted via `ruff format --check .`.
    - Strict static type checking must pass with `mypy scripts/` with zero type errors.
+   - Declarative architectural contracts must pass via `import-linter` (`lint-imports`), ensuring offline data prep pipelines (`build_gazetteer`, `build_taxonomy_embeddings`, `export_models`) remain strictly decoupled and cycle-free from runtime inference (`infer.py`).
 4. **Environment Isolation via `uv`**:
    - Python tools, linter execution, and test runners must use `uv run` for deterministic, ephemeral dependency resolution without system environment pollution.
 5. **Clean Codebase (Zero Agent Meta-Artifacts)**:

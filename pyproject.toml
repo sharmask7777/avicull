@@ -15,8 +15,27 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "SIM"]
-ignore = []
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "W",      # pycodestyle warnings
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "BLE",    # flake8-blind-except
+    "ERA",    # eradicate (removes commented-out code / agent scratchpads)
+    "RUF",    # ruff-specific rules
+    "PIE",    # flake8-pie
+    "T10",    # flake8-debugger
+    "FA",     # flake8-future-annotations
+    "TRY",    # tryceratops exception handling
+]
+ignore = [
+    "TRY002", # Allow standard built-in exception types where appropriate
+    "TRY003", # Allow concise custom error message strings in exceptions
+    "TRY301", # Allow abstract raise inside conditional blocks
+]
 
 [tool.mypy]
 python_version = "3.10"
@@ -33,6 +52,33 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 ignore_missing_imports = true
+
+# ========================================================
+# ARCHITECTURAL CONTRACTS (import-linter)
+# ========================================================
+[tool.importlinter]
+root_packages = ["scripts"]
+
+[[tool.importlinter.contracts]]
+name = "Data prep pipelines must not depend on heavy inference runtime"
+type = "forbidden"
+source_modules = [
+    "scripts.build_gazetteer",
+    "scripts.build_taxonomy_embeddings",
+    "scripts.export_models",
+]
+forbidden_modules = [
+    "scripts.infer",
+]
+
+[[tool.importlinter.contracts]]
+name = "Independent scripts must remain modular and cycle-free"
+type = "independence"
+modules = [
+    "scripts.build_gazetteer",
+    "scripts.build_taxonomy_embeddings",
+    "scripts.export_models",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_python"]
