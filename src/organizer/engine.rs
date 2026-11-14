@@ -162,6 +162,60 @@ struct InferResultItem {
     assigned_species_slug: Option<String>,
 }
 
+/// Constructs the `uv run` command for Python batch inference with strict offline invariants.
+///
+/// Configures environment variables `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`,
+/// `HF_HUB_VERBOSITY=error`, `TRANSFORMERS_VERBOSITY=error`, and `HF_HUB_DISABLE_SYMLINKS_WARNING=1`
+/// to guarantee zero outbound network requests and eliminate unauthenticated Hugging Face Hub
+/// rate-limit warnings during classification.
+///
+/// # Arguments
+/// * `infer_script` - File path to the Python inference script (`infer.py`).
+/// * `models_dir` - Directory containing species embeddings and detector weights.
+/// * `batch_file` - Path to the batch task input JSON file.
+/// * `output_file` - Path where batch results JSON will be written.
+/// * `min_detect` - Detection confidence threshold for subject localization.
+/// * `geo_prior_weight` - Exponent $\alpha$ weighting geographic prior vs. visual logits.
+///
+/// # Returns
+/// A configured [`std::process::Command`] ready to be spawned.
+#[must_use]
+pub fn build_inference_command(
+    infer_script: &Path,
+    models_dir: &Path,
+    batch_file: &Path,
+    output_file: &Path,
+    min_detect: f32,
+    geo_prior_weight: f32,
+) -> std::process::Command {
+    let mut cmd = std::process::Command::new("uv");
+    cmd.args([
+        "run",
+        "--with",
+        "torch,open-clip-torch,safetensors,ultralytics,pillow",
+        "python3",
+        infer_script.to_str().unwrap_or("scripts/infer.py"),
+        "--models-dir",
+        models_dir.to_str().unwrap_or("models"),
+        "--batch-file",
+        batch_file.to_str().unwrap_or(""),
+        "--output-file",
+        output_file.to_str().unwrap_or(""),
+        "--min-detect",
+        &min_detect.to_string(),
+        "--geo-prior-weight",
+        &geo_prior_weight.to_string(),
+    ]);
+    cmd.envs([
+        ("HF_HUB_OFFLINE", "1"),
+        ("HF_HUB_VERBOSITY", "error"),
+        ("TRANSFORMERS_OFFLINE", "1"),
+        ("TRANSFORMERS_VERBOSITY", "error"),
+        ("HF_HUB_DISABLE_SYMLINKS_WARNING", "1"),
+    ]);
+    cmd
+}
+
 /// Executes batch neural detection and species classification via Python subprocess runner.
 fn run_batch_inference(
     bundles: &[&AssetBundle],
@@ -206,31 +260,17 @@ fn run_batch_inference(
 
     std::fs::write(&batch_file, serde_json::to_string(&tasks)?)?;
 
-    let batch_file_str = batch_file.to_string_lossy();
-    let output_file_str = output_file.to_string_lossy();
-    let infer_script_str = infer_script.to_string_lossy();
-
-    let mut child = std::process::Command::new("uv")
-        .args([
-            "run",
-            "--with",
-            "torch,open-clip-torch,safetensors,ultralytics,pillow",
-            "python3",
-            infer_script_str.as_ref(),
-            "--models-dir",
-            models_dir.to_str().unwrap_or("models"),
-            "--batch-file",
-            batch_file_str.as_ref(),
-            "--output-file",
-            output_file_str.as_ref(),
-            "--min-detect",
-            &min_detect.to_string(),
-            "--geo-prior-weight",
-            &geo_prior_weight.to_string(),
-        ])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
+    let mut child = build_inference_command(
+        &infer_script,
+        models_dir,
+        &batch_file,
+        &output_file,
+        min_detect,
+        geo_prior_weight,
+    )
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::piped())
+    .spawn()?;
 
     let mut err_lines = Vec::new();
     if let Some(stderr) = child.stderr.take() {

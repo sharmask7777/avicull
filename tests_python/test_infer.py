@@ -28,6 +28,7 @@ from scripts.infer import (
     classify_category_anchors,
     compute_category_centroids,
     compute_iou,
+    load_vision_model,
     main,
     softmax,
 )
@@ -899,6 +900,58 @@ class TestAssetCategory(unittest.TestCase):
         self.assertIsInstance(pred.category, AssetCategory)
         self.assertEqual(pred.category, AssetCategory.BIRD)
         self.assertEqual(pred.to_dict()["category"], "Bird")
+
+
+class TestOfflineModelLoading(unittest.TestCase):
+    """Verifies that model loading strictly enforces offline mode and handles cache misses."""
+
+    def test_env_defaults_set_offline_and_quiet(self):
+        self.assertEqual(os.environ.get("HF_HUB_OFFLINE"), "1")
+        self.assertEqual(os.environ.get("TRANSFORMERS_OFFLINE"), "1")
+        self.assertEqual(os.environ.get("HF_HUB_VERBOSITY"), "error")
+
+    def test_load_vision_model_offline_precedence(self):
+        mock_model = MagicMock()
+        mock_model.visual.to.return_value = mock_model.visual
+        mock_preprocess = MagicMock()
+        calls = []
+
+        def fake_create(model_name):
+            calls.append((model_name, os.environ.get("HF_HUB_OFFLINE")))
+            return mock_model, None, mock_preprocess
+
+        with patch("open_clip.create_model_and_transforms", side_effect=fake_create):
+            vision_model, preprocess = load_vision_model("hf-hub:imageomics/bioclip")
+            self.assertEqual(vision_model, mock_model.visual)
+            self.assertEqual(preprocess, mock_preprocess)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][1], "1")
+            self.assertEqual(os.environ.get("HF_HUB_OFFLINE"), "1")
+
+    def test_load_vision_model_fallback_on_cache_miss(self):
+        mock_model = MagicMock()
+        mock_model.visual.to.return_value = mock_model.visual
+        mock_preprocess = MagicMock()
+        calls = []
+
+        def fake_create_with_fallback(model_name):
+            offline_val = os.environ.get("HF_HUB_OFFLINE")
+            calls.append(offline_val)
+            if offline_val == "1":
+                raise RuntimeError("Local cache miss for weights")
+            return mock_model, None, mock_preprocess
+
+        with patch("open_clip.create_model_and_transforms", side_effect=fake_create_with_fallback):
+            vision_model, preprocess = load_vision_model("hf-hub:imageomics/bioclip")
+            self.assertEqual(vision_model, mock_model.visual)
+            self.assertEqual(preprocess, mock_preprocess)
+            self.assertEqual(len(calls), 2)
+            # First attempt was strictly offline
+            self.assertEqual(calls[0], "1")
+            # Second attempt temporarily allowed online download
+            self.assertIsNone(calls[1])
+            # Post-condition: offline mode is re-asserted
+            self.assertEqual(os.environ.get("HF_HUB_OFFLINE"), "1")
 
 
 if __name__ == "__main__":

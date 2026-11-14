@@ -19,6 +19,14 @@ fn test_embedded_assets_are_non_empty_and_valid() {
             || EMBEDDED_INFERENCE_SCRIPT.contains("def main"),
         "Embedded infer.py should contain python inference definitions"
     );
+    assert!(
+        EMBEDDED_INFERENCE_SCRIPT.contains("HF_HUB_OFFLINE"),
+        "Embedded infer.py must enforce HF_HUB_OFFLINE to guarantee local execution"
+    );
+    assert!(
+        EMBEDDED_INFERENCE_SCRIPT.contains("HF_HUB_VERBOSITY"),
+        "Embedded infer.py must configure HF_HUB_VERBOSITY to silence hub warnings"
+    );
 
     assert!(
         !EMBEDDED_REGIONAL_CHECKLISTS_JSON.trim().is_empty(),
@@ -199,4 +207,55 @@ fn test_resolve_inference_script_live() {
     );
     let content = fs::read_to_string(&resolved).expect("Must read resolved script");
     assert!(!content.trim().is_empty());
+}
+
+#[test]
+fn test_build_inference_command_offline_invariants() {
+    use avicull::organizer::engine::build_inference_command;
+    use std::path::Path;
+
+    let infer_script = Path::new("/path/to/infer.py");
+    let models_dir = Path::new("/path/to/models");
+    let batch_file = Path::new("/path/to/batch.json");
+    let output_file = Path::new("/path/to/output.json");
+
+    let cmd = build_inference_command(infer_script, models_dir, batch_file, output_file, 0.25, 0.5);
+
+    assert_eq!(cmd.get_program(), "uv");
+
+    let envs: std::collections::HashMap<_, _> = cmd
+        .get_envs()
+        .map(|(k, v)| {
+            (
+                k.to_string_lossy().to_string(),
+                v.map(|s| s.to_string_lossy().to_string()),
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        envs.get("HF_HUB_OFFLINE"),
+        Some(&Some("1".to_string())),
+        "HF_HUB_OFFLINE must be set to 1 for offline inference"
+    );
+    assert_eq!(
+        envs.get("HF_HUB_VERBOSITY"),
+        Some(&Some("error".to_string())),
+        "HF_HUB_VERBOSITY must be set to error"
+    );
+    assert_eq!(
+        envs.get("TRANSFORMERS_OFFLINE"),
+        Some(&Some("1".to_string())),
+        "TRANSFORMERS_OFFLINE must be set to 1"
+    );
+    assert_eq!(
+        envs.get("TRANSFORMERS_VERBOSITY"),
+        Some(&Some("error".to_string())),
+        "TRANSFORMERS_VERBOSITY must be set to error"
+    );
+    assert_eq!(
+        envs.get("HF_HUB_DISABLE_SYMLINKS_WARNING"),
+        Some(&Some("1".to_string())),
+        "HF_HUB_DISABLE_SYMLINKS_WARNING must be set to 1"
+    );
 }
