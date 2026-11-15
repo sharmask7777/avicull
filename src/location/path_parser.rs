@@ -94,6 +94,7 @@ const KNOWN_NOISE_WORDS: &[&str] = &[
     "storage",
     "birds_hierarchy",
     "avicull",
+    "avicull_catalog_files",
     ".avicull",
     "all",
     "misc",

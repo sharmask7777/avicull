@@ -2,6 +2,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::panic))]
 
 use anyhow::{anyhow, Result};
+use avicull::catalog::{resolve_manifest_db_path, resolve_operating_root};
 use avicull::cli::{Cli, Commands, CorrectArgs, LocationArgs};
 use avicull::db::ManifestDb;
 use avicull::geo::resolve_locations;
@@ -10,7 +11,7 @@ use avicull::organizer::{clean_run_hardlinks, clean_run_operations, materialize_
 use avicull::scanner::{scan_input_tree_with_skip, validate_volume_and_disjointness};
 use avicull::types::{OrganizationMode, RoutingTier};
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -72,23 +73,12 @@ fn main() -> Result<()> {
                 .clone()
                 .or_else(|| args.input.as_ref().map(|p| p.join("birds_hierarchy")))
                 .unwrap_or_else(|| PathBuf::from("birds_hierarchy"));
-            let db_path = if let Some(ref db_p) = args.db {
-                db_p.clone()
-            } else if args.output.is_some() {
-                output_dir.join(".avicull/manifest.sqlite")
-            } else if let Some(ref inp) = args.input {
-                let inplace_db = inp.join(".avicull/manifest.sqlite");
-                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
-                if inplace_db.exists() {
-                    inplace_db
-                } else if hier_db.exists() {
-                    hier_db
-                } else {
-                    inplace_db
-                }
-            } else {
-                output_dir.join(".avicull/manifest.sqlite")
-            };
+            let db_path = resolve_manifest_db_path(
+                args.db.as_deref(),
+                args.output.as_deref(),
+                args.input.as_deref(),
+                Some(OrganizationMode::HierarchicalHardlinkHierarchy),
+            );
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {
@@ -146,23 +136,12 @@ fn main() -> Result<()> {
 
         Commands::Clean(args) => {
             println!("== avicull clean ==");
-            let db_path = if let Some(ref db_p) = args.db {
-                db_p.clone()
-            } else if let Some(ref out) = args.output {
-                out.join(".avicull/manifest.sqlite")
-            } else if let Some(ref inp) = args.input {
-                let inplace_db = inp.join(".avicull/manifest.sqlite");
-                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
-                if inplace_db.exists() {
-                    inplace_db
-                } else if hier_db.exists() {
-                    hier_db
-                } else {
-                    inplace_db
-                }
-            } else {
-                PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite")
-            };
+            let db_path = resolve_manifest_db_path(
+                args.db.as_deref(),
+                args.output.as_deref(),
+                args.input.as_deref(),
+                None,
+            );
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {
@@ -181,23 +160,12 @@ fn main() -> Result<()> {
         }
 
         Commands::Report(args) => {
-            let db_path = if let Some(ref db_p) = args.db {
-                db_p.clone()
-            } else if let Some(ref out) = args.output {
-                out.join(".avicull/manifest.sqlite")
-            } else if let Some(ref inp) = args.input {
-                let inplace_db = inp.join(".avicull/manifest.sqlite");
-                let hier_db = inp.join("birds_hierarchy/.avicull/manifest.sqlite");
-                if inplace_db.exists() {
-                    inplace_db
-                } else if hier_db.exists() {
-                    hier_db
-                } else {
-                    inplace_db
-                }
-            } else {
-                PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite")
-            };
+            let db_path = resolve_manifest_db_path(
+                args.db.as_deref(),
+                args.output.as_deref(),
+                args.input.as_deref(),
+                None,
+            );
             let db = ManifestDb::open_or_create(&db_path)?;
 
             let run_id = match args.run_id {
@@ -511,74 +479,6 @@ fn execute_unmount(args: &avicull::cli::UnmountArgs) {
     }
 }
 
-/// Resolves the archive operating root directory hosting the `.avicull/manifest.sqlite` database.
-///
-/// If `db_path` is `<root>/.avicull/manifest.sqlite` (or `.avicull/manifest.sqlite`), strips the `.avicull`
-/// directory component to return `<root>` (or `.` if relative to current directory).
-/// This prevents generating catalogs inside `<input>/.avicull/catalog.html` or creating nested
-/// `.avicull/.avicull/` preview directories.
-fn resolve_operating_root_for_manifest(db_path: &Path) -> PathBuf {
-    if let Some(parent) = db_path.parent() {
-        if parent.file_name().is_some_and(|name| name == ".avicull") {
-            return parent
-                .parent()
-                .filter(|p| !p.as_os_str().is_empty())
-                .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-        }
-        if !parent.as_os_str().is_empty() {
-            return parent.to_path_buf();
-        }
-    }
-    PathBuf::from(".")
-}
-
-/// Resolves the SQLite manifest database path with mode-aware directory precedence.
-///
-/// Prioritizes explicit `--db` or `--output` flags when provided. Otherwise, checks both
-/// in-place (`<input>/.avicull/manifest.sqlite`) and hierarchy (`<input>/birds_hierarchy/.avicull/manifest.sqlite`)
-/// databases, preferring `inplace_db` for default/in-place mode or `hier_db` for hierarchy mode.
-fn resolve_manifest_db_path(
-    db_arg: Option<&Path>,
-    output_arg: Option<&Path>,
-    input_arg: Option<&Path>,
-    mode_arg: Option<OrganizationMode>,
-) -> PathBuf {
-    if let Some(db_p) = db_arg {
-        return db_p.to_path_buf();
-    }
-    if let Some(out) = output_arg {
-        return out.join(".avicull/manifest.sqlite");
-    }
-    let (hier_db, inplace_db) = if let Some(inp) = input_arg {
-        (
-            inp.join("birds_hierarchy/.avicull/manifest.sqlite"),
-            inp.join(".avicull/manifest.sqlite"),
-        )
-    } else {
-        (
-            PathBuf::from("birds_hierarchy/.avicull/manifest.sqlite"),
-            PathBuf::from(".avicull/manifest.sqlite"),
-        )
-    };
-
-    match mode_arg {
-        Some(OrganizationMode::HierarchicalHardlinkHierarchy) => {
-            if hier_db.exists() {
-                hier_db
-            } else {
-                inplace_db
-            }
-        }
-        Some(OrganizationMode::InPlace | OrganizationMode::InPlaceRename) | None => {
-            if inplace_db.exists() {
-                inplace_db
-            } else {
-                hier_db
-            }
-        }
-    }
-}
-
 fn execute_correct(args: &CorrectArgs) -> Result<()> {
     println!("== avicull correct ==");
 
@@ -613,11 +513,11 @@ fn execute_correct(args: &CorrectArgs) -> Result<()> {
             .output
             .clone()
             .or_else(|| args.input.as_ref().map(|p| p.join("birds_hierarchy")))
-            .unwrap_or_else(|| resolve_operating_root_for_manifest(&db_path)),
+            .unwrap_or_else(|| resolve_operating_root(&db_path)),
         OrganizationMode::InPlace | OrganizationMode::InPlaceRename => args
             .input
             .clone()
-            .unwrap_or_else(|| resolve_operating_root_for_manifest(&db_path)),
+            .unwrap_or_else(|| resolve_operating_root(&db_path)),
     };
 
     let results = avicull::organizer::apply_bundle_correction_with_category(
@@ -696,7 +596,7 @@ fn execute_location(args: LocationArgs) -> Result<()> {
         );
     }
 
-    let operating_root = resolve_operating_root_for_manifest(&db_path);
+    let operating_root = resolve_operating_root(&db_path);
     if operating_root.exists() {
         if let Ok(catalog_path) =
             avicull::organizer::regenerate_catalog_from_manifest(&db, &operating_root, None, None)

@@ -44,7 +44,9 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         is_user_override: false,
     };
 
-    let db_leh_path = leh_hierarchy.join(".avicull/manifest.sqlite");
+    let db_leh_path = leh_hierarchy
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db_leh = ManifestDb::open_or_create(&db_leh_path).unwrap();
     db_leh
         .record_run("run-leh-1", &leh_trip, &leh_hierarchy, false, "{}")
@@ -98,7 +100,9 @@ fn test_nested_and_parent_coexistence_via_hardlinks() {
         is_user_override: false,
     };
 
-    let db_parent_path = parent_hierarchy.join(".avicull/manifest.sqlite");
+    let db_parent_path = parent_hierarchy
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db_parent = ManifestDb::open_or_create(&db_parent_path).unwrap();
     db_parent
         .record_run("run-parent-1", &photos_root, &parent_hierarchy, false, "{}")
@@ -155,7 +159,9 @@ fn test_incremental_auto_detection_of_newer_files() {
     File::create(&f1).unwrap().write_all(b"IMG 1").unwrap();
     File::create(&f2).unwrap().write_all(b"IMG 2").unwrap();
 
-    let db_path = output.join(".avicull/manifest.sqlite");
+    let db_path = output
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 
     // First scan & organize of initial 2 files
@@ -253,7 +259,9 @@ fn test_inplace_mode_sqlite_cache_hit_by_inode_on_subsequent_runs() {
         .write_all(b"IMG 1 ORIGINAL")
         .unwrap();
 
-    let db_path = input.join(".avicull/manifest.sqlite");
+    let db_path = input
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 
     let bundles_v1 = scan_input_tree_with_skip(&input, None).unwrap();
@@ -362,7 +370,9 @@ fn test_force_recomputation_bypasses_cache() {
     let f1 = input.join("IMG_1001.JPG");
     File::create(&f1).unwrap().write_all(b"IMG 1").unwrap();
 
-    let db_path = output.join(".avicull/manifest.sqlite");
+    let db_path = output
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 
     let bundles = scan_input_tree_with_skip(&input, Some(&output)).unwrap();
@@ -524,10 +534,12 @@ fn test_cloud_storage_automatic_organic_pipeline() {
     );
 
     // 3. Verify SQLite manifest was created in cloud input
-    let db_path = cloud_input.join(".avicull/manifest.sqlite");
+    let db_path = cloud_input
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     assert!(
         db_path.exists(),
-        ".avicull/manifest.sqlite must be created in cloud input"
+        "manifest.sqlite must be created in cloud input"
     );
 
     // 4. Verify in-place renames occurred in lockstep with sidecars

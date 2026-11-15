@@ -21,6 +21,134 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+/// Primary unhidden directory name hosting SQLite manifest and precomputed previews.
+pub const CATALOG_FILES_DIR: &str = "avicull_catalog_files";
+
+/// Legacy hidden directory name for backward compatibility.
+pub const LEGACY_CATALOG_FILES_DIR: &str = ".avicull";
+
+/// Resolves the archive operating root directory hosting the catalog manifest database.
+///
+/// If `db_path` is `<root>/avicull_catalog_files/manifest.sqlite` (or `.avicull/manifest.sqlite`),
+/// strips the catalog directory component to return `<root>` (or `.` if relative to current directory).
+/// This prevents generating catalogs inside `<input>/avicull_catalog_files/catalog.html` or creating nested
+/// catalog preview directories.
+///
+/// # Arguments
+/// * `db_path` - Path to manifest.sqlite database file.
+///
+/// # Returns
+/// Operating root directory as a [`PathBuf`].
+#[must_use]
+pub fn resolve_operating_root(db_path: &Path) -> PathBuf {
+    if let Some(parent) = db_path.parent() {
+        if parent
+            .file_name()
+            .is_some_and(|name| name == CATALOG_FILES_DIR || name == LEGACY_CATALOG_FILES_DIR)
+        {
+            return parent
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+        }
+        if !parent.as_os_str().is_empty() {
+            return parent.to_path_buf();
+        }
+    }
+    PathBuf::from(".")
+}
+
+/// Resolves the SQLite manifest database path with mode-aware directory precedence.
+///
+/// Prioritizes explicit `--db` or `--output` flags when provided. Otherwise, checks both
+/// in-place and hierarchy databases, prioritizing `avicull_catalog_files` while preserving
+/// fallback discovery of legacy `.avicull`.
+///
+/// # Arguments
+/// * `db_arg` - Optional explicit `--db` argument.
+/// * `output_arg` - Optional `--output` argument.
+/// * `input_arg` - Optional `--input` argument.
+/// * `mode_arg` - Optional explicit organization mode.
+///
+/// # Returns
+/// Resolved path to the manifest database.
+#[must_use]
+pub fn resolve_manifest_db_path(
+    db_arg: Option<&Path>,
+    output_arg: Option<&Path>,
+    input_arg: Option<&Path>,
+    mode_arg: Option<OrganizationMode>,
+) -> PathBuf {
+    if let Some(db_p) = db_arg {
+        return db_p.to_path_buf();
+    }
+    if let Some(out) = output_arg {
+        let unhidden = out.join(CATALOG_FILES_DIR).join("manifest.sqlite");
+        let legacy = out.join(LEGACY_CATALOG_FILES_DIR).join("manifest.sqlite");
+        if unhidden.exists() {
+            return unhidden;
+        }
+        if legacy.exists() {
+            return legacy;
+        }
+        return unhidden;
+    }
+
+    let (hier_unhidden, hier_legacy, inplace_unhidden, inplace_legacy) =
+        if let Some(inp) = input_arg {
+            (
+                inp.join("birds_hierarchy")
+                    .join(CATALOG_FILES_DIR)
+                    .join("manifest.sqlite"),
+                inp.join("birds_hierarchy")
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .join("manifest.sqlite"),
+                inp.join(CATALOG_FILES_DIR).join("manifest.sqlite"),
+                inp.join(LEGACY_CATALOG_FILES_DIR).join("manifest.sqlite"),
+            )
+        } else {
+            (
+                PathBuf::from("birds_hierarchy")
+                    .join(CATALOG_FILES_DIR)
+                    .join("manifest.sqlite"),
+                PathBuf::from("birds_hierarchy")
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .join("manifest.sqlite"),
+                PathBuf::from(CATALOG_FILES_DIR).join("manifest.sqlite"),
+                PathBuf::from(LEGACY_CATALOG_FILES_DIR).join("manifest.sqlite"),
+            )
+        };
+
+    match mode_arg {
+        Some(OrganizationMode::HierarchicalHardlinkHierarchy) => {
+            if hier_unhidden.exists() {
+                hier_unhidden
+            } else if hier_legacy.exists() {
+                hier_legacy
+            } else if inplace_unhidden.exists() {
+                inplace_unhidden
+            } else if inplace_legacy.exists() {
+                inplace_legacy
+            } else {
+                hier_unhidden
+            }
+        }
+        Some(OrganizationMode::InPlace | OrganizationMode::InPlaceRename) | None => {
+            if inplace_unhidden.exists() {
+                inplace_unhidden
+            } else if inplace_legacy.exists() {
+                inplace_legacy
+            } else if hier_unhidden.exists() {
+                hier_unhidden
+            } else if hier_legacy.exists() {
+                hier_legacy
+            } else {
+                inplace_unhidden
+            }
+        }
+    }
+}
+
 /// Curated non-avian taxon entry for catalog dynamic autocomplete.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CuratedTaxonEntry {
@@ -326,8 +454,18 @@ pub fn generate_html_catalog(
         })?;
     }
 
-    // Check if a manifest database exists in output_root/.avicull/manifest.sqlite
-    let db_path = output_root.join(".avicull/manifest.sqlite");
+    // Check if a manifest database exists in output_root/avicull_catalog_files/manifest.sqlite or .avicull/manifest.sqlite
+    let unhidden_db = output_root.join(CATALOG_FILES_DIR).join("manifest.sqlite");
+    let legacy_db = output_root
+        .join(LEGACY_CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
+    let db_path = if unhidden_db.exists() {
+        unhidden_db
+    } else if legacy_db.exists() {
+        legacy_db
+    } else {
+        unhidden_db
+    };
     let manifest_db = if db_path.exists() {
         crate::db::ManifestDb::open_or_create(&db_path).ok()
     } else {
@@ -340,18 +478,21 @@ pub fn generate_html_catalog(
         .unwrap_or_default();
 
     // Pre-scan existing previews directory once upfront to collapse 1000s of NFS stat RPCs into 1 readdir call
-    let previews_dir = output_root.join(".avicull").join("previews");
+    let previews_dir = output_root.join(CATALOG_FILES_DIR).join("previews");
+    let legacy_previews_dir = output_root.join(LEGACY_CATALOG_FILES_DIR).join("previews");
     let _ = fs::create_dir_all(&previews_dir);
-    let existing_previews: HashSet<String> = if previews_dir.is_dir() {
-        fs::read_dir(&previews_dir)
-            .into_iter()
-            .flatten()
-            .filter_map(Result::ok)
-            .filter_map(|e| e.file_name().into_string().ok())
-            .collect()
-    } else {
-        HashSet::new()
-    };
+    let mut existing_previews: HashSet<String> = HashSet::new();
+    for p_dir in [&previews_dir, &legacy_previews_dir] {
+        if p_dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(p_dir) {
+                for entry in entries.flatten() {
+                    if let Ok(name) = entry.file_name().into_string() {
+                        existing_previews.insert(name);
+                    }
+                }
+            }
+        }
+    }
 
     let payload_results: Vec<(CatalogPayloadItem, Option<(String, String)>)> = items
         .par_iter()
@@ -610,11 +751,12 @@ pub fn encode_base64(bytes: &[u8]) -> String {
     encoded
 }
 
-/// Resolves the preview file name and target path inside `<output_root>/.avicull/previews/`.
-fn preview_path_and_name(output_root: &Path, original_stem: &str) -> (String, PathBuf) {
+/// Resolves the preview file name and target path inside `<output_root>/avicull_catalog_files/previews/`.
+#[must_use]
+pub fn preview_path_and_name(output_root: &Path, original_stem: &str) -> (String, PathBuf) {
     let preview_name = format!("{original_stem}.jpg");
     let target_file = output_root
-        .join(".avicull")
+        .join(CATALOG_FILES_DIR)
         .join("previews")
         .join(&preview_name);
     (preview_name, target_file)
@@ -645,8 +787,8 @@ fn build_catalog_payload_item(
         Some(existing_previews),
         is_local,
     );
-    let thumb_src =
-        persistent_thumb.unwrap_or_else(|| format!(".avicull/previews/{}.jpg", item.original_stem));
+    let thumb_src = persistent_thumb
+        .unwrap_or_else(|| format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem));
 
     let (embedded_thumb_data_uri, new_thumb_entry) =
         if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
@@ -744,11 +886,11 @@ fn build_catalog_payload_item(
 
 /// Generates a lightweight base64 micro-thumbnail data URI (max dimension ~300px, quality 68)
 /// embedded directly into the HTML catalog JSON payload so the gallery renders standalone
-/// without requiring local synchronization of `.avicull/`.
+/// without requiring local synchronization of `avicull_catalog_files/` (or legacy `.avicull/`).
 ///
 /// # Arguments
 /// * `item` - Catalog item containing asset paths and metadata.
-/// * `output_root` - Root destination directory containing `.avicull/previews/`.
+/// * `output_root` - Root destination directory containing `avicull_catalog_files/previews/`.
 ///
 /// # Returns
 /// `Some(data_uri)` containing the base64-encoded micro-thumbnail, or `None` if unavailable.
@@ -873,14 +1015,14 @@ fn downsample_to_micro_jpeg(img: &image::DynamicImage) -> Option<Vec<u8>> {
 }
 
 /// Ensures a persistent web-displayable preview JPEG exists on disk inside
-/// `<output_root>/.avicull/previews/<original_stem>.jpg`.
+/// `<output_root>/avicull_catalog_files/previews/<original_stem>.jpg`.
 ///
 /// Extracts the embedded JPEG preview from camera RAW files or generates an 800×800
 /// thumbnail from companion/web images if no preview currently exists.
 ///
 /// # Arguments
 /// * `item` - Catalog item containing asset paths and metadata.
-/// * `output_root` - Root destination directory containing `.avicull/previews/`.
+/// * `output_root` - Root destination directory containing `avicull_catalog_files/previews/`.
 ///
 /// # Returns
 /// `Some(path)` relative to `output_root` if the persistent preview exists or was created,
@@ -904,12 +1046,23 @@ fn ensure_persistent_thumbnail_with_previews(
     is_local: bool,
 ) -> Option<String> {
     let (preview_name, target_file) = preview_path_and_name(output_root, &item.original_stem);
+    let legacy_target_file = output_root
+        .join(LEGACY_CATALOG_FILES_DIR)
+        .join("previews")
+        .join(&preview_name);
 
-    let already_exists =
-        existing_previews.map_or_else(|| target_file.exists(), |set| set.contains(&preview_name));
+    let already_exists = existing_previews.map_or_else(
+        || target_file.exists() || legacy_target_file.exists(),
+        |set| set.contains(&preview_name),
+    );
 
     if already_exists {
-        return Some(format!(".avicull/previews/{preview_name}"));
+        if target_file.exists() || !legacy_target_file.exists() {
+            return Some(format!("{CATALOG_FILES_DIR}/previews/{preview_name}"));
+        }
+        return Some(format!(
+            "{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
+        ));
     }
 
     if !is_local {
@@ -919,7 +1072,7 @@ fn ensure_persistent_thumbnail_with_previews(
     let active_primary = item.active_primary_path();
 
     let mut generated = false;
-    let previews_dir = output_root.join(".avicull").join("previews");
+    let previews_dir = output_root.join(CATALOG_FILES_DIR).join("previews");
 
     // A. If standalone camera RAW file: extract embedded JPEG preview thumbnail
     if active_primary.exists() {
@@ -977,7 +1130,11 @@ fn ensure_persistent_thumbnail_with_previews(
     }
 
     if generated || target_file.exists() {
-        Some(format!(".avicull/previews/{preview_name}"))
+        Some(format!("{CATALOG_FILES_DIR}/previews/{preview_name}"))
+    } else if legacy_target_file.exists() {
+        Some(format!(
+            "{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
+        ))
     } else {
         None
     }
@@ -1021,12 +1178,21 @@ fn resolve_or_extract_preview(
 
     // 4. Standalone camera RAW file: check if precomputed preview already exists on disk
     let (preview_name, target_file) = preview_path_and_name(output_root, &item.original_stem);
+    let legacy_target_file = output_root
+        .join(LEGACY_CATALOG_FILES_DIR)
+        .join("previews")
+        .join(&preview_name);
 
-    let preview_exists =
-        existing_previews.map_or_else(|| target_file.exists(), |set| set.contains(&preview_name));
+    let preview_exists = existing_previews.map_or_else(
+        || target_file.exists() || legacy_target_file.exists(),
+        |set| set.contains(&preview_name),
+    );
 
     if preview_exists {
-        return format!(".avicull/previews/{preview_name}");
+        if target_file.exists() || !legacy_target_file.exists() {
+            return format!("{CATALOG_FILES_DIR}/previews/{preview_name}");
+        }
+        return format!("{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
     }
 
     // If cloud-evicted or non-local, do NOT eagerly read raw bytes
@@ -1038,11 +1204,11 @@ fn resolve_or_extract_preview(
     if active_primary.exists() {
         if let Ok(raw_bytes) = fs::read(active_primary) {
             if let Some(preview_bytes) = extract_embedded_jpeg_preview(&raw_bytes) {
-                let previews_dir = output_root.join(".avicull").join("previews");
+                let previews_dir = output_root.join(CATALOG_FILES_DIR).join("previews");
                 if fs::create_dir_all(&previews_dir).is_ok()
                     && fs::write(&target_file, &preview_bytes).is_ok()
                 {
-                    return format!(".avicull/previews/{preview_name}");
+                    return format!("{CATALOG_FILES_DIR}/previews/{preview_name}");
                 }
             }
         }

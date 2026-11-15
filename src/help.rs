@@ -101,7 +101,7 @@ impl HelpTopic {
                     avicull clean --input /Volumes/Photos/Trips/Leh\n\n\
                  8. Inspect Manifest Database:\n\
                     View classification manifest statistics and burst clustering records:\n\
-                    avicull report --db /Volumes/Photos/Trips/Leh/.avicull/manifest.sqlite\n\n\
+                    avicull report --db /Volumes/Photos/Trips/Leh/avicull_catalog_files/manifest.sqlite\n\n\
                  9. Full Archive Re-Classification (--reclassify):\n\
                     Re-run neural detection and classification from scratch across all photos,\n\
                     doing the entire archive again without retaining previous predictions or overrides:\n\
@@ -128,7 +128,7 @@ impl HelpTopic {
                  5. Output Materialization Modes:\n\
                     - In-Place Mode (default):\n\
                       Non-destructive cataloging: keeps all input files completely untouched.\n\
-                      Full classification and metadata are tracked in '.avicull/manifest.sqlite'\n\
+                      Full classification and metadata are tracked in 'avicull_catalog_files/manifest.sqlite'\n\
                       and visualized in 'catalog.html' without renaming or moving any files.\n\
                     - In-Place Rename Mode (--mode in-place-rename):\n\
                       Renames primary image and companion sidecars in place within '--input' to:\n\
@@ -149,7 +149,7 @@ impl HelpTopic {
                  7. Incremental Re-Runs & Human Override Preservation:\n\
                     - Normal Re-Runs (Default):\n\
                       Re-running 'avicull organize' is fully incremental: untouched files reuse\n\
-                      cached predictions from '.avicull/manifest.sqlite', and all human corrections\n\
+                      cached predictions from 'avicull_catalog_files/manifest.sqlite', and all human corrections\n\
                       applied via 'avicull correct' or the HTML catalog are strictly preserved.\n\
                     - Full Re-Classification (--reclassify):\n\
                       Supplying '--reclassify' forces full neural network re-detection and\n\

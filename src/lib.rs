@@ -20,8 +20,8 @@
 //!    cleanly incrementing filesystem inode link counts (`st_nlink`).
 //!
 //! 4. **Exclusion Invariants During Traversal**:
-//!    Directory traversal strictly skips output directories (`birds_hierarchy`), internal manifests
-//!    (`.avicull`), Apple Photos packages (`*.photoslibrary`), NAS metadata (`@eaDir`), and hidden
+//!    Directory traversal strictly skips output directories (`birds_hierarchy`), catalog assets
+//!    (`avicull_catalog_files`, legacy `.avicull`), Apple Photos packages (`*.photoslibrary`), NAS metadata (`@eaDir`), and hidden
 //!    system files (`.*`).
 //!
 //! 5. **Two-Phase Atomic Operations**:
@@ -62,7 +62,10 @@ pub mod types;
 pub mod update;
 
 pub use burst::*;
-pub use catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
+pub use catalog::{
+    generate_html_catalog, preview_path_and_name, resolve_manifest_db_path, resolve_operating_root,
+    CatalogItem, CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR,
+};
 pub use classifier::*;
 pub use cli::*;
 pub use dataset::*;

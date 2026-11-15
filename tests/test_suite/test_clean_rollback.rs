@@ -3,7 +3,9 @@ use avicull::organizer::{
     clean_run_hardlinks, clean_run_operations, execute_inplace_bundle_rename,
     materialize_bundle_hardlinks,
 };
-use avicull::types::{AssetBundle, BundleDecision, RoutingTier, SpeciesPrediction};
+use avicull::types::{
+    AssetBundle, BundleDecision, OrganizationMode, RoutingTier, SpeciesPrediction,
+};
 use std::fs::{self, File};
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
@@ -75,7 +77,12 @@ fn test_inplace_rename_recording_and_clean_rollback() {
     }
 
     // 3. Open SQLite manifest database and record in-place renames
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).expect("open db");
     let run_id = "run-inplace-rollback-1";
 
@@ -136,7 +143,12 @@ fn test_rollback_inplace_renames_direct_api() {
     fs::rename(&f1, &r1).unwrap();
     fs::rename(&f2, &r2).unwrap();
 
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).expect("open db");
     let run_id = "run-direct-rollback";
 
@@ -207,7 +219,7 @@ fn test_clean_hardlink_operations_unlinks_without_affecting_source() {
         is_user_override: false,
     };
 
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).expect("open db");
     let run_id = "run-hardlink-clean-1";
 

@@ -5,7 +5,7 @@
 //! - Filters out hidden directories (`.*`), `birds_hierarchy`, `@eaDir`, and `.photoslibrary` bundles.
 //! - Sorts candidate subdirectories alphabetically for deterministic execution.
 //! - Executes [`run_organize`] sequentially on each child directory, creating independent child
-//!   manifests (`.avicull/manifest.sqlite`) and standalone catalogs (`catalog.html`).
+//!   manifests (`avicull_catalog_files/manifest.sqlite`) and standalone catalogs (`catalog.html`).
 //! - If `no_parent_catalog` is false, runs a final root pass to discover and roll up all child
 //!   manifests into an aggregated root catalog and manifest.
 
@@ -22,12 +22,14 @@ use std::path::{Path, PathBuf};
 /// - `birds_hierarchy` (avoids infinite loops or scanning previous hierarchy output)
 /// - `@eaDir` (Synology NAS indexing metadata)
 /// - Directories ending with `.photoslibrary` (Apple Photos packages)
+/// - `avicull_catalog_files` (unhidden catalog assets directory)
 #[must_use]
 pub fn should_skip_directory(name: &str) -> bool {
     name.starts_with('.')
         || name == "birds_hierarchy"
         || name == "@eaDir"
         || name.ends_with(".photoslibrary")
+        || name == crate::catalog::CATALOG_FILES_DIR
 }
 
 /// Discovers immediate candidate subdirectories under `input_dir` sorted alphabetically.

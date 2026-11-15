@@ -52,7 +52,7 @@ fn test_cli_correct_subcommand_updates_manifest_and_hardlink() {
     );
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(db_path.exists(), "manifest.sqlite should exist");
 
     let db = ManifestDb::open_or_create(&db_path).unwrap();
@@ -213,7 +213,7 @@ fn test_cli_correct_preserves_override_on_subsequent_organize_rerun() {
 
     // 4. Verify DSC_0002 still has Black-necked Stork override!
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
 
@@ -375,7 +375,12 @@ fn test_cli_correct_inplace_mode_updates_manifest_and_renames() {
     );
 
     // 4. Verify SQLite record is updated with user override
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     let b5 = bundles
@@ -459,7 +464,12 @@ fn test_cli_correct_inplace_rename_mode() {
     );
 
     // 4. Verify SQLite record
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     let b5 = bundles
@@ -576,7 +586,12 @@ fn test_cli_correct_ambiguous_file_fails_with_choices() {
         String::from_utf8_lossy(&disambiguated_output.stderr)
     );
 
-    let db_path = input_dir.join("birds_hierarchy/.avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::HierarchicalHardlinkHierarchy),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     let bharatpur_bundle = bundles
@@ -685,7 +700,12 @@ fn test_cli_correct_duplicate_stem_across_subdirectories_in_place_mode() {
     );
 
     // 4. Verify manifest overrides only target photo1
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
 
@@ -773,7 +793,12 @@ fn test_cli_correct_does_not_falsely_match_prefix_stem_photo() {
     );
 
     // Verify only dubare_19 was updated
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
 
@@ -863,7 +888,12 @@ fn test_cli_correct_root_file_disambiguation_with_dot_slash() {
         String::from_utf8_lossy(&root_output.stderr)
     );
 
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
 
@@ -890,7 +920,7 @@ fn test_cli_correct_root_file_disambiguation_with_dot_slash() {
 fn test_cli_correct_renamed_file_does_not_match_different_stem_in_same_directory() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("Photos");
-    let db_dir = input_dir.join(".avicull");
+    let db_dir = input_dir.join(avicull::CATALOG_FILES_DIR);
     fs::create_dir_all(&db_dir).unwrap();
     let db_path = db_dir.join("manifest.sqlite");
 
@@ -1104,7 +1134,7 @@ fn test_cli_correct_burst_propagation() {
     );
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(db_path.exists(), "manifest.sqlite should exist");
 
     // Assign a common burst_id to all 3 frames in SQLite
@@ -1265,7 +1295,7 @@ fn test_cli_correct_burst_not_propagated_without_flag_in_non_interactive() {
     assert!(org_output.status.success());
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
 
     let sqlite_conn = rusqlite::Connection::open(&db_path).unwrap();
     sqlite_conn
@@ -1345,7 +1375,12 @@ fn test_cli_correct_burst_propagation_inplace_mode() {
         .expect("failed to run avicull organize");
     assert!(org_output.status.success());
 
-    let db_path = trip_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&trip_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     let sqlite_conn = rusqlite::Connection::open(&db_path).unwrap();
     sqlite_conn
         .execute("UPDATE bundles SET burst_id = 'burst-inplace-01'", [])
@@ -1457,7 +1492,7 @@ fn test_cli_correct_fuzzy_species_matching() {
     assert!(org_output.status.success());
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
 
     // 2. Interactive correction with typo "Panted Stork" confirming 'y'
     // Resolves to canonical "Painted_Stork"
@@ -1621,7 +1656,7 @@ fn test_cli_correct_no_bird_detected_variants() {
     assert!(org_output.status.success());
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 
     // 1. Correct DSC_0010 with --species "No Bird Detected"
@@ -1777,7 +1812,7 @@ fn test_cli_correct_subcommand_overrides_category_and_species_simultaneously() {
     );
 
     // 3. Verify SQLite manifest has category = 'Mammalia', assigned_species_slug = 'Malabar_Giant_Squirrel'
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(bundles.len(), 1);
@@ -1879,14 +1914,18 @@ fn test_cli_correct_without_input_flag_resolves_root_not_avicull_dir() {
 
     // 3. Crucial Assertions:
     // (a) `<input_dir>/.avicull/catalog.html` must NEVER be created!
-    let wrong_catalog = input_dir.join(".avicull/catalog.html");
+    let wrong_catalog = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("catalog.html");
     assert!(
         !wrong_catalog.exists(),
         "catalog.html should NEVER be created inside .avicull/"
     );
 
     // (b) `<input_dir>/.avicull/.avicull` must NEVER be created!
-    let wrong_nested_avicull = input_dir.join(".avicull/.avicull");
+    let wrong_nested_avicull = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join(avicull::CATALOG_FILES_DIR);
     assert!(
         !wrong_nested_avicull.exists(),
         "Nested .avicull/.avicull directory should NEVER be created"

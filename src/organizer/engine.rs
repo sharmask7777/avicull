@@ -586,7 +586,19 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
                 "[avicull] Note: In in-place mode, photos and manifests are organized directly in '--input'; '--output' is ignored."
             );
         }
-        let db_p = args.input.join(".avicull/manifest.sqlite");
+        let unhidden_db = args
+            .input
+            .join(crate::catalog::CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let legacy_db = args
+            .input
+            .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let db_p = if legacy_db.exists() && !unhidden_db.exists() {
+            legacy_db
+        } else {
+            unhidden_db
+        };
         (args.input.clone(), db_p, None)
     } else {
         let output_dir = args
@@ -594,7 +606,17 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             .clone()
             .unwrap_or_else(|| args.input.join("birds_hierarchy"));
         validate_volume_and_disjointness(&args.input, &output_dir)?;
-        let db_p = output_dir.join(".avicull/manifest.sqlite");
+        let unhidden_db = output_dir
+            .join(crate::catalog::CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let legacy_db = output_dir
+            .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let db_p = if legacy_db.exists() && !unhidden_db.exists() {
+            legacy_db
+        } else {
+            unhidden_db
+        };
         (output_dir.clone(), db_p, Some(output_dir))
     };
 
@@ -1103,7 +1125,27 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
         };
 
         // Extract embedded preview for RAW formats if companion missing
-        let previews_dir = operating_root.join(".avicull").join("previews");
+        let previews_dir = if operating_root
+            .join(crate::catalog::CATALOG_FILES_DIR)
+            .join("previews")
+            .is_dir()
+        {
+            operating_root
+                .join(crate::catalog::CATALOG_FILES_DIR)
+                .join("previews")
+        } else if operating_root
+            .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
+            .join("previews")
+            .is_dir()
+        {
+            operating_root
+                .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
+                .join("previews")
+        } else {
+            operating_root
+                .join(crate::catalog::CATALOG_FILES_DIR)
+                .join("previews")
+        };
         let raw_bundles_to_extract: Vec<_> = processable_chunk
             .iter()
             .filter(|b| {

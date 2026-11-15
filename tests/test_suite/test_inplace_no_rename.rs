@@ -110,9 +110,14 @@ fn test_inplace_mode_keeps_source_files_strictly_untouched() {
         entries
     );
 
-    // Invariant 3: Manifest and catalog exist inside .avicull and input root
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
-    assert!(db_path.exists(), ".avicull/manifest.sqlite must exist");
+    // Invariant 3: Manifest and catalog exist inside avicull_catalog_files and input root
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(OrganizationMode::InPlace),
+    );
+    assert!(db_path.exists(), "manifest.sqlite must exist");
 
     let catalog_path = input_dir.join("catalog.html");
     assert!(

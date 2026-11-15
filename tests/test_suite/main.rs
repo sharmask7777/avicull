@@ -22,6 +22,7 @@
 
 mod test_burst;
 mod test_catalog;
+mod test_catalog_files_dir;
 mod test_catalog_html_generation;
 mod test_catalog_multi_taxa;
 mod test_catalog_snapshot;

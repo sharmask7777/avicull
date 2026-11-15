@@ -226,17 +226,20 @@ fn test_generate_html_catalog_raw_preview_extraction() {
 
     let extracted_preview = dir
         .path()
-        .join(".avicull")
+        .join(avicull::CATALOG_FILES_DIR)
         .join("previews")
         .join("IMG_2001.jpg");
     assert!(
         extracted_preview.exists(),
-        "Embedded preview JPEG must be extracted into .avicull/previews/IMG_2001.jpg"
+        "Embedded preview JPEG must be extracted into avicull_catalog_files/previews/IMG_2001.jpg"
     );
 
     let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
     assert!(
-        html_content.contains(".avicull/previews/IMG_2001.jpg"),
+        html_content.contains(&format!(
+            "{}/previews/IMG_2001.jpg",
+            avicull::CATALOG_FILES_DIR
+        )),
         "Catalog HTML must reference the extracted thumbnail preview"
     );
 }
@@ -522,14 +525,17 @@ fn test_resolve_or_extract_preview_inplace_renamed() {
     // RAW preview should have been extracted using the active on-disk path
     let extracted_preview = dir
         .path()
-        .join(".avicull")
+        .join(avicull::CATALOG_FILES_DIR)
         .join("previews")
         .join("IMG_2002.jpg");
     assert!(
         extracted_preview.exists(),
         "Embedded preview must be extracted from active on-disk RAW file"
     );
-    assert!(html_content.contains(".avicull/previews/IMG_2002.jpg"));
+    assert!(html_content.contains(&format!(
+        "{}/previews/IMG_2002.jpg",
+        avicull::CATALOG_FILES_DIR
+    )));
 
     // Web image preview should resolve to the active on-disk path
     assert!(
@@ -1762,7 +1768,7 @@ fn test_batch_correction_script_execution_and_manifest_update() {
     assert!(org_output.status.success());
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(db_path.exists());
 
     let db = ManifestDb::open_or_create(&db_path).unwrap();
@@ -1985,7 +1991,7 @@ console.log(cmds.join('\n'));
     );
 
     // Verify SQLite manifest and filesystem reflect the correction
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let updated_bundles = db.get_all_bundles(None).unwrap();
     assert_eq!(updated_bundles.len(), 1);
@@ -2985,7 +2991,7 @@ setTimeout(() => {{
     );
 
     // Verify manifest database has overrides for 101 and 103
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     let bundles = db.get_all_bundles(None).unwrap();
     let b101 = bundles

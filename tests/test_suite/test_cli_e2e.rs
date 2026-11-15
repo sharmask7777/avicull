@@ -57,7 +57,7 @@ fn test_cli_e2e_full_lifecycle() {
 
     // 2. Mock decision generation
     let run_id = "run-test-e2e";
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     let db = ManifestDb::open_or_create(&db_path).expect("open db failed");
     db.record_run(run_id, &input_dir, &output_dir, false, "{}")
         .unwrap();
@@ -324,7 +324,12 @@ fn test_cli_e2e_inplace_default() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     assert!(
         db_path.exists(),
         "Manifest sqlite must exist at input root in in-place mode"
@@ -523,7 +528,7 @@ fn test_cli_e2e_hierarchy_mode() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(
         db_path.exists(),
         "Manifest sqlite must exist at output root in hierarchy mode"

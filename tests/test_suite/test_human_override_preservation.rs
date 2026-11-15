@@ -54,7 +54,12 @@ fn test_organize_preserves_human_overrides_unless_reclassify_passed() {
     assert!(status1.success(), "Initial organize must succeed");
 
     // Check manifest exists
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(
+        None,
+        None,
+        Some(&input_dir),
+        Some(avicull::types::OrganizationMode::InPlace),
+    );
     assert!(db_path.exists(), "Manifest database must exist");
 
     // 2. Simulate human override on the bundle

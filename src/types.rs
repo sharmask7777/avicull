@@ -846,7 +846,7 @@ pub enum ConfidenceMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default, Serialize, Deserialize)]
 pub enum OrganizationMode {
     /// Non-destructive in-place cataloging mode (default): keeps source files strictly untouched,
-    /// writing all classification metadata, previews, and HTML catalog into `.avicull/` and `catalog.html`.
+    /// writing all classification metadata, previews, and HTML catalog into `avicull_catalog_files/` and `catalog.html`.
     #[default]
     #[value(name = "in-place", alias = "no-rename")]
     InPlace,
