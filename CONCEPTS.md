@@ -52,6 +52,36 @@ A mechanism that locates companion runtime scripts and checklist data by priorit
 
 When executing outside a development repository (such as on network storage or external drives), the resolver ensures inference engines and biodiversity checklists remain accessible by extracting embedded fallback assets into persistent local cache storage without requiring manual path configuration.
 
+### CatalogFilesDirectory
+The unhidden companion directory (`avicull_catalog_files`) located at the root of a photographic archive or trip folder storing persistent database manifests (`manifest.sqlite`) and precomputed image preview streams (`previews/`).
+*Avoid:* Hidden folder, avicull internal dir, dot avicull
+
+CatalogFilesDirectory provides transparent inspection of catalog assets on network shares and local disks while remaining strictly isolated from photographic source files. All directory walkers and asset scanners explicitly skip this directory.
+
+### DecoupledViewProjection
+A presentation generation model where the user-facing HTML catalog (`catalog.html`) is rendered purely as an offline projection of state stored in the SQLite manifest store without touching, scanning, or decoding raw image files.
+*Avoid:* Monolithic HTML generation, scan-and-render
+
+DecoupledViewProjection enables instantaneous re-rendering of the catalog presentation layer (`avicull render-catalog` or `organize-all --view-only`) in milliseconds when layout styles, sorting options, or templates change, completely decoupled from neural inference and filesystem scanning.
+
+### DirectoryOnlySignatureProbe
+A high-speed change detection mechanism for network-attached storage that traverses directory inodes only (skipping all regular file entries) to compute composite modification and entry signatures in milliseconds.
+*Avoid:* Shallow probe, full file stat scan
+
+The probe computes $(\max_{d} \text{mtime}(d), \sum_{d} \text{readdir\_count}(d))$ down to depth 8 across directory nodes only, enabling instant detection of nested photo additions on SMB/NFS shares while skipping up-to-date trip directories in $<2\text{ms}$.
+
+### DualThumbnailStrategy
+A tiered thumbnail delivery architecture where single-trip catalogs ($\le 2,500$ photos) embed base64 micro-thumbnails for standalone portability, while multi-trip parent rollup catalogs suppress embedded payloads and link to disk preview JPEGs with lazy loading.
+*Avoid:* Mega HTML, all-embedded thumbnails
+
+In large archives ($50,000–100,000+$ photos), suppressing base64 payloads shrinks parent catalog documents from over 2.6 GB to under 30 MB, preventing browser Out-of-Memory crashes while preserving smooth virtual grid navigation.
+
+### FastSoftwareReclassification
+A re-evaluation mode (`--reclassify-mode fast`) that recalculates species routing tiers, thresholds, and Bayesian priors directly from stored 512-dimensional visual embeddings in SQLite without executing neural network models.
+*Avoid:* Full re-detection, model re-run
+
+FastSoftwareReclassification operates purely in software in milliseconds across tens of thousands of assets, allowing instant updates to eBird taxonomy splits, geographic priors, and confidence gates with zero raw image reads.
+
 ## Taxonomy & Classification
 
 ### TaxonIdentifier
