@@ -998,7 +998,7 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             .count();
         if unclassified_count > 0 && !args.reclassify {
             println!(
-                "Tip: {unclassified_count} cached photos have no bird detected. Pass `--reclassify` to re-run neural detection and classification."
+                "Tip: {unclassified_count} cached photos have no bird detected. Pass `--reclassify --reclassify-mode forced` (or `--force`) to re-run full neural bird detection."
             );
         }
 

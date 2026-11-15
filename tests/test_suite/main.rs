@@ -77,6 +77,7 @@ mod test_render_catalog_cli;
 mod test_scanner;
 mod test_spec_conformance;
 mod test_standalone_inference_resolution;
+mod test_static_architecture_guardrails;
 mod test_storage_backend;
 mod test_subdirectory_manifest_inheritance;
 mod test_types;

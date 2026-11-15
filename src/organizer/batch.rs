@@ -31,11 +31,7 @@ use std::path::{Path, PathBuf};
 /// - `avicull_catalog_files` (unhidden catalog assets directory)
 #[must_use]
 pub fn should_skip_directory(name: &str) -> bool {
-    name.starts_with('.')
-        || name == "birds_hierarchy"
-        || name == "@eaDir"
-        || name.ends_with(".photoslibrary")
-        || name == crate::catalog::CATALOG_FILES_DIR
+    crate::scanner::should_skip_dir(name)
 }
 
 /// Discovers immediate candidate subdirectories under `input_dir` sorted alphabetically.
@@ -194,12 +190,21 @@ pub fn run_organize_all(args: &OrganizeAllArgs) -> Result<()> {
     let mut failed_subdirs: Vec<(PathBuf, anyhow::Error)> = Vec::new();
 
     for (idx, child_dir) in child_dirs.iter().enumerate() {
-        println!(
-            "\n[{}/{}] Organizing subdirectory '{}'...",
-            idx + 1,
-            total_count,
-            child_dir.display()
-        );
+        if args.view_only {
+            println!(
+                "\n[{}/{}] Re-rendering catalog for subdirectory '{}'...",
+                idx + 1,
+                total_count,
+                child_dir.display()
+            );
+        } else {
+            println!(
+                "\n[{}/{}] Organizing subdirectory '{}'...",
+                idx + 1,
+                total_count,
+                child_dir.display()
+            );
+        }
 
         if !args.force && !args.view_only {
             match crate::scanner::probe::probe_directory_change_status(child_dir) {

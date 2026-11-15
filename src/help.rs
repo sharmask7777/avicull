@@ -29,7 +29,7 @@ impl FromStr for HelpTopic {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_lowercase().as_str() {
             "quickstart" | "start" => Ok(HelpTopic::Quickstart),
-            "organize" | "sort" => Ok(HelpTopic::Organize),
+            "organize" | "sort" | "reclassify" => Ok(HelpTopic::Organize),
             "scan" | "check" => Ok(HelpTopic::Scan),
             "invariants" | "safety" | "apfs" => Ok(HelpTopic::Invariants),
             "models" | "weights" | "ai" => Ok(HelpTopic::Models),

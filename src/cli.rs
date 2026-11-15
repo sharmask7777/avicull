@@ -233,7 +233,7 @@ pub struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
-    /// Force full neural network re-detection and re-classification from scratch across all photo bundles, re-doing the entire archive (does not retain previous cached predictions or overrides)
+    /// Re-evaluate species classifications and priors across photo bundles. Defaults to fast software re-scoring from stored visual embeddings (--reclassify-mode fast). Pass '--reclassify-mode forced' to re-run neural detection on raw images.
     #[arg(long, default_value_t = false)]
     pub reclassify: bool,
 
