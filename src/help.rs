@@ -19,6 +19,7 @@ pub enum HelpTopic {
     Models,
     Update,
     Mount,
+    Catalog,
     All,
 }
 
@@ -34,9 +35,10 @@ impl FromStr for HelpTopic {
             "models" | "weights" | "ai" => Ok(HelpTopic::Models),
             "update" | "upgrade" => Ok(HelpTopic::Update),
             "mount" | "unmount" | "webdav" | "remote" => Ok(HelpTopic::Mount),
+            "catalog" | "render-catalog" | "view" | "html" => Ok(HelpTopic::Catalog),
             "all" | "full" | "manual" => Ok(HelpTopic::All),
             other => Err(anyhow!(
-                "Unknown help topic '{other}'. Available topics: quickstart, organize, scan, invariants, models, update, mount, all"
+                "Unknown help topic '{other}'. Available topics: quickstart, organize, scan, invariants, models, update, mount, catalog, all"
             )),
         }
     }
@@ -52,6 +54,7 @@ impl fmt::Display for HelpTopic {
             HelpTopic::Models => write!(f, "models"),
             HelpTopic::Update => write!(f, "update"),
             HelpTopic::Mount => write!(f, "mount"),
+            HelpTopic::Catalog => write!(f, "catalog"),
             HelpTopic::All => write!(f, "all"),
         }
     }
@@ -68,6 +71,9 @@ impl HelpTopic {
             HelpTopic::Models => "Neural Models & eBird Taxonomy Cache",
             HelpTopic::Update => "Self-Update & Release Management",
             HelpTopic::Mount => "Virtual Mount & Remote S3 Storage Streaming",
+            HelpTopic::Catalog => {
+                "Decoupled Catalog View Renderer (render-catalog) & Instant View Updates"
+            }
             HelpTopic::All => "Comprehensive avicull User Manual",
         }
     }
@@ -105,7 +111,14 @@ impl HelpTopic {
                  9. Full Archive Re-Classification (--reclassify):\n\
                     Re-run neural detection and classification from scratch across all photos,\n\
                     doing the entire archive again without retaining previous predictions or overrides:\n\
-                    avicull organize --input /Volumes/Photos/Trips/Leh --reclassify\n"
+                    avicull organize --input /Volumes/Photos/Trips/Leh --reclassify\n\n\
+                 10. Decoupled Catalog Re-Render (render-catalog or catalog):\n\
+                     Instantly regenerate 'catalog.html' from SQLite in milliseconds without reading RAW files:\n\
+                     avicull render-catalog --input /Volumes/Photos/Trips/Leh\n\
+                     (or alias: avicull catalog --input /Volumes/Photos/Trips/Leh)\n\n\
+                 11. View-Only Batch Re-Render (--view-only):\n\
+                     Update all child and parent HTML catalogs in seconds without re-scanning or running ML:\n\
+                     avicull organize-all --input /Volumes/Photos/Archive --view-only\n"
             }
             HelpTopic::Organize => {
                 "THE ORGANIZE PIPELINE\n\
@@ -145,7 +158,11 @@ impl HelpTopic {
                     - Dynamic search and filter by species, date, location, and confidence tiers.\n\
                     - High-res lightbox modal with EXIF details and ML predictions.\n\
                     - In-browser mislabel correction modal with eBird taxonomy search and\n\
-                      one-click generation of 'apply_corrections.sh' batch shell scripts.\n\n\
+                      one-click generation of 'apply_corrections.sh' batch shell scripts.\n\
+                    - Decoupled View Regeneration:\n\
+                      Use 'avicull render-catalog' (or 'avicull catalog') or supply '--view-only'\n\
+                      to 'organize' or 'organize-all' to refresh the HTML gallery in milliseconds\n\
+                      directly from SQLite without performing directory scans or running ML inference.\n\n\
                  7. Incremental Re-Runs & Human Override Preservation:\n\
                     - Normal Re-Runs (Default):\n\
                       Re-running 'avicull organize' is fully incremental: untouched files reuse\n\
@@ -242,6 +259,42 @@ impl HelpTopic {
                       avicull mount s3://bucket/photos --serve-only --port 8080\n"
             }
 
+            HelpTopic::Catalog => {
+                "DECOUPLED CATALOG VIEW RENDERER (render-catalog) & INSTANT VIEW UPDATES\n\
+                 ======================================================================\n\n\
+                 `avicull render-catalog` (alias `avicull catalog`) regenerates or exports\n\
+                 the standalone HTML photo catalog directly from an existing SQLite manifest\n\
+                 in milliseconds, with zero filesystem scans, zero image reads, and zero ML inference.\n\n\
+                 USAGE:\n\
+                   avicull render-catalog [OPTIONS]\n\
+                   avicull catalog [OPTIONS]\n\n\
+                 OPTIONS:\n\
+                   -i, --input <PATH>        Source directory containing avicull_catalog_files/manifest.sqlite (default: .)\n\
+                   -o, --output-file <PATH>  Destination path for catalog HTML (defaults to <INPUT>/catalog.html)\n\
+                   -t, --trip-name <NAME>    Custom gallery title display name\n\
+                   -m, --mode <MODE>         Organization mode override (in-place, in-place-rename, hierarchy)\n\
+                       --no-thumbnails       Omit base64 micro-thumbnails to minimize HTML file size\n\n\
+                 EXAMPLES:\n\
+                   1. Instant Catalog Re-Render:\n\
+                      Regenerate 'catalog.html' after manual tag edits or location overrides:\n\
+                      avicull render-catalog --input /Volumes/Photos/Trips/Leh\n\n\
+                   2. Using the Convenient 'catalog' Alias:\n\
+                      avicull catalog --input /Volumes/Photos/Trips/Leh\n\n\
+                   3. Export to Custom Destination with Custom Trip Title:\n\
+                      avicull catalog --input /Volumes/Photos/Trips/Leh \\\n\
+                                      --output-file ~/Desktop/Himalayan_Expedition.html \\\n\
+                                      --trip-name \"Himalayas 2024\"\n\n\
+                   4. Lightweight Export Without Base64 Thumbnails:\n\
+                      avicull catalog --input /Volumes/Photos/Archive --no-thumbnails\n\n\
+                 THE --view-only UPDATE FLAG:\n\
+                 `organize` and `organize-all` both accept '--view-only':\n\
+                   - `avicull organize --view-only`:\n\
+                     Re-renders the catalog for a single directory directly from SQLite manifest.\n\
+                   - `avicull organize-all --view-only`:\n\
+                     Re-renders all child directory catalogs and rolls up the parent catalog in seconds\n\
+                     without re-scanning files or running neural networks.\n"
+            }
+
             HelpTopic::All => {
                 "=======================================================================\n\
                  AVICULL — LOCAL AI BIRD PHOTO ORGANIZER (MACOS APPLE SILICON)\n\
@@ -256,6 +309,7 @@ impl HelpTopic {
                    scan          Pre-flight audit of volume hardlink support and location resolution\n\
                    organize      Scan photo archive, run AI classification, rename in-place or link\n\
                    organize-all  Batch process trip subdirectories and generate aggregated catalog\n\
+                   render-catalog Regenerate HTML catalog view directly from SQLite manifest (alias: catalog)\n\
                    relink        Re-materialize output hard links from cached SQLite database\n\
                    clean         Losslessly revert in-place renames or unlink generated hard links\n\
                    report        Export species summary counts and review manifests\n\
@@ -269,6 +323,7 @@ impl HelpTopic {
                    --output <DIR>           Target output directory (defaults to <INPUT>/birds_hierarchy in hierarchy mode)\n\
                    --mode <MODE>            Organization mode: 'in-place' (default, untouched files), 'in-place-rename', or 'hierarchy'\n\
                    --dry-run                Calculate classifications without renaming files or creating hard links\n\
+                   --view-only              Regenerate HTML catalog directly from SQLite manifest without re-scanning or running ML inference\n\
                    --location <NAME>        Override location name or coordinates for photos lacking GPS\n\
                    --min-confidence <FLOAT> Score threshold for Confirmed vs Needs Review (default: 0.65)\n\
                    --min-detect <FLOAT>     YOLO11 bird detection floor (default: 0.25)\n\
@@ -277,7 +332,7 @@ impl HelpTopic {
                    --reclassify             Force full neural re-detection and re-classification from scratch across the entire archive\n\
                    --no-prompt              Run non-interactively without prompting\n\n\
                  Run 'avicull help <TOPIC>' for deep dives on:\n\
-                   quickstart, organize, scan, invariants, models, update\n"
+                   quickstart, organize, scan, invariants, models, update, mount, catalog\n"
             }
         }
     }
@@ -312,6 +367,10 @@ pub fn list_topics() -> Vec<(&'static str, &'static str)> {
             "Virtual WebDAV mount and remote S3 storage streaming engine",
         ),
         (
+            "catalog",
+            "Decoupled catalog view generation and instant --view-only updates",
+        ),
+        (
             "all",
             "Comprehensive user manual and complete CLI reference",
         ),
@@ -332,7 +391,7 @@ pub fn render_help(topic: Option<HelpTopic>) -> String {
     if chosen != HelpTopic::All {
         out.push_str("-----------------------------------------------------------------------\n");
         out.push_str(
-            "Available topics: quickstart, organize, scan, invariants, models, update, mount, all\n",
+            "Available topics: quickstart, organize, scan, invariants, models, update, mount, catalog, all\n",
         );
         out.push_str("Run 'avicull help <TOPIC>' to view a specific guide.\n\n");
     }

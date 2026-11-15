@@ -334,6 +334,15 @@ fn main() -> Result<()> {
         Commands::OrganizeAll(all_args) => {
             avicull::organizer::run_organize_all(&all_args)?;
         }
+
+        Commands::RenderCatalog(args) => {
+            println!("== avicull render-catalog ==");
+            let catalog_path = avicull::organizer::render_catalog_standalone(&args)?;
+            println!(
+                "✓ Successfully rendered HTML catalog at '{}'",
+                catalog_path.display()
+            );
+        }
     }
 
     Ok(())

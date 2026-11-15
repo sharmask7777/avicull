@@ -97,6 +97,7 @@ pub fn build_child_organize_args(child_dir: &Path, args: &OrganizeAllArgs) -> Or
         dry_run: false,
         force: args.force,
         reclassify: false,
+        view_only: args.view_only,
         min_confidence: args.min_confidence,
         min_detect: args.min_detect,
         burst_window_ms: 3000,
@@ -130,6 +131,7 @@ pub fn build_parent_organize_args(args: &OrganizeAllArgs) -> OrganizeArgs {
         dry_run: false,
         force: args.force,
         reclassify: false,
+        view_only: args.view_only,
         min_confidence: args.min_confidence,
         min_detect: args.min_detect,
         burst_window_ms: 3000,
@@ -197,7 +199,7 @@ pub fn run_organize_all(args: &OrganizeAllArgs) -> Result<()> {
             child_dir.display()
         );
 
-        if !args.force {
+        if !args.force && !args.view_only {
             match crate::scanner::probe::probe_directory_change_status(child_dir) {
                 Ok(crate::scanner::probe::DirectoryProbeResult::UpToDate) => {
                     println!(

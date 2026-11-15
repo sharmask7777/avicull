@@ -622,6 +622,20 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
 
     let db = ManifestDb::open_or_create(&db_path)?;
 
+    if args.view_only {
+        let cat_path = crate::organizer::regenerate_catalog_from_manifest(
+            &db,
+            &operating_root,
+            None,
+            Some(args.mode),
+        )?;
+        println!(
+            "✓ View-only update complete. Regenerated catalog at '{}'",
+            cat_path.display()
+        );
+        return Ok(());
+    }
+
     let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
     if !args.force && !args.reclassify && catalog_path.exists() {
         if let Ok(Some(saved_sig)) = db.get_directory_sync_state(".") {

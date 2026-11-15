@@ -39,6 +39,10 @@ pub enum Commands {
     #[command(name = "organize-all")]
     OrganizeAll(OrganizeAllArgs),
 
+    /// Regenerate or export standalone HTML catalog view directly from SQLite manifest
+    #[command(name = "render-catalog", alias = "catalog")]
+    RenderCatalog(RenderCatalogArgs),
+
     /// Re-materialize hard links from cached SQLite predictions without re-running ML inference
     Relink(RelinkArgs),
 
@@ -220,6 +224,10 @@ pub struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     pub reclassify: bool,
 
+    /// Regenerate HTML catalog view directly from SQLite manifest without re-scanning or running ML inference
+    #[arg(long, default_value_t = false)]
+    pub view_only: bool,
+
     /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
     #[arg(long, default_value_t = 0.65)]
     pub min_confidence: f32,
@@ -308,6 +316,10 @@ pub struct OrganizeAllArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
+    /// Regenerate all child and parent HTML catalogs directly from SQLite manifests without re-scanning or running ML inference
+    #[arg(long, default_value_t = false)]
+    pub view_only: bool,
+
     /// Enable verbose progress reporting
     #[arg(short, long, default_value_t = false)]
     pub verbose: bool,
@@ -339,6 +351,30 @@ pub struct OrganizeAllArgs {
     /// YOLO11 bird detection confidence floor (default: 0.25)
     #[arg(long, default_value_t = 0.25)]
     pub min_detect: f32,
+}
+
+/// Arguments for the `render-catalog` (alias `catalog`) standalone view generator subcommand.
+#[derive(Args, Debug, Clone)]
+pub struct RenderCatalogArgs {
+    /// Source directory containing avicull_catalog_files/manifest.sqlite
+    #[arg(short, long, default_value = ".")]
+    pub input: PathBuf,
+
+    /// Destination path for catalog HTML (defaults to <INPUT>/catalog.html)
+    #[arg(short, long)]
+    pub output_file: Option<PathBuf>,
+
+    /// Custom gallery title display name
+    #[arg(short, long)]
+    pub trip_name: Option<String>,
+
+    /// Organization mode override
+    #[arg(short, long)]
+    pub mode: Option<OrganizationMode>,
+
+    /// Omit base64 micro-thumbnails to minimize HTML file size
+    #[arg(long, default_value_t = false)]
+    pub no_thumbnails: bool,
 }
 
 #[derive(Args, Debug)]

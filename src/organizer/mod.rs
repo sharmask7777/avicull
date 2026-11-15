@@ -704,6 +704,39 @@ pub fn regenerate_catalog_from_manifest(
     mode: Option<OrganizationMode>,
 ) -> Result<PathBuf> {
     let catalog_path = operating_root.join(crate::catalog::DEFAULT_CATALOG_FILENAME);
+    regenerate_catalog_from_manifest_ext(
+        db,
+        operating_root,
+        &catalog_path,
+        trip_name,
+        mode,
+        crate::catalog::ThumbnailEmbeddingPolicy::Auto,
+    )
+}
+
+/// Regenerates an HTML catalog directly from the SQLite manifest database with an explicit destination path and thumbnail policy.
+///
+/// # Arguments
+/// * `db` - Open `ManifestDb` instance containing bundle decisions and records.
+/// * `operating_root` - Root directory where asset paths and preview links resolve.
+/// * `catalog_path` - Exact destination path for the generated `catalog.html`.
+/// * `trip_name` - Optional display name for the trip header in the catalog.
+/// * `mode` - Organization mode; if `None`, looks up the latest run mode from `db`.
+/// * `policy` - Policy governing thumbnail base64 embedding.
+///
+/// # Returns
+/// The destination path of the generated HTML catalog.
+///
+/// # Errors
+/// Returns `Err` if SQLite read operations or catalog HTML emission fail.
+pub fn regenerate_catalog_from_manifest_ext(
+    db: &ManifestDb,
+    operating_root: &Path,
+    catalog_path: &Path,
+    trip_name: Option<&str>,
+    mode: Option<OrganizationMode>,
+    policy: crate::catalog::ThumbnailEmbeddingPolicy,
+) -> Result<PathBuf> {
     let effective_mode = match mode {
         Some(m) => m,
         None => db
@@ -834,12 +867,87 @@ pub fn regenerate_catalog_from_manifest(
         ));
     }
 
-    crate::catalog::generate_html_catalog(
+    crate::catalog::generate_html_catalog_with_policy(
         effective_trip_name,
         &catalog_items,
         effective_mode,
-        &catalog_path,
+        catalog_path,
+        policy,
     )?;
 
-    Ok(catalog_path)
+    Ok(catalog_path.to_path_buf())
+}
+
+/// Standalone runner for the `render-catalog` (alias `catalog`) command.
+///
+/// Directly reads predictions, decisions, and overrides from an existing `manifest.sqlite`
+/// and generates or refreshes the HTML photo catalog without performing filesystem directory
+/// scans or executing neural network inference.
+///
+/// # Arguments
+/// * `args` - Standalone catalog rendering arguments specifying source, target output, and options.
+///
+/// # Returns
+/// The absolute or relative destination path of the generated HTML catalog.
+///
+/// # Errors
+/// Returns an error if the manifest database cannot be located or catalog emission fails.
+pub fn render_catalog_standalone(args: &crate::cli::RenderCatalogArgs) -> Result<PathBuf> {
+    let db_path = if args.input.is_file() {
+        args.input.clone()
+    } else {
+        let unhidden = args
+            .input
+            .join(crate::catalog::CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let legacy = args
+            .input
+            .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
+            .join("manifest.sqlite");
+        let direct = args.input.join("manifest.sqlite");
+        if unhidden.exists() {
+            unhidden
+        } else if legacy.exists() {
+            legacy
+        } else if direct.exists() {
+            direct
+        } else {
+            crate::catalog::resolve_manifest_db_path(None, None, Some(&args.input), args.mode)
+        }
+    };
+
+    if !db_path.exists() {
+        anyhow::bail!(
+            "Manifest database not found at '{}'. Run 'avicull organize' first.",
+            db_path.display()
+        );
+    }
+
+    let db = ManifestDb::open(&db_path)?;
+
+    let operating_root = if args.input.is_file() {
+        crate::catalog::resolve_operating_root(&db_path)
+    } else {
+        args.input.clone()
+    };
+
+    let catalog_path = match &args.output_file {
+        Some(custom) => custom.clone(),
+        None => operating_root.join(DEFAULT_CATALOG_FILENAME),
+    };
+
+    let policy = if args.no_thumbnails {
+        crate::catalog::ThumbnailEmbeddingPolicy::Suppressed
+    } else {
+        crate::catalog::ThumbnailEmbeddingPolicy::Auto
+    };
+
+    regenerate_catalog_from_manifest_ext(
+        &db,
+        &operating_root,
+        &catalog_path,
+        args.trip_name.as_deref(),
+        args.mode,
+        policy,
+    )
 }

@@ -72,6 +72,7 @@ mod test_reconcile_moves;
 mod test_regional_prior;
 mod test_remote_cache;
 mod test_remote_opendal;
+mod test_render_catalog_cli;
 mod test_scanner;
 mod test_spec_conformance;
 mod test_standalone_inference_resolution;
