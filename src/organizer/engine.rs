@@ -32,7 +32,7 @@ use crate::types::{
     AssetBundle, AssetCategory, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode,
     RoutingTier,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use image::DynamicImage;
 use std::fs::File;
 use std::io::{IsTerminal, Read};
@@ -633,6 +633,11 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             "✓ View-only update complete. Regenerated catalog at '{}'",
             cat_path.display()
         );
+        return Ok(());
+    }
+
+    if args.reclassify && args.reclassify_mode == crate::cli::ReclassifyMode::Fast {
+        reclassify_from_cached_embeddings(&db, &operating_root, args)?;
         return Ok(());
     }
 
@@ -1537,6 +1542,135 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             );
         }
     }
+
+    Ok(())
+}
+
+/// Re-evaluates species assignments, priors, and confidence thresholds directly from
+/// cached predictions and stored visual embeddings in SQLite without touching raw files
+/// or executing neural network models.
+///
+/// # Arguments
+/// * `db` - Active manifest database connection.
+/// * `operating_root` - Root directory where `catalog.html` and assets reside.
+/// * `args` - Organize arguments containing thresholds (`min_confidence`), burst window, and mode.
+///
+/// # Errors
+/// Returns an error if reading from SQLite fails, burst consensus smoothing fails, or
+/// writing updated decisions or HTML catalog fails.
+pub fn reclassify_from_cached_embeddings(
+    db: &ManifestDb,
+    operating_root: &Path,
+    args: &crate::cli::OrganizeArgs,
+) -> Result<()> {
+    let existing_records = db.get_all_bundles(None)?;
+    if existing_records.is_empty() {
+        bail!(
+            "No existing bundles found in manifest database at '{}' to reclassify.",
+            operating_root.display()
+        );
+    }
+
+    println!(
+        "⚡ Fast software re-classification: re-scoring {} bundles from SQLite...",
+        existing_records.len()
+    );
+
+    // Retrieve stored visual embeddings
+    let queried_decisions = db.query_decisions().unwrap_or_default();
+    let mut embedding_map: std::collections::HashMap<String, Vec<f32>> =
+        std::collections::HashMap::new();
+    for (dec, _cat, emb_opt) in queried_decisions {
+        if let Some(emb) = emb_opt {
+            embedding_map.insert(dec.bundle_id, emb);
+        }
+    }
+
+    // Build intermediate ClassifiedBundleItem structures
+    let mut classified_items = Vec::with_capacity(existing_records.len());
+    for (dec, bundle) in &existing_records {
+        let posteriors: Vec<(String, f32)> = dec
+            .top_predictions
+            .iter()
+            .map(|p| (p.taxon_id.clone(), p.combined_score))
+            .collect();
+        let emb = embedding_map
+            .get(&bundle.bundle_id)
+            .cloned()
+            .unwrap_or_default();
+
+        classified_items.push(ClassifiedBundleItem {
+            bundle_id: bundle.bundle_id.clone(),
+            trip_folder: bundle.trip_folder_name.clone(),
+            capture_timestamp_ms: bundle.capture_timestamp_ms,
+            detection_confidence: dec.detection_confidence,
+            bbox_norm: dec.bbox_xyxy_norm,
+            embedding: emb,
+            top_predictions: dec.top_predictions.clone(),
+            posteriors,
+        });
+    }
+
+    // Re-evaluate burst consensus smoothing with updated min_confidence threshold
+    let conf_mode: ConfidenceMode = args.confidence_mode.parse().map_err(|e| anyhow!("{e}"))?;
+    let updated_decisions = smooth_burst_consensus(
+        &classified_items,
+        args.burst_window_ms,
+        0.80,
+        conf_mode,
+        args.min_confidence,
+    );
+
+    let embeddings_by_id: std::collections::HashMap<&str, &[f32]> = classified_items
+        .iter()
+        .filter(|item| item.embedding.len() == 512 && item.embedding.iter().any(|&v| v != 0.0))
+        .map(|item| (item.bundle_id.as_str(), item.embedding.as_slice()))
+        .collect();
+
+    // Persist updated decisions in SQLite
+    for decision in &updated_decisions {
+        let emb = embeddings_by_id.get(decision.bundle_id.as_str()).copied();
+        let category = resolve_category_for_decision(decision);
+        db.insert_bundle_decision(decision, &category, emb)?;
+    }
+
+    let effective_mode = match db.get_latest_run_mode()? {
+        Some(saved_mode) if args.mode == OrganizationMode::InPlace => saved_mode,
+        _ => args.mode,
+    };
+
+    // Regenerate catalog.html view
+    let trip_name = args
+        .input
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Avian Photos");
+
+    crate::organizer::regenerate_catalog_from_manifest(
+        db,
+        operating_root,
+        Some(trip_name),
+        Some(effective_mode),
+    )?;
+
+    if let Ok(sig) = crate::scanner::probe::compute_directory_signature(&args.input) {
+        let _ = db.set_directory_sync_state(".", &sig);
+    }
+
+    let confirmed = updated_decisions
+        .iter()
+        .filter(|d| d.routing_tier == RoutingTier::ConfirmedSpecies)
+        .count();
+    let review = updated_decisions
+        .iter()
+        .filter(|d| d.routing_tier == RoutingTier::NeedsReview)
+        .count();
+    let no_bird = updated_decisions
+        .iter()
+        .filter(|d| d.routing_tier == RoutingTier::NoBirdDetected)
+        .count();
+
+    println!("✓ Done! Confirmed: {confirmed}, Needs Review: {review}, No Bird: {no_bird}.");
 
     Ok(())
 }

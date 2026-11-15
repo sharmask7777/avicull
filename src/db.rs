@@ -2797,8 +2797,33 @@ pub fn insert_bundle_decision(
 
     if table_exists(conn, "bundles")? {
         let _ = conn.execute(
-            "UPDATE bundles SET category = ?1, visual_embedding = COALESCE(?2, visual_embedding) WHERE bundle_id = ?3",
-            params![category.as_str(), blob_bytes, decision.bundle_id],
+            "UPDATE bundles SET
+                category = ?1,
+                visual_embedding = COALESCE(?2, visual_embedding),
+                routing_tier = ?3,
+                final_conf = ?4,
+                frame_conf = ?5,
+                burst_id = ?6,
+                assigned_species_slug = ?7,
+                is_user_override = ?8,
+                detection_conf = ?9,
+                bbox_json = ?10,
+                top5_predictions_json = ?11
+             WHERE bundle_id = ?12",
+            params![
+                category.as_str(),
+                blob_bytes,
+                routing_tier_str,
+                decision.final_confidence,
+                decision.frame_confidence,
+                decision.burst_id,
+                decision.assigned_species_slug(),
+                i32::from(decision.is_user_override),
+                decision.detection_confidence,
+                bbox_json,
+                top5_json,
+                decision.bundle_id,
+            ],
         );
     }
 

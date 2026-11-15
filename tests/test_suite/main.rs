@@ -48,6 +48,7 @@ mod test_dual_thumbnails;
 mod test_e2e_location_workflow;
 mod test_e2e_mock_pipeline;
 mod test_extensible_taxa_guardrails;
+mod test_fast_reclassify;
 mod test_gazetteer;
 mod test_geo;
 mod test_help;

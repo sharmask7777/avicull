@@ -343,6 +343,12 @@ fn main() -> Result<()> {
                 catalog_path.display()
             );
         }
+
+        Commands::Reclassify(args) => {
+            println!("== avicull reclassify ==");
+            let organize_args: avicull::cli::OrganizeArgs = args.into();
+            avicull::organizer::run_organize(&organize_args)?;
+        }
     }
 
     Ok(())
