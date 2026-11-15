@@ -44,7 +44,7 @@ fn find_linked_file(dir: &Path, stem: &str, ext: &str) -> Option<PathBuf> {
             let file_name = entry.file_name();
             let lossy = file_name.to_string_lossy();
 
-            if lossy.starts_with('.') {
+            if lossy.starts_with('.') || lossy == avicull::CATALOG_FILES_DIR {
                 continue;
             }
 
@@ -433,7 +433,7 @@ fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
     let _ = fs::copy(&catalog_html, mock_run_target.join("bird_catalog.html"));
 
     // 5. Manifest DB and visual embeddings verification
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(db_path.exists(), "Manifest SQLite must exist");
     let conn = Connection::open(&db_path).expect("open manifest sqlite");
 

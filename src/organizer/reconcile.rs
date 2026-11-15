@@ -51,7 +51,7 @@ pub fn reconcile_manual_disk_moves(
         .into_iter()
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
-            if name.starts_with('.') || name == "@eaDir" || name.ends_with(".photoslibrary") {
+            if crate::scanner::should_skip_dir(&name) {
                 return false;
             }
             if entry.path() != can_output && name == "birds_hierarchy" {
@@ -412,7 +412,7 @@ pub fn reconcile_inplace_manual_renames(
         .into_iter()
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
-            if name.starts_with('.') || name == "@eaDir" || name.ends_with(".photoslibrary") {
+            if crate::scanner::should_skip_dir(&name) {
                 return false;
             }
             if entry.path() != can_operating_root && name == "birds_hierarchy" {

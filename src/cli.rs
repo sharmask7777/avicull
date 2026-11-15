@@ -150,7 +150,7 @@ pub struct LocationArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/avicull_catalog_files/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 
@@ -347,7 +347,7 @@ pub struct RelinkArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -374,7 +374,7 @@ pub struct CleanArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -397,7 +397,7 @@ pub struct ReportArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -442,7 +442,7 @@ pub struct CorrectArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/avicull_catalog_files/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 
