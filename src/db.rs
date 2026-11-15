@@ -292,6 +292,14 @@ impl ManifestDb {
                 updated_at INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS directory_sync_state (
+                path_key TEXT PRIMARY KEY,
+                max_mtime_secs INTEGER NOT NULL,
+                total_entry_count INTEGER NOT NULL,
+                dir_node_count INTEGER NOT NULL,
+                last_scanned_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
@@ -1424,6 +1432,76 @@ impl ManifestDb {
         conn.execute(
             "DELETE FROM skipped_directory_locations WHERE path_key = ?1",
             params![path_key],
+        )?;
+        Ok(())
+    }
+
+    /// Retrieves the persisted directory signature for the given `path_key` (typically `"."` for trip root).
+    ///
+    /// # Arguments
+    /// * `path_key` - Key representing the directory path (e.g. `"."`).
+    ///
+    /// # Returns
+    /// `Ok(Some(DirectorySignature))` if a record exists, `Ok(None)` if no record found.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_directory_sync_state(
+        &self,
+        path_key: &str,
+    ) -> Result<Option<crate::scanner::probe::DirectorySignature>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT max_mtime_secs, total_entry_count, dir_node_count
+             FROM directory_sync_state WHERE path_key = ?1",
+        )?;
+        let mut rows = stmt.query(params![path_key])?;
+        if let Some(row) = rows.next()? {
+            let max_mtime_secs: i64 = row.get(0)?;
+            let total_entry_count: i64 = row.get(1)?;
+            let dir_node_count: i64 = row.get(2)?;
+            Ok(Some(crate::scanner::probe::DirectorySignature {
+                max_mtime_secs,
+                total_entry_count: total_entry_count as u64,
+                dir_node_count: dir_node_count as u64,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Persists or updates the directory signature for the given `path_key`.
+    ///
+    /// # Arguments
+    /// * `path_key` - Key representing the directory path (e.g. `"."`).
+    /// * `sig` - Composite directory signature.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn set_directory_sync_state(
+        &self,
+        path_key: &str,
+        sig: &crate::scanner::probe::DirectorySignature,
+    ) -> Result<()> {
+        let conn = self.lock_conn()?;
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            r#"
+            INSERT INTO directory_sync_state (path_key, max_mtime_secs, total_entry_count, dir_node_count, last_scanned_at)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(path_key) DO UPDATE SET
+                max_mtime_secs = excluded.max_mtime_secs,
+                total_entry_count = excluded.total_entry_count,
+                dir_node_count = excluded.dir_node_count,
+                last_scanned_at = excluded.last_scanned_at
+            "#,
+            params![
+                path_key,
+                sig.max_mtime_secs,
+                sig.total_entry_count as i64,
+                sig.dir_node_count as i64,
+                now,
+            ],
         )?;
         Ok(())
     }

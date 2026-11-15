@@ -622,6 +622,26 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
 
     let db = ManifestDb::open_or_create(&db_path)?;
 
+    let catalog_path = operating_root.join(DEFAULT_CATALOG_FILENAME);
+    if !args.force && !args.reclassify && catalog_path.exists() {
+        if let Ok(Some(saved_sig)) = db.get_directory_sync_state(".") {
+            if let Ok(current_sig) = crate::scanner::probe::compute_directory_signature(&args.input)
+            {
+                let mode_matches = db
+                    .get_latest_run_mode()
+                    .unwrap_or(None)
+                    .is_none_or(|m| m == args.mode);
+                if current_sig == saved_sig && mode_matches {
+                    println!(
+                        "⚡ Directory '{}' is already up to date (unchanged signature). Skipping.",
+                        args.input.display()
+                    );
+                    return Ok(());
+                }
+            }
+        }
+    }
+
     // Discover and import child manifests from subdirectories if any exist
     if let Ok(child_manifests) = crate::scanner::discover_child_manifests(&args.input) {
         for (child_path, child_rel_dir) in child_manifests {
@@ -961,6 +981,10 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
             println!(
                 "Tip: {unclassified_count} cached photos have no bird detected. Pass `--reclassify` to re-run neural detection and classification."
             );
+        }
+
+        if let Ok(sig) = crate::scanner::probe::compute_directory_signature(&args.input) {
+            let _ = db.set_directory_sync_state(".", &sig);
         }
 
         println!(
@@ -1460,6 +1484,9 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
         catalog_path.display()
     );
     generate_html_catalog(trip_name, &catalog_items, args.mode, &catalog_path)?;
+
+    let sig = crate::scanner::probe::compute_directory_signature(&args.input)?;
+    db.set_directory_sync_state(".", &sig)?;
 
     let confirmed = decisions
         .iter()

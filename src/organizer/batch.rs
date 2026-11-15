@@ -190,6 +190,36 @@ pub fn run_organize_all(args: &OrganizeAllArgs) -> Result<()> {
             total_count,
             child_dir.display()
         );
+
+        if !args.force {
+            match crate::scanner::probe::probe_directory_change_status(child_dir) {
+                Ok(crate::scanner::probe::DirectoryProbeResult::UpToDate) => {
+                    println!(
+                        "  ⚡ Subdirectory '{}' is already up to date (unchanged signature). Skipping.",
+                        child_dir.display()
+                    );
+                    successful_count += 1;
+                    continue;
+                }
+                Ok(crate::scanner::probe::DirectoryProbeResult::RequiresProcessing(ref reason)) => {
+                    if args.verbose {
+                        println!(
+                            "  Subdirectory '{}' requires processing: {reason}",
+                            child_dir.display()
+                        );
+                    }
+                }
+                Err(e) => {
+                    if args.verbose {
+                        eprintln!(
+                            "  Warning: probe failed for '{}': {e}. Proceeding with organize.",
+                            child_dir.display()
+                        );
+                    }
+                }
+            }
+        }
+
         let child_args = build_child_organize_args(child_dir, args);
         match run_organize(&child_args) {
             Ok(()) => {

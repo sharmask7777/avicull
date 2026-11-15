@@ -29,6 +29,14 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+pub mod probe;
+
+pub use probe::{
+    compute_directory_signature, probe_directory_change_status,
+    probe_directory_change_status_with_paths, ChangeReason, DirectoryProbeResult,
+    DirectorySignature,
+};
+
 const RAW_EXTS: &[&str] = &[
     "arw", "cr2", "cr3", "nef", "orf", "rw2", "dng", "pef", "srw", "raf",
 ];

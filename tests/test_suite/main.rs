@@ -51,6 +51,7 @@ mod test_gazetteer;
 mod test_geo;
 mod test_help;
 mod test_human_override_preservation;
+mod test_incremental_skip;
 mod test_inplace_catalog;
 mod test_inplace_no_rename;
 mod test_inplace_rename;
