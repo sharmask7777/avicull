@@ -44,6 +44,7 @@ mod test_db;
 mod test_delta_catalog_thumbnail_cache;
 mod test_detector;
 mod test_diversity_classification;
+mod test_dual_thumbnails;
 mod test_e2e_location_workflow;
 mod test_e2e_mock_pipeline;
 mod test_extensible_taxa_guardrails;

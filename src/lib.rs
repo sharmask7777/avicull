@@ -63,8 +63,9 @@ pub mod update;
 
 pub use burst::*;
 pub use catalog::{
-    generate_html_catalog, preview_path_and_name, resolve_manifest_db_path, resolve_operating_root,
-    CatalogItem, CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR,
+    generate_html_catalog, generate_html_catalog_with_policy, preview_path_and_name,
+    resolve_manifest_db_path, resolve_operating_root, CatalogItem, ThumbnailEmbeddingPolicy,
+    CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR,
 };
 pub use classifier::*;
 pub use cli::*;

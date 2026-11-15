@@ -397,17 +397,23 @@ pub struct CatalogPayloadItem {
     pub embedded_thumb_data_uri: Option<String>,
     pub is_local: bool,
     pub assigned_species: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scientific_name: Option<String>,
     pub routing_tier: String,
     pub confidence: f32,
+    #[serde(default)]
     pub capture_date: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location_source: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subdirectory: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub companion_files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sidecar_files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub top_predictions: Vec<PayloadPrediction>,
     #[serde(default)]
     pub category: String,
@@ -424,7 +430,56 @@ pub struct PayloadPrediction {
     pub score: f32,
 }
 
-/// Generates a standalone, zero-dependency offline HTML photo catalog.
+/// Policy governing whether base64 micro-thumbnails are embedded directly into catalog HTML.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ThumbnailEmbeddingPolicy {
+    /// Embed base64 micro-thumbnails only for single-trip catalogs (<= 2,500 photos).
+    #[default]
+    Auto,
+    /// Strictly suppress base64 micro-thumbnails (`embedded_thumb_data_uri = None`);
+    /// link `thumb_src` and `preview_url` to `{subdirectory}/avicull_catalog_files/previews/{stem}.jpg`.
+    Suppressed,
+    /// Force base64 micro-thumbnail embedding regardless of archive size.
+    Forced,
+}
+
+impl ThumbnailEmbeddingPolicy {
+    /// Resolves the effective thumbnail policy given total item count.
+    ///
+    /// # Arguments
+    /// * `item_count` - Total number of items in the catalog.
+    ///
+    /// # Returns
+    /// The resolved [`ThumbnailEmbeddingPolicy`] (either `Forced` or `Suppressed`).
+    #[must_use]
+    pub fn resolve(self, item_count: usize) -> Self {
+        match self {
+            Self::Forced => Self::Forced,
+            Self::Suppressed => Self::Suppressed,
+            Self::Auto => {
+                if item_count > 2500 {
+                    Self::Suppressed
+                } else {
+                    Self::Forced
+                }
+            }
+        }
+    }
+
+    /// Whether base64 micro-thumbnails should be embedded.
+    ///
+    /// # Arguments
+    /// * `item_count` - Total number of items in the catalog.
+    ///
+    /// # Returns
+    /// `true` if base64 micro-thumbnails should be embedded, `false` if suppressed.
+    #[must_use]
+    pub fn should_embed(self, item_count: usize) -> bool {
+        matches!(self.resolve(item_count), Self::Forced)
+    }
+}
+
+/// Generates a standalone, zero-dependency offline HTML photo catalog using the default [`ThumbnailEmbeddingPolicy::Auto`].
 ///
 /// # Arguments
 /// * `trip_name` - Descriptive title for the photo archive catalog.
@@ -444,6 +499,37 @@ pub fn generate_html_catalog(
     mode: OrganizationMode,
     output_path: &Path,
 ) -> Result<()> {
+    generate_html_catalog_with_policy(
+        trip_name,
+        items,
+        mode,
+        output_path,
+        ThumbnailEmbeddingPolicy::Auto,
+    )
+}
+
+/// Generates a standalone, zero-dependency offline HTML photo catalog with an explicit [`ThumbnailEmbeddingPolicy`].
+///
+/// # Arguments
+/// * `trip_name` - Descriptive title for the photo archive catalog.
+/// * `items` - Slice of catalog items to include in the visual gallery.
+/// * `mode` - Active organization mode (`InPlace`, `InPlaceRename`, or `HierarchicalHardlinkHierarchy`).
+/// * `output_path` - Target destination path for `catalog.html`.
+/// * `policy` - Thumbnail embedding policy ([`ThumbnailEmbeddingPolicy::Auto`], [`ThumbnailEmbeddingPolicy::Suppressed`], or [`ThumbnailEmbeddingPolicy::Forced`]).
+///
+/// # Returns
+/// `Ok(())` on successful catalog creation, or an `anyhow::Result` error if output directories
+/// cannot be created or catalog template generation fails.
+///
+/// # Errors
+/// Returns an error if filesystem directory creation fails or temporary file writes fail.
+pub fn generate_html_catalog_with_policy(
+    trip_name: &str,
+    items: &[CatalogItem],
+    mode: OrganizationMode,
+    output_path: &Path,
+    policy: ThumbnailEmbeddingPolicy,
+) -> Result<()> {
     let output_root = output_path.parent().unwrap_or(Path::new("."));
     if !output_root.as_os_str().is_empty() && !output_root.exists() {
         fs::create_dir_all(output_root).with_context(|| {
@@ -453,6 +539,8 @@ pub fn generate_html_catalog(
             )
         })?;
     }
+
+    let effective_policy = policy.resolve(items.len());
 
     // Check if a manifest database exists in output_root/avicull_catalog_files/manifest.sqlite or .avicull/manifest.sqlite
     let unhidden_db = output_root.join(CATALOG_FILES_DIR).join("manifest.sqlite");
@@ -472,10 +560,14 @@ pub fn generate_html_catalog(
         None
     };
 
-    let cached_thumbnails = manifest_db
-        .as_ref()
-        .and_then(|db| db.get_all_thumbnails().ok())
-        .unwrap_or_default();
+    let cached_thumbnails = if matches!(effective_policy, ThumbnailEmbeddingPolicy::Suppressed) {
+        std::collections::HashMap::new()
+    } else {
+        manifest_db
+            .as_ref()
+            .and_then(|db| db.get_all_thumbnails().ok())
+            .unwrap_or_default()
+    };
 
     // Pre-scan existing previews directory once upfront to collapse 1000s of NFS stat RPCs into 1 readdir call
     let previews_dir = output_root.join(CATALOG_FILES_DIR).join("previews");
@@ -497,7 +589,13 @@ pub fn generate_html_catalog(
     let payload_results: Vec<(CatalogPayloadItem, Option<(String, String)>)> = items
         .par_iter()
         .map(|item| {
-            build_catalog_payload_item(item, output_root, &existing_previews, &cached_thumbnails)
+            build_catalog_payload_item(
+                item,
+                output_root,
+                &existing_previews,
+                &cached_thumbnails,
+                effective_policy,
+            )
         })
         .collect();
 
@@ -768,6 +866,7 @@ fn build_catalog_payload_item(
     output_root: &Path,
     existing_previews: &HashSet<String>,
     cached_thumbnails: &std::collections::HashMap<String, String>,
+    policy: ThumbnailEmbeddingPolicy,
 ) -> (CatalogPayloadItem, Option<(String, String)>) {
     let active_primary = item.active_primary_path();
 
@@ -779,39 +878,87 @@ fn build_catalog_payload_item(
         }
     });
 
-    let preview_url =
-        resolve_or_extract_preview(item, output_root, Some(existing_previews), is_local);
-    let persistent_thumb = ensure_persistent_thumbnail_with_previews(
-        item,
-        output_root,
-        Some(existing_previews),
-        is_local,
-    );
-    let thumb_src = persistent_thumb
-        .unwrap_or_else(|| format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem));
+    let (preview_url, thumb_src, embedded_thumb_data_uri, new_thumb_entry) = match policy {
+        ThumbnailEmbeddingPolicy::Suppressed => {
+            let rel_preview = if let Some(ref sub) = item.subdirectory {
+                let unhidden = format!(
+                    "{sub}/{CATALOG_FILES_DIR}/previews/{}.jpg",
+                    item.original_stem
+                );
+                let legacy = format!(
+                    "{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{}.jpg",
+                    item.original_stem
+                );
+                if !output_root.join(&unhidden).exists() && output_root.join(&legacy).exists() {
+                    legacy
+                } else {
+                    unhidden
+                }
+            } else {
+                let unhidden = format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem);
+                let legacy = format!(
+                    "{LEGACY_CATALOG_FILES_DIR}/previews/{}.jpg",
+                    item.original_stem
+                );
+                if !output_root.join(&unhidden).exists() && output_root.join(&legacy).exists() {
+                    legacy
+                } else {
+                    unhidden
+                }
+            };
+            (rel_preview.clone(), rel_preview, None, None)
+        }
+        ThumbnailEmbeddingPolicy::Forced | ThumbnailEmbeddingPolicy::Auto => {
+            let preview_url =
+                resolve_or_extract_preview(item, output_root, Some(existing_previews), is_local);
+            let persistent_thumb = ensure_persistent_thumbnail_with_previews(
+                item,
+                output_root,
+                Some(existing_previews),
+                is_local,
+            );
+            let thumb_src =
+                persistent_thumb.unwrap_or_else(|| match item.subdirectory.as_deref() {
+                    Some(sub) if !sub.is_empty() && sub != "." => {
+                        format!(
+                            "{sub}/{CATALOG_FILES_DIR}/previews/{}.jpg",
+                            item.original_stem
+                        )
+                    }
+                    _ => format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem),
+                });
 
-    let (embedded_thumb_data_uri, new_thumb_entry) =
-        if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
-            (Some(cached_uri.clone()), None)
-        } else if item
-            .relative_preview_path
-            .as_deref()
-            .is_some_and(|p| p.starts_with("data:image/"))
-        {
-            (item.relative_preview_path.clone(), None)
-        } else if let Some(fresh_uri) = generate_base64_micro_thumbnail_with_previews(
-            item,
-            output_root,
-            Some(existing_previews),
-            is_local,
-        ) {
+            let (embedded_thumb_data_uri, new_thumb_entry) =
+                if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
+                    (Some(cached_uri.clone()), None)
+                } else if item
+                    .relative_preview_path
+                    .as_deref()
+                    .is_some_and(|p| p.starts_with("data:image/"))
+                {
+                    (item.relative_preview_path.clone(), None)
+                } else if let Some(fresh_uri) = generate_base64_micro_thumbnail_with_previews(
+                    item,
+                    output_root,
+                    Some(existing_previews),
+                    is_local,
+                ) {
+                    (
+                        Some(fresh_uri.clone()),
+                        Some((item.bundle_id.clone(), fresh_uri)),
+                    )
+                } else {
+                    (None, None)
+                };
+
             (
-                Some(fresh_uri.clone()),
-                Some((item.bundle_id.clone(), fresh_uri)),
+                preview_url,
+                thumb_src,
+                embedded_thumb_data_uri,
+                new_thumb_entry,
             )
-        } else {
-            (None, None)
-        };
+        }
+    };
 
     let current_path_rel = to_relative_string(&item.current_path, output_root);
     let local_src = current_path_rel.clone();
@@ -914,12 +1061,46 @@ fn generate_base64_micro_thumbnail_with_previews(
 ) -> Option<String> {
     // 1. Try reading an existing persistent preview thumbnail if present on disk
     let (preview_name, preview_path) = preview_path_and_name(output_root, &item.original_stem);
+    let legacy_preview_path = output_root
+        .join(LEGACY_CATALOG_FILES_DIR)
+        .join("previews")
+        .join(&preview_name);
 
-    let preview_exists =
-        existing_previews.map_or_else(|| preview_path.exists(), |set| set.contains(&preview_name));
+    let preview_exists = existing_previews.map_or_else(
+        || preview_path.exists() || legacy_preview_path.exists(),
+        |set| set.contains(&preview_name) || preview_path.exists() || legacy_preview_path.exists(),
+    );
 
     let preview_bytes_opt = if preview_exists {
-        fs::read(&preview_path).ok()
+        if preview_path.exists() {
+            fs::read(&preview_path).ok()
+        } else if legacy_preview_path.exists() {
+            fs::read(&legacy_preview_path).ok()
+        } else {
+            None
+        }
+    } else if let Some(sub) = item.subdirectory.as_deref() {
+        if !sub.is_empty() && sub != "." {
+            let child_target = output_root
+                .join(sub)
+                .join(CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            let child_legacy = output_root
+                .join(sub)
+                .join(LEGACY_CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            if child_target.exists() {
+                fs::read(&child_target).ok()
+            } else if child_legacy.exists() {
+                fs::read(&child_legacy).ok()
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -1053,7 +1234,7 @@ fn ensure_persistent_thumbnail_with_previews(
 
     let already_exists = existing_previews.map_or_else(
         || target_file.exists() || legacy_target_file.exists(),
-        |set| set.contains(&preview_name),
+        |set| set.contains(&preview_name) || target_file.exists() || legacy_target_file.exists(),
     );
 
     if already_exists {
@@ -1063,6 +1244,30 @@ fn ensure_persistent_thumbnail_with_previews(
         return Some(format!(
             "{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
         ));
+    }
+
+    // Check if child preview already exists on disk (read-only lookup for rollups / subdirectories)
+    if let Some(sub) = item.subdirectory.as_deref() {
+        if !sub.is_empty() && sub != "." {
+            let child_target = output_root
+                .join(sub)
+                .join(CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            let child_legacy = output_root
+                .join(sub)
+                .join(LEGACY_CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            if child_target.exists() {
+                return Some(format!("{sub}/{CATALOG_FILES_DIR}/previews/{preview_name}"));
+            }
+            if child_legacy.exists() {
+                return Some(format!(
+                    "{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
+                ));
+            }
+        }
     }
 
     if !is_local {
@@ -1185,7 +1390,7 @@ fn resolve_or_extract_preview(
 
     let preview_exists = existing_previews.map_or_else(
         || target_file.exists() || legacy_target_file.exists(),
-        |set| set.contains(&preview_name),
+        |set| set.contains(&preview_name) || target_file.exists() || legacy_target_file.exists(),
     );
 
     if preview_exists {
@@ -1193,6 +1398,28 @@ fn resolve_or_extract_preview(
             return format!("{CATALOG_FILES_DIR}/previews/{preview_name}");
         }
         return format!("{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+    }
+
+    // Check if child preview already exists on disk (read-only lookup for rollups / subdirectories)
+    if let Some(sub) = item.subdirectory.as_deref() {
+        if !sub.is_empty() && sub != "." {
+            let child_target = output_root
+                .join(sub)
+                .join(CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            let child_legacy = output_root
+                .join(sub)
+                .join(LEGACY_CATALOG_FILES_DIR)
+                .join("previews")
+                .join(&preview_name);
+            if child_target.exists() {
+                return format!("{sub}/{CATALOG_FILES_DIR}/previews/{preview_name}");
+            }
+            if child_legacy.exists() {
+                return format!("{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+            }
+        }
     }
 
     // If cloud-evicted or non-local, do NOT eagerly read raw bytes
