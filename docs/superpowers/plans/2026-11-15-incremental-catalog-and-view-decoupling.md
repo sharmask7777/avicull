@@ -199,25 +199,25 @@
 - Modify: `src/main.rs:100-140`
 - Create: `tests/test_suite/test_fast_reclassify.rs`
 
-- [ ] **Step 1 (RED): Write failing test for fast software re-classification**
+- [x] **Step 1 (RED): Write failing test for fast software re-classification**
   Create `tests/test_suite/test_fast_reclassify.rs`. Test:
   - Populate manifest with stored visual embeddings and posteriors.
   - Delete raw image files.
   - Run reclassify with `--reclassify-mode fast --min-confidence 0.80`.
   - Assert species routing tiers update in $< 500\text{ms}$ with 0 RAW reads.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   Run `cargo test --test test_suite test_fast_reclassify` and verify failure.
 
-- [ ] **Step 3 (GREEN): Implement `ReclassifyMode::Fast` software re-scoring**
+- [x] **Step 3 (GREEN): Implement `ReclassifyMode::Fast` software re-scoring**
   Add `ReclassifyMode` enum (`Fast` [default], `Forced`) in `src/cli.rs`.
   Implement `reclassify_from_cached_embeddings` in `src/organizer/engine.rs` / `src/burst.rs`:
   Loads stored embeddings/posteriors from SQLite, re-evaluates Bayesian priors and confidence thresholds, updates `bundle_decisions`, and regenerates `catalog.html`.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   Run `cargo test --test test_suite test_fast_reclassify` and verify pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   Run `git add src/ tests/ && git commit -m "feat(reclassify): implement fast software re-scoring from stored embeddings"`.
 
 ---
