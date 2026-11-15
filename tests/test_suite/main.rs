@@ -62,6 +62,7 @@ mod test_mount_lifecycle;
 mod test_multi_category_correct;
 mod test_organize_all;
 mod test_organizer;
+mod test_parent_rollup;
 mod test_path_parser;
 mod test_portable_deserialization;
 mod test_preview_extractor;
