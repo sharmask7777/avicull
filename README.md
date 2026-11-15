@@ -450,6 +450,66 @@ Key features:
   ```
 - **Dual Thumbnail Strategy**: Single-trip catalogs ($\le 2,500$ photos) embed micro-thumbnails for standalone portability; multi-trip catalogs suppress embedded base64 payloads to keep file sizes $<30\text{ MB}$ with lazy loading (`loading="lazy"` and `decoding="async"`).
 
+### Re-Run Scenarios & Fast-Path Guide for Previously Organized Archives
+
+When you have already run `avicull organize` or `avicull organize-all` on an archive or parent directory, `avicull` provides specialized fast paths depending on what you want to achieve:
+
+| Scenario | Goal | Recommended Command | Network I/O & Speed |
+|---|---|---|---|
+| **1. Added New Photos to Trip Folders** | Incrementally process only new photos and update parent rollup | `avicull organize-all --input /Volumes/photos` | **$<20\text{ms}$ directory probe** skips unchanged trips; processes only new photos; zero RAW reads during parent rollup. |
+| **2. Refresh Parent Rollup View** | Re-sync parent `catalog.html` after manual edits or folder moves | `avicull organize-all --input /Volumes/photos --view-only` | **0 image I/O**; syncs child SQLite manifests and updates root catalog in seconds. |
+| **3. Instant Single-Catalog Re-Render** | Regenerate `catalog.html` for a specific trip from its database | `avicull render-catalog --input /Volumes/photos/Leh`<br>*(alias: `avicull catalog ...`)* | **$<1.5\text{s}$ render**; purely projects HTML from SQLite with zero image decoding. |
+| **4. Fast Threshold & Prior Re-Scoring** | Re-evaluate species classifications without running neural models | `avicull organize-all --input /Volumes/photos --reclassify-mode fast --min-confidence 0.80` | **Pure software re-score** from stored 512-d visual embeddings in SQLite in milliseconds. |
+| **5. Forced Neural Re-Inference** | Re-run full YOLO11 + BioCLIP inference across all raw images | `avicull organize-all --input /Volumes/photos --reclassify-mode forced` | Full neural network execution across all image files. |
+
+#### Scenario Details & Examples:
+
+##### Scenario 1: New Photos Added to One or More Trips
+If you added 50 new RAW files to `/Volumes/photos/Leh 2026/` and leave 10 other trip folders untouched:
+```bash
+avicull organize-all --input /Volumes/photos
+```
+1. `avicull` probes each child folder's directory structure down to depth 8 in $<20\text{ms}$.
+2. Unchanged trip folders are skipped immediately without inspecting or statting their thousands of photos.
+3. Only the new photos in `Leh 2026/` undergo AI detection and classification.
+4. The parent rollup aggregates all child SQLite databases in local `/tmp/` and updates the root `catalog.html` with zero network RAW reads.
+
+##### Scenario 2: View-Only Refresh Across All Trips
+If you manually corrected species or updated trip location waypoints and want to refresh the parent rollup dashboard without scanning photo files:
+```bash
+avicull organize-all --input /Volumes/photos --view-only
+```
+- Bypasses photo scanning and neural inference completely.
+- Reads child SQLite manifests directly, resolves preview paths, and regenerates `<parent>/catalog.html` in seconds.
+
+##### Scenario 3: Instant Standalone Catalog Regeneration
+If you want to re-render `catalog.html` for an individual trip or parent folder:
+```bash
+avicull render-catalog --input /Volumes/photos/Leh
+# Or using the convenient alias:
+avicull catalog --input /Volumes/photos/Leh
+```
+- Decoupled state and view: reads `avicull_catalog_files/manifest.sqlite` and produces a fresh `catalog.html` in $<1.5\text{s}$ with 0 disk image reads.
+
+##### Scenario 4: Fast Software Re-Classification Without Neural Models
+If you modified confidence thresholds or updated regional checklist priors and want to update routing tiers:
+```bash
+# Update parent archive:
+avicull organize-all --input /Volumes/photos --reclassify-mode fast --min-confidence 0.85
+
+# Or update a single trip:
+avicull render-catalog --input /Volumes/photos/Leh --reclassify-mode fast --min-confidence 0.85
+```
+- Re-evaluates species probabilities and routing tiers in pure Rust directly from the 512-d visual embeddings stored in SQLite.
+- Executes in milliseconds across tens of thousands of photos without loading ONNX neural networks.
+
+##### Scenario 5: Forced Neural Network Re-Inference
+If you upgraded neural network weights or want to re-run full deep learning models from scratch:
+```bash
+avicull organize-all --input /Volumes/photos --reclassify-mode forced
+```
+- Forces complete YOLO11 subject detection and BioCLIP classification across all raw camera files, updating stored embeddings and previews.
+
 ### 4. Standalone Offline HTML Photo Catalog (`catalog.html`)
 
 Both in-place and hierarchy organization automatically produce a standalone offline `catalog.html` dashboard located at `<input>/catalog.html` (in in-place mode) or `<output>/catalog.html` (in hierarchy mode). (A `bird_catalog.html` symlink is maintained for backward compatibility).
