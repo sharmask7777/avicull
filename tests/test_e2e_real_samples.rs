@@ -197,7 +197,10 @@ fn test_e2e_real_samples_classification_and_hardlinks() {
         }
 
         // 5. Verify SQLite Manifest Records & Strict Stem-to-Species Mapping
-        let db_path = if output_dir.join("avicull_catalog_files/manifest.sqlite").exists() {
+        let db_path = if output_dir
+            .join("avicull_catalog_files/manifest.sqlite")
+            .exists()
+        {
             output_dir.join("avicull_catalog_files/manifest.sqlite")
         } else {
             output_dir.join(".avicull/manifest.sqlite")
@@ -310,7 +313,10 @@ fn test_e2e_real_samples_classification_and_hardlinks() {
             );
         }
 
-        let db_path = if output_dir.join("avicull_catalog_files/manifest.sqlite").exists() {
+        let db_path = if output_dir
+            .join("avicull_catalog_files/manifest.sqlite")
+            .exists()
+        {
             output_dir.join("avicull_catalog_files/manifest.sqlite")
         } else {
             output_dir.join(".avicull/manifest.sqlite")
