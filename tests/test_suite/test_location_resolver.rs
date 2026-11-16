@@ -23,6 +23,57 @@ fn test_resolve_from_override_distant_coordinates_cutoff() {
 }
 
 #[test]
+fn test_resolve_from_override_google_maps_urls_and_diverse_coordinates() {
+    let engine = GazetteerEngine::load_embedded().unwrap();
+
+    // 1. Google Maps ?q= URL with Leh coordinates
+    let loc_gmaps_q = avicull::location::resolver::resolve_from_override(
+        "https://maps.google.com/?q=34.1526,77.5771",
+        &engine,
+    )
+    .expect("Should parse Google Maps ?q= URL");
+    assert_eq!(loc_gmaps_q.region_code, "IN-LA");
+    assert!((loc_gmaps_q.latitude - 34.1526).abs() < 1e-4);
+    assert!((loc_gmaps_q.longitude - 77.5771).abs() < 1e-4);
+
+    // 2. Google Maps @lat,lon,zoom URL
+    let loc_gmaps_at = avicull::location::resolver::resolve_from_override(
+        "https://www.google.com/maps/place/Leh/@34.1526,77.5771,14z/data=!3m1",
+        &engine,
+    )
+    .expect("Should parse Google Maps @lat,lon URL");
+    assert_eq!(loc_gmaps_at.region_code, "IN-LA");
+
+    // 3. Google search style with degree signs and cardinal directions (34.1526° N, 77.5771° E)
+    let loc_cardinal =
+        avicull::location::resolver::resolve_from_override("34.1526° N, 77.5771° E", &engine)
+            .expect("Should parse cardinal degrees");
+    assert_eq!(loc_cardinal.region_code, "IN-LA");
+
+    // 4. DMS notation (Degrees Minutes Seconds)
+    let loc_dms = avicull::location::resolver::resolve_from_override(
+        "34° 09' 09.36\" N, 77° 34' 37.56\" E",
+        &engine,
+    )
+    .expect("Should parse DMS format");
+    assert_eq!(loc_dms.region_code, "IN-LA");
+
+    // 5. Inverted coordinates: Longitude first if |val1| > 90 (e.g. 100.5771, 13.7563 for Bangkok)
+    let loc_inverted =
+        avicull::location::resolver::resolve_from_override("100.5018, 13.7563", &engine)
+            .expect("Should auto-swap inverted lon, lat when lon > 90");
+    assert!((loc_inverted.latitude - 13.7563).abs() < 1e-3);
+    assert!((loc_inverted.longitude - 100.5018).abs() < 1e-3);
+
+    // 6. Coordinates with South / West negative signs
+    let loc_sw =
+        avicull::location::resolver::resolve_from_override("33.8688° S, 151.2093° E", &engine)
+            .expect("Should parse South latitude");
+    assert!((loc_sw.latitude - (-33.8688)).abs() < 1e-4);
+    assert!((loc_sw.longitude - 151.2093).abs() < 1e-4);
+}
+
+#[test]
 fn test_resolver_with_interactive_input() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("manifest.sqlite");
