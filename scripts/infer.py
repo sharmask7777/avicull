@@ -516,7 +516,7 @@ class AvianInferenceEngine:
             return self.regional_prior_tensors[region_code]
 
         checklist = self.regional_checklists[region_code]
-        weights = [1.0 if sp.get("taxon_id") in checklist else 0.001 for sp in self.taxonomy]
+        weights = [1.0 if sp.get("taxon_id") in checklist else 0.05 for sp in self.taxonomy]
         tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
         self.regional_prior_tensors[region_code] = tensor
         return tensor
@@ -629,8 +629,30 @@ class AvianInferenceEngine:
         crop, det_conf, detections = self.detect_and_crop(img, min_detect=min_detect)
 
         is_fallback_crop = False
+        img_emb: torch.Tensor | None = None
+        all_sims: torch.Tensor | None = None
+
+        if crop is not None:
+            crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
+            with torch.no_grad():
+                crop_emb = self.vision_model(crop_tensor)
+                crop_emb = crop_emb / crop_emb.norm(dim=-1, keepdim=True)
+                crop_sims = (crop_emb @ self.species_embeddings.T)[0]
+                peak_crop_sim = float(crop_sims.max().item())
+
+            # Visual relevance floor:
+            # If peak visual similarity across all 11,000+ species is below 0.23
+            # (or below 0.25 when detection confidence is weak < 0.35), the crop
+            # does not visually represent any biological subject. Reject the crop
+            # as a false positive detector hallucination (e.g. rocks, statues, waterfalls).
+            if peak_crop_sim < 0.23 or (det_conf < 0.35 and peak_crop_sim < 0.25):
+                crop = None
+            else:
+                img_emb = crop_emb
+                all_sims = crop_sims
+
         if crop is None:
-            # Detector fallback: 0 animal/bird objects detected by YOLO
+            # Detector fallback: 0 animals detected (or crop rejected by relevance floor)
             # Embed full frame to distinguish scenery from empty/blurry frames
             full_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
             with torch.no_grad():
@@ -649,7 +671,7 @@ class AvianInferenceEngine:
             # noise do not falsely classify into other genres. Fall back to No Subject.
             non_animal_genres = ("Scenery", "Architecture", "Abstract")
             with torch.no_grad():
-                all_sims = (full_emb @ self.species_embeddings.T)[0]
+                full_sims = (full_emb @ self.species_embeddings.T)[0]
 
             # Evaluate the top candidate scores and peak score per non-animal genre
             genre_top_scores: dict[str, float] = {}
@@ -658,7 +680,7 @@ class AvianInferenceEngine:
                 g_indices = [i for i, sp in enumerate(self.taxonomy) if sp.get("category") == g]
                 if g_indices:
                     k_top = min(2, len(g_indices))
-                    top_vals = torch.topk(all_sims[g_indices], k_top).values
+                    top_vals = torch.topk(full_sims[g_indices], k_top).values
                     genre_top_scores[g] = float(top_vals.mean().item())
                     genre_peak_scores[g] = float(top_vals[0].item())
 
@@ -702,6 +724,7 @@ class AvianInferenceEngine:
             crop = img
             det_conf = best_genre_score
             img_emb = full_emb
+            all_sims = full_sims
             is_fallback_crop = False
             best_cat_name = (
                 best_genre.value if isinstance(best_genre, AssetCategory) else str(best_genre)
@@ -712,10 +735,8 @@ class AvianInferenceEngine:
                 else AssetCategory(anchor_res.category)
             )
         else:
-            crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                img_emb = self.vision_model(crop_tensor)
-                img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+            assert img_emb is not None
+            assert all_sims is not None
 
             # Detect whether YOLO specifically localized a person, mammal or bird
             detected_person = any(det.get("class_id") == COCO_PERSON_CLASS_ID for det in detections)
@@ -725,12 +746,10 @@ class AvianInferenceEngine:
             detected_bird = any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections)
 
             # Avoid centroid dilution: evaluate top candidates directly across all species
-            with torch.no_grad():
-                all_sims = (img_emb @ self.species_embeddings.T)[0]
-                top_sp_idx = int(torch.argmax(all_sims).item())
-                top_sp_cat = self.taxonomy[top_sp_idx].get("category", "Bird")
-                if top_sp_cat not in CANONICAL_CATEGORIES:
-                    top_sp_cat = "Bird"
+            top_sp_idx = int(torch.argmax(all_sims).item())
+            top_sp_cat = self.taxonomy[top_sp_idx].get("category", "Bird")
+            if top_sp_cat not in CANONICAL_CATEGORIES:
+                top_sp_cat = "Bird"
 
             bird_indices = [
                 i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
@@ -830,7 +849,25 @@ class AvianInferenceEngine:
 
             if geo_prior_weight > 0.0 and regional_prior is not None:
                 priors = regional_prior[cat_indices]
-                effective_priors = priors**geo_prior_weight
+                effective_priors = (priors**geo_prior_weight).clone()
+
+                # Visual dominance override (captive zoo / rare vagrant escape):
+                # When a candidate has strong visual confidence (prob >= 0.15) and
+                # is overwhelmingly higher than any in-region species (> 5.0x max in-region),
+                # bypass the geographic penalty so zoo exhibits (e.g. Toucan in Seattle)
+                # or unmistakable vagrants are not overridden by random local noise.
+                top_vis_idx = int(torch.argmax(visual_probs).item())
+                top_vis_prob = float(visual_probs[top_vis_idx].item())
+                in_region_mask = priors >= 0.99
+                max_in_region_prob = (
+                    float(visual_probs[in_region_mask].max().item())
+                    if in_region_mask.any()
+                    else 0.0
+                )
+
+                if top_vis_prob >= 0.15 and top_vis_prob > 5.0 * max_in_region_prob:
+                    effective_priors[top_vis_idx] = 1.0
+
                 posterior_scores = visual_probs * effective_priors
             else:
                 effective_priors = torch.ones_like(visual_probs)
@@ -872,12 +909,13 @@ class AvianInferenceEngine:
                 )
             )
 
-        # Normalize top-5 posterior distribution
+        # Calibrated normalization of top-5 posterior distribution
         score_sum = sum(raw_scores)
         if score_sum > 0:
+            calibration_scale = min(1.0, score_sum / 0.15)
             normalized_predictions = []
             for i, p in enumerate(predictions):
-                norm_score = raw_scores[i] / score_sum
+                norm_score = (raw_scores[i] / score_sum) * calibration_scale
                 normalized_predictions.append(
                     InferencePrediction(
                         species_code=p.species_code,
@@ -899,7 +937,11 @@ class AvianInferenceEngine:
         top1 = predictions[0] if predictions else None
         top1_slug = top1.folder_slug or top1.common_name.replace(" ", "_") if top1 else "Unknown"
         top1_conf = top1.confidence if top1 else 0.0
-        final_conf = top1_conf if top1 and not is_fallback_crop else det_conf
+
+        # Calibrated final confidence:
+        # A cropped animal identification can never be more confident than
+        # the detector's confidence in that crop.
+        final_conf = min(top1_conf, det_conf) if top1 and not is_fallback_crop else det_conf
 
         return {
             "image_path": image_path,

@@ -223,6 +223,11 @@ pub fn smooth_burst_consensus(
                     )
                 });
 
+            let burst_max_det = burst
+                .iter()
+                .map(|b| b.detection_confidence)
+                .fold(0.0f32, f32::max);
+
             // Build decisions for each frame in the burst
             for item in &burst {
                 let frame_conf = item
@@ -241,14 +246,35 @@ pub fn smooth_burst_consensus(
                     ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
                 };
 
-                let routing_tier =
-                    if item.detection_confidence < 0.25 && final_conf < min_confidence {
+                let is_bird = item.category() == AssetCategory::Bird;
+                let is_no_subject = item.category() == AssetCategory::NoSubjectDetected
+                    || assigned_slug == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+                    || assigned_slug == RoutingTier::SENTINEL_NO_BIRD_DETECTED;
+
+                let effective_det = match confidence_mode {
+                    ConfidenceMode::BurstConsensus => burst_max_det,
+                    ConfidenceMode::PerFrame => item.detection_confidence,
+                };
+
+                let routing_tier = if is_no_subject {
+                    RoutingTier::NoBirdDetected
+                } else if is_bird {
+                    if effective_det < 0.35 {
                         RoutingTier::NoBirdDetected
+                    } else if effective_det < 0.50 {
+                        RoutingTier::NeedsReview
                     } else if final_conf >= min_confidence {
                         RoutingTier::ConfirmedSpecies
                     } else {
                         RoutingTier::NeedsReview
-                    };
+                    }
+                } else if effective_det < 0.25 && final_conf < min_confidence {
+                    RoutingTier::NoBirdDetected
+                } else if final_conf >= min_confidence {
+                    RoutingTier::ConfirmedSpecies
+                } else {
+                    RoutingTier::NeedsReview
+                };
 
                 decisions.push(BundleDecision {
                     bundle_id: item.bundle_id.clone(),

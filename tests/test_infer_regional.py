@@ -70,9 +70,9 @@ def test_regional_checklist_loading_and_tensor(mock_models_dir, monkeypatch):
     brakit1_idx = next(i for i, sp in enumerate(engine.taxonomy) if sp["taxon_id"] == "brakit1")
     assert float(ka_tensor[brakit1_idx].item()) == pytest.approx(1.0)
 
-    # Bald Eagle (baleag) should have multiplier 0.001
+    # Bald Eagle (baleag) should have multiplier 0.05 (soft bounded out-of-region penalty)
     baleag_idx = next(i for i, sp in enumerate(engine.taxonomy) if sp["taxon_id"] == "baleag")
-    assert float(ka_tensor[baleag_idx].item()) == pytest.approx(0.001)
+    assert float(ka_tensor[baleag_idx].item()) == pytest.approx(0.05)
 
     # Non-existent region code
     none_tensor = engine.get_regional_prior_tensor("UNKNOWN-REGION")

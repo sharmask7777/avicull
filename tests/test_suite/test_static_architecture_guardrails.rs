@@ -297,3 +297,177 @@ fn test_guardrail_source_code_view_rendering_never_imports_image_scanners() {
         "catalog::template must never call image::open"
     );
 }
+
+#[test]
+fn test_guardrail_detection_confidence_routing_floor() {
+    use avicull::burst::{smooth_burst_consensus, ClassifiedBundleItem};
+    use avicull::types::{ConfidenceMode, RoutingTier, SpeciesPrediction};
+
+    // Construct a bundle with low detection confidence (e.g. 0.27, representing a weak detection on a statue/waterfall)
+    // but high visual score (0.85, manufactured by top-5 normalization or prior)
+    let pred = SpeciesPrediction {
+        taxon_id: "goleag".to_string(),
+        common_name: "Golden Eagle".to_string(),
+        scientific_name: "Aquila chrysaetos".to_string(),
+        folder_slug: "Golden_Eagle".to_string(),
+        visual_prob: 0.85,
+        geo_prior: 1.0,
+        combined_score: 0.85,
+    };
+
+    let item_weak_det = ClassifiedBundleItem {
+        bundle_id: "weak_det_bundle_001".to_string(),
+        trip_folder: "test_trip".to_string(),
+        capture_timestamp_ms: Some(1_000_000),
+        embedding: vec![0.1; 512],
+        detection_confidence: 0.27, // Low detection confidence!
+        bbox_norm: None,
+        top_predictions: vec![pred.clone()],
+        posteriors: vec![("goleag".to_string(), 0.85)],
+    };
+
+    let item_marginal_det = ClassifiedBundleItem {
+        bundle_id: "marginal_det_bundle_002".to_string(),
+        trip_folder: "test_trip".to_string(),
+        capture_timestamp_ms: Some(1_005_000),
+        embedding: vec![0.1; 512],
+        detection_confidence: 0.47, // Marginal detection confidence (< 0.50)
+        bbox_norm: None,
+        top_predictions: vec![pred.clone()],
+        posteriors: vec![("goleag".to_string(), 0.85)],
+    };
+
+    let item_solid_det = ClassifiedBundleItem {
+        bundle_id: "solid_det_bundle_003".to_string(),
+        trip_folder: "test_trip".to_string(),
+        capture_timestamp_ms: Some(1_010_000),
+        embedding: vec![0.1; 512],
+        detection_confidence: 0.88, // Solid bird detection
+        bbox_norm: None,
+        top_predictions: vec![pred],
+        posteriors: vec![("goleag".to_string(), 0.85)],
+    };
+
+    let decisions = smooth_burst_consensus(
+        &[item_weak_det, item_marginal_det, item_solid_det],
+        3000,
+        0.80,
+        ConfidenceMode::PerFrame,
+        0.65,
+    );
+
+    assert_eq!(decisions.len(), 3);
+
+    // Guardrail Invariant 1: Weak detection (< 0.35) must be rejected to NoBirdDetected
+    assert_eq!(
+        decisions[0].routing_tier,
+        RoutingTier::NoBirdDetected,
+        "Weak detection (0.27) must be routed to NoBirdDetected, NEVER ConfirmedSpecies"
+    );
+
+    // Guardrail Invariant 2: Marginal detection (0.35..0.50) must be routed to NeedsReview
+    assert_eq!(
+        decisions[1].routing_tier,
+        RoutingTier::NeedsReview,
+        "Marginal detection (0.47) must be routed to NeedsReview, NEVER ConfirmedSpecies"
+    );
+
+    // Guardrail Invariant 3: Solid detection (>= 0.50) with high confidence is ConfirmedSpecies
+    assert_eq!(
+        decisions[2].routing_tier,
+        RoutingTier::ConfirmedSpecies,
+        "Solid detection (0.88) with high confidence must be ConfirmedSpecies"
+    );
+}
+
+#[test]
+fn test_guardrail_generic_architecture_no_personal_context_leaks() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let files_to_check = [
+        manifest_dir.join("src/burst.rs"),
+        manifest_dir.join("src/classifier.rs"),
+        manifest_dir.join("src/detector.rs"),
+        manifest_dir.join("src/geo.rs"),
+        manifest_dir.join("src/organizer/reconcile.rs"),
+        manifest_dir.join("scripts/infer.py"),
+    ];
+
+    let banned_trip_strings = [
+        "pictures_seattle",
+        "Discovery park",
+        "Wallace falls",
+        "met museum",
+        "Parents in Seattle",
+    ];
+
+    for file_path in &files_to_check {
+        if file_path.exists() {
+            let content = fs::read_to_string(file_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {e}", file_path.display()));
+            for banned in &banned_trip_strings {
+                assert!(
+                    !content.to_lowercase().contains(&banned.to_lowercase()),
+                    "Personal context leak / ad-hoc bandaid detected in {}: found '{}'. Architecture must remain completely generic!",
+                    file_path.display(),
+                    banned
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_guardrail_subdirectory_location_token_resolution() {
+    use avicull::location::resolver::{apply_location_precedence_cached, ResolvedLocation};
+    use avicull::types::{AssetBundle, LocationSource};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    let mut bundle = AssetBundle {
+        bundle_id: "ny_bundle_001".to_string(),
+        original_stem: "met_museum_21".to_string(),
+        primary_image: PathBuf::from("US 2016/JPEGs/New York/processed/met museum-21.jpg"),
+        trip_folder_name: "US 2016".to_string(),
+        companion_images: Vec::new(),
+        sidecar_files: Vec::new(),
+        source_inode: 12345,
+        capture_timestamp_ms: None,
+        gps_coords: None,
+        resolved_location_name: None,
+        relative_path: Some(PathBuf::from(
+            "US 2016/JPEGs/New York/processed/met museum-21.jpg",
+        )),
+    };
+
+    let bundle_locations = HashMap::new();
+    let mut directory_locations = HashMap::new();
+    // Simulate user setting a broad default for the root trip folder "US 2016" -> Seattle
+    directory_locations.insert(
+        "US 2016".to_string(),
+        ResolvedLocation {
+            name: "Seattle".to_string(),
+            region_code: "US-WA".to_string(),
+            latitude: 47.6062,
+            longitude: -122.3321,
+            source: "TripFolderGazetteer".to_string(),
+        },
+    );
+
+    apply_location_precedence_cached(&mut bundle, &bundle_locations, &directory_locations);
+
+    // Invariant: The subfolder "New York" in the path must resolve to New York via the gazetteer,
+    // NOT blindly inherit the parent trip folder's Seattle coordinates!
+    let coords = bundle.gps_coords.expect("coords must be resolved");
+    assert_eq!(
+        coords.source,
+        LocationSource::SubdirectoryGazetteer,
+        "Subdirectory location must be SubdirectoryGazetteer"
+    );
+    assert_eq!(
+        bundle.resolved_location_name.as_deref(),
+        Some("New York"),
+        "Subdirectory name must resolve to New York"
+    );
+    assert!((coords.latitude - 40.7128).abs() < 1.0);
+    assert!((coords.longitude - (-74.0060)).abs() < 1.0);
+}

@@ -2878,6 +2878,7 @@ NEW_YORK_TAXON_IDS = [
     "grhowl",  # Great Horned Owl
     "belkin1",  # Belted Kingfisher
     "haiwoo",  # Hairy Woodpecker
+    "pilwoo",  # Pileated Woodpecker
     "norfli",  # Northern Flicker
     "easpho",  # Eastern Phoebe
     "grcfly",  # Great Crested Flycatcher
@@ -2951,6 +2952,94 @@ CALIFORNIA_TAXON_IDS = [
     "calgul",  # California Gull
     "caster1",  # Caspian Tern
     "eleter1",  # Elegant Tern
+]
+
+# Avifauna of Pacific Northwest / Washington / Oregon (coniferous forests, Puget Sound, Cascades)
+PACIFIC_NORTHWEST_TAXON_IDS = [
+    "pilwoo",  # Pileated Woodpecker
+    "stejay",  # Steller's Jay
+    "varthr",  # Varied Thrush
+    "chbchi",  # Chestnut-backed Chickadee
+    "rewbla",  # Red-winged Blackbird
+    "treswa",  # Tree Swallow
+    "vigswa",  # Violet-green Swallow
+    "bkbwoo",  # Black-backed Woodpecker
+    "wilsap",  # Williamson's Sapsucker
+    "rebnut",  # Red-breasted Nuthatch
+    "brncre",  # Brown Creeper
+    "pacwre1",  # Pacific Wren
+    "amedip",  # American Dipper
+    "towsol",  # Townsend's Solitaire
+    "swathr",  # Swainson's Thrush
+    "towwar",  # Townsend's Warbler
+    "yerwar",  # Yellow-rumped Warbler
+    "wlswar",  # Wilson's Warbler
+    "wewpew",  # Western Wood-Pewee
+    "casvir",  # Cassin's Vireo
+    "bkhgro",  # Black-headed Grosbeak
+    "westan",  # Western Tanager
+    "pinsis",  # Pine Siskin
+    "purfin",  # Purple Finch
+    "evegro",  # Evening Grosbeak
+    "foxspa",  # Fox Sparrow
+    "linspa",  # Lincoln's Sparrow
+    "savspa",  # Savannah Sparrow
+    "gadwal",  # Gadwall
+    "amewig",  # American Wigeon
+    "gnwtea",  # Green-winged Teal
+    "norpin",  # Northern Pintail
+    "norsho",  # Northern Shoveler
+    "canvas",  # Canvasback
+    "redhea",  # Redhead
+    "rinduc",  # Ring-necked Duck
+    "lessca",  # Lesser Scaup
+    "gresca",  # Greater Scaup
+    "harduc",  # Harlequin Duck
+    "sursco",  # Surf Scoter
+    "buffle",  # Bufflehead
+    "commer",  # Common Merganser
+    "rebmer",  # Red-breasted Merganser
+    "rudduc",  # Ruddy Duck
+    "horgre",  # Horned Grebe
+    "rengre",  # Red-necked Grebe
+    "eargre",  # Eared Grebe
+    "glwgul",  # Glaucous-winged Gull
+    "ribgul",  # Ring-billed Gull
+    "bongul",  # Bonaparte's Gull
+    "coohaw",  # Cooper's Hawk
+    "shshaw",  # Sharp-shinned Hawk
+    "rethaw",  # Red-tailed Hawk
+    "baleag",  # Bald Eagle
+    "osprey",  # Osprey
+    "merlin",  # Merlin
+    "perfal",  # Peregrine Falcon
+    "grhowl",  # Great Horned Owl
+    "brdowl",  # Barred Owl
+    "nswowl",  # Northern Saw-whet Owl
+    "rufhum",  # Rufous Hummingbird
+    "annhum",  # Anna's Hummingbird
+    "amerob",  # American Robin
+    "sonspa",  # Song Sparrow
+    "daejun",  # Dark-eyed Junco
+    "bkcchi",  # Black-capped Chickadee
+    "whbnut",  # White-breasted Nuthatch
+    "dowwoo",  # Downy Woodpecker
+    "haiwoo",  # Hairy Woodpecker
+    "norfli",  # Northern Flicker
+    "cedwax",  # Cedar Waxwing
+    "mallar3",  # Mallard
+    "wooduc",  # Wood Duck
+    "cangoo",  # Canada Goose
+    "grbher3",  # Great Blue Heron
+    "brnpel",  # Brown Pelican
+    "wesgul",  # Western Gull
+    "calgul",  # California Gull
+    "caster1",  # Caspian Tern
+    "spotow",  # Spotted Towhee
+    "bewwre",  # Bewick's Wren
+    "bushti",  # Bushtit
+    "gocspa",  # Golden-crowned Sparrow
+    "whcspa",  # White-crowned Sparrow
 ]
 
 # Avifauna of South Africa and Botswana (Kruger, Cape, Savannas)
@@ -3398,8 +3487,8 @@ REGIONAL_CHECKLISTS_MAP: dict[str, list[str]] = {
     "US-TX": FLORIDA_TAXON_IDS + CALIFORNIA_TAXON_IDS[:20],
     "US-AZ": CALIFORNIA_TAXON_IDS + NEW_YORK_TAXON_IDS[:15],
     "US-AK": LADAKH_SPECIFIC_TAXON_IDS[:20] + NEW_YORK_TAXON_IDS[:25],
-    "US-WA": CALIFORNIA_TAXON_IDS + NEW_YORK_TAXON_IDS[:20],
-    "US-CO": CALIFORNIA_TAXON_IDS + NEW_YORK_TAXON_IDS[:20],
+    "US-WA": PACIFIC_NORTHWEST_TAXON_IDS,
+    "US-CO": PACIFIC_NORTHWEST_TAXON_IDS[:40] + CALIFORNIA_TAXON_IDS[:20] + NEW_YORK_TAXON_IDS[:20],
     # Africa
     "ZA": SOUTH_AFRICA_TAXON_IDS,
     "BW": SOUTH_AFRICA_TAXON_IDS,

@@ -67,6 +67,17 @@ Never leave procedural agent comments (such as `// Step 1: ...`, `// Step 2: Imp
 ### Generic, Data-Driven Biodiverse Logic
 Never hardcode personal photographer directories, private trip names, or ad-hoc regional heuristics in production code. All spatial-temporal priors and species checklists must be data-driven, drawn from standardized gazetteers and biodiversity checklists.
 
+## Neural Inference, Bayesian Prior Fusion & Detection Floors
+
+### Visual Relevance Floor on Detector Hallucinations
+Image crops localized by object detectors must be validated against a global taxonomy visual relevance floor before being promoted to biological or avian classes. Detector hallucinations on non-biological surfaces (such as rock, water, or statues) must be rejected, falling back to full-frame genre classification (`Scenery`, `Architecture`, `Abstract`, or `_No_Subject_Detected`). See [classification-confidence-prior-distortion-and-detector-floor-remediation.md](docs/solutions/logic-errors/classification-confidence-prior-distortion-and-detector-floor-remediation.md).
+
+### Bounded Prior Attenuation and Visual Dominance Overrides
+Regional checklist priors must apply soft-bounded penalties rather than extreme attenuation that crushes captive zoo exhibits or rare vagrants in favor of low-probability local noise. When an out-of-region candidate exhibits overwhelming visual dominance over all known in-region taxa, the regional prior penalty must be bypassed. Posterior normalizations must be calibrated against total probability mass to prevent unconfident tail distributions from manufacturing spuriously high classification confidences.
+
+### Avian Detection Confidence Gating
+Avian photo classifications must enforce detector confidence floors: weak detections below the detector threshold route to `NoBirdDetected`, intermediate detections route to `NeedsReview`, and `ConfirmedSpecies` strictly requires both detector confidence and final classification confidence above their respective gating thresholds.
+
 ## Standalone Distribution & Incremental Manifest Invariants
 
 ### Self-Contained Executable Asset Resolution
