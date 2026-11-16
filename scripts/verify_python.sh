@@ -27,6 +27,13 @@ if ! curl -s --connect-timeout 2 -I https://pypi.org >/dev/null 2>&1; then
     UV_EXTRA_FLAG="--offline"
 fi
 
+# Limit BLAS/PyTorch thread proliferation to prevent memory exhaustion and UI latency
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-2}"
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
+export VECLIB_MAXIMUM_THREADS="${VECLIB_MAXIMUM_THREADS:-2}"
+export NUMEXPR_NUM_THREADS="${NUMEXPR_NUM_THREADS:-2}"
+
 # 1. Linting with Ruff
 echo -e "${BOLD}[1/5] Checking Python code formatting and linting (ruff check)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with ruff ruff check .; then

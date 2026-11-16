@@ -14,14 +14,21 @@ echo -e "\n${BOLD}${BLUE}==============================================${NC}"
 echo -e "${BOLD}${BLUE}  avicull Pre-Push Verification Suite         ${NC}"
 echo -e "${BOLD}${BLUE}==============================================${NC}\n"
 
-# Dynamically set CARGO_BUILD_JOBS to physical performance cores if on Apple Silicon,
-# preserving efficiency cores for macOS desktop and UI responsiveness.
+# Dynamically set CARGO_BUILD_JOBS and TEST_THREADS to physical performance cores if on Apple Silicon,
+# capped to prevent memory pressure on 16GB machines while preserving UI responsiveness.
 if [ -z "${CARGO_BUILD_JOBS:-}" ]; then
     PERF_CORES=$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || true)
     if [ -n "$PERF_CORES" ] && [ "$PERF_CORES" -gt 0 ]; then
-        export CARGO_BUILD_JOBS="$PERF_CORES"
+        if [ "$PERF_CORES" -gt 4 ]; then
+            export CARGO_BUILD_JOBS=4
+        else
+            export CARGO_BUILD_JOBS="$PERF_CORES"
+        fi
     fi
 fi
+
+# Limit test threads to 4 to prevent RAM saturation during concurrent integration tests
+RUST_TEST_THREADS="${RUST_TEST_THREADS:-4}"
 
 # Preflight Tooling Checks
 command -v cargo >/dev/null 2>&1 || {
@@ -68,7 +75,7 @@ fi
 echo -e "${BOLD}[3/8] Running Rust test suite and verifying blocking code coverage metrics...${NC}"
 if command -v cargo-llvm-cov >/dev/null 2>&1; then
     # Unified single pass: executes lib unit tests and consolidated integration test harness while validating coverage gate (>= 80%)
-    if cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e; then
+    if cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads="${RUST_TEST_THREADS}"; then
         echo -e "${GREEN}✓ All Rust unit & integration tests passed and met blocking coverage gate (>80%).${NC}\n"
     else
         echo -e "${RED}✗ Code coverage metric fell below minimum required threshold (80%) or tests failed.${NC}\n"
@@ -76,7 +83,7 @@ if command -v cargo-llvm-cov >/dev/null 2>&1; then
     fi
 else
     echo -e "${BOLD}cargo-llvm-cov not found, falling back to cargo test...${NC}"
-    if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e; then
+    if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads="${RUST_TEST_THREADS}"; then
         echo -e "${GREEN}✓ cargo test passed (all unit & integration tests green).${NC}\n"
     else
         echo -e "${RED}✗ cargo test failed.${NC}\n"

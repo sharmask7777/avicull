@@ -15,14 +15,21 @@ echo -e "\n${BOLD}${BLUE}==============================================${NC}"
 echo -e "${BOLD}${BLUE}  avicull Verification Pipeline               ${NC}"
 echo -e "${BOLD}${BLUE}==============================================${NC}\n"
 
-# Dynamically set CARGO_BUILD_JOBS to physical performance cores if on Apple Silicon,
-# preserving efficiency cores for macOS desktop and UI responsiveness.
+# Dynamically set CARGO_BUILD_JOBS and TEST_THREADS to physical performance cores if on Apple Silicon,
+# capped to prevent memory pressure on 16GB machines while preserving UI responsiveness.
 if [ -z "${CARGO_BUILD_JOBS:-}" ]; then
     PERF_CORES=$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || true)
     if [ -n "$PERF_CORES" ] && [ "$PERF_CORES" -gt 0 ]; then
-        export CARGO_BUILD_JOBS="$PERF_CORES"
+        if [ "$PERF_CORES" -gt 4 ]; then
+            export CARGO_BUILD_JOBS=4
+        else
+            export CARGO_BUILD_JOBS="$PERF_CORES"
+        fi
     fi
 fi
+
+# Limit test threads to 4 to prevent RAM saturation during concurrent integration tests
+RUST_TEST_THREADS="${RUST_TEST_THREADS:-4}"
 
 # Preflight Tooling Checks
 command -v cargo >/dev/null 2>&1 || {
@@ -58,8 +65,8 @@ else
 fi
 
 # 4. Unit & Integration Tests
-echo -e "${BOLD}[4/7] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e)...${NC}"
-if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e; then
+echo -e "${BOLD}[4/7] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads=${RUST_TEST_THREADS})...${NC}"
+if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads="${RUST_TEST_THREADS}"; then
     echo -e "${GREEN}✓ cargo test passed.${NC}\n"
 else
     echo -e "${RED}✗ cargo test failed.${NC}\n"
