@@ -386,7 +386,10 @@ pub fn run_parent_rollup(args: &OrganizeAllArgs, child_dirs: &[PathBuf]) -> Resu
         let is_synced = if args.force {
             false
         } else if let Ok(Some(sync)) = staging_db.get_child_sync(&child_name) {
-            !latest_run_id.is_empty() && sync.child_last_run_id == latest_run_id
+            let actual_bundles = staging_db.count_child_bundles(&child_name).unwrap_or(0);
+            !latest_run_id.is_empty()
+                && sync.child_last_run_id == latest_run_id
+                && actual_bundles >= sync.bundle_count
         } else {
             false
         };
