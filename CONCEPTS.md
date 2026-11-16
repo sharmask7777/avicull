@@ -82,6 +82,12 @@ A re-evaluation mode (`--reclassify-mode fast`) that recalculates species routin
 
 FastSoftwareReclassification operates purely in software in milliseconds across tens of thousands of assets, allowing instant updates to eBird taxonomy splits, geographic priors, and confidence gates with zero raw image reads.
 
+### ClientEvictionRemediation
+A client-side diagnosis and script generation mechanism in `catalog.html` that distinguishes genuinely dataless cloud files (`is_local === false`) from missing disk previews, generating executable macOS FileProvider hydration commands (`head -c 1 "$filepath" > /dev/null`) to restore local availability without requiring manual terminal path reconstruction.
+*Avoid:* Automatic cloud download, silent eviction fallback
+
+Because web browsers run in a secure sandbox preventing direct host process execution, client eviction remediation provides one-click copy commands and downloadable helper scripts (`materialize_evicted.sh`) that trigger operating system cloud faults on demand, restoring local asset payloads cleanly.
+
 ## Taxonomy & Classification
 
 ### TaxonIdentifier
