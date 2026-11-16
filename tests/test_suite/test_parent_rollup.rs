@@ -257,3 +257,80 @@ fn test_parent_rollup_prunes_deleted_child() {
     assert!(html.contains("Trip_A/avicull_catalog_files/previews/IMG_0001.jpg"));
     assert!(!html.contains("Trip_B/avicull_catalog_files/previews/IMG_0002.jpg"));
 }
+
+#[test]
+fn test_parent_rollup_preserves_nested_subdirectories_and_heals_missing_bundles() {
+    let temp = tempdir().expect("create tempdir");
+    let root = temp.path();
+
+    // Create a trip directory with nested subfolders (common in real photography archives)
+    let trip = root.join("Trip_2025");
+    let sub1 = trip.join("Safari_Day1");
+    let sub2 = trip.join("Safari_Day2");
+    fs::create_dir_all(&sub1).expect("create sub1");
+    fs::create_dir_all(&sub2).expect("create sub2");
+    fs::write(sub1.join("IMG_0101.JPG"), b"fake_jpeg_101").expect("write img101");
+    fs::write(sub2.join("IMG_0102.JPG"), b"fake_jpeg_102").expect("write img102");
+
+    let args = make_test_organize_args(trip.clone());
+    run_organize(&args).expect("organize trip");
+
+    let all_args = OrganizeAllArgs {
+        input: root.to_path_buf(),
+        output: None,
+        no_parent_catalog: false,
+        mode: OrganizationMode::InPlace,
+        no_prompt: true,
+        force: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: false,
+        verbose: true,
+        threads: Some(1),
+        models_dir: None,
+        default_lat: None,
+        default_lon: None,
+        locations_file: None,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+    };
+
+    let child_dirs = vec![trip.clone()];
+    run_parent_rollup(&all_args, &child_dirs).expect("first parent rollup");
+
+    let parent_manifest = root.join(CATALOG_FILES_DIR).join("manifest.sqlite");
+    let db = ManifestDb::open(&parent_manifest).expect("open parent db");
+
+    let bundles = db.get_all_bundles(None).expect("get bundles");
+    assert_eq!(
+        bundles.len(),
+        2,
+        "Parent DB must retain all bundles from nested subdirectories, not prune them!"
+    );
+    drop(db);
+
+    // Now simulate the corruption/desync: simulate that bundles were cleared or lost,
+    // but parent_child_sync still has child_last_run_id recorded.
+    {
+        let conn = rusqlite::Connection::open(&parent_manifest).expect("open raw sqlite conn");
+        conn.execute("DELETE FROM bundles", [])
+            .expect("delete bundles");
+    }
+
+    // Verify bundles are indeed 0
+    {
+        let db = ManifestDb::open(&parent_manifest).expect("open parent db");
+        let bundles_empty = db.get_all_bundles(None).expect("get bundles");
+        assert_eq!(bundles_empty.len(), 0);
+    }
+
+    // Run parent rollup again WITHOUT --force: it must detect the missing bundles and self-heal!
+    run_parent_rollup(&all_args, &child_dirs).expect("parent rollup self-healing pass");
+
+    let db_healed = ManifestDb::open(&parent_manifest).expect("open healed parent db");
+    let healed_bundles = db_healed.get_all_bundles(None).expect("get healed bundles");
+    assert_eq!(
+        healed_bundles.len(),
+        2,
+        "Parent rollup must automatically self-heal and re-import missing bundles without --force!"
+    );
+}

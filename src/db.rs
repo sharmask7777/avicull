@@ -2292,12 +2292,13 @@ impl ManifestDb {
     }
 
     /// Prunes any child records whose directory key is not present in `valid_child_rel_paths`.
+    /// Prunes child directories recorded in parent_child_sync or imported runs that are no longer in `valid_child_rel_paths`.
     ///
     /// # Arguments
-    /// * `valid_child_rel_paths` - Slice of valid child directory keys currently present on disk.
+    /// * `valid_child_rel_paths` - Slice of relative path keys for currently existing child directories.
     ///
     /// # Returns
-    /// The number of child trips pruned.
+    /// Number of child directories pruned.
     ///
     /// # Errors
     /// Returns error if SQLite execution fails.
@@ -2310,15 +2311,18 @@ impl ManifestDb {
                 .filter_map(std::result::Result::ok)
                 .collect();
 
-            let mut bundle_stmt = conn.prepare("SELECT DISTINCT trip_folder FROM bundles")?;
-            let bundle_trips: Vec<String> = bundle_stmt
+            // Also check runs table for any legacy imported child runs not yet in parent_child_sync
+            let mut run_stmt = conn.prepare(
+                "SELECT DISTINCT input_root FROM runs WHERE input_root != '' AND input_root != '.'",
+            )?;
+            let run_inputs: Vec<String> = run_stmt
                 .query_map([], |row| row.get(0))?
                 .filter_map(std::result::Result::ok)
                 .collect();
 
-            for trip in bundle_trips {
-                if !trip.is_empty() && !tracked.contains(&trip) {
-                    tracked.push(trip);
+            for input in run_inputs {
+                if !input.is_empty() && !tracked.contains(&input) {
+                    tracked.push(input);
                 }
             }
             tracked
@@ -2333,6 +2337,28 @@ impl ManifestDb {
         }
 
         Ok(pruned_count)
+    }
+
+    /// Counts the number of bundles currently in the database belonging to a given child directory.
+    ///
+    /// # Arguments
+    /// * `child_rel_path` - Relative path key of the child directory.
+    ///
+    /// # Returns
+    /// The number of matching bundles.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn count_child_bundles(&self, child_rel_path: &str) -> Result<usize> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT COUNT(*) FROM bundles 
+             WHERE relative_path = ?1 
+                OR relative_path LIKE (?1 || '/%')
+                OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)",
+        )?;
+        let count: i64 = stmt.query_row(params![child_rel_path], |row| row.get(0))?;
+        usize::try_from(count).context("Failed to convert bundle count to usize")
     }
 
     /// Retrieves the synchronization record for a child directory, if present.
