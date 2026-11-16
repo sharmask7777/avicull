@@ -360,3 +360,70 @@ fn test_help_includes_organize_all() {
         "Expected CLI help reference to document 'organize-all', but got:\n{help}"
     );
 }
+
+#[test]
+fn test_parent_rollup_saves_manifest_in_delete_journal_mode() {
+    use avicull::cli::OrganizeAllArgs;
+    use avicull::organizer::batch::run_parent_rollup;
+    use avicull::types::OrganizationMode;
+    use rusqlite::Connection;
+    use tempfile::tempdir;
+
+    let dir = tempdir().expect("tempdir");
+    let input = dir.path().join("Photos");
+    std::fs::create_dir_all(&input).expect("create input");
+
+    let child = input.join("Trip1");
+    std::fs::create_dir_all(&child).expect("create child");
+    let child_db_path = child.join("avicull_catalog_files").join("manifest.sqlite");
+    {
+        let db = avicull::db::ManifestDb::open_or_create(&child_db_path).expect("create child db");
+        db.record_run("run_1", &child, &child, false, "{}")
+            .expect("record run");
+    }
+
+    let args = OrganizeAllArgs {
+        input: input.clone(),
+        output: None,
+        no_parent_catalog: false,
+        mode: OrganizationMode::InPlace,
+        no_prompt: true,
+        force: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: true,
+        verbose: false,
+        threads: None,
+        models_dir: None,
+        default_lat: None,
+        default_lon: None,
+        locations_file: None,
+        min_confidence: 0.65,
+        min_detect: 0.25,
+    };
+
+    run_parent_rollup(&args, &[child]).expect("run_parent_rollup");
+
+    let parent_manifest = input.join("avicull_catalog_files").join("manifest.sqlite");
+    assert!(parent_manifest.exists(), "Parent manifest must exist");
+
+    // Inspect journal mode directly via rusqlite
+    let conn = Connection::open(&parent_manifest).expect("open parent manifest");
+    let journal_mode: String = conn
+        .query_row("PRAGMA journal_mode;", [], |r| r.get(0))
+        .expect("query journal_mode");
+    assert_eq!(
+        journal_mode.to_lowercase(),
+        "delete",
+        "Rolled-up parent manifest must be in DELETE journal mode for NFS compatibility"
+    );
+
+    // Verify WAL and SHM files do not exist
+    assert!(!input
+        .join("avicull_catalog_files")
+        .join("manifest.sqlite-wal")
+        .exists());
+    assert!(!input
+        .join("avicull_catalog_files")
+        .join("manifest.sqlite-shm")
+        .exists());
+}

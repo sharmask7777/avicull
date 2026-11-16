@@ -430,6 +430,12 @@ pub fn run_parent_rollup(args: &OrganizeAllArgs, child_dirs: &[PathBuf]) -> Resu
         catalog_items.push(item);
     }
 
+    // Finalize staging DB into standard rollback journal mode (DELETE) so network mounts (NFS/SMB)
+    // can open and query it without requiring POSIX shared-memory locks (.sqlite-shm).
+    if let Ok(conn) = staging_db.raw_conn().lock() {
+        let _ = conn.execute_batch("PRAGMA journal_mode = DELETE;");
+    }
+
     // Flush staging DB checkpoint and drop connection before file copy
     let _ = staging_db.checkpoint();
     drop(staging_db);

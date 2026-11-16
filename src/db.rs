@@ -211,10 +211,27 @@ impl ManifestDb {
         let conn = Connection::open(db_path)
             .with_context(|| format!("Failed to open SQLite db at {}", db_path.display()))?;
 
+        // Configure resilient busy timeouts for concurrent / network operations
+        let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
+
+        // Inquire existing journal mode: if already configured to a rollback mode (DELETE/TRUNCATE),
+        // keep it to avoid re-enabling WAL on network/NFS mounts that cannot support POSIX shared memory.
+        let current_journal: String = conn
+            .query_row("PRAGMA journal_mode;", [], |row| row.get(0))
+            .unwrap_or_else(|_| "wal".to_string());
+        if current_journal.to_lowercase() != "delete"
+            && current_journal.to_lowercase() != "truncate"
+        {
+            // Attempt to enable WAL mode; if WAL mode fails (e.g. SQLITE_CANTOPEN / code 14 on NFS),
+            // gracefully fall back to standard DELETE rollback journal mode.
+            if conn.execute_batch("PRAGMA journal_mode = WAL;").is_err() {
+                let _ = conn.execute_batch("PRAGMA journal_mode = DELETE;");
+            }
+        }
+
         // Initialize SQLite tables
         conn.execute_batch(
             r#"
-            PRAGMA journal_mode = WAL;
             PRAGMA synchronous = NORMAL;
             PRAGMA foreign_keys = ON;
 

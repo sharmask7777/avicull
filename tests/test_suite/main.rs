@@ -41,6 +41,7 @@ mod test_cloud_resilience;
 mod test_dataset_generator;
 mod test_dav_fs;
 mod test_db;
+mod test_db_network_resilience;
 mod test_delta_catalog_thumbnail_cache;
 mod test_detector;
 mod test_diversity_classification;
