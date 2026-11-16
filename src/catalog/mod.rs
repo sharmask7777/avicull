@@ -572,7 +572,11 @@ pub fn generate_html_catalog_with_policy(
     // Pre-scan existing previews directory once upfront to collapse 1000s of NFS stat RPCs into 1 readdir call
     let previews_dir = output_root.join(CATALOG_FILES_DIR).join("previews");
     let legacy_previews_dir = output_root.join(LEGACY_CATALOG_FILES_DIR).join("previews");
-    let _ = fs::create_dir_all(&previews_dir);
+    if !matches!(effective_policy, ThumbnailEmbeddingPolicy::Suppressed)
+        && !legacy_previews_dir.is_dir()
+    {
+        let _ = fs::create_dir_all(&previews_dir);
+    }
     let mut existing_previews: HashSet<String> = HashSet::new();
     for p_dir in [&previews_dir, &legacy_previews_dir] {
         if p_dir.is_dir() {
@@ -860,6 +864,109 @@ pub fn preview_path_and_name(output_root: &Path, original_stem: &str) -> (String
     (preview_name, target_file)
 }
 
+/// Resolves the relative path to an extracted JPEG preview image, checking both
+/// current (`avicull_catalog_files/previews/`) and legacy (`.avicull/previews/`) directories
+/// across both root level (single-trip catalogs) and child trip levels (parent rollups).
+///
+/// # Arguments
+/// * `output_root` - Root path where `catalog.html` resides.
+/// * `stem` - Original stem of the image bundle.
+/// * `subdirectory` - Optional relative subdirectory of the item (may be child trip or nested folder).
+/// * `existing_previews` - Optional pre-scanned set of preview filenames at `output_root`.
+///
+/// # Returns
+/// Relative path to the preview JPEG suitable for `thumb_src` and `preview_url`.
+#[must_use]
+pub fn resolve_relative_preview_path(
+    output_root: &Path,
+    stem: &str,
+    subdirectory: Option<&str>,
+    existing_previews: Option<&HashSet<String>>,
+) -> String {
+    let preview_name = format!("{stem}.jpg");
+
+    // Tier 1: Check root level (single-trip catalogs where previews reside in output_root)
+    let root_unhidden = output_root
+        .join(CATALOG_FILES_DIR)
+        .join("previews")
+        .join(&preview_name);
+    let root_legacy = output_root
+        .join(LEGACY_CATALOG_FILES_DIR)
+        .join("previews")
+        .join(&preview_name);
+
+    let root_has_preview = existing_previews.map_or_else(
+        || root_unhidden.exists() || root_legacy.exists(),
+        |set| set.contains(&preview_name) || root_unhidden.exists() || root_legacy.exists(),
+    );
+
+    if root_has_preview {
+        if root_unhidden.exists() || !root_legacy.exists() {
+            return format!("{CATALOG_FILES_DIR}/previews/{preview_name}");
+        }
+        return format!("{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+    }
+
+    // Tier 2: Check child directories (parent rollup catalogs)
+    if let Some(sub) = subdirectory {
+        let trimmed = sub.trim_matches('/');
+        if !trimmed.is_empty() && trimmed != "." {
+            let top_sub = trimmed.split('/').next().unwrap_or(trimmed);
+            let candidates = if top_sub == trimmed {
+                vec![trimmed]
+            } else {
+                vec![trimmed, top_sub]
+            };
+
+            for prefix in candidates {
+                let child_unhidden = output_root
+                    .join(prefix)
+                    .join(CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+                let child_legacy = output_root
+                    .join(prefix)
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+
+                if child_unhidden.exists() {
+                    return format!("{prefix}/{CATALOG_FILES_DIR}/previews/{preview_name}");
+                }
+                if child_legacy.exists() {
+                    return format!("{prefix}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+                }
+            }
+        }
+    }
+
+    // Tier 3: Fallback when preview file does not yet exist on disk
+    if let Some(sub) = subdirectory {
+        let trimmed = sub.trim_matches('/');
+        if !trimmed.is_empty() && trimmed != "." {
+            let top_sub = trimmed.split('/').next().unwrap_or(trimmed);
+            if !output_root.join(top_sub).join(CATALOG_FILES_DIR).exists()
+                && output_root
+                    .join(top_sub)
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .exists()
+            {
+                return format!("{top_sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+            }
+            return format!("{top_sub}/{CATALOG_FILES_DIR}/previews/{preview_name}");
+        }
+    }
+
+    // Default to root catalog files directory
+    if !output_root.join(CATALOG_FILES_DIR).exists()
+        && output_root.join(LEGACY_CATALOG_FILES_DIR).exists()
+    {
+        format!("{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}")
+    } else {
+        format!("{CATALOG_FILES_DIR}/previews/{preview_name}")
+    }
+}
+
 /// Constructs a single `CatalogPayloadItem` and optional newly generated micro-thumbnail data URI.
 fn build_catalog_payload_item(
     item: &CatalogItem,
@@ -880,32 +987,12 @@ fn build_catalog_payload_item(
 
     let (preview_url, thumb_src, embedded_thumb_data_uri, new_thumb_entry) = match policy {
         ThumbnailEmbeddingPolicy::Suppressed => {
-            let rel_preview = if let Some(ref sub) = item.subdirectory {
-                let unhidden = format!(
-                    "{sub}/{CATALOG_FILES_DIR}/previews/{}.jpg",
-                    item.original_stem
-                );
-                let legacy = format!(
-                    "{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{}.jpg",
-                    item.original_stem
-                );
-                if !output_root.join(&unhidden).exists() && output_root.join(&legacy).exists() {
-                    legacy
-                } else {
-                    unhidden
-                }
-            } else {
-                let unhidden = format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem);
-                let legacy = format!(
-                    "{LEGACY_CATALOG_FILES_DIR}/previews/{}.jpg",
-                    item.original_stem
-                );
-                if !output_root.join(&unhidden).exists() && output_root.join(&legacy).exists() {
-                    legacy
-                } else {
-                    unhidden
-                }
-            };
+            let rel_preview = resolve_relative_preview_path(
+                output_root,
+                &item.original_stem,
+                item.subdirectory.as_deref(),
+                Some(existing_previews),
+            );
             (rel_preview.clone(), rel_preview, None, None)
         }
         ThumbnailEmbeddingPolicy::Forced | ThumbnailEmbeddingPolicy::Auto => {
@@ -917,16 +1004,14 @@ fn build_catalog_payload_item(
                 Some(existing_previews),
                 is_local,
             );
-            let thumb_src =
-                persistent_thumb.unwrap_or_else(|| match item.subdirectory.as_deref() {
-                    Some(sub) if !sub.is_empty() && sub != "." => {
-                        format!(
-                            "{sub}/{CATALOG_FILES_DIR}/previews/{}.jpg",
-                            item.original_stem
-                        )
-                    }
-                    _ => format!("{CATALOG_FILES_DIR}/previews/{}.jpg", item.original_stem),
-                });
+            let thumb_src = persistent_thumb.unwrap_or_else(|| {
+                resolve_relative_preview_path(
+                    output_root,
+                    &item.original_stem,
+                    item.subdirectory.as_deref(),
+                    Some(existing_previews),
+                )
+            });
 
             let (embedded_thumb_data_uri, new_thumb_entry) =
                 if let Some(cached_uri) = cached_thumbnails.get(&item.bundle_id) {
@@ -1248,24 +1333,35 @@ fn ensure_persistent_thumbnail_with_previews(
 
     // Check if child preview already exists on disk (read-only lookup for rollups / subdirectories)
     if let Some(sub) = item.subdirectory.as_deref() {
-        if !sub.is_empty() && sub != "." {
-            let child_target = output_root
-                .join(sub)
-                .join(CATALOG_FILES_DIR)
-                .join("previews")
-                .join(&preview_name);
-            let child_legacy = output_root
-                .join(sub)
-                .join(LEGACY_CATALOG_FILES_DIR)
-                .join("previews")
-                .join(&preview_name);
-            if child_target.exists() {
-                return Some(format!("{sub}/{CATALOG_FILES_DIR}/previews/{preview_name}"));
-            }
-            if child_legacy.exists() {
-                return Some(format!(
-                    "{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
-                ));
+        let trimmed = sub.trim_matches('/');
+        if !trimmed.is_empty() && trimmed != "." {
+            let top_sub = trimmed.split('/').next().unwrap_or(trimmed);
+            let candidates = if top_sub == trimmed {
+                vec![trimmed]
+            } else {
+                vec![trimmed, top_sub]
+            };
+            for prefix in candidates {
+                let child_target = output_root
+                    .join(prefix)
+                    .join(CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+                let child_legacy = output_root
+                    .join(prefix)
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+                if child_target.exists() {
+                    return Some(format!(
+                        "{prefix}/{CATALOG_FILES_DIR}/previews/{preview_name}"
+                    ));
+                }
+                if child_legacy.exists() {
+                    return Some(format!(
+                        "{prefix}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}"
+                    ));
+                }
             }
         }
     }
@@ -1402,22 +1498,31 @@ fn resolve_or_extract_preview(
 
     // Check if child preview already exists on disk (read-only lookup for rollups / subdirectories)
     if let Some(sub) = item.subdirectory.as_deref() {
-        if !sub.is_empty() && sub != "." {
-            let child_target = output_root
-                .join(sub)
-                .join(CATALOG_FILES_DIR)
-                .join("previews")
-                .join(&preview_name);
-            let child_legacy = output_root
-                .join(sub)
-                .join(LEGACY_CATALOG_FILES_DIR)
-                .join("previews")
-                .join(&preview_name);
-            if child_target.exists() {
-                return format!("{sub}/{CATALOG_FILES_DIR}/previews/{preview_name}");
-            }
-            if child_legacy.exists() {
-                return format!("{sub}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+        let trimmed = sub.trim_matches('/');
+        if !trimmed.is_empty() && trimmed != "." {
+            let top_sub = trimmed.split('/').next().unwrap_or(trimmed);
+            let candidates = if top_sub == trimmed {
+                vec![trimmed]
+            } else {
+                vec![trimmed, top_sub]
+            };
+            for prefix in candidates {
+                let child_target = output_root
+                    .join(prefix)
+                    .join(CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+                let child_legacy = output_root
+                    .join(prefix)
+                    .join(LEGACY_CATALOG_FILES_DIR)
+                    .join("previews")
+                    .join(&preview_name);
+                if child_target.exists() {
+                    return format!("{prefix}/{CATALOG_FILES_DIR}/previews/{preview_name}");
+                }
+                if child_legacy.exists() {
+                    return format!("{prefix}/{LEGACY_CATALOG_FILES_DIR}/previews/{preview_name}");
+                }
             }
         }
     }

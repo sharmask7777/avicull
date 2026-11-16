@@ -1168,26 +1168,22 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
         };
 
         // Extract embedded preview for RAW formats if companion missing
-        let previews_dir = if operating_root
+        let unhidden_previews = operating_root
             .join(crate::catalog::CATALOG_FILES_DIR)
-            .join("previews")
-            .is_dir()
-        {
-            operating_root
-                .join(crate::catalog::CATALOG_FILES_DIR)
-                .join("previews")
-        } else if operating_root
+            .join("previews");
+        let legacy_previews = operating_root
             .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
-            .join("previews")
-            .is_dir()
+            .join("previews");
+        let previews_dir = if unhidden_previews.is_dir()
+            && std::fs::read_dir(&unhidden_previews)
+                .map_or(0, |entries| entries.flatten().take(1).count())
+                > 0
         {
-            operating_root
-                .join(crate::catalog::LEGACY_CATALOG_FILES_DIR)
-                .join("previews")
+            unhidden_previews
+        } else if legacy_previews.is_dir() {
+            legacy_previews
         } else {
-            operating_root
-                .join(crate::catalog::CATALOG_FILES_DIR)
-                .join("previews")
+            unhidden_previews
         };
         let raw_bundles_to_extract: Vec<_> = processable_chunk
             .iter()

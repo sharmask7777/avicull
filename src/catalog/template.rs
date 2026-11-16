@@ -710,6 +710,25 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       color: #64748b;
     }}
 
+    .btn-evicted-cmd {{
+      margin-top: 6px;
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #fff;
+      background: var(--accent-blue, #2563eb);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s ease;
+    }}
+    .btn-evicted-cmd:hover {{
+      background: #1d4ed8;
+    }}
+
     /* Pagination Bar */
     .pagination-bar {{
       display: flex;
@@ -1146,6 +1165,9 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
         <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         Download apply_corrections.sh (<span id="batchCount">0</span>)
       </button>
+      <button class="btn btn-secondary" id="btnEvictedFiles" onclick="openEvictedModal()" style="display:none;" title="View and download cloud-evicted photos">
+        ☁️ Evicted Files (<span id="evictedFilesCount">0</span>)
+      </button>
     </div>
   </div>
 </header>
@@ -1454,6 +1476,34 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   </div>
 </div>
 
+<!-- Cloud-Evicted Files Modal -->
+<div class="modal-backdrop" id="evictedModal">
+  <div class="modal-box" style="max-width: 760px;">
+    <div class="modal-header">
+      <h2>Cloud-Evicted Files (<span id="evictedModalCount">0</span>)</h2>
+      <button class="modal-close" onclick="closeEvictedModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+        The following photos are marked as dataless faults on macOS FileProvider (iCloud Drive / cloud storage). Their metadata and classifications are cached locally, but full image payloads are currently offloaded to cloud storage.
+      </div>
+      <div id="evictedListContainer" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; background: rgba(0,0,0,0.02); font-family: monospace; font-size: 0.8rem;">
+      </div>
+      <div style="margin-top: 14px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; display: block;">
+          Download / Materialize Command:
+        </label>
+        <div class="command-box" id="evictedCommandOutput">Select or view script below…</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeEvictedModal()">Close</button>
+      <button class="btn btn-secondary" onclick="copyEvictedBatchScript()">Copy Download Script</button>
+      <button class="btn btn-primary" onclick="downloadEvictedBatchScript()">Download materialize_evicted.sh</button>
+    </div>
+  </div>
+</div>
+
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
 {json_data}
@@ -1647,13 +1697,22 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
     if (!parent) return;
     const item = items.find(i => i.id === itemId);
     const filename = item ? item.primary_filename : "File";
+    const isEvicted = item && item.is_local === false;
+    const subMsg = isEvicted
+      ? "Preview Unavailable (Cloud Evicted or Unsupported RAW)"
+      : "Preview Unavailable (Preview Missing or Unsupported RAW)";
+    const cmdBtn = isEvicted
+      ? `<button class="btn-evicted-cmd" onclick="copyEvictedMaterializeCmd('${{itemId}}', event)" title="Copy terminal command to download this photo locally">📥 Copy Download Command</button>`
+      : `<button class="btn-evicted-cmd" onclick="copyRenderCatalogCmd(event)" title="Copy terminal command to render previews">⚙️ Copy Render Command</button>`;
+
     parent.innerHTML = `
       <div class="preview-fallback">
         <svg class="preview-fallback-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"></path>
         </svg>
         <div class="preview-fallback-text">${{escHtml(filename)}}</div>
-        <div class="preview-fallback-sub">Preview Unavailable (Cloud Evicted or Unsupported RAW)</div>
+        <div class="preview-fallback-sub">${{subMsg}}</div>
+        ${{cmdBtn}}
       </div>
     `;
   }}
@@ -3635,6 +3694,129 @@ fi
     }}
   }});
 
+  function updateEvictedButton() {{
+    const evictedCount = items.filter(i => i.is_local === false).length;
+    const btn = document.getElementById('btnEvictedFiles');
+    if (btn) {{
+      if (evictedCount > 0) {{
+        btn.style.display = 'inline-flex';
+        const span = document.getElementById('evictedFilesCount');
+        if (span) span.textContent = String(evictedCount);
+      }} else {{
+        btn.style.display = 'none';
+      }}
+    }}
+  }}
+
+  function openEvictedModal() {{
+    const modal = document.getElementById('evictedModal');
+    if (!modal) return;
+    const evictedItems = items.filter(i => i.is_local === false);
+    const countSpan = document.getElementById('evictedModalCount');
+    if (countSpan) countSpan.textContent = String(evictedItems.length);
+
+    const container = document.getElementById('evictedListContainer');
+    if (container) {{
+      if (evictedItems.length === 0) {{
+        container.innerHTML = '<div style="color:var(--text-secondary);padding:12px;">All photos are fully downloaded and locally available!</div>';
+      }} else {{
+        container.innerHTML = evictedItems.map(i => {{
+          const path = i.current_path || i.primary_filename;
+          return `<div style="padding:4px 0;border-bottom:1px solid rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center;">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:540px;" title="${{escHtml(path)}}">${{escHtml(path)}}</span>
+            <button class="btn-evicted-cmd" style="margin-top:0;" onclick="copyEvictedMaterializeCmd('${{i.id}}', event)">Copy</button>
+          </div>`;
+        }}).join('');
+      }}
+    }}
+
+    const outputBox = document.getElementById('evictedCommandOutput');
+    if (outputBox) {{
+      outputBox.textContent = generateEvictedBatchScriptContent(evictedItems);
+    }}
+    modal.classList.add('active');
+  }}
+
+  function closeEvictedModal() {{
+    const modal = document.getElementById('evictedModal');
+    if (modal) modal.classList.remove('active');
+  }}
+
+  function generateEvictedBatchScriptContent(evictedItems) {{
+    if (!evictedItems) evictedItems = items.filter(i => i.is_local === false);
+    const lines = [
+      '#!/usr/bin/env bash',
+      '# Avicull Cloud-Evicted / Dataless Photos Download Script',
+      '# Triggers macOS FileProvider / iCloud to download and materialize full payloads',
+      'set -euo pipefail',
+      ''
+    ];
+    if (CATALOG_DATA.catalog_dir) {{
+      lines.push(`cd "${{escapeShellArg(CATALOG_DATA.catalog_dir)}}"`);
+    }}
+    lines.push('echo "Materializing cloud-evicted photos..."');
+    lines.push('while IFS= read -r file; do');
+    lines.push('  if [ -n "$file" ] && [ -e "$file" ]; then');
+    lines.push('    echo "Downloading: $file"');
+    lines.push('    head -c 1 "$file" > /dev/null 2>&1 || true');
+    lines.push('  fi');
+    lines.push('done << "EOF"');
+    for (const item of evictedItems) {{
+      const p = item.current_path || item.primary_filename;
+      lines.push(p);
+    }}
+    lines.push('EOF');
+    lines.push('echo "Done! Run: cargo run -- render-catalog to refresh catalog."');
+    return lines.join('\\n');
+  }}
+
+  function copyEvictedBatchScript() {{
+    const script = generateEvictedBatchScriptContent();
+    navigator.clipboard.writeText(script).then(() => {{
+      showToast('Copied download script to clipboard!');
+    }}).catch(() => {{
+      showToast('Failed to copy to clipboard.');
+    }});
+  }}
+
+  function downloadEvictedBatchScript() {{
+    const script = generateEvictedBatchScriptContent();
+    const blob = new Blob([script], {{ type: 'text/x-shellscript;charset=utf-8' }});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'materialize_evicted.sh';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Downloaded materialize_evicted.sh');
+  }}
+
+  function copyEvictedMaterializeCmd(itemId, event) {{
+    if (event) event.stopPropagation();
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    const targetPath = item.current_path || item.primary_filename;
+    // On macOS, reading the first byte triggers Apple FileProvider / iCloud to download/materialize the dataless file
+    const cmd = `head -c 1 "${{targetPath}}" > /dev/null 2>&1`;
+    navigator.clipboard.writeText(cmd).then(() => {{
+      showToast(`Copied download command for ${{item.primary_filename}} to clipboard!`);
+    }}).catch(() => {{
+      showToast(`Command: ${{cmd}}`);
+    }});
+  }}
+
+  function copyRenderCatalogCmd(event) {{
+    if (event) event.stopPropagation();
+    const cmd = "cargo run -- render-catalog";
+    navigator.clipboard.writeText(cmd).then(() => {{
+      showToast("Copied 'cargo run -- render-catalog' to clipboard!");
+    }}).catch(() => {{
+      showToast(`Command: ${{cmd}}`);
+    }});
+  }}
+
   if (typeof window !== 'undefined') {{
     window.selectSpecies = selectSpecies;
     window.setCategoryFilter = setCategoryFilter;
@@ -3643,11 +3825,18 @@ fi
     window.goToNextPage = goToNextPage;
     window.setPage = setPage;
     window.handlePageSizeChange = handlePageSizeChange;
+    window.openEvictedModal = openEvictedModal;
+    window.closeEvictedModal = closeEvictedModal;
+    window.copyEvictedBatchScript = copyEvictedBatchScript;
+    window.downloadEvictedBatchScript = downloadEvictedBatchScript;
+    window.copyEvictedMaterializeCmd = copyEvictedMaterializeCmd;
+    window.copyRenderCatalogCmd = copyRenderCatalogCmd;
   }}
 
   // Initialize on load
   document.addEventListener('DOMContentLoaded', () => {{
     updateCategoryCounts();
+    updateEvictedButton();
     renderGallery();
   }});
 </script>

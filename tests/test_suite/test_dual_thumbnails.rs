@@ -255,3 +255,140 @@ fn test_zero_raw_reads_under_suppressed_policy() {
     assert_eq!(payload.items.len(), 1);
     assert!(payload.items[0].embedded_thumb_data_uri.is_none());
 }
+
+#[test]
+fn test_single_trip_nested_subdirectory_resolves_legacy_root_previews() {
+    let dir = tempdir().expect("tempdir");
+    let out = dir.path().join("catalog.html");
+
+    // Single-trip catalog: preview exists at root's .avicull/previews
+    let legacy_previews = dir
+        .path()
+        .join(avicull::catalog::LEGACY_CATALOG_FILES_DIR)
+        .join("previews");
+    fs::create_dir_all(&legacy_previews).expect("create legacy previews dir");
+    fs::write(legacy_previews.join("2470-1.jpg"), b"fake jpeg bytes").expect("write fake preview");
+
+    // The item is inside a nested subdirectory of the trip, e.g. "2470 trial"
+    let items = vec![make_test_item("b1", "2470-1", Some("2470 trial"))];
+
+    generate_html_catalog_with_policy(
+        "Seattle Trip",
+        &items,
+        OrganizationMode::InPlace,
+        &out,
+        ThumbnailEmbeddingPolicy::Suppressed,
+    )
+    .expect("generate catalog");
+
+    let html = fs::read_to_string(&out).expect("read catalog");
+    let payload = extract_catalog_payload(&html);
+
+    assert_eq!(payload.items.len(), 1);
+    let item = &payload.items[0];
+
+    let expected = format!(
+        "{}/previews/2470-1.jpg",
+        avicull::catalog::LEGACY_CATALOG_FILES_DIR
+    );
+    assert_eq!(
+        item.thumb_src, expected,
+        "Single trip nested item must resolve to existing root legacy preview path"
+    );
+    assert_eq!(
+        item.preview_url, expected,
+        "Single trip nested item preview_url must resolve to existing root legacy preview path"
+    );
+}
+
+#[test]
+fn test_single_trip_nested_subdirectory_resolves_unhidden_root_previews() {
+    let dir = tempdir().expect("tempdir");
+    let out = dir.path().join("catalog.html");
+
+    // Single-trip catalog: preview exists at root's avicull_catalog_files/previews
+    let unhidden_previews = dir
+        .path()
+        .join(avicull::catalog::CATALOG_FILES_DIR)
+        .join("previews");
+    fs::create_dir_all(&unhidden_previews).expect("create unhidden previews dir");
+    fs::write(unhidden_previews.join("2470-1.jpg"), b"fake jpeg bytes")
+        .expect("write fake preview");
+
+    let items = vec![make_test_item("b1", "2470-1", Some("2470 trial"))];
+
+    generate_html_catalog_with_policy(
+        "Seattle Trip",
+        &items,
+        OrganizationMode::InPlace,
+        &out,
+        ThumbnailEmbeddingPolicy::Suppressed,
+    )
+    .expect("generate catalog");
+
+    let html = fs::read_to_string(&out).expect("read catalog");
+    let payload = extract_catalog_payload(&html);
+
+    assert_eq!(payload.items.len(), 1);
+    let item = &payload.items[0];
+
+    let expected = format!(
+        "{}/previews/2470-1.jpg",
+        avicull::catalog::CATALOG_FILES_DIR
+    );
+    assert_eq!(
+        item.thumb_src, expected,
+        "Single trip nested item must resolve to unhidden root preview path"
+    );
+    assert_eq!(
+        item.preview_url, expected,
+        "Single trip nested item preview_url must resolve to unhidden root preview path"
+    );
+}
+
+#[test]
+fn test_parent_rollup_nested_child_subdirectory_resolves_child_root_previews() {
+    let dir = tempdir().expect("tempdir");
+    let out = dir.path().join("catalog.html");
+
+    // Parent rollup: child trip is "seattle", preview is at seattle/.avicull/previews/2470-1.jpg
+    let child_legacy_previews = dir
+        .path()
+        .join("seattle")
+        .join(avicull::catalog::LEGACY_CATALOG_FILES_DIR)
+        .join("previews");
+    fs::create_dir_all(&child_legacy_previews).expect("create child legacy previews dir");
+    fs::write(child_legacy_previews.join("2470-1.jpg"), b"fake jpeg bytes")
+        .expect("write fake preview");
+
+    // The item's subdirectory is "seattle/2470 trial"
+    let items = vec![make_test_item("b1", "2470-1", Some("seattle/2470 trial"))];
+
+    generate_html_catalog_with_policy(
+        "Parent Rollup",
+        &items,
+        OrganizationMode::InPlace,
+        &out,
+        ThumbnailEmbeddingPolicy::Suppressed,
+    )
+    .expect("generate catalog");
+
+    let html = fs::read_to_string(&out).expect("read catalog");
+    let payload = extract_catalog_payload(&html);
+
+    assert_eq!(payload.items.len(), 1);
+    let item = &payload.items[0];
+
+    let expected = format!(
+        "seattle/{}/previews/2470-1.jpg",
+        avicull::catalog::LEGACY_CATALOG_FILES_DIR
+    );
+    assert_eq!(
+        item.thumb_src, expected,
+        "Parent rollup nested child item must resolve to child trip's preview path"
+    );
+    assert_eq!(
+        item.preview_url, expected,
+        "Parent rollup nested child item preview_url must resolve to child trip's preview path"
+    );
+}
