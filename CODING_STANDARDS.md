@@ -83,6 +83,9 @@ Keep interactive HTML galleries (`src/catalog/template.rs`) bounded via client-s
 ### Headless DOM Feature Guards & Fixture Regeneration
 Guard optional browser DOM traversal and document lifecycle APIs behind capability checks in client-side catalog scripts so extracted inline `<script>` blocks continue executing cleanly under minimal Node DOM stubs in Rust integration tests. Whenever `src/catalog/template.rs` markup or scripts change, regenerate static test fixtures via the fixture generator example before running Playwright suites.
 
+### Companion Preview Path Resolution & Eviction Remediation
+Relative preview URLs in HTML catalogs must resolve companion assets (`avicull_catalog_files/previews` or `.avicull/previews`) from the trip root in single-trip archives, even when source images reside in nested subdirectories. Never blindly prepend image subdirectories to companion preview paths. In client-side catalog UI (`src/catalog/template.rs`), distinguish between missing local previews and cloud-evicted files (tracked via Darwin `SF_DATALESS` `0x40000000`). Never claim files are cloud-evicted without verifying `item.is_local === false`, and provide explicit user hydration scripts (`head -c 1 "$filepath" > /dev/null`) rather than silent failure. See [companion-preview-path-resolution-and-eviction-remediation.md](docs/solutions/logic-errors/companion-preview-path-resolution-and-eviction-remediation.md).
+
 ---
 
 ## Maintaining this file
