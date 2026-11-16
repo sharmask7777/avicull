@@ -61,13 +61,32 @@ pub struct GazetteerEngine {
 }
 
 static EMBEDDED_GAZETTEER_JSON: &str = include_str!("../../data/gazetteer.json");
+static EMBEDDED_ENGINE: std::sync::OnceLock<GazetteerEngine> = std::sync::OnceLock::new();
 
 impl GazetteerEngine {
-    /// Loads the embedded `data/gazetteer.json` catalog.
+    /// Loads the embedded `data/gazetteer.json` catalog (cached via `OnceLock`).
+    ///
+    /// # Errors
+    /// Returns `Err` if deserialization of the embedded JSON fails.
     pub fn load_embedded() -> anyhow::Result<Self> {
+        Self::get_embedded().cloned()
+    }
+
+    /// Borrows the statically cached embedded gazetteer instance with zero clone overhead.
+    ///
+    /// # Errors
+    /// Returns `Err` if deserialization of the embedded JSON fails.
+    pub fn get_embedded() -> anyhow::Result<&'static Self> {
+        if let Some(engine) = EMBEDDED_ENGINE.get() {
+            return Ok(engine);
+        }
         let entries: Vec<GazetteerEntry> = serde_json::from_str(EMBEDDED_GAZETTEER_JSON)
             .map_err(|e| anyhow::anyhow!("Failed to parse embedded gazetteer.json: {e}"))?;
-        Ok(Self::from_entries(entries))
+        let engine = Self::from_entries(entries);
+        let _ = EMBEDDED_ENGINE.set(engine);
+        EMBEDDED_ENGINE
+            .get()
+            .ok_or_else(|| anyhow::anyhow!("EMBEDDED_ENGINE must be initialized"))
     }
 
     /// Creates a new `GazetteerEngine` from a vector of entries.

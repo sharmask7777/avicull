@@ -18,11 +18,46 @@ use anyhow::Result;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 
+/// Helper to resolve candidate location tokens from a path component against the embedded gazetteer.
+fn resolve_path_tokens_via_gazetteer(p: &std::path::Path) -> Option<(String, GpsCoordinate)> {
+    let gazetteer = GazetteerEngine::get_embedded().ok()?;
+    let candidate_tokens = crate::location::path_parser::extract_candidate_location_tokens(p);
+    for token in &candidate_tokens {
+        let matches = gazetteer.search(token, 1);
+        if let Some((entry, score)) = matches.into_iter().next() {
+            if score >= 0.80 {
+                return Some((
+                    entry.name,
+                    GpsCoordinate {
+                        latitude: entry.latitude,
+                        longitude: entry.longitude,
+                        source: LocationSource::SubdirectoryGazetteer,
+                    },
+                ));
+            }
+        }
+    }
+    None
+}
+
 /// Applies strict four-tier location precedence to an AssetBundle:
 /// 1. Embedded EXIF GPS (hardware camera coordinates are strictly immutable)
 /// 2. Image-level explicit location override (bundle_locations table)
 /// 3. Subdirectory / parent hierarchical location override (directory_locations table)
 /// 4. Default / existing gazetteer fallback
+///
+/// # Arguments
+///
+/// * `bundle` - The mutable photo asset bundle whose location is to be resolved.
+/// * `manifest` - Manifest database connection to query bundle and directory overrides.
+///
+/// # Returns
+///
+/// Returns `Ok(())` upon successful precedence evaluation and resolution.
+///
+/// # Errors
+///
+/// Returns `Err` if querying manifest overrides fails.
 pub fn apply_location_precedence(bundle: &mut AssetBundle, manifest: &ManifestDb) -> Result<()> {
     // Tier 1: Hardware EXIF GPS coordinates strictly override everything
     if let Some(coords) = bundle.gps_coords {
@@ -54,19 +89,42 @@ pub fn apply_location_precedence(bundle: &mut AssetBundle, manifest: &ManifestDb
 
     if let Some(ref dir_path) = dir_to_check {
         let is_subfolder = dir_path.components().count() > 1;
-        if let Some(dir_loc) = manifest.get_hierarchical_directory_location(dir_path)? {
-            let source = if is_subfolder {
-                LocationSource::SubdirectoryGazetteer
-            } else {
-                LocationSource::TripFolderGazetteer
-            };
-            bundle.resolved_location_name = Some(dir_loc.name);
-            bundle.gps_coords = Some(GpsCoordinate {
-                latitude: dir_loc.latitude,
-                longitude: dir_loc.longitude,
-                source,
-            });
-            return Ok(());
+        let mut curr = Some(dir_path.as_path());
+        while let Some(p) = curr {
+            let is_trip_root = p == std::path::Path::new(&bundle.trip_folder_name)
+                || p.file_name().and_then(|n| n.to_str()) == Some(&bundle.trip_folder_name);
+
+            let s = p.to_string_lossy();
+            if !s.is_empty() && s != "." {
+                if let Some(dir_loc) = manifest.get_directory_location(s.as_ref())? {
+                    let source = if !is_trip_root && is_subfolder {
+                        LocationSource::SubdirectoryGazetteer
+                    } else {
+                        LocationSource::TripFolderGazetteer
+                    };
+                    bundle.resolved_location_name = Some(dir_loc.name);
+                    bundle.gps_coords = Some(GpsCoordinate {
+                        latitude: dir_loc.latitude,
+                        longitude: dir_loc.longitude,
+                        source,
+                    });
+                    return Ok(());
+                }
+
+                // If this subfolder is not the trip root, check if its name matches the gazetteer
+                if !is_trip_root {
+                    if let Some((name, coords)) = resolve_path_tokens_via_gazetteer(p) {
+                        bundle.resolved_location_name = Some(name);
+                        bundle.gps_coords = Some(coords);
+                        return Ok(());
+                    }
+                }
+            }
+
+            if is_trip_root {
+                break;
+            }
+            curr = p.parent();
         }
     }
 
@@ -128,10 +186,13 @@ pub fn apply_location_precedence_cached(
         let is_subfolder = dir_path.components().count() > 1;
         let mut curr = Some(dir_path.as_path());
         while let Some(p) = curr {
+            let is_trip_root = p == std::path::Path::new(&bundle.trip_folder_name)
+                || p.file_name().and_then(|n| n.to_str()) == Some(&bundle.trip_folder_name);
+
             let s = p.to_string_lossy();
             if !s.is_empty() && s != "." {
                 if let Some(dir_loc) = directory_locations.get(s.as_ref()) {
-                    let source = if is_subfolder {
+                    let source = if !is_trip_root && is_subfolder {
                         LocationSource::SubdirectoryGazetteer
                     } else {
                         LocationSource::TripFolderGazetteer
@@ -144,6 +205,19 @@ pub fn apply_location_precedence_cached(
                     });
                     return;
                 }
+
+                // If this subfolder is not the trip root, check if its name matches the gazetteer
+                if !is_trip_root {
+                    if let Some((name, coords)) = resolve_path_tokens_via_gazetteer(p) {
+                        bundle.resolved_location_name = Some(name);
+                        bundle.gps_coords = Some(coords);
+                        return;
+                    }
+                }
+            }
+
+            if is_trip_root {
+                break;
             }
             curr = p.parent();
         }
