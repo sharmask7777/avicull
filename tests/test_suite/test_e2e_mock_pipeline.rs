@@ -55,7 +55,7 @@ fn test_mock_pipeline_location_resolution_and_regional_priors() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = avicull::resolve_manifest_db_path(None, Some(&output_dir), None, None);
     assert!(db_path.exists(), "manifest.sqlite must be created");
 
     let db = ManifestDb::open(&db_path).expect("open manifest db");

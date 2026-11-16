@@ -8,7 +8,7 @@ Welcome to `avicull`. This document defines the engineering standards, architect
 
 1. **Strict Source Immutability in Default Preferred Mode (`--mode in-place`)**:
    `--mode in-place` is the default and preferred mode of operation for `avicull`. The input archive (`--input`) is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`.
-   Everything is completely self-contained within `<input>/.avicull/` (SQLite manifest, precomputed previews/thumbnails) and `<input>/catalog.html`.
+   Everything is completely self-contained within `<input>/avicull_catalog_files/` (and backward-compatible `.avicull/`: SQLite manifest, precomputed previews/thumbnails) and `<input>/catalog.html`.
 2. **Cosmetic Renaming via Explicit Opt-In (`--mode in-place-rename`)**:
    Renaming source files is purely a cosmetic change. When explicitly requested via `--mode in-place-rename`, source files and companion sidecars are atomically renamed in-place with descriptive species, date, and location tokens. All in-place renames are transactionally journaled in SQLite for lossless rollback via `avicull clean`.
 3. **Zero-Byte Output Tree via Hard Links (`--mode hierarchy`)**:
@@ -18,13 +18,21 @@ Welcome to `avicull`. This document defines the engineering standards, architect
 5. **Skipped Paths During Traversal**:
    Recursive scans of `--input` must always skip:
    - Any directory named `birds_hierarchy` (preventing infinite loops or scanning previous output).
-   - Any directory named `.avicull` (preventing scanning internal SQLite manifests).
+   - Any directory named `avicull_catalog_files` or `.avicull` (preventing scanning internal SQLite manifests).
    - Any directory ending with `.photoslibrary` (preventing scanning Apple Photos library packages).
    - Any directory starting with `.` (hidden directories like `.DS_Store`) or `@eaDir`.
 6. **Parent & Child Multi-Level Coexistence**:
    A trip subdirectory (e.g. `Pictures/Leh/birds_hierarchy`) and its parent directory (e.g. `Pictures/birds_hierarchy`) can both co-exist simultaneously via hard links. The inode link count (`st_nlink`) increments appropriately without conflict.
 7. **macOS FileProvider / iCloud Dataless Protection**:
    Files marked with Darwin `SF_DATALESS` (`0x40000000`) must never be opened eagerly during pre-scans to prevent unwanted on-demand cloud hydration.
+8. **Decoupled State and View Architecture (`render-catalog`)**:
+   Domain state is strictly isolated inside `<input>/avicull_catalog_files/manifest.sqlite`. The presentation layer (`catalog.html`) is a pure offline projection rendered in $<1.5\text{s}$ with zero image I/O via `avicull render-catalog` (or `organize-all --view-only`).
+9. **Dual Thumbnail Strategy & High-Volume NAS Scalability**:
+   In single-trip catalogs ($\le 2{,}500$ photos), embedded base64 micro-thumbnails provide self-contained offline portability. In parent rollup catalogs ($50{,}000–100{,}000+$ photos), base64 micro-thumbnails must be strictly suppressed, linking to disk previews `{child}/avicull_catalog_files/previews/{stem}.jpg` with `loading="lazy"` and `decoding="async"` to prevent multi-gigabyte HTML bloat and browser OOM crashes.
+10. **Deep Directory-Only Signature Probes**:
+    Change detection on NAS (SMB/NFS) must use directory-only traversals down to depth 8, computing composite signatures $(\max(\text{mtime}), \sum(\text{readdir\_count}))$ in $<20\text{ms}$ without scanning or statting individual image files.
+11. **Fast Software Re-classification as Default (`--reclassify-mode fast`)**:
+    Default reclassification must re-evaluate species routing tiers and priors directly from stored 512-d visual embeddings in SQLite in pure Rust, reserving full neural network inference (`--reclassify-mode forced`) for explicit opt-in.
 
 ---
 

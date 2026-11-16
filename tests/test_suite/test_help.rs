@@ -34,6 +34,8 @@ fn test_render_help_for_each_topic() {
         HelpTopic::Models,
         HelpTopic::Update,
         HelpTopic::Scan,
+        HelpTopic::Catalog,
+        HelpTopic::Catalog,
         HelpTopic::All,
     ] {
         let content = render_help(Some(topic));
@@ -60,6 +62,7 @@ fn test_render_help_non_all_topics_show_available_topics_footer() {
         HelpTopic::Models,
         HelpTopic::Update,
         HelpTopic::Scan,
+        HelpTopic::Catalog,
     ] {
         let content = render_help(Some(topic));
         assert!(
@@ -115,6 +118,11 @@ fn test_render_help_documents_inplace_and_catalog() {
     assert!(all_content.contains("'in-place' (default"));
     assert!(all_content.contains("in-place-rename"));
     assert!(all_content.contains("catalog.html"));
+
+    let catalog_content = render_help(Some(HelpTopic::Catalog));
+    assert!(catalog_content.contains("render-catalog"));
+    assert!(catalog_content.contains("catalog"));
+    assert!(catalog_content.contains("--view-only"));
 }
 
 #[test]
@@ -190,6 +198,7 @@ fn test_help_topic_display() {
         ("invariants", HelpTopic::Invariants),
         ("models", HelpTopic::Models),
         ("update", HelpTopic::Update),
+        ("catalog", HelpTopic::Catalog),
         ("all", HelpTopic::All),
     ] {
         assert_eq!(topic.to_string(), expected_str);

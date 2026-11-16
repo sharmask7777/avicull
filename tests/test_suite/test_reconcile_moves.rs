@@ -13,7 +13,9 @@ fn test_reconcile_manual_species_directory_move() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("input");
     let output_dir = dir.path().join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
@@ -125,7 +127,9 @@ fn test_reconcile_promote_from_needs_review_to_confirmed_same_species() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("input");
     let output_dir = dir.path().join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
@@ -209,7 +213,9 @@ fn test_reconcile_manual_move_to_no_bird_detected() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("input");
     let output_dir = dir.path().join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
@@ -288,7 +294,9 @@ fn test_reconcile_does_not_mark_auto_no_bird_as_user_override() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("input");
     let output_dir = dir.path().join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
@@ -373,7 +381,9 @@ fn test_reconcile_stem_matching_when_inode_differs() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("input");
     let output_dir = dir.path().join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
     fs::create_dir_all(&output_dir).unwrap();
@@ -491,7 +501,9 @@ fn test_reconcile_inplace_manual_filename_rename() {
     };
 
     let run_id = "run-001";
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     db.record_run(run_id, &input_dir, &input_dir, false, "{}")
         .unwrap();
@@ -604,7 +616,9 @@ fn test_reconcile_inplace_does_not_override_unrenamed_photos_to_no_bird() {
     };
 
     let run_id = "run-001";
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     let db = ManifestDb::open_or_create(&db_path).unwrap();
     db.record_run(run_id, &input_dir, &input_dir, false, "{}")
         .unwrap();
@@ -679,7 +693,9 @@ fn test_reconciliation_handles_deleted_files() {
     );
 
     let output_dir = input_dir.join("birds_hierarchy");
-    let db_path = output_dir.join(".avicull/manifest.sqlite");
+    let db_path = output_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     assert!(db_path.exists());
 
     let db = ManifestDb::open_or_create(&db_path).unwrap();
@@ -784,7 +800,9 @@ fn test_reconciliation_handles_deleted_files() {
 fn test_reconcile_inplace_manual_two_level_rename_and_legacy_promotion() {
     let dir = tempdir().expect("create temp dir");
     let input_dir = dir.path().join("photos");
-    let db_path = input_dir.join(".avicull/manifest.sqlite");
+    let db_path = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
 
     fs::create_dir_all(&input_dir).unwrap();
 
@@ -1017,7 +1035,10 @@ fn test_apply_bundle_correction_rejects_or_corrects_non_bird_assigned_to_bird() 
 #[test]
 fn test_apply_bundle_correction_with_botanical_category_normalizes_to_no_subject_detected() {
     let dir = tempdir().expect("create temp dir");
-    let db_path = dir.path().join(".avicull/manifest.sqlite");
+    let db_path = dir
+        .path()
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     fs::create_dir_all(db_path.parent().unwrap()).unwrap();
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 
@@ -1107,7 +1128,9 @@ fn test_reconcile_manual_disk_moves_never_resolves_botanical_or_non_bird_to_bird
     let meta = fs::metadata(&img_path).unwrap();
     let ino = meta.ino();
 
-    let db_path = output_root.join(".avicull/manifest.sqlite");
+    let db_path = output_root
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     fs::create_dir_all(db_path.parent().unwrap()).unwrap();
     let db = ManifestDb::open_or_create(&db_path).unwrap();
 

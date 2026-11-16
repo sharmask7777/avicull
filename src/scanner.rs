@@ -8,7 +8,7 @@
 //!
 //! This module recursively traverses photo archives while enforcing strict safety invariants:
 //! 1. **Traverse Exclusion Rules**:
-//!    Explicitly skips previously generated output trees (`birds_hierarchy`), internal database directories (`.avicull`),
+//!    Explicitly skips previously generated output trees (`birds_hierarchy`), catalog assets (`avicull_catalog_files`, legacy `.avicull`),
 //!    Apple Photos library package bundles (`*.photoslibrary`), Synology indexing caches (`@eaDir`),
 //!    and hidden Unix directories (`.*`).
 //! 2. **Multi-File Bundle Aggregation**:
@@ -28,6 +28,14 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+pub mod probe;
+
+pub use probe::{
+    compute_directory_signature, probe_directory_change_status,
+    probe_directory_change_status_with_paths, ChangeReason, DirectoryProbeResult,
+    DirectorySignature,
+};
 
 const RAW_EXTS: &[&str] = &[
     "arw", "cr2", "cr3", "nef", "orf", "rw2", "dng", "pef", "srw", "raf",
@@ -193,7 +201,24 @@ pub fn scan_input_tree(input_dir: &Path) -> Result<Vec<AssetBundle>> {
     scan_input_tree_with_skip(input_dir, None)
 }
 
-/// Recursively traverses input directory, skipping hidden directories, `.avicull`,
+/// Returns whether a directory or file entry should be skipped during archive traversal.
+///
+/// Skips:
+/// - Hidden directories (names starting with `.`)
+/// - `birds_hierarchy` (avoids infinite loops or scanning previous hierarchy output)
+/// - `@eaDir` (Synology NAS indexing metadata)
+/// - Directories ending with `.photoslibrary` (Apple Photos packages)
+/// - `avicull_catalog_files` (unhidden catalog assets directory)
+#[must_use]
+pub fn should_skip_dir(name: &str) -> bool {
+    name.starts_with('.')
+        || name == "@eaDir"
+        || name == "birds_hierarchy"
+        || name.ends_with(".photoslibrary")
+        || name == crate::catalog::CATALOG_FILES_DIR
+}
+
+/// Recursively traverses input directory, skipping hidden directories, `avicull_catalog_files`, legacy `.avicull`,
 /// `birds_hierarchy`, `*.photoslibrary`, and any designated output skip directory.
 pub fn scan_input_tree_with_skip(
     input_dir: &Path,
@@ -214,13 +239,11 @@ pub fn scan_input_tree_with_skip(
         .follow_links(false)
         .into_iter()
         .filter_entry(|entry| {
-            let name = entry.file_name().to_string_lossy();
-            if name.starts_with('.')
-                || name == "@eaDir"
-                || name == "birds_hierarchy"
-                || name.ends_with(".photoslibrary")
-            {
-                return false;
+            if entry.depth() > 0 {
+                let name = entry.file_name().to_string_lossy();
+                if should_skip_dir(&name) {
+                    return false;
+                }
             }
             if let Some(ref skip) = can_skip {
                 if let Ok(entry_path) = entry.path().canonicalize() {
@@ -509,8 +532,9 @@ pub fn extract_embedded_jpeg_preview(raw_bytes: &[u8]) -> Option<Vec<u8>> {
     largest
 }
 
-/// Recursively discovers manifest database files (`.avicull/manifest.sqlite`) in subdirectories
-/// beneath `input_dir`, excluding the root's own direct `.avicull` or `birds_hierarchy/.avicull`.
+/// Recursively discovers manifest database files (`manifest.sqlite`) in subdirectories
+/// beneath `input_dir`, checking `avicull_catalog_files` first with fallback to `.avicull`,
+/// excluding the root's own direct catalog files or `birds_hierarchy` catalog files.
 /// Returns a list of `(manifest_path, relative_subdir)`.
 pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBuf)>> {
     let mut results = Vec::new();
@@ -521,7 +545,7 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
         )
     })?;
 
-    // Walk child directories, looking for .avicull/manifest.sqlite
+    // Walk child directories, looking for avicull_catalog_files/manifest.sqlite or .avicull/manifest.sqlite
     for entry in WalkDir::new(&can_input)
         .min_depth(1)
         .max_depth(8)
@@ -535,13 +559,16 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
         if entry.file_type().is_file() && entry.file_name() == "manifest.sqlite" {
             let path = entry.path();
             if let Some(parent) = path.parent() {
-                if parent.file_name().is_some_and(|n| n == ".avicull") {
+                if parent.file_name().is_some_and(|n| {
+                    n == crate::catalog::CATALOG_FILES_DIR
+                        || n == crate::catalog::LEGACY_CATALOG_FILES_DIR
+                }) {
                     if let Some(grandparent) = parent.parent() {
                         let can_gp = grandparent
                             .canonicalize()
                             .unwrap_or_else(|_| grandparent.to_path_buf());
                         let can_root_hier = can_input.join("birds_hierarchy");
-                        // Skip root's own direct .avicull or birds_hierarchy/.avicull
+                        // Skip root's own direct catalog files or birds_hierarchy catalog files
                         if can_gp == can_input || can_gp == can_root_hier {
                             continue;
                         }
@@ -567,7 +594,18 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
         }
     }
 
-    results.sort_by(|a, b| a.0.cmp(&b.0));
-    results.dedup_by(|a, b| a.0 == b.0);
+    // Sort by relative subdir, then prioritize CATALOG_FILES_DIR over LEGACY_CATALOG_FILES_DIR
+    results.sort_by(|a, b| {
+        a.1.cmp(&b.1).then_with(|| {
+            let a_is_unhidden =
+                a.0.to_string_lossy()
+                    .contains(crate::catalog::CATALOG_FILES_DIR);
+            let b_is_unhidden =
+                b.0.to_string_lossy()
+                    .contains(crate::catalog::CATALOG_FILES_DIR);
+            b_is_unhidden.cmp(&a_is_unhidden)
+        })
+    });
+    results.dedup_by(|a, b| a.1 == b.1);
     Ok(results)
 }

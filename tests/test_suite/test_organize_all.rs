@@ -122,6 +122,8 @@ fn test_run_organize_function_interface() {
         dry_run: false,
         force: false,
         reclassify: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: false,
         min_confidence: 0.65,
         min_detect: 0.25,
         burst_window_ms: 3000,
@@ -139,7 +141,11 @@ fn test_run_organize_function_interface() {
         verbose: false,
     };
     avicull::organizer::run_organize(&args).unwrap();
-    assert!(temp.path().join(".avicull/manifest.sqlite").exists());
+    assert!(temp
+        .path()
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(temp.path().join("catalog.html").exists());
 }
 
@@ -180,6 +186,8 @@ fn test_organize_all_mock_directory_structure() {
         mode: avicull::types::OrganizationMode::InPlace,
         no_prompt: true,
         force: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: false,
         verbose: true,
         threads: Some(1),
         models_dir: None,
@@ -193,21 +201,33 @@ fn test_organize_all_mock_directory_structure() {
     avicull::organizer::run_organize_all(&all_args).unwrap();
 
     // Verify child outputs
-    assert!(trip_a.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_a
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(trip_a.join("catalog.html").exists());
-    assert!(trip_b.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_b
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(trip_b.join("catalog.html").exists());
-    assert!(empty_trip.join(".avicull/manifest.sqlite").exists());
+    assert!(empty_trip
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(empty_trip.join("catalog.html").exists());
 
     // Verify skipped directories were untouched
-    assert!(!skipped_hier.join(".avicull").exists());
-    assert!(!skipped_hidden.join(".avicull").exists());
-    assert!(!skipped_photoslib.join(".avicull").exists());
-    assert!(!skipped_eadir.join(".avicull").exists());
+    assert!(!skipped_hier.join(avicull::CATALOG_FILES_DIR).exists());
+    assert!(!skipped_hidden.join(avicull::CATALOG_FILES_DIR).exists());
+    assert!(!skipped_photoslib.join(avicull::CATALOG_FILES_DIR).exists());
+    assert!(!skipped_eadir.join(avicull::CATALOG_FILES_DIR).exists());
 
     // Verify root rollup catalog
-    assert!(root.join(".avicull/manifest.sqlite").exists());
+    assert!(root
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(root.join("catalog.html").exists());
 
     // Verify idempotent re-run
@@ -233,11 +253,11 @@ fn test_organize_all_fault_tolerance_on_child_error() {
     std::fs::write(trip_a.join("photo_a.jpg"), b"fake_jpeg_a").unwrap();
     std::fs::write(trip_c.join("photo_c.jpg"), b"fake_jpeg_c").unwrap();
 
-    // In trip_b, create a directory with the name .avicull that is actually a file,
+    // In trip_b, create a directory with the name avicull_catalog_files that is actually a file,
     // or remove write permissions so run_organize will fail.
-    // Creating a regular file named `.avicull` inside `trip_b` causes `fs::create_dir_all` inside
+    // Creating a regular file named `avicull_catalog_files` inside `trip_b` causes `fs::create_dir_all` inside
     // `ManifestDb::open` or bundle processing to fail.
-    std::fs::write(trip_b.join(".avicull"), b"not a directory").unwrap();
+    std::fs::write(trip_b.join(avicull::CATALOG_FILES_DIR), b"not a directory").unwrap();
 
     let all_args = avicull::cli::OrganizeAllArgs {
         input: root.to_path_buf(),
@@ -246,6 +266,8 @@ fn test_organize_all_fault_tolerance_on_child_error() {
         mode: avicull::types::OrganizationMode::InPlace,
         no_prompt: true,
         force: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: false,
         verbose: false,
         threads: Some(1),
         models_dir: None,
@@ -264,13 +286,22 @@ fn test_organize_all_fault_tolerance_on_child_error() {
     );
 
     // Trip A and Trip C should have catalogs and manifests
-    assert!(trip_a.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_a
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(trip_a.join("catalog.html").exists());
-    assert!(trip_c.join(".avicull/manifest.sqlite").exists());
+    assert!(trip_c
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(trip_c.join("catalog.html").exists());
 
     // Root parent catalog should also have been created
-    assert!(root.join(".avicull/manifest.sqlite").exists());
+    assert!(root
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite")
+        .exists());
     assert!(root.join("catalog.html").exists());
 }
 
@@ -284,8 +315,16 @@ fn test_organize_all_all_children_failing_returns_error() {
     std::fs::create_dir_all(&trip_fail1).unwrap();
     std::fs::create_dir_all(&trip_fail2).unwrap();
 
-    std::fs::write(trip_fail1.join(".avicull"), b"not a directory").unwrap();
-    std::fs::write(trip_fail2.join(".avicull"), b"not a directory").unwrap();
+    std::fs::write(
+        trip_fail1.join(avicull::CATALOG_FILES_DIR),
+        b"not a directory",
+    )
+    .unwrap();
+    std::fs::write(
+        trip_fail2.join(avicull::CATALOG_FILES_DIR),
+        b"not a directory",
+    )
+    .unwrap();
 
     let all_args = avicull::cli::OrganizeAllArgs {
         input: root.to_path_buf(),
@@ -294,6 +333,8 @@ fn test_organize_all_all_children_failing_returns_error() {
         mode: avicull::types::OrganizationMode::InPlace,
         no_prompt: true,
         force: false,
+        reclassify_mode: avicull::cli::ReclassifyMode::Fast,
+        view_only: false,
         verbose: false,
         threads: Some(1),
         models_dir: None,

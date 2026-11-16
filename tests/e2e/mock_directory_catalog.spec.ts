@@ -110,4 +110,14 @@ test.describe('Mock Directory Structure Catalog Visual & Interaction Tests', () 
     await expect(commandText).toContainText('avicull location');
     await expect(commandText).toContainText('11.9960, 77.1350');
   });
+
+  test('verifies all card images have lazy loading and async decoding attributes', async ({ page }) => {
+    const images = page.locator('#galleryGrid .card img');
+    const count = await images.count();
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i++) {
+      await expect(images.nth(i)).toHaveAttribute('loading', 'lazy');
+      await expect(images.nth(i)).toHaveAttribute('decoding', 'async');
+    }
+  });
 });

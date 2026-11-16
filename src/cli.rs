@@ -14,6 +14,16 @@ use std::path::PathBuf;
 
 pub use crate::organizer::chunk::parse_size_budget;
 
+/// Execution mode for species re-classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Default)]
+pub enum ReclassifyMode {
+    /// Re-score species assignments and priors from stored visual embeddings in SQLite (Zero ML inference)
+    #[default]
+    Fast,
+    /// Force full neural network detection and classification on raw image files
+    Forced,
+}
+
 #[derive(Parser, Debug)]
 #[command(
     name = "avicull",
@@ -38,6 +48,13 @@ pub enum Commands {
     /// Sequentially organize immediate subdirectories into independent catalogs and produce an aggregated root catalog
     #[command(name = "organize-all")]
     OrganizeAll(OrganizeAllArgs),
+
+    /// Regenerate or export standalone HTML catalog view directly from SQLite manifest
+    #[command(name = "render-catalog", alias = "catalog")]
+    RenderCatalog(RenderCatalogArgs),
+
+    /// Re-score species assignments and priors from stored visual embeddings in SQLite or forced neural inference
+    Reclassify(ReclassifyArgs),
 
     /// Re-materialize hard links from cached SQLite predictions without re-running ML inference
     Relink(RelinkArgs),
@@ -150,7 +167,7 @@ pub struct LocationArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/avicull_catalog_files/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 
@@ -216,9 +233,17 @@ pub struct OrganizeArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
-    /// Force full neural network re-detection and re-classification from scratch across all photo bundles, re-doing the entire archive (does not retain previous cached predictions or overrides)
+    /// Re-evaluate species classifications and priors across photo bundles. Defaults to fast software re-scoring from stored visual embeddings (--reclassify-mode fast). Pass '--reclassify-mode forced' to re-run neural detection on raw images.
     #[arg(long, default_value_t = false)]
     pub reclassify: bool,
+
+    /// Reclassification mode: [fast | forced] (default: fast)
+    #[arg(long, value_enum, default_value_t = ReclassifyMode::Fast)]
+    pub reclassify_mode: ReclassifyMode,
+
+    /// Regenerate HTML catalog view directly from SQLite manifest without re-scanning or running ML inference
+    #[arg(long, default_value_t = false)]
+    pub view_only: bool,
 
     /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
     #[arg(long, default_value_t = 0.65)]
@@ -308,6 +333,14 @@ pub struct OrganizeAllArgs {
     #[arg(long, default_value_t = false)]
     pub force: bool,
 
+    /// Reclassification mode: [fast | forced] (default: fast)
+    #[arg(long, value_enum, default_value_t = ReclassifyMode::Fast)]
+    pub reclassify_mode: ReclassifyMode,
+
+    /// Regenerate all child and parent HTML catalogs directly from SQLite manifests without re-scanning or running ML inference
+    #[arg(long, default_value_t = false)]
+    pub view_only: bool,
+
     /// Enable verbose progress reporting
     #[arg(short, long, default_value_t = false)]
     pub verbose: bool,
@@ -341,13 +374,142 @@ pub struct OrganizeAllArgs {
     pub min_detect: f32,
 }
 
+/// Arguments for the `render-catalog` (alias `catalog`) standalone view generator subcommand.
+#[derive(Args, Debug, Clone)]
+pub struct RenderCatalogArgs {
+    /// Source directory containing avicull_catalog_files/manifest.sqlite
+    #[arg(short, long, default_value = ".")]
+    pub input: PathBuf,
+
+    /// Destination path for catalog HTML (defaults to <INPUT>/catalog.html)
+    #[arg(short, long)]
+    pub output_file: Option<PathBuf>,
+
+    /// Custom gallery title display name
+    #[arg(short, long)]
+    pub trip_name: Option<String>,
+
+    /// Organization mode override
+    #[arg(short, long)]
+    pub mode: Option<OrganizationMode>,
+
+    /// Omit base64 micro-thumbnails to minimize HTML file size
+    #[arg(long, default_value_t = false)]
+    pub no_thumbnails: bool,
+}
+
+/// Arguments for the `reclassify` subcommand.
+#[derive(Args, Debug, Clone)]
+pub struct ReclassifyArgs {
+    /// Read-only source directory of trip photos (defaults to current directory)
+    #[arg(short, long, default_value = ".")]
+    pub input: PathBuf,
+
+    /// Target root directory (defaults to <INPUT>/birds_hierarchy in hierarchy mode)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Reclassification mode: [fast | forced] (default: fast)
+    #[arg(long, value_enum, default_value_t = ReclassifyMode::Fast)]
+    pub reclassify_mode: ReclassifyMode,
+
+    /// Threshold for Confirmed vs _Needs_Review (default: 0.65)
+    #[arg(long, default_value_t = 0.65)]
+    pub min_confidence: f32,
+
+    /// YOLO11 bird detection confidence floor (default: 0.25)
+    #[arg(long, default_value_t = 0.25)]
+    pub min_detect: f32,
+
+    /// Max timestamp gap for burst clustering in ms (default: 3000)
+    #[arg(long, default_value_t = 3000)]
+    pub burst_window_ms: i64,
+
+    /// Filename score: [burst-consensus | per-frame] (default: burst-consensus)
+    #[arg(long, default_value = "burst-consensus")]
+    pub confidence_mode: String,
+
+    /// Organization mode override
+    #[arg(long, value_enum)]
+    pub mode: Option<OrganizationMode>,
+
+    /// Path to manifest.sqlite database directly
+    #[arg(long)]
+    pub db: Option<PathBuf>,
+
+    /// Strength of SINR geographical prior [0.0..2.0] (default: 1.0)
+    #[arg(long, default_value_t = 1.0)]
+    pub geo_prior_weight: f32,
+
+    /// Optional TOML file mapping trip folder keywords to {lat, lon}
+    #[arg(long)]
+    pub locations_file: Option<PathBuf>,
+
+    /// Fallback default latitude
+    #[arg(long)]
+    pub default_lat: Option<f64>,
+
+    /// Fallback default longitude
+    #[arg(long)]
+    pub default_lon: Option<f64>,
+
+    /// Directory containing exported .onnx and .safetensors files
+    #[arg(long)]
+    pub models_dir: Option<PathBuf>,
+
+    /// Rayon worker thread count for I/O and preprocessing
+    #[arg(long)]
+    pub threads: Option<usize>,
+
+    /// Override location name or coordinates (lat,lon) for photos lacking GPS
+    #[arg(short = 'l', long)]
+    pub location: Option<String>,
+
+    /// Run non-interactively without prompting
+    #[arg(long, default_value_t = false)]
+    pub no_prompt: bool,
+
+    /// Enable verbose progress output
+    #[arg(short, long, default_value_t = false)]
+    pub verbose: bool,
+}
+
+impl From<ReclassifyArgs> for OrganizeArgs {
+    fn from(args: ReclassifyArgs) -> Self {
+        Self {
+            input: args.input,
+            output: args.output,
+            dry_run: false,
+            force: false,
+            reclassify: true,
+            reclassify_mode: args.reclassify_mode,
+            view_only: false,
+            min_confidence: args.min_confidence,
+            min_detect: args.min_detect,
+            burst_window_ms: args.burst_window_ms,
+            confidence_mode: args.confidence_mode,
+            mode: args.mode.unwrap_or(OrganizationMode::InPlace),
+            geo_prior_weight: args.geo_prior_weight,
+            locations_file: args.locations_file,
+            default_lat: args.default_lat,
+            default_lon: args.default_lon,
+            models_dir: args.models_dir,
+            threads: args.threads,
+            location: args.location,
+            no_prompt: args.no_prompt,
+            max_cache_size: "5GB".to_string(),
+            verbose: args.verbose,
+        }
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct RelinkArgs {
     /// Input trip archive root (defaults output to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -374,7 +536,7 @@ pub struct CleanArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -397,7 +559,7 @@ pub struct ReportArgs {
     #[arg(short, long)]
     pub input: Option<PathBuf>,
 
-    /// Target root directory containing .avicull/manifest.sqlite (defaults to <input>/birds_hierarchy)
+    /// Target root directory containing avicull_catalog_files/manifest.sqlite (defaults to <input>/birds_hierarchy)
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
@@ -442,7 +604,7 @@ pub struct CorrectArgs {
     #[arg(short, long)]
     pub output: Option<PathBuf>,
 
-    /// Path to SQLite manifest database (defaults to `<OUTPUT>/.avicull/manifest.sqlite`)
+    /// Path to SQLite manifest database (defaults to `<OUTPUT>/avicull_catalog_files/manifest.sqlite`)
     #[arg(long)]
     pub db: Option<PathBuf>,
 

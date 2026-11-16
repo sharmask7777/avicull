@@ -106,11 +106,13 @@ fn test_catalog_hybrid_rendering_and_thumbnail_fallback() {
     let catalog_path = input_dir.join("bird_catalog.html");
     assert!(catalog_path.exists(), "bird_catalog.html must exist");
 
-    // 1. Verify thumbnail generation in .avicull/previews/<stem>.jpg
-    let preview_path = input_dir.join(".avicull/previews/IMG_2001.jpg");
+    // 1. Verify thumbnail generation in avicull_catalog_files/previews/<stem>.jpg
+    let preview_path = input_dir
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("previews/IMG_2001.jpg");
     assert!(
         preview_path.exists(),
-        "Thumbnail must exist at .avicull/previews/IMG_2001.jpg"
+        "Thumbnail must exist at avicull_catalog_files/previews/IMG_2001.jpg"
     );
 
     let html_content = fs::read_to_string(&catalog_path).expect("read catalog");
@@ -129,8 +131,11 @@ fn test_catalog_hybrid_rendering_and_thumbnail_fallback() {
         "Card must contain data-is-local attribute"
     );
     assert!(
-        html_content.contains(".avicull/previews/IMG_2001.jpg"),
-        "HTML must reference .avicull/previews/IMG_2001.jpg"
+        html_content.contains(&format!(
+            "{}/previews/IMG_2001.jpg",
+            avicull::CATALOG_FILES_DIR
+        )),
+        "HTML must reference avicull_catalog_files/previews/IMG_2001.jpg"
     );
 
     // 3. Verify onerror fallback handler swaps to dataset.thumbSrc and adds evicted class

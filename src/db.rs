@@ -43,6 +43,23 @@ pub struct PendingFailure {
     pub failed_at: String,
 }
 
+/// Record of synchronization state between a parent manifest and a child trip manifest.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChildSyncRecord {
+    /// Relative path key of the child directory (e.g. `"2024_05_Kaziranga"`).
+    pub child_rel_path: String,
+    /// Path to the child manifest database file.
+    pub manifest_path: String,
+    /// Latest run identifier of the child trip at synchronization time.
+    pub child_last_run_id: String,
+    /// ISO 8601 timestamp of when the child manifest was imported.
+    pub imported_at: String,
+    /// Number of asset bundles imported from the child manifest.
+    pub bundle_count: usize,
+    /// Deep modification time (maximum mtime among directory nodes) at sync time.
+    pub deep_mtime_secs: i64,
+}
+
 pub struct ManifestDb {
     conn: Arc<Mutex<Connection>>,
 }
@@ -292,6 +309,23 @@ impl ManifestDb {
                 updated_at INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS directory_sync_state (
+                path_key TEXT PRIMARY KEY,
+                max_mtime_secs INTEGER NOT NULL,
+                total_entry_count INTEGER NOT NULL,
+                dir_node_count INTEGER NOT NULL,
+                last_scanned_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS parent_child_sync (
+                child_rel_path TEXT PRIMARY KEY,
+                manifest_path TEXT NOT NULL,
+                child_last_run_id TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                bundle_count INTEGER NOT NULL,
+                deep_mtime_secs INTEGER NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_bundles_run ON bundles(run_id);
             CREATE INDEX IF NOT EXISTS idx_bundles_portable ON bundles(trip_folder, original_stem);
             CREATE INDEX IF NOT EXISTS idx_ops_run ON hardlink_operations(run_id);
@@ -376,6 +410,16 @@ impl ManifestDb {
     #[doc(hidden)]
     pub fn raw_conn(&self) -> &Arc<Mutex<Connection>> {
         &self.conn
+    }
+
+    /// Flushes WAL journal frames to the primary database file via a truncating checkpoint.
+    ///
+    /// # Errors
+    /// Returns error if SQLite checkpoint execution fails.
+    pub fn checkpoint(&self) -> Result<()> {
+        let conn = self.lock_conn()?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        Ok(())
     }
 
     /// Acquires a lock on the database connection, mapping mutex poison errors to [`AvicullError::DatabaseError`].
@@ -1428,6 +1472,76 @@ impl ManifestDb {
         Ok(())
     }
 
+    /// Retrieves the persisted directory signature for the given `path_key` (typically `"."` for trip root).
+    ///
+    /// # Arguments
+    /// * `path_key` - Key representing the directory path (e.g. `"."`).
+    ///
+    /// # Returns
+    /// `Ok(Some(DirectorySignature))` if a record exists, `Ok(None)` if no record found.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_directory_sync_state(
+        &self,
+        path_key: &str,
+    ) -> Result<Option<crate::scanner::probe::DirectorySignature>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT max_mtime_secs, total_entry_count, dir_node_count
+             FROM directory_sync_state WHERE path_key = ?1",
+        )?;
+        let mut rows = stmt.query(params![path_key])?;
+        if let Some(row) = rows.next()? {
+            let max_mtime_secs: i64 = row.get(0)?;
+            let total_entry_count: i64 = row.get(1)?;
+            let dir_node_count: i64 = row.get(2)?;
+            Ok(Some(crate::scanner::probe::DirectorySignature {
+                max_mtime_secs,
+                total_entry_count: total_entry_count as u64,
+                dir_node_count: dir_node_count as u64,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Persists or updates the directory signature for the given `path_key`.
+    ///
+    /// # Arguments
+    /// * `path_key` - Key representing the directory path (e.g. `"."`).
+    /// * `sig` - Composite directory signature.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn set_directory_sync_state(
+        &self,
+        path_key: &str,
+        sig: &crate::scanner::probe::DirectorySignature,
+    ) -> Result<()> {
+        let conn = self.lock_conn()?;
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            r#"
+            INSERT INTO directory_sync_state (path_key, max_mtime_secs, total_entry_count, dir_node_count, last_scanned_at)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(path_key) DO UPDATE SET
+                max_mtime_secs = excluded.max_mtime_secs,
+                total_entry_count = excluded.total_entry_count,
+                dir_node_count = excluded.dir_node_count,
+                last_scanned_at = excluded.last_scanned_at
+            "#,
+            params![
+                path_key,
+                sig.max_mtime_secs,
+                sig.total_entry_count as i64,
+                sig.dir_node_count as i64,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Marks a directory path as skipped for location resolution by the user.
     ///
     /// # Arguments
@@ -1935,11 +2049,33 @@ impl ManifestDb {
 
     /// Imports bundle decisions, locations, and cached thumbnails from a child manifest database
     /// into this manifest database, prefixing bundle metadata if relative paths need adjustments.
+    /// Synchronizes the child's run status in `parent_child_sync`.
     /// Returns the number of imported bundles.
     pub fn import_child_manifest(&self, child_db_path: &Path, rel_subdir: &Path) -> Result<usize> {
         let child_db = Self::open(child_db_path)?;
+        let child_key = rel_subdir.to_string_lossy().to_string();
+
+        // Cleanse prior child records if re-importing
+        self.prune_child_records(&child_key)?;
+
         let child_bundles = child_db.get_all_bundles(None)?;
+        let latest_run_id = child_db.get_latest_run_id()?.unwrap_or_default();
+        let deep_mtime = child_db
+            .get_directory_sync_state(".")
+            .ok()
+            .flatten()
+            .map_or(0, |s| s.max_mtime_secs);
+
         if child_bundles.is_empty() {
+            let sync_record = ChildSyncRecord {
+                child_rel_path: child_key,
+                manifest_path: child_db_path.to_string_lossy().to_string(),
+                child_last_run_id: latest_run_id,
+                imported_at: Utc::now().to_rfc3339(),
+                bundle_count: 0,
+                deep_mtime_secs: deep_mtime,
+            };
+            self.record_child_sync(&sync_record)?;
             return Ok(0);
         }
 
@@ -2037,7 +2173,263 @@ impl ManifestDb {
             }
         }
 
+        // Import child bundle decisions and visual embeddings
+        if let Ok(child_decisions) = child_db.query_decisions() {
+            if let Ok(conn) = self.lock_conn() {
+                for (dec, cat, emb) in child_decisions {
+                    let _ = insert_bundle_decision(&conn, &dec, &cat, emb.as_deref());
+                }
+            }
+        }
+
+        // Record child sync entry in parent_child_sync
+        let sync_record = ChildSyncRecord {
+            child_rel_path: child_key,
+            manifest_path: child_db_path.to_string_lossy().to_string(),
+            child_last_run_id: latest_run_id,
+            imported_at: Utc::now().to_rfc3339(),
+            bundle_count: bundles.len(),
+            deep_mtime_secs: deep_mtime,
+        };
+        self.record_child_sync(&sync_record)?;
+
         Ok(bundles.len())
+    }
+
+    /// Prunes all imported records, bundles, locations, and sync state for a child directory.
+    ///
+    /// # Arguments
+    /// * `child_rel_path` - Relative path key of the child directory.
+    ///
+    /// # Returns
+    /// The number of bundles removed.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn prune_child_records(&self, child_rel_path: &str) -> Result<usize> {
+        let mut conn = self.lock_conn()?;
+        let tx = conn.transaction()?;
+
+        let _ = tx.execute(
+            "DELETE FROM hardlink_operations WHERE bundle_id IN (
+                SELECT bundle_id FROM bundles 
+                WHERE trip_folder = ?1 
+                   OR relative_path = ?1 
+                   OR relative_path LIKE (?1 || '/%')
+                   OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)
+            )",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM bundle_decisions WHERE bundle_id IN (
+                SELECT bundle_id FROM bundles 
+                WHERE trip_folder = ?1 
+                   OR relative_path = ?1 
+                   OR relative_path LIKE (?1 || '/%')
+                   OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)
+            )",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM bundle_locations WHERE bundle_id IN (
+                SELECT bundle_id FROM bundles 
+                WHERE trip_folder = ?1 
+                   OR relative_path = ?1 
+                   OR relative_path LIKE (?1 || '/%')
+                   OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)
+            )",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM bundle_thumbnails WHERE bundle_id IN (
+                SELECT bundle_id FROM bundles 
+                WHERE trip_folder = ?1 
+                   OR relative_path = ?1 
+                   OR relative_path LIKE (?1 || '/%')
+                   OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)
+            )",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM pending_failures WHERE run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)",
+            params![child_rel_path],
+        );
+
+        let removed_bundles = tx.execute(
+            "DELETE FROM bundles 
+             WHERE trip_folder = ?1 
+                OR relative_path = ?1 
+                OR relative_path LIKE (?1 || '/%')
+                OR run_id IN (SELECT run_id FROM runs WHERE input_root = ?1)",
+            params![child_rel_path],
+        )?;
+
+        let _ = tx.execute(
+            "DELETE FROM runs WHERE input_root = ?1",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM directory_locations WHERE path_key = ?1 OR path_key LIKE (?1 || '/%')",
+            params![child_rel_path],
+        );
+        let _ = tx.execute(
+            "DELETE FROM skipped_directory_locations WHERE path_key = ?1 OR path_key LIKE (?1 || '/%')",
+            params![child_rel_path],
+        );
+
+        let _ = tx.execute(
+            "DELETE FROM parent_child_sync WHERE child_rel_path = ?1",
+            params![child_rel_path],
+        );
+
+        tx.commit()?;
+        Ok(removed_bundles)
+    }
+
+    /// Prunes any child records whose directory key is not present in `valid_child_rel_paths`.
+    ///
+    /// # Arguments
+    /// * `valid_child_rel_paths` - Slice of valid child directory keys currently present on disk.
+    ///
+    /// # Returns
+    /// The number of child trips pruned.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn prune_missing_children(&self, valid_child_rel_paths: &[String]) -> Result<usize> {
+        let tracked_children = {
+            let conn = self.lock_conn()?;
+            let mut stmt = conn.prepare("SELECT child_rel_path FROM parent_child_sync")?;
+            let mut tracked: Vec<String> = stmt
+                .query_map([], |row| row.get(0))?
+                .filter_map(std::result::Result::ok)
+                .collect();
+
+            let mut bundle_stmt = conn.prepare("SELECT DISTINCT trip_folder FROM bundles")?;
+            let bundle_trips: Vec<String> = bundle_stmt
+                .query_map([], |row| row.get(0))?
+                .filter_map(std::result::Result::ok)
+                .collect();
+
+            for trip in bundle_trips {
+                if !trip.is_empty() && !tracked.contains(&trip) {
+                    tracked.push(trip);
+                }
+            }
+            tracked
+        };
+
+        let mut pruned_count = 0;
+        for child in tracked_children {
+            if !valid_child_rel_paths.iter().any(|v| v == &child) {
+                self.prune_child_records(&child)?;
+                pruned_count += 1;
+            }
+        }
+
+        Ok(pruned_count)
+    }
+
+    /// Retrieves the synchronization record for a child directory, if present.
+    ///
+    /// # Arguments
+    /// * `child_rel_path` - Relative path key of the child directory.
+    ///
+    /// # Returns
+    /// `Ok(Some(ChildSyncRecord))` if previously synchronized, `Ok(None)` otherwise.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_child_sync(&self, child_rel_path: &str) -> Result<Option<ChildSyncRecord>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT child_rel_path, manifest_path, child_last_run_id, imported_at, bundle_count, deep_mtime_secs
+             FROM parent_child_sync WHERE child_rel_path = ?1",
+        )?;
+        let mut rows = stmt.query(params![child_rel_path])?;
+        if let Some(row) = rows.next()? {
+            let bundle_count: i64 = row.get(4)?;
+            Ok(Some(ChildSyncRecord {
+                child_rel_path: row.get(0)?,
+                manifest_path: row.get(1)?,
+                child_last_run_id: row.get(2)?,
+                imported_at: row.get(3)?,
+                bundle_count: bundle_count as usize,
+                deep_mtime_secs: row.get(5)?,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Records or updates synchronization metadata for a child directory.
+    ///
+    /// # Arguments
+    /// * `sync` - Synchronization metadata record.
+    ///
+    /// # Errors
+    /// Returns error if SQLite execution fails.
+    pub fn record_child_sync(&self, sync: &ChildSyncRecord) -> Result<()> {
+        let conn = self.lock_conn()?;
+        conn.execute(
+            r#"
+            INSERT INTO parent_child_sync (
+                child_rel_path, manifest_path, child_last_run_id, imported_at, bundle_count, deep_mtime_secs
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(child_rel_path) DO UPDATE SET
+                manifest_path = excluded.manifest_path,
+                child_last_run_id = excluded.child_last_run_id,
+                imported_at = excluded.imported_at,
+                bundle_count = excluded.bundle_count,
+                deep_mtime_secs = excluded.deep_mtime_secs
+            "#,
+            params![
+                sync.child_rel_path,
+                sync.manifest_path,
+                sync.child_last_run_id,
+                sync.imported_at,
+                sync.bundle_count as i64,
+                sync.deep_mtime_secs,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Retrieves all child synchronization records.
+    ///
+    /// # Returns
+    /// A vector of [`ChildSyncRecord`] entries.
+    ///
+    /// # Errors
+    /// Returns error if SQLite query fails.
+    pub fn get_all_child_syncs(&self) -> Result<Vec<ChildSyncRecord>> {
+        let conn = self.lock_conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT child_rel_path, manifest_path, child_last_run_id, imported_at, bundle_count, deep_mtime_secs
+             FROM parent_child_sync ORDER BY child_rel_path ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let bundle_count: i64 = row.get(4)?;
+            Ok(ChildSyncRecord {
+                child_rel_path: row.get(0)?,
+                manifest_path: row.get(1)?,
+                child_last_run_id: row.get(2)?,
+                imported_at: row.get(3)?,
+                bundle_count: bundle_count as usize,
+                deep_mtime_secs: row.get(5)?,
+            })
+        })?;
+
+        let mut syncs = Vec::new();
+        for r in rows {
+            syncs.push(r?);
+        }
+        Ok(syncs)
     }
 
     /// Inserts or replaces a bundle decision along with its taxonomic category and visual embedding.
@@ -2405,8 +2797,33 @@ pub fn insert_bundle_decision(
 
     if table_exists(conn, "bundles")? {
         let _ = conn.execute(
-            "UPDATE bundles SET category = ?1, visual_embedding = COALESCE(?2, visual_embedding) WHERE bundle_id = ?3",
-            params![category.as_str(), blob_bytes, decision.bundle_id],
+            "UPDATE bundles SET
+                category = ?1,
+                visual_embedding = COALESCE(?2, visual_embedding),
+                routing_tier = ?3,
+                final_conf = ?4,
+                frame_conf = ?5,
+                burst_id = ?6,
+                assigned_species_slug = ?7,
+                is_user_override = ?8,
+                detection_conf = ?9,
+                bbox_json = ?10,
+                top5_predictions_json = ?11
+             WHERE bundle_id = ?12",
+            params![
+                category.as_str(),
+                blob_bytes,
+                routing_tier_str,
+                decision.final_confidence,
+                decision.frame_confidence,
+                decision.burst_id,
+                decision.assigned_species_slug(),
+                i32::from(decision.is_user_override),
+                decision.detection_confidence,
+                bbox_json,
+                top5_json,
+                decision.bundle_id,
+            ],
         );
     }
 

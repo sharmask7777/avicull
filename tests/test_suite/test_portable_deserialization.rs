@@ -118,7 +118,9 @@ fn test_cross_machine_portable_deserialization() {
         String::from_utf8_lossy(&output_res.stderr)
     );
 
-    let db_path_a = output_a.join(".avicull/manifest.sqlite");
+    let db_path_a = output_a
+        .join(avicull::CATALOG_FILES_DIR)
+        .join("manifest.sqlite");
     assert!(
         db_path_a.exists(),
         "manifest.sqlite should exist on machine_a"
@@ -141,7 +143,12 @@ fn test_cross_machine_portable_deserialization() {
     );
 
     // Verify via db API on machine_b that ExistingBundleMap resolves bundle by relative_path
-    let db_b = ManifestDb::open(&output_b.join(".avicull/manifest.sqlite")).unwrap();
+    let db_b = ManifestDb::open(
+        &output_b
+            .join(avicull::CATALOG_FILES_DIR)
+            .join("manifest.sqlite"),
+    )
+    .unwrap();
     let existing_map = db_b.get_existing_bundle_map().unwrap();
     let bundles_b = scan_input_tree(&input_b).unwrap();
     assert_eq!(bundles_b.len(), 2);
@@ -246,7 +253,12 @@ fn test_nested_subfolders_same_stem_portable_deserialization() {
     copy_dir_all(&output_a, &output_b).unwrap();
 
     // Check DB and bundles directly
-    let db_b = ManifestDb::open(&output_b.join(".avicull/manifest.sqlite")).unwrap();
+    let db_b = ManifestDb::open(
+        &output_b
+            .join(avicull::CATALOG_FILES_DIR)
+            .join("manifest.sqlite"),
+    )
+    .unwrap();
     let existing_map = db_b.get_existing_bundle_map().unwrap();
     let bundles_b = scan_input_tree(&input_b).unwrap();
     assert_eq!(bundles_b.len(), 2);

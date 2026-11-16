@@ -2056,6 +2056,34 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       }});
       checkAllThumbnailsSettled();
     }}
+
+    // IntersectionObserver hook for lazy-loading offscreen cards in virtual grid
+    if (typeof IntersectionObserver !== 'undefined' && grid && typeof grid.querySelectorAll === 'function') {{
+      try {{
+        if (typeof window !== 'undefined') {{
+          if (window._catalogCardObserver && typeof window._catalogCardObserver.disconnect === 'function') {{
+            window._catalogCardObserver.disconnect();
+          }}
+          window._catalogCardObserver = new IntersectionObserver((entries, observer) => {{
+            entries.forEach(entry => {{
+              if (entry.isIntersecting) {{
+                const card = entry.target;
+                const img = card.querySelector('.card-media img');
+                if (img && img.dataset.lazySrc) {{
+                  img.src = img.dataset.lazySrc;
+                  delete img.dataset.lazySrc;
+                }}
+                observer.unobserve(card);
+              }}
+            }});
+          }}, {{ rootMargin: '200px 0px' }});
+          const cards = grid.querySelectorAll('.card');
+          cards.forEach(card => window._catalogCardObserver.observe(card));
+        }}
+      }} catch (e) {{
+        // Safe fallback for minimal headless or restricted DOM environments
+      }}
+    }}
   }}
 
   function setCategoryFilter(category, btn) {{
@@ -3376,6 +3404,8 @@ fi
         img.src = safeThumb;
         img.className = 'diff-thumb';
         img.alt = d.item.original_stem || '';
+        img.loading = 'lazy';
+        img.decoding = 'async';
         tdThumb.appendChild(img);
       }} else {{
         const placeholder = document.createElement('div');
