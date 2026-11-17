@@ -9,9 +9,9 @@
 //! If the signature matches the persisted state in SQLite and `catalog.html` exists,
 //! directories can be skipped in $< 2\text{ms}$ with $\le 3$ network round-trips.
 
-use crate::catalog::{CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR};
 use crate::db::ManifestDb;
 use crate::scanner::should_skip_dir;
+use crate::types::{CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR};
 use anyhow::{bail, Result};
 use std::path::Path;
 use std::time::UNIX_EPOCH;

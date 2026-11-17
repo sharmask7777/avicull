@@ -59,6 +59,7 @@ fn find_linked_file(dir: &Path, stem: &str, ext: &str) -> Option<PathBuf> {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_mock_directory_structure_full_organize_and_hardlink_integrity() {
     let local_fixtures_dir =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/local_user_samples");

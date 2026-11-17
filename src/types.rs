@@ -13,6 +13,14 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
+/// Canonical unhidden directory name for catalog internal SQLite manifests and previews
+/// Default presentation output filename
+pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.html";
+pub const CATALOG_FILES_DIR: &str = "avicull_catalog_files";
+
+/// Backward-compatible legacy hidden directory name for catalog manifests
+pub const LEGACY_CATALOG_FILES_DIR: &str = ".avicull";
+
 pub const CURATED_MULTI_TAXA_JSON: &str = include_str!("../data/curated_multi_taxa.json");
 static TAXONOMY_JSON: &str = include_str!("../data/taxonomy.json");
 

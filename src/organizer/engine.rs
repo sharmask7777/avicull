@@ -563,6 +563,9 @@ fn resolve_or_prompt_models_dir(
 ///
 /// # Errors
 /// Returns error if volume disjointness checks fail, filesystem I/O fails, or SQLite operations fail.
+// Architectural justification: run_organize is the top-level execution coordinator bridging filesystem
+// scanning, model inference, APFS hard-linking, SQLite journaling, and HTML catalog emission.
+#[allow(clippy::cognitive_complexity)]
 pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
     println!("== avicull organize ==");
     if let Some(t) = args.threads {

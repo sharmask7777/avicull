@@ -244,7 +244,9 @@ pub fn apply_bundle_correction(
 /// according to the active organization mode, and regenerates `catalog.html`.
 /// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
 /// to the same burst are reclassified and relocated lockstep.
-#[allow(clippy::too_many_arguments)]
+// Architectural justification: orchestrates transactionally atomic moves across primary files, RAWs,
+// companion sidecars, and SQLite records across both InPlace and Hierarchy modes with burst propagation.
+#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
 pub fn apply_bundle_correction_with_category(
     db: &ManifestDb,
     operating_root: &Path,

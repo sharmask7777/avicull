@@ -39,7 +39,11 @@ echo -e "${BOLD}[1/5] Checking Python code formatting and linting (ruff check)..
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with ruff ruff check .; then
     echo -e "${GREEN}✓ ruff check passed.${NC}\n"
 else
-    echo -e "${RED}✗ ruff check reported lint violations.${NC}\n"
+    echo -e "${RED}✗ ruff check reported lint violations.${NC}"
+    echo -e "${YELLOW}  [Sensor Guidance for Coding Agents]:${NC}"
+    echo -e "${YELLOW}  • Complexity violations (C901, PLR0912, PLR0913, PLR0915): Refactor monolithic functions${NC}"
+    echo -e "${YELLOW}    into modular, private helper methods. Do NOT add blanket '# noqa' or raise thresholds.${NC}"
+    echo -e "${YELLOW}  • Error handling (TRY rules): Use proper exception types and keep try blocks minimal.${NC}\n"
     exit 1
 fi
 
@@ -57,7 +61,10 @@ echo -e "${BOLD}[3/5] Running static type checking (mypy scripts/)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with mypy --with pytest mypy scripts/; then
     echo -e "${GREEN}✓ mypy type checking passed.${NC}\n"
 else
-    echo -e "${RED}✗ mypy reported type check errors.${NC}\n"
+    echo -e "${RED}✗ mypy reported type check errors.${NC}"
+    echo -e "${YELLOW}  [Sensor Guidance for Coding Agents]:${NC}"
+    echo -e "${YELLOW}  • Add explicit type annotations to all parameters and returns.${NC}"
+    echo -e "${YELLOW}  • Use 'X | None' instead of Optional[X], and concrete collections (e.g. list[T]).${NC}\n"
     exit 1
 fi
 
@@ -66,7 +73,10 @@ echo -e "${BOLD}[4/5] Checking architecture contracts (lint-imports)...${NC}"
 if uv run ${UV_EXTRA_FLAG:+"$UV_EXTRA_FLAG"} --with import-linter lint-imports; then
     echo -e "${GREEN}✓ Architectural import contracts satisfied.${NC}\n"
 else
-    echo -e "${RED}✗ Architectural import contracts violated.${NC}\n"
+    echo -e "${RED}✗ Architectural import contracts violated.${NC}"
+    echo -e "${YELLOW}  [Sensor Guidance for Coding Agents]:${NC}"
+    echo -e "${YELLOW}  • Offline data prep pipelines (build_gazetteer, build_taxonomy_embeddings, export_models)${NC}"
+    echo -e "${YELLOW}    must NOT import from runtime inference (scripts.infer). Keep pipelines decoupled!${NC}\n"
     exit 1
 fi
 

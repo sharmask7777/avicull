@@ -215,7 +215,7 @@ pub fn should_skip_dir(name: &str) -> bool {
         || name == "@eaDir"
         || name == "birds_hierarchy"
         || name.ends_with(".photoslibrary")
-        || name == crate::catalog::CATALOG_FILES_DIR
+        || name == crate::types::CATALOG_FILES_DIR
 }
 
 /// Recursively traverses input directory, skipping hidden directories, `avicull_catalog_files`, legacy `.avicull`,
@@ -560,8 +560,8 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
             let path = entry.path();
             if let Some(parent) = path.parent() {
                 if parent.file_name().is_some_and(|n| {
-                    n == crate::catalog::CATALOG_FILES_DIR
-                        || n == crate::catalog::LEGACY_CATALOG_FILES_DIR
+                    n == crate::types::CATALOG_FILES_DIR
+                        || n == crate::types::LEGACY_CATALOG_FILES_DIR
                 }) {
                     if let Some(grandparent) = parent.parent() {
                         let can_gp = grandparent
@@ -599,10 +599,10 @@ pub fn discover_child_manifests(input_dir: &Path) -> Result<Vec<(PathBuf, PathBu
         a.1.cmp(&b.1).then_with(|| {
             let a_is_unhidden =
                 a.0.to_string_lossy()
-                    .contains(crate::catalog::CATALOG_FILES_DIR);
+                    .contains(crate::types::CATALOG_FILES_DIR);
             let b_is_unhidden =
                 b.0.to_string_lossy()
-                    .contains(crate::catalog::CATALOG_FILES_DIR);
+                    .contains(crate::types::CATALOG_FILES_DIR);
             b_is_unhidden.cmp(&a_is_unhidden)
         })
     });

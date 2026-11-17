@@ -20,6 +20,7 @@
     clippy::redundant_clone
 )]
 
+mod test_architecture_contracts;
 mod test_burst;
 mod test_catalog;
 mod test_catalog_files_dir;

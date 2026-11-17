@@ -1,0 +1,2 @@
+# Clippy configuration for avicull maintainability sensors
+cognitive-complexity-threshold = 30

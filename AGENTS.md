@@ -96,14 +96,15 @@ Contributors and agents can verify the complete codebase in one command using `s
 ```bash
 ./scripts/verify.sh
 ```
-This runs the canonical 7-stage verification pipeline:
+This runs the canonical 8-stage verification pipeline:
 1. `cargo fmt --check`
 2. `cargo check --all-targets`
-3. `cargo clippy --all-targets --all-features -- -D warnings`
-4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e`
-5. Python verification suite (`scripts/verify_python.sh`: ruff lint/format, mypy type checks, pytest with $\ge 80\%$ coverage gate)
+3. `cargo clippy --all-targets --all-features -- -D warnings` (including `clippy::cognitive_complexity`)
+4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e` (including architectural contract tests)
+5. Python verification suite (`scripts/verify_python.sh`: ruff lint/format with complexity gates, mypy type checks, pytest with $\ge 80\%$ coverage gate)
 6. `cargo deny check`
-7. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+7. Playwright E2E UI smoke test (`npm --prefix tests/e2e test -- bird_catalog.spec.ts`)
+8. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
 
 ### F. The Verification Agent Crew Loop
 Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
@@ -126,7 +127,8 @@ All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject
    - Automated test coverage across all Python modules under `scripts/` is enforced by `pytest-cov` with `--cov-fail-under=80`.
    - Any pull request or commit dropping Python coverage below 80% is blocked by pre-push hooks and CI.
 3. **Static Analysis, Type Rigor & Architectural Contracts**:
-   - Code must pass `ruff check .` with zero errors across strict rulesets (`E, F, W, I, UP, B, SIM, BLE, ERA, RUF, PIE, T10, FA, TRY`).
+   - Code must pass `ruff check .` with zero errors across strict rulesets (`E, F, W, I, UP, B, SIM, BLE, ERA, RUF, PIE, T10, FA, TRY, C901, PLR0912, PLR0913, PLR0915`).
+   - Monolithic sprawl is strictly forbidden: McCabe cyclomatic complexity $\le 15$, max statements $\le 50$, and max branches $\le 12$ are computational gating sensors.
    - Code must be formatted via `ruff format --check .`.
    - Strict static type checking must pass with `mypy scripts/` with zero type errors.
    - Declarative architectural contracts must pass via `import-linter` (`lint-imports`), ensuring offline data prep pipelines (`build_gazetteer`, `build_taxonomy_embeddings`, `export_models`) remain strictly decoupled and cycle-free from runtime inference (`infer.py`).

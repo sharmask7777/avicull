@@ -2,6 +2,11 @@
 //!
 //! Generates the self-contained HTML5 single-page application for reviewing avian photo archives.
 
+// The template engine produces a standalone, self-contained single-page web app with inlined CSS,
+// JavaScript, SVG icons, and embedded micro-thumbnails. Splitting the HTML/JS generation across dozens of
+// tiny functions incurs high runtime string allocation overhead and degrades offline single-page encapsulation.
+#![allow(clippy::cognitive_complexity)]
+
 use super::CatalogPayload;
 use std::sync::LazyLock;
 
