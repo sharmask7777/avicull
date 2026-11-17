@@ -84,3 +84,4 @@ mod test_subdirectory_manifest_inheritance;
 mod test_types;
 mod test_update;
 mod test_webdav_tree;
+mod test_architecture_contracts;
