@@ -14,6 +14,7 @@ yanked = "warn"
 unmaintained = "all"
 ignore = [
     "RUSTSEC-2026-0459", # SQLite uninitialized page cache on mismatched WAL page size; requires rusqlite 0.41+ / Rust 1.89+
+    "RUSTSEC-2026-0543", # chrono unmaintained advisory across ecosystem dependencies
 ]
 
 [licenses]

@@ -20,6 +20,7 @@
     clippy::redundant_clone
 )]
 
+mod test_architecture_contracts;
 mod test_burst;
 mod test_catalog;
 mod test_catalog_files_dir;
@@ -84,4 +85,3 @@ mod test_subdirectory_manifest_inheritance;
 mod test_types;
 mod test_update;
 mod test_webdav_tree;
-mod test_architecture_contracts;

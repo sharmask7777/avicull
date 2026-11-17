@@ -16,8 +16,7 @@ fn parse_crate_imports(file_path: &Path) -> Vec<String> {
     for line in content.lines() {
         let trimmed = line.trim();
         // Check for 'use crate::foo' or 'use crate::{foo, bar}'
-        if trimmed.starts_with("use crate::") {
-            let after_crate = &trimmed["use crate::".len()..];
+        if let Some(after_crate) = trimmed.strip_prefix("use crate::") {
             let module_token = after_crate
                 .split([':', ';', ' '])
                 .next()
@@ -38,7 +37,15 @@ fn test_types_module_is_pure_leaf() {
     let imports = parse_crate_imports(&types_path);
 
     // types.rs must never import higher-level subsystem crates
-    let forbidden = ["scanner", "storage", "organizer", "catalog", "db", "geo", "cli"];
+    let forbidden = [
+        "scanner",
+        "storage",
+        "organizer",
+        "catalog",
+        "db",
+        "geo",
+        "cli",
+    ];
     for imp in &imports {
         assert!(
             !forbidden.contains(&imp.as_str()),

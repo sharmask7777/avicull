@@ -143,29 +143,26 @@ fn determine_assigned_slug(
     species_slugs: &HashMap<String, String>,
     best_species: &str,
 ) -> String {
-    species_slugs
-        .get(best_species)
-        .cloned()
-        .unwrap_or_else(|| {
-            burst[0].top_predictions.first().map_or_else(
-                || match burst[0].category() {
-                    AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
-                    AssetCategory::Insecta => "Unknown_Insecta".to_string(),
-                    AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
-                    AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
-                    AssetCategory::Scenery => "Scenery".to_string(),
-                    AssetCategory::Architecture => "Unknown_Architecture".to_string(),
-                    AssetCategory::Portrait => "Portrait".to_string(),
-                    AssetCategory::Abstract => "Abstract".to_string(),
-                    AssetCategory::Other(ref g) => format!("Unknown_{g}"),
-                    AssetCategory::Bird => "Unknown_Bird".to_string(),
-                    AssetCategory::NoSubjectDetected => {
-                        RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
-                    }
-                },
-                |p| p.folder_slug.clone(),
-            )
-        })
+    species_slugs.get(best_species).cloned().unwrap_or_else(|| {
+        burst[0].top_predictions.first().map_or_else(
+            || match burst[0].category() {
+                AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
+                AssetCategory::Insecta => "Unknown_Insecta".to_string(),
+                AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
+                AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
+                AssetCategory::Scenery => "Scenery".to_string(),
+                AssetCategory::Architecture => "Unknown_Architecture".to_string(),
+                AssetCategory::Portrait => "Portrait".to_string(),
+                AssetCategory::Abstract => "Abstract".to_string(),
+                AssetCategory::Other(ref g) => format!("Unknown_{g}"),
+                AssetCategory::Bird => "Unknown_Bird".to_string(),
+                AssetCategory::NoSubjectDetected => {
+                    RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+                }
+            },
+            |p| p.folder_slug.clone(),
+        )
+    })
 }
 
 fn compute_burst_routing_tier(
