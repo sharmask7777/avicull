@@ -224,6 +224,7 @@ pub fn load_locations_toml(path: &Path) -> Result<HashMap<String, (f64, f64)>> {
 /// 2. Sibling EXIF propagation (median GPS within same trip folder)
 /// 3. Trip folder name gazetteer (TOML mapping or built-in IBA table)
 /// 4. Fallback CLI default coordinates
+#[allow(clippy::cognitive_complexity)]
 pub fn resolve_locations(
     bundles: &mut [AssetBundle],
     locations_toml_path: Option<&Path>,

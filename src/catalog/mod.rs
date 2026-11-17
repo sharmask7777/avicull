@@ -523,6 +523,104 @@ pub fn generate_html_catalog(
 ///
 /// # Errors
 /// Returns an error if filesystem directory creation fails or temporary file writes fail.
+fn count_catalog_stats(items: &[CatalogItem]) -> CatalogStats {
+    let mut confirmed_count = 0;
+    let mut needs_review_count = 0;
+    let mut no_bird_count = 0;
+    let mut unique_species = HashSet::new();
+
+    let mut bird_count = 0;
+    let mut mammalia_count = 0;
+    let mut insecta_count = 0;
+    let mut reptilia_count = 0;
+    let mut amphibia_count = 0;
+    let mut scenery_count = 0;
+    let mut architecture_count = 0;
+    let mut portrait_count = 0;
+    let mut abstract_count = 0;
+    let mut no_subject_count = 0;
+
+    for item in items {
+        let is_bird = item.category == AssetCategory::Bird;
+        match item.routing_tier {
+            RoutingTier::ConfirmedSpecies => {
+                confirmed_count += 1;
+                if is_bird
+                    && !item.assigned_species.starts_with('_')
+                    && !item.assigned_species.is_empty()
+                {
+                    unique_species.insert(item.assigned_species.clone());
+                }
+            }
+            RoutingTier::NeedsReview => {
+                needs_review_count += 1;
+                if is_bird
+                    && !item.assigned_species.starts_with('_')
+                    && !item.assigned_species.is_empty()
+                {
+                    unique_species.insert(item.assigned_species.clone());
+                }
+            }
+            RoutingTier::NoBirdDetected => {
+                no_bird_count += 1;
+            }
+        }
+
+        match item.category {
+            AssetCategory::Bird => bird_count += 1,
+            AssetCategory::Mammalia => mammalia_count += 1,
+            AssetCategory::Insecta => insecta_count += 1,
+            AssetCategory::Reptilia => reptilia_count += 1,
+            AssetCategory::Amphibia => amphibia_count += 1,
+            AssetCategory::Scenery => scenery_count += 1,
+            AssetCategory::Architecture => architecture_count += 1,
+            AssetCategory::Portrait => portrait_count += 1,
+            AssetCategory::Abstract => abstract_count += 1,
+            AssetCategory::NoSubjectDetected => no_subject_count += 1,
+            AssetCategory::Other(_) => {}
+        }
+    }
+
+    CatalogStats {
+        total_photos: items.len(),
+        species_count: unique_species.len(),
+        confirmed_count,
+        needs_review_count,
+        no_bird_count,
+        bird_count,
+        mammalia_count,
+        insecta_count,
+        reptilia_count,
+        amphibia_count,
+        scenery_count,
+        architecture_count,
+        portrait_count,
+        abstract_count,
+        no_subject_count,
+    }
+}
+
+fn build_deduped_species_list(items: &[CatalogItem]) -> Vec<String> {
+    let mut species_list = load_species_taxonomy_list();
+    species_list.push("No Bird Detected".to_string());
+    for item in items {
+        if item.category == AssetCategory::Bird
+            && !item.assigned_species.starts_with('_')
+            && !item.assigned_species.is_empty()
+        {
+            species_list.push(item.assigned_species.clone());
+            for pred in &item.top_predictions {
+                if !pred.common_name.is_empty() {
+                    species_list.push(pred.common_name.clone());
+                }
+            }
+        }
+    }
+    species_list.sort();
+    species_list.dedup();
+    species_list
+}
+
 pub fn generate_html_catalog_with_policy(
     trip_name: &str,
     items: &[CatalogItem],
@@ -623,98 +721,8 @@ pub fn generate_html_catalog_with_policy(
         }
     }
 
-    let mut confirmed_count = 0;
-    let mut needs_review_count = 0;
-    let mut no_bird_count = 0;
-    let mut unique_species = HashSet::new();
-
-    let mut bird_count = 0;
-    let mut mammalia_count = 0;
-    let mut insecta_count = 0;
-    let mut reptilia_count = 0;
-    let mut amphibia_count = 0;
-    let mut scenery_count = 0;
-    let mut architecture_count = 0;
-    let mut portrait_count = 0;
-    let mut abstract_count = 0;
-    let mut no_subject_count = 0;
-
-    for item in items {
-        let is_bird = item.category == AssetCategory::Bird;
-        match item.routing_tier {
-            RoutingTier::ConfirmedSpecies => {
-                confirmed_count += 1;
-                if is_bird
-                    && !item.assigned_species.starts_with('_')
-                    && !item.assigned_species.is_empty()
-                {
-                    unique_species.insert(item.assigned_species.clone());
-                }
-            }
-            RoutingTier::NeedsReview => {
-                needs_review_count += 1;
-                if is_bird
-                    && !item.assigned_species.starts_with('_')
-                    && !item.assigned_species.is_empty()
-                {
-                    unique_species.insert(item.assigned_species.clone());
-                }
-            }
-            RoutingTier::NoBirdDetected => {
-                no_bird_count += 1;
-            }
-        }
-
-        match item.category {
-            AssetCategory::Bird => bird_count += 1,
-            AssetCategory::Mammalia => mammalia_count += 1,
-            AssetCategory::Insecta => insecta_count += 1,
-            AssetCategory::Reptilia => reptilia_count += 1,
-            AssetCategory::Amphibia => amphibia_count += 1,
-            AssetCategory::Scenery => scenery_count += 1,
-            AssetCategory::Architecture => architecture_count += 1,
-            AssetCategory::Portrait => portrait_count += 1,
-            AssetCategory::Abstract => abstract_count += 1,
-            AssetCategory::NoSubjectDetected => no_subject_count += 1,
-            AssetCategory::Other(_) => {}
-        }
-    }
-
-    let stats = CatalogStats {
-        total_photos: items.len(),
-        species_count: unique_species.len(),
-        confirmed_count,
-        needs_review_count,
-        no_bird_count,
-        bird_count,
-        mammalia_count,
-        insecta_count,
-        reptilia_count,
-        amphibia_count,
-        scenery_count,
-        architecture_count,
-        portrait_count,
-        abstract_count,
-        no_subject_count,
-    };
-
-    let mut species_list = load_species_taxonomy_list();
-    species_list.push("No Bird Detected".to_string());
-    for item in items {
-        if item.category == AssetCategory::Bird
-            && !item.assigned_species.starts_with('_')
-            && !item.assigned_species.is_empty()
-        {
-            species_list.push(item.assigned_species.clone());
-            for pred in &item.top_predictions {
-                if !pred.common_name.is_empty() {
-                    species_list.push(pred.common_name.clone());
-                }
-            }
-        }
-    }
-    species_list.sort();
-    species_list.dedup();
+    let stats = count_catalog_stats(items);
+    let species_list = build_deduped_species_list(items);
 
     let mode_str = match mode {
         OrganizationMode::HierarchicalHardlinkHierarchy => "hierarchy",

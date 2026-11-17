@@ -52,6 +52,7 @@ panic = "deny"
 todo = "deny"
 dbg_macro = "deny"
 redundant_clone = "deny"
+cognitive_complexity = { level = "deny", priority = -1 }
 
 # Sensible pedantic overrides to avoid counter-productive noise:
 doc_markdown = "allow"             # LaTeX math symbols $I_m$ & complex eBird slugs trigger false positives

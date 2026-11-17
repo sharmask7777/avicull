@@ -563,6 +563,7 @@ fn resolve_or_prompt_models_dir(
 ///
 /// # Errors
 /// Returns error if volume disjointness checks fail, filesystem I/O fails, or SQLite operations fail.
+#[allow(clippy::cognitive_complexity)]
 pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
     println!("== avicull organize ==");
     if let Some(t) = args.threads {

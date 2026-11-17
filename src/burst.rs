@@ -103,6 +103,196 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 /// # Invariants
 /// * Bundles in different `trip_folder` partitions are never clustered together.
 /// * The output vector preserves the exact original item ordering of `items`.
+fn cluster_items_into_bursts<'a>(
+    trip_items: &[&'a ClassifiedBundleItem],
+    burst_window_ms: i64,
+    min_similarity: f32,
+) -> Vec<Vec<&'a ClassifiedBundleItem>> {
+    let mut bursts: Vec<Vec<&'a ClassifiedBundleItem>> = Vec::new();
+    let mut current_burst: Vec<&'a ClassifiedBundleItem> = Vec::new();
+
+    for &item in trip_items {
+        if let Some(&prev) = current_burst.last() {
+            let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
+                (Some(t1), Some(t0)) => (t1 - t0).abs(),
+                _ => i64::MAX,
+            };
+
+            let sim = cosine_similarity(&item.embedding, &prev.embedding);
+            let same_category = item.category() == prev.category();
+
+            if dt <= burst_window_ms && sim >= min_similarity && same_category {
+                current_burst.push(item);
+            } else {
+                bursts.push(current_burst);
+                current_burst = vec![item];
+            }
+        } else {
+            current_burst.push(item);
+        }
+    }
+
+    if !current_burst.is_empty() {
+        bursts.push(current_burst);
+    }
+    bursts
+}
+
+fn determine_assigned_slug(
+    burst: &[&ClassifiedBundleItem],
+    species_slugs: &HashMap<String, String>,
+    best_species: &str,
+) -> String {
+    species_slugs
+        .get(best_species)
+        .cloned()
+        .unwrap_or_else(|| {
+            burst[0].top_predictions.first().map_or_else(
+                || match burst[0].category() {
+                    AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
+                    AssetCategory::Insecta => "Unknown_Insecta".to_string(),
+                    AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
+                    AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
+                    AssetCategory::Scenery => "Scenery".to_string(),
+                    AssetCategory::Architecture => "Unknown_Architecture".to_string(),
+                    AssetCategory::Portrait => "Portrait".to_string(),
+                    AssetCategory::Abstract => "Abstract".to_string(),
+                    AssetCategory::Other(ref g) => format!("Unknown_{g}"),
+                    AssetCategory::Bird => "Unknown_Bird".to_string(),
+                    AssetCategory::NoSubjectDetected => {
+                        RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+                    }
+                },
+                |p| p.folder_slug.clone(),
+            )
+        })
+}
+
+fn compute_burst_routing_tier(
+    item: &ClassifiedBundleItem,
+    assigned_slug: &str,
+    effective_det: f32,
+    final_conf: f32,
+    min_confidence: f32,
+) -> RoutingTier {
+    let is_bird = item.category() == AssetCategory::Bird;
+    let is_no_subject = item.category() == AssetCategory::NoSubjectDetected
+        || assigned_slug == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+        || assigned_slug == RoutingTier::SENTINEL_NO_BIRD_DETECTED;
+
+    if is_no_subject {
+        RoutingTier::NoBirdDetected
+    } else if is_bird {
+        if effective_det < 0.35 {
+            RoutingTier::NoBirdDetected
+        } else if effective_det < 0.50 {
+            RoutingTier::NeedsReview
+        } else if final_conf >= min_confidence {
+            RoutingTier::ConfirmedSpecies
+        } else {
+            RoutingTier::NeedsReview
+        }
+    } else if effective_det < 0.25 && final_conf < min_confidence {
+        RoutingTier::NoBirdDetected
+    } else if final_conf >= min_confidence {
+        RoutingTier::ConfirmedSpecies
+    } else {
+        RoutingTier::NeedsReview
+    }
+}
+
+fn process_single_burst(
+    burst: &[&ClassifiedBundleItem],
+    burst_id: &str,
+    confidence_mode: ConfidenceMode,
+    min_confidence: f32,
+) -> Vec<BundleDecision> {
+    let mut weighted_sums: HashMap<String, f32> = HashMap::new();
+    let mut species_slugs: HashMap<String, String> = HashMap::new();
+    let mut weight_total = 0.0f32;
+
+    for item in burst {
+        let w = item.detection_confidence.max(0.01);
+        weight_total += w;
+
+        for (taxon_id, prob) in &item.posteriors {
+            *weighted_sums.entry(taxon_id.clone()).or_insert(0.0) += w * prob;
+        }
+        for pred in &item.top_predictions {
+            species_slugs
+                .entry(pred.taxon_id.clone())
+                .or_insert_with(|| pred.folder_slug.clone());
+        }
+    }
+
+    let mut best_species = String::new();
+    let mut best_consensus_score = -1.0f32;
+
+    if weight_total > 0.0 {
+        for (taxon_id, sum_val) in &weighted_sums {
+            let score = sum_val / weight_total;
+            if score > best_consensus_score {
+                best_consensus_score = score;
+                best_species.clone_from(taxon_id);
+            }
+        }
+    }
+
+    let assigned_slug = determine_assigned_slug(burst, &species_slugs, &best_species);
+    let burst_max_det = burst
+        .iter()
+        .map(|b| b.detection_confidence)
+        .fold(0.0f32, f32::max);
+
+    let mut burst_decisions = Vec::with_capacity(burst.len());
+
+    for item in burst {
+        let frame_conf = item
+            .top_predictions
+            .first()
+            .map_or(0.0, |p| p.combined_score);
+
+        let per_frame_for_winner = item
+            .posteriors
+            .iter()
+            .find(|(id, _)| id == &best_species)
+            .map_or(0.0, |(_, p)| *p);
+
+        let final_conf = match confidence_mode {
+            ConfidenceMode::BurstConsensus => best_consensus_score.max(0.0),
+            ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
+        };
+
+        let effective_det = match confidence_mode {
+            ConfidenceMode::BurstConsensus => burst_max_det,
+            ConfidenceMode::PerFrame => item.detection_confidence,
+        };
+
+        let routing_tier = compute_burst_routing_tier(
+            item,
+            &assigned_slug,
+            effective_det,
+            final_conf,
+            min_confidence,
+        );
+
+        burst_decisions.push(BundleDecision {
+            bundle_id: item.bundle_id.clone(),
+            burst_id: Some(burst_id.to_string()),
+            detection_confidence: item.detection_confidence,
+            bbox_xyxy_norm: item.bbox_norm,
+            top_predictions: item.top_predictions.clone(),
+            frame_confidence: frame_conf,
+            final_confidence: final_conf,
+            classification: Classification::from_slug(&assigned_slug),
+            routing_tier,
+            is_user_override: false,
+        });
+    }
+
+    burst_decisions
+}
+
 pub fn smooth_burst_consensus(
     items: &[ClassifiedBundleItem],
     burst_window_ms: i64,
@@ -131,164 +321,14 @@ pub fn smooth_burst_consensus(
         // Sort items by capture_timestamp_ms
         trip_items.sort_by_key(|it| it.capture_timestamp_ms.unwrap_or(0));
 
-        // Cluster into bursts
-        let mut bursts: Vec<Vec<&ClassifiedBundleItem>> = Vec::new();
-        let mut current_burst: Vec<&ClassifiedBundleItem> = Vec::new();
+        let bursts = cluster_items_into_bursts(&trip_items, burst_window_ms, min_similarity);
 
-        for &item in &trip_items {
-            if let Some(&prev) = current_burst.last() {
-                let dt = match (item.capture_timestamp_ms, prev.capture_timestamp_ms) {
-                    (Some(t1), Some(t0)) => (t1 - t0).abs(),
-                    _ => i64::MAX,
-                };
-
-                let sim = cosine_similarity(&item.embedding, &prev.embedding);
-                let same_category = item.category() == prev.category();
-
-                if dt <= burst_window_ms && sim >= min_similarity && same_category {
-                    current_burst.push(item);
-                } else {
-                    bursts.push(current_burst);
-                    current_burst = vec![item];
-                }
-            } else {
-                current_burst.push(item);
-            }
-        }
-
-        if !current_burst.is_empty() {
-            bursts.push(current_burst);
-        }
-
-        // Process each burst
         for burst in bursts {
             burst_counter += 1;
             let burst_id = format!("burst-{burst_counter:04}");
-
-            // Confidence-weighted pooling across burst frames
-            // P_bar(s) = sum(w_m * P_post(s | I_m)) / sum(w_m)
-            let mut weighted_sums: HashMap<String, f32> = HashMap::new();
-            let mut species_slugs: HashMap<String, String> = HashMap::new();
-            let mut weight_total = 0.0f32;
-
-            for item in &burst {
-                let w = item.detection_confidence.max(0.01);
-                weight_total += w;
-
-                for (taxon_id, prob) in &item.posteriors {
-                    *weighted_sums.entry(taxon_id.clone()).or_insert(0.0) += w * prob;
-                }
-                for pred in &item.top_predictions {
-                    species_slugs
-                        .entry(pred.taxon_id.clone())
-                        .or_insert_with(|| pred.folder_slug.clone());
-                }
-            }
-
-            // Find consensus winning species
-            let mut best_species = String::new();
-            let mut best_consensus_score = -1.0f32;
-
-            if weight_total > 0.0 {
-                for (taxon_id, sum_val) in &weighted_sums {
-                    let score = sum_val / weight_total;
-                    if score > best_consensus_score {
-                        best_consensus_score = score;
-                        best_species.clone_from(taxon_id);
-                    }
-                }
-            }
-
-            let assigned_slug = species_slugs
-                .get(&best_species)
-                .cloned()
-                .unwrap_or_else(|| {
-                    burst[0].top_predictions.first().map_or_else(
-                        || match burst[0].category() {
-                            AssetCategory::Mammalia => "Unknown_Mammalia".to_string(),
-                            AssetCategory::Insecta => "Unknown_Insecta".to_string(),
-                            AssetCategory::Reptilia => "Unknown_Reptilia".to_string(),
-                            AssetCategory::Amphibia => "Unknown_Amphibia".to_string(),
-                            AssetCategory::Scenery => "Scenery".to_string(),
-                            AssetCategory::Architecture => "Unknown_Architecture".to_string(),
-                            AssetCategory::Portrait => "Portrait".to_string(),
-                            AssetCategory::Abstract => "Abstract".to_string(),
-                            AssetCategory::Other(ref g) => format!("Unknown_{g}"),
-                            AssetCategory::Bird => "Unknown_Bird".to_string(),
-                            AssetCategory::NoSubjectDetected => {
-                                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
-                            }
-                        },
-                        |p| p.folder_slug.clone(),
-                    )
-                });
-
-            let burst_max_det = burst
-                .iter()
-                .map(|b| b.detection_confidence)
-                .fold(0.0f32, f32::max);
-
-            // Build decisions for each frame in the burst
-            for item in &burst {
-                let frame_conf = item
-                    .top_predictions
-                    .first()
-                    .map_or(0.0, |p| p.combined_score);
-
-                let per_frame_for_winner = item
-                    .posteriors
-                    .iter()
-                    .find(|(id, _)| id == &best_species)
-                    .map_or(0.0, |(_, p)| *p);
-
-                let final_conf = match confidence_mode {
-                    ConfidenceMode::BurstConsensus => best_consensus_score.max(0.0),
-                    ConfidenceMode::PerFrame => per_frame_for_winner.max(0.0),
-                };
-
-                let is_bird = item.category() == AssetCategory::Bird;
-                let is_no_subject = item.category() == AssetCategory::NoSubjectDetected
-                    || assigned_slug == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
-                    || assigned_slug == RoutingTier::SENTINEL_NO_BIRD_DETECTED;
-
-                let effective_det = match confidence_mode {
-                    ConfidenceMode::BurstConsensus => burst_max_det,
-                    ConfidenceMode::PerFrame => item.detection_confidence,
-                };
-
-                let routing_tier = if is_no_subject {
-                    RoutingTier::NoBirdDetected
-                } else if is_bird {
-                    if effective_det < 0.35 {
-                        RoutingTier::NoBirdDetected
-                    } else if effective_det < 0.50 {
-                        RoutingTier::NeedsReview
-                    } else if final_conf >= min_confidence {
-                        RoutingTier::ConfirmedSpecies
-                    } else {
-                        RoutingTier::NeedsReview
-                    }
-                } else if effective_det < 0.25 && final_conf < min_confidence {
-                    RoutingTier::NoBirdDetected
-                } else if final_conf >= min_confidence {
-                    RoutingTier::ConfirmedSpecies
-                } else {
-                    RoutingTier::NeedsReview
-                };
-
-                decisions.push(BundleDecision {
-                    bundle_id: item.bundle_id.clone(),
-                    burst_id: Some(burst_id.clone()),
-                    detection_confidence: item.detection_confidence,
-                    bbox_xyxy_norm: item.bbox_norm,
-                    top_predictions: item.top_predictions.clone(),
-                    frame_confidence: frame_conf,
-                    final_confidence: final_conf,
-                    classification: Classification::from_slug(&assigned_slug),
-                    routing_tier,
-                    is_user_override: false,
-                });
-            }
+            let burst_decisions =
+                process_single_burst(&burst, &burst_id, confidence_mode, min_confidence);
+            decisions.extend(burst_decisions);
         }
     }
 
@@ -304,18 +344,6 @@ pub fn smooth_burst_consensus(
         .collect()
 }
 
-/// Clusters classified multi-taxa bundles into temporal bursts and calculates confidence-weighted consensus pooling.
-///
-/// Convenience entry point defaulting to standard 3,000 ms burst windows and 0.80 cosine similarity threshold.
-///
-/// # Arguments
-/// * `items` - Slices of classified bundles with timestamps, embeddings, and category predictions.
-/// * `confidence_mode` - Whether to assign pooled burst consensus score or individual per-frame score.
-/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
-///
-/// # Returns
-/// A vector of [`BundleDecision`] preserving the exact original ordering of `items`.
-#[must_use]
 pub fn burst_consensus_multi_taxa(
     items: &[ClassifiedBundleItem],
     confidence_mode: ConfidenceMode,

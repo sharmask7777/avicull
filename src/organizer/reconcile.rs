@@ -28,6 +28,7 @@ use walkdir::WalkDir;
 /// Scans the output directory tree, matches hard links to existing bundles via
 /// APFS inode parity and filename stems, detects if bundles have been moved into
 /// different species directories, and records permanent user overrides.
+#[allow(clippy::cognitive_complexity)]
 pub fn reconcile_manual_disk_moves(
     output_root: &Path,
     db: &ManifestDb,
@@ -388,6 +389,7 @@ pub fn parse_inplace_slug_and_tier(
 /// This function detects the change, updates the bundle decision in SQLite to the new species
 /// with `is_user_override = true`, renames all remaining companion and sidecar files to match,
 /// and updates the in-memory `ExistingBundleMap`.
+#[allow(clippy::cognitive_complexity)]
 pub fn reconcile_inplace_manual_renames(
     operating_root: &Path,
     db: &ManifestDb,

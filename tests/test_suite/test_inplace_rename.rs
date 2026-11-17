@@ -473,6 +473,7 @@ fn test_format_inplace_filename_two_level_nomenclature() {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_round_trip_parse_inplace_filename_two_level() {
     // Bird round-trip
     let bird_file = format_inplace_filename(
