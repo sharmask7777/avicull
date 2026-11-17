@@ -60,7 +60,11 @@ echo -e "${BOLD}[3/7] Running strict Rust linter (cargo clippy --all-targets --a
 if cargo clippy --all-targets --all-features -- -D warnings; then
     echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
 else
-    echo -e "${RED}✗ cargo clippy reported warnings or errors.${NC}\n"
+    echo -e "${RED}✗ cargo clippy reported warnings or errors.${NC}"
+    echo -e "${YELLOW}  [Sensor Guidance for Coding Agents]:${NC}"
+    echo -e "${YELLOW}  • cognitive_complexity error: Refactor large functions into smaller modular helpers.${NC}"
+    echo -e "${YELLOW}  • unwrap_used: Replace .unwrap() with idiomatic error propagation (?) or match.${NC}"
+    echo -e "${YELLOW}  • panic! / todo!: Production code must never panic or leave unhandled stubs.${NC}\n"
     exit 1
 fi
 
