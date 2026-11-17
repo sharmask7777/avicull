@@ -38,7 +38,7 @@ command -v cargo >/dev/null 2>&1 || {
 }
 
 # 1. Rust Code Formatting
-echo -e "${BOLD}[1/7] Checking Rust code formatting (cargo fmt --check)...${NC}"
+echo -e "${BOLD}[1/8] Checking Rust code formatting (cargo fmt --check)...${NC}"
 if cargo fmt --check; then
     echo -e "${GREEN}✓ cargo fmt passed.${NC}\n"
 else
@@ -47,7 +47,7 @@ else
 fi
 
 # 2. Rust Compiler Check
-echo -e "${BOLD}[2/7] Running compiler check on all targets (cargo check --all-targets)...${NC}"
+echo -e "${BOLD}[2/8] Running compiler check on all targets (cargo check --all-targets)...${NC}"
 if cargo check --all-targets; then
     echo -e "${GREEN}✓ cargo check passed.${NC}\n"
 else
@@ -56,7 +56,7 @@ else
 fi
 
 # 3. Rust Linter (Clippy)
-echo -e "${BOLD}[3/7] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
+echo -e "${BOLD}[3/8] Running strict Rust linter (cargo clippy --all-targets --all-features -- -D warnings)...${NC}"
 if cargo clippy --all-targets --all-features -- -D warnings; then
     echo -e "${GREEN}✓ cargo clippy passed.${NC}\n"
 else
@@ -69,7 +69,7 @@ else
 fi
 
 # 4. Unit & Integration Tests
-echo -e "${BOLD}[4/7] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads=${RUST_TEST_THREADS})...${NC}"
+echo -e "${BOLD}[4/8] Running unit and integration tests (cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads=${RUST_TEST_THREADS})...${NC}"
 if cargo test --lib --test test_suite --test test_mock_directory_structure_e2e -- --test-threads="${RUST_TEST_THREADS}"; then
     echo -e "${GREEN}✓ cargo test passed.${NC}\n"
 else
@@ -78,7 +78,7 @@ else
 fi
 
 # 5. Python Verification Suite (ruff, mypy, pytest with >= 80% coverage)
-echo -e "${BOLD}[5/7] Running Python verification suite (scripts/verify_python.sh)...${NC}"
+echo -e "${BOLD}[5/8] Running Python verification suite (scripts/verify_python.sh)...${NC}"
 if [ -x "./scripts/verify_python.sh" ]; then
     if ./scripts/verify_python.sh; then
         echo -e "${GREEN}✓ Python verification suite passed.${NC}\n"

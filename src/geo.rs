@@ -224,6 +224,9 @@ pub fn load_locations_toml(path: &Path) -> Result<HashMap<String, (f64, f64)>> {
 /// 2. Sibling EXIF propagation (median GPS within same trip folder)
 /// 3. Trip folder name gazetteer (TOML mapping or built-in IBA table)
 /// 4. Fallback CLI default coordinates
+// Architectural justification: resolve_locations orchestrates a multi-pass hierarchical GPS resolution
+// pipeline across Rayon threads, TOML maps, and built-in IBAs. Decomposing into micro-functions would
+// fracture parallel mutable bundle references.
 #[allow(clippy::cognitive_complexity)]
 pub fn resolve_locations(
     bundles: &mut [AssetBundle],

@@ -28,6 +28,8 @@ use walkdir::WalkDir;
 /// Scans the output directory tree, matches hard links to existing bundles via
 /// APFS inode parity and filename stems, detects if bundles have been moved into
 /// different species directories, and records permanent user overrides.
+// Architectural justification: performs complex APFS inode matching, cross-directory collision detection,
+// and state synchronization across SQLite tables and filesystem hierarchies.
 #[allow(clippy::cognitive_complexity)]
 pub fn reconcile_manual_disk_moves(
     output_root: &Path,
@@ -389,6 +391,8 @@ pub fn parse_inplace_slug_and_tier(
 /// This function detects the change, updates the bundle decision in SQLite to the new species
 /// with `is_user_override = true`, renames all remaining companion and sidecar files to match,
 /// and updates the in-memory `ExistingBundleMap`.
+// Architectural justification: transactional multi-file rename reconciler that parses complex slug
+// patterns and atomic sidecar rollbacks in-place.
 #[allow(clippy::cognitive_complexity)]
 pub fn reconcile_inplace_manual_renames(
     operating_root: &Path,

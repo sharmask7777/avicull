@@ -91,18 +91,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
-/// Clusters classified bundles into temporal bursts and calculates confidence-weighted consensus pooling.
-///
-/// # Arguments
-/// * `items` - Slices of classified bundles with timestamps and embedding vectors.
-/// * `burst_window_ms` - Maximum time delta between frames in milliseconds (typically 3,000 ms for 3-second bursts).
-/// * `min_similarity` - Minimum cosine similarity required to merge adjacent frames into the same burst (e.g. 0.80).
-/// * `confidence_mode` - Whether to assign the pooled burst consensus score or individual per-frame score to each bundle.
-/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
-///
-/// # Invariants
-/// * Bundles in different `trip_folder` partitions are never clustered together.
-/// * The output vector preserves the exact original item ordering of `items`.
+/// Clusters a slice of items from a single trip folder into temporal bursts based on timestamp deltas and embedding similarity.
 fn cluster_items_into_bursts<'a>(
     trip_items: &[&'a ClassifiedBundleItem],
     burst_window_ms: i64,
@@ -290,6 +279,18 @@ fn process_single_burst(
     burst_decisions
 }
 
+/// Clusters classified bundles into temporal bursts and calculates confidence-weighted consensus pooling.
+///
+/// # Arguments
+/// * `items` - Slices of classified bundles with timestamps and embedding vectors.
+/// * `burst_window_ms` - Maximum time delta between frames in milliseconds (typically 3,000 ms for 3-second bursts).
+/// * `min_similarity` - Minimum cosine similarity required to merge adjacent frames into the same burst (e.g. 0.80).
+/// * `confidence_mode` - Whether to assign the pooled burst consensus score or individual per-frame score to each bundle.
+/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
+///
+/// # Invariants
+/// * Bundles in different `trip_folder` partitions are never clustered together.
+/// * The output vector preserves the exact original item ordering of `items`.
 pub fn smooth_burst_consensus(
     items: &[ClassifiedBundleItem],
     burst_window_ms: i64,
@@ -341,6 +342,18 @@ pub fn smooth_burst_consensus(
         .collect()
 }
 
+/// Clusters classified multi-taxa bundles into temporal bursts and calculates confidence-weighted consensus pooling.
+///
+/// Convenience entry point defaulting to standard 3,000 ms burst windows and 0.80 cosine similarity threshold.
+///
+/// # Arguments
+/// * `items` - Slices of classified bundles with timestamps, embeddings, and category predictions.
+/// * `confidence_mode` - Whether to assign pooled burst consensus score or individual per-frame score.
+/// * `min_confidence` - Threshold for routing to [`RoutingTier::ConfirmedSpecies`] vs [`RoutingTier::NeedsReview`].
+///
+/// # Returns
+/// A vector of [`BundleDecision`] preserving the exact original ordering of `items`.
+#[must_use]
 pub fn burst_consensus_multi_taxa(
     items: &[ClassifiedBundleItem],
     confidence_mode: ConfidenceMode,

@@ -21,11 +21,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-/// Primary unhidden directory name hosting SQLite manifest and precomputed previews.
-pub const CATALOG_FILES_DIR: &str = "avicull_catalog_files";
-
-/// Legacy hidden directory name for backward compatibility.
-pub const LEGACY_CATALOG_FILES_DIR: &str = ".avicull";
+/// Primary unhidden directory name hosting SQLite manifest and precomputed previews,
+/// legacy hidden directory name, and standard default HTML catalog filename.
+pub use crate::types::{CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME, LEGACY_CATALOG_FILES_DIR};
 
 /// Resolves the archive operating root directory hosting the catalog manifest database.
 ///
@@ -178,9 +176,6 @@ static CURATED_MULTI_TAXA: LazyLock<Vec<CuratedTaxonEntry>> = LazyLock::new(|| {
 pub fn load_curated_multi_taxa() -> Vec<CuratedTaxonEntry> {
     CURATED_MULTI_TAXA.clone()
 }
-
-/// Standard default filename for the HTML bird photo catalog.
-pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.html";
 
 /// Individual photo bundle item represented in the HTML catalog.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -508,21 +503,7 @@ pub fn generate_html_catalog(
     )
 }
 
-/// Generates a standalone, zero-dependency offline HTML photo catalog with an explicit [`ThumbnailEmbeddingPolicy`].
-///
-/// # Arguments
-/// * `trip_name` - Descriptive title for the photo archive catalog.
-/// * `items` - Slice of catalog items to include in the visual gallery.
-/// * `mode` - Active organization mode (`InPlace`, `InPlaceRename`, or `HierarchicalHardlinkHierarchy`).
-/// * `output_path` - Target destination path for `catalog.html`.
-/// * `policy` - Thumbnail embedding policy ([`ThumbnailEmbeddingPolicy::Auto`], [`ThumbnailEmbeddingPolicy::Suppressed`], or [`ThumbnailEmbeddingPolicy::Forced`]).
-///
-/// # Returns
-/// `Ok(())` on successful catalog creation, or an `anyhow::Result` error if output directories
-/// cannot be created or catalog template generation fails.
-///
-/// # Errors
-/// Returns an error if filesystem directory creation fails or temporary file writes fail.
+/// Computes category distribution and routing tier statistics across all catalog items.
 fn count_catalog_stats(items: &[CatalogItem]) -> CatalogStats {
     let mut confirmed_count = 0;
     let mut needs_review_count = 0;
@@ -621,6 +602,21 @@ fn build_deduped_species_list(items: &[CatalogItem]) -> Vec<String> {
     species_list
 }
 
+/// Generates a standalone, zero-dependency offline HTML photo catalog with an explicit [`ThumbnailEmbeddingPolicy`].
+///
+/// # Arguments
+/// * `trip_name` - Descriptive title for the photo archive catalog.
+/// * `items` - Slice of catalog items to include in the visual gallery.
+/// * `mode` - Active organization mode (`InPlace`, `InPlaceRename`, or `HierarchicalHardlinkHierarchy`).
+/// * `output_path` - Target destination path for `catalog.html`.
+/// * `policy` - Thumbnail embedding policy ([`ThumbnailEmbeddingPolicy::Auto`], [`ThumbnailEmbeddingPolicy::Suppressed`], or [`ThumbnailEmbeddingPolicy::Forced`]).
+///
+/// # Returns
+/// `Ok(())` on successful catalog creation, or an `anyhow::Result` error if output directories
+/// cannot be created or catalog template generation fails.
+///
+/// # Errors
+/// Returns an error if filesystem directory creation fails or temporary file writes fail.
 pub fn generate_html_catalog_with_policy(
     trip_name: &str,
     items: &[CatalogItem],

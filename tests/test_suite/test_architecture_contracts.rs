@@ -4,7 +4,7 @@
 //! - Foundational domain types (`src/types.rs`) must be pure leaves and NEVER depend on
 //!   higher-level orchestration (`scanner`, `storage`, `organizer`, `catalog`, `db`).
 //! - Storage backends (`src/storage/`) must NEVER depend on presentation (`src/catalog/`) or CLI.
-//! - Scanners (`src/scanner.rs`) must NEVER depend on presentation (`src/catalog/`).
+//! - Scanners (`src/scanner.rs`, `src/scanner/`) must NEVER depend on presentation (`src/catalog/`).
 //! - Machine learning classification (`src/classifier.rs`, `src/burst.rs`) must remain decoupled from presentation.
 
 use std::fs;
@@ -13,17 +13,40 @@ use std::path::{Path, PathBuf};
 fn parse_crate_imports(file_path: &Path) -> Vec<String> {
     let content = fs::read_to_string(file_path).unwrap_or_default();
     let mut imports = Vec::new();
+    let mut in_test_cfg = false;
+
     for line in content.lines() {
         let trimmed = line.trim();
-        // Check for 'use crate::foo' or 'use crate::{foo, bar}'
-        if let Some(after_crate) = trimmed.strip_prefix("use crate::") {
-            let module_token = after_crate
-                .split([':', ';', ' '])
-                .next()
-                .unwrap_or("")
-                .trim();
-            if !module_token.is_empty() {
-                imports.push(module_token.to_string());
+
+        // Skip unit test submodules
+        if trimmed.starts_with("#[cfg(test)]") {
+            in_test_cfg = true;
+            continue;
+        }
+        if in_test_cfg && trimmed.starts_with("mod tests") {
+            break;
+        }
+
+        // Handle `use crate::...` and `pub use crate::...`
+        let search_prefix = if let Some(after) = trimmed.strip_prefix("pub use crate::") {
+            Some(after)
+        } else {
+            trimmed.strip_prefix("use crate::")
+        };
+
+        if let Some(after_crate) = search_prefix {
+            // Strip group delimiters like `{` or `}`
+            let cleaned = after_crate.trim_start_matches('{');
+            let tokens = cleaned.split([';', ' ']).next().unwrap_or("");
+            for part in tokens.split(',') {
+                let token = part
+                    .split(':')
+                    .next()
+                    .unwrap_or("")
+                    .trim_matches(|c: char| c.is_whitespace() || c == '{' || c == '}');
+                if !token.is_empty() {
+                    imports.push(token.to_string());
+                }
             }
         }
     }
@@ -90,16 +113,24 @@ fn test_storage_does_not_depend_on_catalog_or_cli() {
 }
 
 #[test]
-fn test_classification_and_burst_do_not_depend_on_catalog() {
+fn test_classification_and_burst_and_scanner_do_not_depend_on_catalog() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for module_name in &["classifier.rs", "burst.rs", "geo.rs", "db.rs"] {
-        let module_path = manifest_dir.join("src").join(module_name);
+    let modules = [
+        "classifier.rs",
+        "burst.rs",
+        "geo.rs",
+        "db.rs",
+        "scanner.rs",
+        "scanner/probe.rs",
+    ];
+    for module_rel in &modules {
+        let module_path = manifest_dir.join("src").join(module_rel);
         if module_path.exists() {
             let imports = parse_crate_imports(&module_path);
             assert!(
                 !imports.iter().any(|i| i == "catalog"),
                 "Architecture contract violated: src/{} must not depend on catalog",
-                module_name
+                module_rel
             );
         }
     }
