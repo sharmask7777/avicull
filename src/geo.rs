@@ -219,23 +219,9 @@ pub fn load_locations_toml(path: &Path) -> Result<HashMap<String, (f64, f64)>> {
     Ok(map)
 }
 
-/// Resolves locations across all bundles adhering to the 4 priorities:
-/// 1. EXIF GPS
-/// 2. Sibling EXIF propagation (median GPS within same trip folder)
-/// 3. Trip folder name gazetteer (TOML mapping or built-in IBA table)
-/// 4. Fallback CLI default coordinates
-// Architectural justification: resolve_locations orchestrates a multi-pass hierarchical GPS resolution
-// pipeline across Rayon threads, TOML maps, and built-in IBAs. Decomposing into micro-functions would
-// fracture parallel mutable bundle references.
-#[allow(clippy::cognitive_complexity)]
-pub fn resolve_locations(
-    bundles: &mut [AssetBundle],
-    locations_toml_path: Option<&Path>,
-    default_coords: Option<(f64, f64)>,
-) -> Result<()> {
-    // Extract missing EXIF GPS and timestamps from primary or companion images in parallel
+/// Extracts missing EXIF GPS and timestamps across bundles in parallel via Rayon.
+fn extract_missing_exif_in_parallel(bundles: &mut [AssetBundle]) {
     bundles.par_iter_mut().for_each(|bundle| {
-        // If capture_timestamp_ms is already present, EXIF was already parsed (or loaded from cache)
         if bundle.capture_timestamp_ms.is_none() {
             let (gps, ts) = extract_exif_metadata(&bundle.primary_image);
             if bundle.gps_coords.is_none() {
@@ -259,13 +245,14 @@ pub fn resolve_locations(
             }
         }
     });
+}
 
-    // Propagate sibling median GPS within each trip cluster
-    let mut trip_gps_medians: HashMap<String, (f64, f64)> = HashMap::new();
+/// Calculates median GPS coordinates for each trip cluster based on bundles with direct EXIF GPS.
+fn compute_trip_gps_medians(bundles: &[AssetBundle]) -> HashMap<String, (f64, f64)> {
     let mut trip_lats: HashMap<String, Vec<f64>> = HashMap::new();
     let mut trip_lons: HashMap<String, Vec<f64>> = HashMap::new();
 
-    for bundle in bundles.iter() {
+    for bundle in bundles {
         if let Some(gps) = bundle.gps_coords {
             if gps.source == LocationSource::ExifGps {
                 trip_lats
@@ -280,6 +267,7 @@ pub fn resolve_locations(
         }
     }
 
+    let mut trip_gps_medians = HashMap::new();
     for (trip, mut lats) in trip_lats {
         if let Some(mut lons) = trip_lons.remove(&trip) {
             lats.sort_by(f64::total_cmp);
@@ -290,7 +278,83 @@ pub fn resolve_locations(
             trip_gps_medians.insert(trip, (med_lat, med_lon));
         }
     }
+    trip_gps_medians
+}
 
+/// Attempts to resolve location coordinates for a bundle from TOML mappings or embedded gazetteer.
+fn resolve_bundle_gazetteer_coords(
+    bundle: &AssetBundle,
+    toml_map: Option<&HashMap<String, (f64, f64)>>,
+    gazetteer_engine: Option<&crate::location::gazetteer::GazetteerEngine>,
+) -> Option<(f64, f64)> {
+    let mut candidate_tokens = crate::location::path_parser::extract_candidate_location_tokens(
+        Path::new(&bundle.trip_folder_name),
+    );
+    for t in crate::location::path_parser::extract_candidate_location_tokens(&bundle.primary_image)
+    {
+        if !candidate_tokens.contains(&t) {
+            candidate_tokens.push(t);
+        }
+    }
+    let mut tokens = tokenize_folder_name(&bundle.trip_folder_name);
+    for comp in bundle.primary_image.components() {
+        tokens.extend(tokenize_folder_name(&comp.as_os_str().to_string_lossy()));
+    }
+
+    // Check toml mapping
+    if let Some(map) = toml_map {
+        for token in &candidate_tokens {
+            if let Some(&coords) = map.get(token) {
+                return Some(coords);
+            }
+        }
+        for token in &tokens {
+            if let Some(&coords) = map.get(token) {
+                return Some(coords);
+            }
+        }
+    }
+
+    // Check embedded gazetteer engine
+    if let Some(engine) = gazetteer_engine {
+        for token in &candidate_tokens {
+            let matches = engine.search(token, 1);
+            if let Some((entry, score)) = matches.into_iter().next() {
+                if score >= 0.60 {
+                    return Some((entry.latitude, entry.longitude));
+                }
+            }
+        }
+        for token in &tokens {
+            if token.len() >= 3 {
+                let matches = engine.search(token, 1);
+                if let Some((entry, score)) = matches.into_iter().next() {
+                    if score >= 0.60 {
+                        return Some((entry.latitude, entry.longitude));
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Resolves locations across all bundles adhering to the 4 priorities:
+/// 1. EXIF GPS
+/// 2. Sibling EXIF propagation (median GPS within same trip folder)
+/// 3. Trip folder name gazetteer (TOML mapping or built-in IBA table)
+/// 4. Fallback CLI default coordinates
+pub fn resolve_locations(
+    bundles: &mut [AssetBundle],
+    locations_toml_path: Option<&Path>,
+    default_coords: Option<(f64, f64)>,
+) -> Result<()> {
+    // 1. Extract missing EXIF GPS and timestamps from primary or companion images in parallel
+    extract_missing_exif_in_parallel(bundles);
+
+    // 2. Propagate sibling median GPS within each trip cluster
+    let trip_gps_medians = compute_trip_gps_medians(bundles);
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() {
             if let Some(&(med_lat, med_lon)) = trip_gps_medians.get(&bundle.trip_folder_name) {
@@ -303,81 +367,17 @@ pub fn resolve_locations(
         }
     }
 
-    // Match trip folder candidate tokens against locations.toml and embedded gazetteer
-    let toml_map = if let Some(p) = locations_toml_path {
-        load_locations_toml(p).ok()
-    } else {
-        None
-    };
-
+    // 3. Match trip folder candidate tokens against locations.toml and embedded gazetteer
+    let toml_map = locations_toml_path.and_then(|p| load_locations_toml(p).ok());
     let gazetteer_engine = crate::location::gazetteer::GazetteerEngine::load_embedded().ok();
 
     for bundle in bundles.iter_mut() {
         if bundle.gps_coords.is_none() {
-            let mut candidate_tokens =
-                crate::location::path_parser::extract_candidate_location_tokens(Path::new(
-                    &bundle.trip_folder_name,
-                ));
-            for t in crate::location::path_parser::extract_candidate_location_tokens(
-                &bundle.primary_image,
+            if let Some((lat, lon)) = resolve_bundle_gazetteer_coords(
+                bundle,
+                toml_map.as_ref(),
+                gazetteer_engine.as_ref(),
             ) {
-                if !candidate_tokens.contains(&t) {
-                    candidate_tokens.push(t);
-                }
-            }
-            let mut tokens = tokenize_folder_name(&bundle.trip_folder_name);
-            for comp in bundle.primary_image.components() {
-                tokens.extend(tokenize_folder_name(&comp.as_os_str().to_string_lossy()));
-            }
-            let mut resolved: Option<(f64, f64)> = None;
-
-            // Check toml mapping
-            if let Some(ref map) = toml_map {
-                for token in &candidate_tokens {
-                    if let Some(&coords) = map.get(token) {
-                        resolved = Some(coords);
-                        break;
-                    }
-                }
-                if resolved.is_none() {
-                    for token in &tokens {
-                        if let Some(&coords) = map.get(token) {
-                            resolved = Some(coords);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Check embedded gazetteer engine
-            if resolved.is_none() {
-                if let Some(ref engine) = gazetteer_engine {
-                    for token in &candidate_tokens {
-                        let matches = engine.search(token, 1);
-                        if let Some((entry, score)) = matches.into_iter().next() {
-                            if score >= 0.60 {
-                                resolved = Some((entry.latitude, entry.longitude));
-                                break;
-                            }
-                        }
-                    }
-                    if resolved.is_none() {
-                        for token in &tokens {
-                            if token.len() >= 3 {
-                                let matches = engine.search(token, 1);
-                                if let Some((entry, score)) = matches.into_iter().next() {
-                                    if score >= 0.60 {
-                                        resolved = Some((entry.latitude, entry.longitude));
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if let Some((lat, lon)) = resolved {
                 bundle.gps_coords = Some(GpsCoordinate {
                     latitude: lat,
                     longitude: lon,
@@ -387,7 +387,7 @@ pub fn resolve_locations(
         }
     }
 
-    // Apply user-provided default CLI fallback coordinates
+    // 4. Apply user-provided default CLI fallback coordinates
     if let Some((def_lat, def_lon)) = default_coords {
         for bundle in bundles.iter_mut() {
             if bundle.gps_coords.is_none() {
