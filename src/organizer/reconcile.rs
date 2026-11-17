@@ -22,15 +22,139 @@ use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use walkdir::WalkDir;
 
+/// Resolves target classification, species slug, and routing tier from output path directory components.
+fn determine_target_from_dir_components(
+    dir_components: &[&str],
+) -> Option<(RoutingTier, String, AssetCategory)> {
+    if dir_components.is_empty() {
+        return None;
+    }
+
+    let (mut target_tier, mut target_slug, mut target_category) = if dir_components[0]
+        == RoutingTier::DIR_NEEDS_REVIEW
+    {
+        if dir_components.len() > 1 {
+            let slug = sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1]));
+            let cat = if dir_components.len() > 2 {
+                match_known_category(dir_components[1])
+                    .unwrap_or_else(|| AssetCategory::from_slug(&slug))
+            } else {
+                AssetCategory::from_slug(&slug)
+            };
+            (RoutingTier::NeedsReview, slug, cat)
+        } else {
+            return None;
+        }
+    } else if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED
+        || dir_components[0] == RoutingTier::DIR_NO_SUBJECT_DETECTED
+    {
+        let slug = if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED {
+            RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
+        } else {
+            RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
+        };
+        (
+            RoutingTier::NoBirdDetected,
+            slug,
+            AssetCategory::NoSubjectDetected,
+        )
+    } else {
+        let species_dir = dir_components.last()?;
+        let slug = sanitize_species_slug(species_dir);
+        let cat = if dir_components.len() > 1 {
+            match_known_category(dir_components[0])
+                .unwrap_or_else(|| AssetCategory::from_slug(&slug))
+        } else {
+            AssetCategory::from_slug(&slug)
+        };
+        (RoutingTier::ConfirmedSpecies, slug, cat)
+    };
+
+    // Enforce core invariant: non-birds, botanical entities, or unknown entities
+    // must NEVER resolve to Bird or ConfirmedSpecies!
+    if target_category == AssetCategory::Bird && !is_known_bird_slug(&target_slug) {
+        let cat = AssetCategory::from_slug(&target_slug);
+        if cat == AssetCategory::NoSubjectDetected {
+            target_category = AssetCategory::NoSubjectDetected;
+            target_tier = RoutingTier::NoBirdDetected;
+            target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
+        } else if cat != AssetCategory::Bird {
+            target_category = cat;
+        }
+    } else if target_category == AssetCategory::NoSubjectDetected
+        && target_slug != RoutingTier::SENTINEL_NO_BIRD_DETECTED
+        && target_slug != RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+    {
+        target_tier = RoutingTier::NoBirdDetected;
+        target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
+    }
+
+    Some((target_tier, target_slug, target_category))
+}
+
+/// Matches a candidate file on disk to a known bundle ID using inode or stem fallback.
+fn match_bundle_id_for_file(
+    entry: &walkdir::DirEntry,
+    file_name: &str,
+    db: &ManifestDb,
+    existing_bundle_map: &ExistingBundleMap,
+) -> (Option<String>, u64) {
+    let mut matched_bundle_id: Option<String> = None;
+    let mut file_ino = 0u64;
+
+    if let Ok(meta) = entry.metadata() {
+        file_ino = meta.ino();
+        if file_ino != 0 {
+            if let Some((_, b)) = existing_bundle_map.by_inode.get(&file_ino) {
+                matched_bundle_id = Some(b.bundle_id.clone());
+            } else if let Ok(Some(b_id)) = db.get_bundle_id_by_inode(file_ino) {
+                matched_bundle_id = Some(b_id);
+            }
+        }
+    }
+
+    if matched_bundle_id.is_none() {
+        let (trip_prefix, rest) = if let Some(idx) = file_name.find("__") {
+            (Some(&file_name[..idx]), &file_name[idx + 2..])
+        } else {
+            (None, file_name)
+        };
+
+        let mut best_stem_match: Option<(usize, String)> = None;
+        for (b_id, (_, b)) in &existing_bundle_map.by_id {
+            if let Some(prefix) = trip_prefix {
+                if sanitize_species_slug(&b.trip_folder_name) != prefix
+                    && b.trip_folder_name != prefix
+                {
+                    continue;
+                }
+            }
+            let stem = &b.original_stem;
+            let is_match = rest == stem
+                || rest.starts_with(&format!("{stem}."))
+                || rest.starts_with(&format!("{stem}_"));
+            if is_match
+                && best_stem_match
+                    .as_ref()
+                    .is_none_or(|(len, _)| *len < stem.len())
+            {
+                best_stem_match = Some((stem.len(), b_id.clone()));
+            }
+        }
+        if let Some((_, b_id)) = best_stem_match {
+            matched_bundle_id = Some(b_id);
+        }
+    }
+
+    (matched_bundle_id, file_ino)
+}
+
 /// Reconciles manual filesystem moves within the output directory into durable
 /// SQLite classification overrides and synchronized hard link operation records.
 ///
 /// Scans the output directory tree, matches hard links to existing bundles via
 /// APFS inode parity and filename stems, detects if bundles have been moved into
 /// different species directories, and records permanent user overrides.
-// Architectural justification: performs complex APFS inode matching, cross-directory collision detection,
-// and state synchronization across SQLite tables and filesystem hierarchies.
-#[allow(clippy::cognitive_complexity)]
 pub fn reconcile_manual_disk_moves(
     output_root: &Path,
     db: &ManifestDb,
@@ -91,133 +215,24 @@ pub fn reconcile_manual_disk_moves(
             continue;
         };
 
-        // Determine target species slug and routing tier from directory path components
         let dir_components: Vec<&str> = rel_path
             .parent()
             .map_or_default(|p| p.iter().filter_map(|c| c.to_str()).collect());
 
-        if dir_components.is_empty() {
-            // File is placed directly in output root, not inside a species folder
+        let Some((target_tier, target_slug, target_category)) =
+            determine_target_from_dir_components(&dir_components)
+        else {
             continue;
-        }
+        };
 
-        let (mut target_tier, mut target_slug, mut target_category) =
-            if dir_components[0] == RoutingTier::DIR_NEEDS_REVIEW {
-                if dir_components.len() > 1 {
-                    let slug =
-                        sanitize_species_slug(dir_components.last().unwrap_or(&dir_components[1]));
-                    let cat = if dir_components.len() > 2 {
-                        match_known_category(dir_components[1])
-                            .unwrap_or_else(|| AssetCategory::from_slug(&slug))
-                    } else {
-                        AssetCategory::from_slug(&slug)
-                    };
-                    (RoutingTier::NeedsReview, slug, cat)
-                } else {
-                    continue;
-                }
-            } else if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED
-                || dir_components[0] == RoutingTier::DIR_NO_SUBJECT_DETECTED
-            {
-                let slug = if dir_components[0] == RoutingTier::DIR_NO_BIRD_DETECTED {
-                    RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string()
-                } else {
-                    RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string()
-                };
-                (
-                    RoutingTier::NoBirdDetected,
-                    slug,
-                    AssetCategory::NoSubjectDetected,
-                )
-            } else if let Some(species_dir) = dir_components.last() {
-                let slug = sanitize_species_slug(species_dir);
-                let cat = if dir_components.len() > 1 {
-                    match_known_category(dir_components[0])
-                        .unwrap_or_else(|| AssetCategory::from_slug(&slug))
-                } else {
-                    AssetCategory::from_slug(&slug)
-                };
-                (RoutingTier::ConfirmedSpecies, slug, cat)
-            } else {
-                continue;
-            };
-
-        // Enforce the core invariant: non-birds, botanical entities, or unknown entities
-        // must NEVER resolve to Bird or ConfirmedSpecies!
-        if target_category == AssetCategory::Bird && !is_known_bird_slug(&target_slug) {
-            let cat = AssetCategory::from_slug(&target_slug);
-            if cat == AssetCategory::NoSubjectDetected {
-                target_category = AssetCategory::NoSubjectDetected;
-                target_tier = RoutingTier::NoBirdDetected;
-                target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
-            } else if cat != AssetCategory::Bird {
-                target_category = cat;
-            }
-        } else if target_category == AssetCategory::NoSubjectDetected
-            && target_slug != RoutingTier::SENTINEL_NO_BIRD_DETECTED
-            && target_slug != RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
-        {
-            target_tier = RoutingTier::NoBirdDetected;
-            target_slug = RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string();
-        }
-
-        // Match the file to a known bundle
-        let mut matched_bundle_id: Option<String> = None;
-        let mut file_ino = 0u64;
-
-        if let Ok(meta) = entry.metadata() {
-            file_ino = meta.ino();
-            if file_ino != 0 {
-                if let Some((_, b)) = existing_bundle_map.by_inode.get(&file_ino) {
-                    matched_bundle_id = Some(b.bundle_id.clone());
-                } else if let Ok(Some(b_id)) = db.get_bundle_id_by_inode(file_ino) {
-                    matched_bundle_id = Some(b_id);
-                }
-            }
-        }
-
-        if matched_bundle_id.is_none() {
-            // Stem matching fallback when inodes differ
-            let (trip_prefix, rest) = if let Some(idx) = file_name.find("__") {
-                (Some(&file_name[..idx]), &file_name[idx + 2..])
-            } else {
-                (None, file_name.as_ref())
-            };
-
-            let mut best_stem_match: Option<(usize, String)> = None;
-            for (b_id, (_, b)) in &existing_bundle_map.by_id {
-                if let Some(prefix) = trip_prefix {
-                    if sanitize_species_slug(&b.trip_folder_name) != prefix
-                        && b.trip_folder_name != prefix
-                    {
-                        continue;
-                    }
-                }
-                let stem = &b.original_stem;
-                let is_match = rest == stem
-                    || rest.starts_with(&format!("{stem}."))
-                    || rest.starts_with(&format!("{stem}_"));
-                if is_match
-                    && best_stem_match
-                        .as_ref()
-                        .is_none_or(|(len, _)| *len < stem.len())
-                {
-                    best_stem_match = Some((stem.len(), b_id.clone()));
-                }
-            }
-            if let Some((_, b_id)) = best_stem_match {
-                matched_bundle_id = Some(b_id);
-            }
-        }
+        let (matched_bundle_id, file_ino) =
+            match_bundle_id_for_file(&entry, &file_name, db, existing_bundle_map);
 
         let Some(bundle_id) = matched_bundle_id else {
             continue;
         };
 
         if let Some((existing_decision, _)) = existing_bundle_map.get(&bundle_id).cloned() {
-            // An item residing in _No_Bird_Detected / _No_Subject_Detected is only a manual override
-            // if the user deliberately demoted it from ConfirmedSpecies or NeedsReview.
-            // If it was already in NoBirdDetected, it was routed automatically and must not be marked as a user override.
             let is_override = if target_tier == RoutingTier::NoBirdDetected {
                 existing_decision.routing_tier != RoutingTier::NoBirdDetected
             } else {
@@ -383,6 +398,65 @@ pub fn parse_inplace_slug_and_tier(
     }
 }
 
+/// Reconciles and atomically renames companion image files and sidecars matching a renamed primary file.
+fn reconcile_companion_files(
+    parent_dir: &Path,
+    bundle_id: &str,
+    original_stem: &str,
+    file_path: &Path,
+    new_base_stem: &str,
+    db: &ManifestDb,
+) {
+    if let Ok(entries) = fs::read_dir(parent_dir) {
+        for comp_entry_res in entries.flatten() {
+            let comp_path = comp_entry_res.path();
+            if !comp_path.is_file() {
+                continue;
+            }
+            let comp_fname = comp_entry_res.file_name().to_string_lossy().to_string();
+            if comp_fname.starts_with('.')
+                || comp_fname == "catalog.html"
+                || comp_fname == "bird_catalog.html"
+                || comp_fname == "apply_corrections.sh"
+            {
+                continue;
+            }
+
+            if let Some((comp_stem, _)) = decompose_filename(&comp_fname) {
+                let belongs_to_bundle = comp_stem == original_stem
+                    || comp_stem.starts_with(&format!("{original_stem}_"));
+
+                if belongs_to_bundle && comp_path != file_path && comp_stem != new_base_stem {
+                    let remainder = comp_fname.strip_prefix(&comp_stem).unwrap_or("");
+                    let target_comp_name = format!("{new_base_stem}{remainder}");
+                    let target_comp_path = parent_dir.join(&target_comp_name);
+
+                    if comp_path != target_comp_path
+                        && !target_comp_path.exists()
+                        && fs::rename(&comp_path, &target_comp_path).is_ok()
+                    {
+                        if let Ok(cmeta) = fs::metadata(&target_comp_path) {
+                            let c_ino = cmeta.ino();
+                            if c_ino != 0 {
+                                let _ = db.update_inplace_destination_by_inode(
+                                    bundle_id,
+                                    c_ino,
+                                    &target_comp_path,
+                                );
+                            }
+                        }
+                        let _ = db.update_inplace_destination_by_filename(
+                            bundle_id,
+                            &comp_fname,
+                            &target_comp_path,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Reconciles manual in-place filename renames within the operating tree into durable
 /// SQLite classification overrides and synchronizes companion image files and sidecars.
 ///
@@ -391,9 +465,6 @@ pub fn parse_inplace_slug_and_tier(
 /// This function detects the change, updates the bundle decision in SQLite to the new species
 /// with `is_user_override = true`, renames all remaining companion and sidecar files to match,
 /// and updates the in-memory `ExistingBundleMap`.
-// Architectural justification: transactional multi-file rename reconciler that parses complex slug
-// patterns and atomic sidecar rollbacks in-place.
-#[allow(clippy::cognitive_complexity)]
 pub fn reconcile_inplace_manual_renames(
     operating_root: &Path,
     db: &ManifestDb,
@@ -453,40 +524,8 @@ pub fn reconcile_inplace_manual_renames(
             continue;
         }
 
-        // Match the file to a known bundle via inode or stem matching
-        let mut matched_bundle_id: Option<String> = None;
-        let mut file_ino = 0u64;
-
-        if let Ok(meta) = entry.metadata() {
-            file_ino = meta.ino();
-            if file_ino != 0 {
-                if let Some((_, b)) = existing_bundle_map.by_inode.get(&file_ino) {
-                    matched_bundle_id = Some(b.bundle_id.clone());
-                } else if let Ok(Some(b_id)) = db.get_bundle_id_by_inode(file_ino) {
-                    matched_bundle_id = Some(b_id);
-                }
-            }
-        }
-
-        if matched_bundle_id.is_none() {
-            let mut best_stem_match: Option<(usize, String)> = None;
-            for (b_id, (_, b)) in &existing_bundle_map.by_id {
-                let stem = &b.original_stem;
-                let is_match = file_stem == *stem
-                    || file_stem.starts_with(&format!("{stem}_"))
-                    || file_stem.starts_with(&format!("{stem}."));
-                if is_match
-                    && best_stem_match
-                        .as_ref()
-                        .is_none_or(|(len, _)| *len < stem.len())
-                {
-                    best_stem_match = Some((stem.len(), b_id.clone()));
-                }
-            }
-            if let Some((_, b_id)) = best_stem_match {
-                matched_bundle_id = Some(b_id);
-            }
-        }
+        let (matched_bundle_id, file_ino) =
+            match_bundle_id_for_file(&entry, &file_name, db, existing_bundle_map);
 
         let Some(bundle_id) = matched_bundle_id else {
             continue;
@@ -602,59 +641,15 @@ pub fn reconcile_inplace_manual_renames(
             }
             let _ = db.update_inplace_destination_by_filename(&bundle_id, &file_name, &file_path);
 
-            // Reconcile and rename companion images and sidecars in the same directory
             if let Some(parent_dir) = file_path.parent() {
-                if let Ok(entries) = fs::read_dir(parent_dir) {
-                    for comp_entry_res in entries.flatten() {
-                        let comp_path = comp_entry_res.path();
-                        if !comp_path.is_file() {
-                            continue;
-                        }
-                        let comp_fname = comp_entry_res.file_name().to_string_lossy().to_string();
-                        if comp_fname.starts_with('.')
-                            || comp_fname == "catalog.html"
-                            || comp_fname == "bird_catalog.html"
-                            || comp_fname == "apply_corrections.sh"
-                        {
-                            continue;
-                        }
-
-                        if let Some((comp_stem, _)) = decompose_filename(&comp_fname) {
-                            let belongs_to_bundle = comp_stem == bundle.original_stem
-                                || comp_stem.starts_with(&format!("{}_", bundle.original_stem));
-
-                            if belongs_to_bundle
-                                && comp_path != file_path
-                                && comp_stem != new_base_stem
-                            {
-                                let remainder = comp_fname.strip_prefix(&comp_stem).unwrap_or("");
-                                let target_comp_name = format!("{new_base_stem}{remainder}");
-                                let target_comp_path = parent_dir.join(&target_comp_name);
-
-                                if comp_path != target_comp_path
-                                    && !target_comp_path.exists()
-                                    && fs::rename(&comp_path, &target_comp_path).is_ok()
-                                {
-                                    if let Ok(cmeta) = fs::metadata(&target_comp_path) {
-                                        let c_ino = cmeta.ino();
-                                        if c_ino != 0 {
-                                            let _ = db.update_inplace_destination_by_inode(
-                                                &bundle_id,
-                                                c_ino,
-                                                &target_comp_path,
-                                            );
-                                        }
-                                    }
-                                    let _ = db.update_inplace_destination_by_filename(
-                                        &bundle_id,
-                                        &comp_fname,
-                                        &target_comp_path,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
+                reconcile_companion_files(
+                    parent_dir,
+                    &bundle_id,
+                    &bundle.original_stem,
+                    &file_path,
+                    &new_base_stem,
+                    db,
+                );
             }
 
             reconciled_bundle_ids.insert(bundle_id.clone());

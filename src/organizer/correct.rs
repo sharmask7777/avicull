@@ -18,6 +18,7 @@ use crate::types::{
     Classification, OrganizationMode, RoutingTier,
 };
 use anyhow::{anyhow, Context, Result};
+use std::collections::HashSet;
 use std::fs;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -236,48 +237,16 @@ pub fn apply_bundle_correction(
     )
 }
 
-/// Applies a direct manual classification correction for a single photo bundle or burst with an explicit category.
-///
-/// Updates the bundle's classification, category, and routing tier in the SQLite manifest,
-/// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
-/// moves or renames all associated files (primary image, companions, and sidecars)
-/// according to the active organization mode, and regenerates `catalog.html`.
-/// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
-/// to the same burst are reclassified and relocated lockstep.
-// Architectural justification: orchestrates transactionally atomic moves across primary files, RAWs,
-// companion sidecars, and SQLite records across both InPlace and Hierarchy modes with burst propagation.
-#[allow(clippy::too_many_arguments, clippy::cognitive_complexity)]
-pub fn apply_bundle_correction_with_category(
-    db: &ManifestDb,
-    operating_root: &Path,
-    mode: OrganizationMode,
+/// Selects the target bundle or prompts the user interactively when query yields multiple matches.
+fn select_target_bundle(
     file_query: &str,
-    category: &str,
-    new_species: &str,
-    input_root: Option<&Path>,
-    propagate_burst: bool,
-) -> Result<Vec<(BundleDecision, AssetBundle)>> {
-    let default_root = PathBuf::from(".");
-    let operating_root = if operating_root.as_os_str().is_empty() {
-        &default_root
-    } else {
-        operating_root
-    };
-    let query_trim = file_query.trim();
-    if query_trim.is_empty() || query_trim == "./" || query_trim == ".\\" {
-        return Err(anyhow!(
-            "Photo query cannot be empty. Please specify an unambiguous file path or stem."
-        ));
-    }
-    let mut matched_bundles = db.find_candidate_bundle_entries_by_query(file_query)?;
-
-    let (target_dec, target_bundle) = match matched_bundles.len() {
-        0 => {
-            return Err(anyhow!(
-                "No photo bundle matching '{file_query}' was found in manifest."
-            ));
-        }
-        1 => matched_bundles.remove(0),
+    mut matched_bundles: Vec<(BundleDecision, AssetBundle)>,
+) -> Result<(BundleDecision, AssetBundle)> {
+    match matched_bundles.len() {
+        0 => Err(anyhow!(
+            "No photo bundle matching '{file_query}' was found in manifest."
+        )),
+        1 => Ok(matched_bundles.remove(0)),
         _ => {
             let is_interactive = is_interactive_session();
             if is_interactive {
@@ -321,7 +290,7 @@ pub fn apply_bundle_correction_with_category(
                         matched_bundles.len()
                     ));
                 }
-                matched_bundles.remove(choice - 1)
+                Ok(matched_bundles.remove(choice - 1))
             } else {
                 use std::fmt::Write;
                 let mut msg = format!("Multiple photo bundles matched query '{file_query}':\n");
@@ -333,10 +302,378 @@ pub fn apply_bundle_correction_with_category(
                     let _ = writeln!(msg, "  - {rel}");
                 }
                 msg.push_str("Specify an unambiguous relative path using --file (e.g. --file \"<trip>/<file>\").");
-                return Err(anyhow!(msg));
+                Err(anyhow!(msg))
             }
         }
+    }
+}
+
+/// Normalizes a human-entered category string into canonical form.
+fn normalize_user_category(category: &str) -> String {
+    match category.to_ascii_lowercase().as_str() {
+        "mammalia" | "mammal" | "mammals" => "Mammalia".to_string(),
+        "insecta" | "insect" | "insects" => "Insecta".to_string(),
+        "reptilia" | "reptile" | "reptiles" => "Reptilia".to_string(),
+        "amphibia" | "amphibian" | "amphibians" => "Amphibia".to_string(),
+        "scenery" | "landscape" => "Scenery".to_string(),
+        "architecture" | "monument" | "building" => "Architecture".to_string(),
+        "portrait" | "people" => "Portrait".to_string(),
+        "abstract" | "texture" => "Abstract".to_string(),
+        "botanical"
+        | "plant"
+        | "plants"
+        | "flora"
+        | "flower"
+        | "flowers"
+        | "tree"
+        | "trees"
+        | "no_subject_detected"
+        | "nosubjectdetected"
+        | "no_bird_detected"
+        | "nobirddetected" => AssetCategory::NoSubjectDetected.as_str().to_string(),
+        "bird" | "birds" => "Bird".to_string(),
+        other => {
+            if other.is_empty() {
+                "Bird".to_string()
+            } else {
+                category.to_string()
+            }
+        }
+    }
+}
+
+struct ClassificationResolution {
+    normalized_category: String,
+    target_slug: String,
+    routing_tier: RoutingTier,
+}
+
+/// Resolves species and category validation logic, reconciling typos and non-avian slugs.
+fn resolve_species_and_category(
+    new_species: &str,
+    initial_category: &str,
+) -> Result<ClassificationResolution> {
+    let mut normalized_category = normalize_user_category(initial_category);
+
+    let (has_needs_review, species_to_check) =
+        if let Some(stripped) = new_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
+            (true, stripped)
+        } else {
+            (false, new_species)
+        };
+
+    let mut is_no_bird = species_to_check == RoutingTier::SENTINEL_NO_BIRD_DETECTED
+        || species_to_check == "NoBirdDetected"
+        || species_to_check.eq_ignore_ascii_case("No Bird Detected")
+        || species_to_check.eq_ignore_ascii_case("No_Bird_Detected")
+        || species_to_check == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
+        || species_to_check == "NoSubjectDetected"
+        || species_to_check.eq_ignore_ascii_case("No Subject Detected")
+        || species_to_check.eq_ignore_ascii_case("No_Subject_Detected");
+
+    let (resolved_species, suggestion_declined, has_bird_suggestion) =
+        if normalized_category == "Bird" && !is_no_bird && !species_to_check.is_empty() {
+            resolve_species_suggestion(species_to_check, has_needs_review)
+        } else {
+            (new_species.to_string(), false, false)
+        };
+
+    let final_species_to_check =
+        if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
+            stripped
+        } else {
+            &resolved_species
+        };
+
+    if normalized_category == "Bird" {
+        if is_no_bird {
+            normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+        } else if final_species_to_check.trim().is_empty() {
+            return Err(anyhow!(
+                "Species name cannot be empty for category Bird. If no bird is detected, use --category No_Subject_Detected or --species _No_Bird_Detected"
+            ));
+        } else if !is_known_bird_slug(final_species_to_check) {
+            let cat = AssetCategory::from_slug(final_species_to_check);
+            if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
+                normalized_category = cat.as_str().to_string();
+            } else if is_known_botanical_slug(final_species_to_check) {
+                normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
+                is_no_bird = true;
+            } else if suggestion_declined || !has_bird_suggestion {
+                normalized_category = "Bird".to_string();
+            }
+        }
+    } else if normalized_category == AssetCategory::NoSubjectDetected.as_str() {
+        is_no_bird = true;
+    }
+
+    let (routing_tier, target_slug) = if is_no_bird {
+        if final_species_to_check.to_ascii_lowercase().contains("bird") {
+            (
+                RoutingTier::NoBirdDetected,
+                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
+            )
+        } else {
+            (
+                RoutingTier::NoBirdDetected,
+                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
+            )
+        }
+    } else if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
+        (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
+    } else if final_species_to_check.trim().is_empty() {
+        (RoutingTier::ConfirmedSpecies, String::new())
+    } else {
+        (
+            RoutingTier::ConfirmedSpecies,
+            sanitize_species_slug(&resolved_species),
+        )
     };
+
+    Ok(ClassificationResolution {
+        normalized_category,
+        target_slug,
+        routing_tier,
+    })
+}
+
+/// Resolves typo suggestions for birds interactively or via logging.
+fn resolve_species_suggestion(
+    species_to_check: &str,
+    has_needs_review: bool,
+) -> (String, bool, bool) {
+    let mut resolved_species = species_to_check.to_string();
+    let mut suggestion_declined = false;
+    let mut has_bird_suggestion = false;
+
+    let taxonomy = load_taxonomy_records();
+    if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
+        has_bird_suggestion = true;
+        if is_interactive_session() {
+            print!(
+                "\nSpecies '{}' not found in taxonomy. Did you mean '{}'? [Y/n]: ",
+                species_to_check, suggestion.common_name
+            );
+            if std::io::stdout().flush().is_ok() {
+                let mut input = String::new();
+                if std::io::stdin().read_line(&mut input).is_ok() {
+                    let trimmed = input.trim();
+                    if trimmed.is_empty()
+                        || trimmed.eq_ignore_ascii_case("y")
+                        || trimmed.eq_ignore_ascii_case("yes")
+                    {
+                        resolved_species = if has_needs_review {
+                            format!("_Needs_Review/{}", suggestion.common_name)
+                        } else {
+                            suggestion.common_name
+                        };
+                    } else {
+                        suggestion_declined = true;
+                    }
+                }
+            }
+        } else {
+            println!(
+                "[avicull] Note: Species '{}' not found in taxonomy. Did you mean '{}'?",
+                species_to_check, suggestion.common_name
+            );
+        }
+    }
+
+    (resolved_species, suggestion_declined, has_bird_suggestion)
+}
+
+struct RelocateContext<'a> {
+    target_dir: &'a Path,
+    normalized_category: &'a str,
+    operating_root: &'a Path,
+    db: &'a ManifestDb,
+    storage_backend: &'a dyn crate::storage::StorageBackend,
+    was_dataless: bool,
+}
+
+/// Relocates hard links in hierarchy mode to the new species directory for a single bundle.
+fn relocate_bundle_hardlinks(
+    bundle: &AssetBundle,
+    decision: &BundleDecision,
+    ctx: &RelocateContext<'_>,
+    old_dirs_to_prune: &mut HashSet<PathBuf>,
+) -> Result<()> {
+    let ops = ctx.db.get_bundle_operations(&bundle.bundle_id)?;
+    let mut moved_any = false;
+
+    for op in ops {
+        if op.operation_type == "hardlink" && op.status == "linked" {
+            let current_dest = &op.dest_path;
+            if let Some(fname) = current_dest.file_name() {
+                let new_dest = ctx.target_dir.join(fname);
+                if current_dest.exists() {
+                    if *current_dest != new_dest {
+                        if let Some(parent) = current_dest.parent() {
+                            old_dirs_to_prune.insert(parent.to_path_buf());
+                        }
+                        fs::rename(current_dest, &new_dest).with_context(|| {
+                            format!(
+                                "Failed to move hard link from '{}' to '{}'",
+                                current_dest.display(),
+                                new_dest.display()
+                            )
+                        })?;
+                        if ctx.was_dataless {
+                            let _ = ctx.storage_backend.evict(&new_dest);
+                        }
+                        ctx.db
+                            .update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
+                        moved_any = true;
+                    }
+                } else if op.source_path.exists() && !new_dest.exists() {
+                    fs::hard_link(&op.source_path, &new_dest).with_context(|| {
+                        format!(
+                            "Failed to hardlink from '{}' to '{}'",
+                            op.source_path.display(),
+                            new_dest.display()
+                        )
+                    })?;
+                    if ctx.was_dataless {
+                        let _ = ctx.storage_backend.evict(&new_dest);
+                    }
+                    ctx.db
+                        .update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
+                    moved_any = true;
+                }
+            }
+        }
+    }
+
+    if !moved_any {
+        let latest_run = ctx
+            .db
+            .get_latest_run_id()?
+            .unwrap_or_else(|| "run-manual".to_string());
+        let materialized = materialize_bundle_hardlinks_with_category(
+            bundle,
+            decision,
+            ctx.normalized_category,
+            ctx.operating_root,
+            &latest_run,
+            false,
+        )?;
+        ctx.db.record_hardlink_operations(&materialized)?;
+    }
+
+    Ok(())
+}
+
+/// Applies an in-place file rename on a bundle during species correction.
+fn execute_bundle_inplace_rename(
+    bundle: &AssetBundle,
+    normalized_category: &str,
+    target_slug: &str,
+    db: &ManifestDb,
+    storage_backend: &dyn crate::storage::StorageBackend,
+    was_dataless: bool,
+) -> Result<()> {
+    let ops = db.get_bundle_operations(&bundle.bundle_id)?;
+    let mut current_primary = bundle.primary_image.clone();
+    for op in &ops {
+        if op.operation_type == "in_place_rename" && op.status == "renamed" && op.dest_path.exists()
+        {
+            if let Some(src_fname) = op.source_path.file_name() {
+                if bundle.primary_image.file_name() == Some(src_fname) {
+                    current_primary.clone_from(&op.dest_path);
+                }
+            }
+        }
+    }
+
+    let mut current_bundle = bundle.clone();
+    current_bundle.primary_image = current_primary;
+
+    let mut new_comps = Vec::new();
+    for comp in &bundle.companion_images {
+        let mut resolved = comp.clone();
+        for op in &ops {
+            if op.source_path == *comp && op.dest_path.exists() {
+                resolved.clone_from(&op.dest_path);
+            }
+        }
+        new_comps.push(resolved);
+    }
+    current_bundle.companion_images = new_comps;
+
+    let mut new_scs = Vec::new();
+    for sc in &bundle.sidecar_files {
+        let mut resolved = sc.clone();
+        for op in &ops {
+            if op.source_path == *sc && op.dest_path.exists() {
+                resolved.clone_from(&op.dest_path);
+            }
+        }
+        new_scs.push(resolved);
+    }
+    current_bundle.sidecar_files = new_scs;
+
+    let date = bundle.capture_timestamp_ms.and_then(|ms| {
+        chrono::DateTime::from_timestamp_millis(ms).map(|dt| dt.format("%Y%m%d").to_string())
+    });
+    let loc = bundle.resolved_location_name.as_deref();
+
+    let new_stem = format_inplace_filename(
+        &bundle.original_stem,
+        normalized_category,
+        target_slug,
+        date.as_deref(),
+        loc,
+        "",
+    );
+
+    let renames = execute_inplace_bundle_rename_with_stem(&current_bundle, &new_stem)?;
+    let latest_run = db
+        .get_latest_run_id()?
+        .unwrap_or_else(|| "run-manual".to_string());
+    for (old_path, new_path) in renames {
+        if was_dataless {
+            let _ = storage_backend.evict(&new_path);
+        }
+        db.record_inplace_rename(&latest_run, &old_path, &new_path)?;
+    }
+
+    Ok(())
+}
+
+/// Applies a direct manual classification correction for a single photo bundle or burst with an explicit category.
+///
+/// Updates the bundle's classification, category, and routing tier in the SQLite manifest,
+/// marks it as a durable user override (`is_user_override = 1`, `final_confidence = 1.0`),
+/// moves or renames all associated files (primary image, companions, and sidecars)
+/// according to the active organization mode, and regenerates `catalog.html`.
+/// When `propagate_burst` is enabled or confirmed interactively, all frames belonging
+/// to the same burst are reclassified and relocated lockstep.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_bundle_correction_with_category(
+    db: &ManifestDb,
+    operating_root: &Path,
+    mode: OrganizationMode,
+    file_query: &str,
+    category: &str,
+    new_species: &str,
+    input_root: Option<&Path>,
+    propagate_burst: bool,
+) -> Result<Vec<(BundleDecision, AssetBundle)>> {
+    let default_root = PathBuf::from(".");
+    let operating_root = if operating_root.as_os_str().is_empty() {
+        &default_root
+    } else {
+        operating_root
+    };
+    let query_trim = file_query.trim();
+    if query_trim.is_empty() || query_trim == "./" || query_trim == ".\\" {
+        return Err(anyhow!(
+            "Photo query cannot be empty. Please specify an unambiguous file path or stem."
+        ));
+    }
+    let matched_bundles = db.find_candidate_bundle_entries_by_query(file_query)?;
+    let (target_dec, target_bundle) = select_target_bundle(file_query, matched_bundles)?;
 
     // Identify burst members if the bundle is part of a multi-frame burst
     let burst_members: Vec<(BundleDecision, AssetBundle)> =
@@ -379,142 +716,11 @@ pub fn apply_bundle_correction_with_category(
         vec![(target_dec, target_bundle)]
     };
 
-    let mut normalized_category: String = match category.to_ascii_lowercase().as_str() {
-        "mammalia" | "mammal" | "mammals" => "Mammalia".to_string(),
-        "insecta" | "insect" | "insects" => "Insecta".to_string(),
-        "reptilia" | "reptile" | "reptiles" => "Reptilia".to_string(),
-        "amphibia" | "amphibian" | "amphibians" => "Amphibia".to_string(),
-        "scenery" | "landscape" => "Scenery".to_string(),
-        "architecture" | "monument" | "building" => "Architecture".to_string(),
-        "portrait" | "people" => "Portrait".to_string(),
-        "abstract" | "texture" => "Abstract".to_string(),
-        "botanical"
-        | "plant"
-        | "plants"
-        | "flora"
-        | "flower"
-        | "flowers"
-        | "tree"
-        | "trees"
-        | "no_subject_detected"
-        | "nosubjectdetected"
-        | "no_bird_detected"
-        | "nobirddetected" => AssetCategory::NoSubjectDetected.as_str().to_string(),
-        "bird" | "birds" => "Bird".to_string(),
-        other => {
-            if other.is_empty() {
-                "Bird".to_string()
-            } else {
-                category.to_string()
-            }
-        }
-    };
-
-    let mut resolved_species = new_species.to_string();
-    let (has_needs_review, mut species_to_check) =
-        if let Some(stripped) = new_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
-            (true, stripped)
-        } else {
-            (false, new_species)
-        };
-
-    let mut is_no_bird = species_to_check == RoutingTier::SENTINEL_NO_BIRD_DETECTED
-        || species_to_check == "NoBirdDetected"
-        || species_to_check.eq_ignore_ascii_case("No Bird Detected")
-        || species_to_check.eq_ignore_ascii_case("No_Bird_Detected")
-        || species_to_check == RoutingTier::SENTINEL_NO_SUBJECT_DETECTED
-        || species_to_check == "NoSubjectDetected"
-        || species_to_check.eq_ignore_ascii_case("No Subject Detected")
-        || species_to_check.eq_ignore_ascii_case("No_Subject_Detected");
-
-    let mut suggestion_declined = false;
-    let mut has_bird_suggestion = false;
-    if normalized_category == "Bird" && !is_no_bird && !species_to_check.is_empty() {
-        let taxonomy = load_taxonomy_records();
-        if let Some(suggestion) = find_species_typo_suggestion(species_to_check, &taxonomy) {
-            has_bird_suggestion = true;
-            if is_interactive_session() {
-                print!(
-                    "\nSpecies '{}' not found in taxonomy. Did you mean '{}'? [Y/n]: ",
-                    species_to_check, suggestion.common_name
-                );
-                std::io::stdout().flush()?;
-                let mut input = String::new();
-                std::io::stdin().read_line(&mut input)?;
-                let trimmed = input.trim();
-                if trimmed.is_empty()
-                    || trimmed.eq_ignore_ascii_case("y")
-                    || trimmed.eq_ignore_ascii_case("yes")
-                {
-                    resolved_species = if has_needs_review {
-                        format!("_Needs_Review/{}", suggestion.common_name)
-                    } else {
-                        suggestion.common_name
-                    };
-                } else {
-                    suggestion_declined = true;
-                }
-            } else {
-                println!(
-                    "[avicull] Note: Species '{}' not found in taxonomy. Did you mean '{}'?",
-                    species_to_check, suggestion.common_name
-                );
-            }
-        }
-    }
-
-    if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
-        species_to_check = stripped;
-    } else {
-        species_to_check = &resolved_species;
-    }
-
-    if normalized_category == "Bird" {
-        if is_no_bird {
-            normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
-        } else if species_to_check.trim().is_empty() {
-            return Err(anyhow!(
-                "Species name cannot be empty for category Bird. If no bird is detected, use --category No_Subject_Detected or --species _No_Bird_Detected"
-            ));
-        } else if !is_known_bird_slug(species_to_check) {
-            let cat = AssetCategory::from_slug(species_to_check);
-            if cat != AssetCategory::Bird && cat != AssetCategory::NoSubjectDetected {
-                normalized_category = cat.as_str().to_string();
-            } else if is_known_botanical_slug(species_to_check) {
-                normalized_category = AssetCategory::NoSubjectDetected.as_str().to_string();
-                is_no_bird = true;
-            } else if suggestion_declined || !has_bird_suggestion {
-                // When explicitly categorized as Bird with a novel custom species or hybrid
-                // that is not in the standard taxonomy, respect the user's category selection.
-                normalized_category = "Bird".to_string();
-            }
-        }
-    } else if normalized_category == AssetCategory::NoSubjectDetected.as_str() {
-        is_no_bird = true;
-    }
-
-    let (routing_tier, target_slug) = if is_no_bird {
-        if species_to_check.to_ascii_lowercase().contains("bird") {
-            (
-                RoutingTier::NoBirdDetected,
-                RoutingTier::SENTINEL_NO_BIRD_DETECTED.to_string(),
-            )
-        } else {
-            (
-                RoutingTier::NoBirdDetected,
-                RoutingTier::SENTINEL_NO_SUBJECT_DETECTED.to_string(),
-            )
-        }
-    } else if let Some(stripped) = resolved_species.strip_prefix(RoutingTier::PREFIX_NEEDS_REVIEW) {
-        (RoutingTier::NeedsReview, sanitize_species_slug(stripped))
-    } else if species_to_check.trim().is_empty() {
-        (RoutingTier::ConfirmedSpecies, String::new())
-    } else {
-        (
-            RoutingTier::ConfirmedSpecies,
-            sanitize_species_slug(&resolved_species),
-        )
-    };
+    let ClassificationResolution {
+        normalized_category,
+        target_slug,
+        routing_tier,
+    } = resolve_species_and_category(new_species, category)?;
 
     let target_dir = build_output_destination_path(
         operating_root,
@@ -577,66 +783,15 @@ pub fn apply_bundle_correction_with_category(
         match mode {
             OrganizationMode::HierarchicalHardlinkHierarchy => {
                 if operating_root.exists() {
-                    let ops = db.get_bundle_operations(&bundle.bundle_id)?;
-                    let mut moved_any = false;
-
-                    for op in ops {
-                        if op.operation_type == "hardlink" && op.status == "linked" {
-                            let current_dest = &op.dest_path;
-                            if let Some(fname) = current_dest.file_name() {
-                                let new_dest = target_dir.join(fname);
-                                if current_dest.exists() {
-                                    if *current_dest != new_dest {
-                                        if let Some(parent) = current_dest.parent() {
-                                            old_dirs_to_prune.insert(parent.to_path_buf());
-                                        }
-                                        fs::rename(current_dest, &new_dest).with_context(|| {
-                                            format!(
-                                                "Failed to move hard link from '{}' to '{}'",
-                                                current_dest.display(),
-                                                new_dest.display()
-                                            )
-                                        })?;
-                                        if was_dataless {
-                                            let _ = storage_backend.evict(&new_dest);
-                                        }
-                                        db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
-                                        moved_any = true;
-                                    }
-                                } else if op.source_path.exists() && !new_dest.exists() {
-                                    fs::hard_link(&op.source_path, &new_dest).with_context(
-                                        || {
-                                            format!(
-                                                "Failed to hardlink from '{}' to '{}'",
-                                                op.source_path.display(),
-                                                new_dest.display()
-                                            )
-                                        },
-                                    )?;
-                                    if was_dataless {
-                                        let _ = storage_backend.evict(&new_dest);
-                                    }
-                                    db.update_operation_dest(op.op_id.unwrap_or(0), &new_dest)?;
-                                    moved_any = true;
-                                }
-                            }
-                        }
-                    }
-
-                    if !moved_any {
-                        let latest_run = db
-                            .get_latest_run_id()?
-                            .unwrap_or_else(|| "run-manual".to_string());
-                        let materialized = materialize_bundle_hardlinks_with_category(
-                            &bundle,
-                            &decision,
-                            &normalized_category,
-                            operating_root,
-                            &latest_run,
-                            false,
-                        )?;
-                        db.record_hardlink_operations(&materialized)?;
-                    }
+                    let ctx = RelocateContext {
+                        target_dir: &target_dir,
+                        normalized_category: &normalized_category,
+                        operating_root,
+                        db,
+                        storage_backend: storage_backend.as_ref(),
+                        was_dataless,
+                    };
+                    relocate_bundle_hardlinks(&bundle, &decision, &ctx, &mut old_dirs_to_prune)?;
                 }
             }
 
@@ -645,73 +800,14 @@ pub fn apply_bundle_correction_with_category(
             }
 
             OrganizationMode::InPlaceRename => {
-                let ops = db.get_bundle_operations(&bundle.bundle_id)?;
-                let mut current_primary = bundle.primary_image.clone();
-                for op in &ops {
-                    if op.operation_type == "in_place_rename"
-                        && op.status == "renamed"
-                        && op.dest_path.exists()
-                    {
-                        if let Some(src_fname) = op.source_path.file_name() {
-                            if bundle.primary_image.file_name() == Some(src_fname) {
-                                current_primary.clone_from(&op.dest_path);
-                            }
-                        }
-                    }
-                }
-
-                let mut current_bundle = bundle.clone();
-                current_bundle.primary_image = current_primary;
-
-                let mut new_comps = Vec::new();
-                for comp in &bundle.companion_images {
-                    let mut resolved = comp.clone();
-                    for op in &ops {
-                        if op.source_path == *comp && op.dest_path.exists() {
-                            resolved.clone_from(&op.dest_path);
-                        }
-                    }
-                    new_comps.push(resolved);
-                }
-                current_bundle.companion_images = new_comps;
-
-                let mut new_scs = Vec::new();
-                for sc in &bundle.sidecar_files {
-                    let mut resolved = sc.clone();
-                    for op in &ops {
-                        if op.source_path == *sc && op.dest_path.exists() {
-                            resolved.clone_from(&op.dest_path);
-                        }
-                    }
-                    new_scs.push(resolved);
-                }
-                current_bundle.sidecar_files = new_scs;
-
-                let date = bundle.capture_timestamp_ms.and_then(|ms| {
-                    chrono::DateTime::from_timestamp_millis(ms)
-                        .map(|dt| dt.format("%Y%m%d").to_string())
-                });
-                let loc = bundle.resolved_location_name.as_deref();
-
-                let new_stem = format_inplace_filename(
-                    &bundle.original_stem,
+                execute_bundle_inplace_rename(
+                    &bundle,
                     &normalized_category,
                     &target_slug,
-                    date.as_deref(),
-                    loc,
-                    "",
-                );
-
-                let renames = execute_inplace_bundle_rename_with_stem(&current_bundle, &new_stem)?;
-                let latest_run = db
-                    .get_latest_run_id()?
-                    .unwrap_or_else(|| "run-manual".to_string());
-                for (old_path, new_path) in renames {
-                    if was_dataless {
-                        let _ = storage_backend.evict(&new_path);
-                    }
-                    db.record_inplace_rename(&latest_run, &old_path, &new_path)?;
-                }
+                    db,
+                    storage_backend.as_ref(),
+                    was_dataless,
+                )?;
             }
         }
 
