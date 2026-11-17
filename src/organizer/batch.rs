@@ -13,10 +13,10 @@ use crate::catalog::{
     generate_html_catalog_with_policy, resolve_manifest_db_path, CatalogItem,
     ThumbnailEmbeddingPolicy, CATALOG_FILES_DIR, DEFAULT_CATALOG_FILENAME,
 };
-use crate::cli::{OrganizeAllArgs, OrganizeArgs};
 use crate::db::ManifestDb;
 use crate::organizer::run_organize;
 use crate::types::OrganizationMode;
+use crate::types::{OrganizeAllArgs, OrganizeArgs};
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};

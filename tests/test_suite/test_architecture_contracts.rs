@@ -135,3 +135,66 @@ fn test_classification_and_burst_and_scanner_do_not_depend_on_catalog() {
         }
     }
 }
+
+#[test]
+fn test_organizer_does_not_depend_on_cli() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let organizer_dir = manifest_dir.join("src/organizer");
+    let organizer_file = manifest_dir.join("src/organizer.rs");
+
+    let mut files = Vec::new();
+    if organizer_file.exists() {
+        files.push(organizer_file);
+    }
+    if organizer_dir.exists() {
+        if let Ok(entries) = fs::read_dir(organizer_dir) {
+            for entry in entries.flatten() {
+                if entry.path().extension().and_then(|s| s.to_str()) == Some("rs") {
+                    files.push(entry.path());
+                }
+            }
+        }
+    }
+
+    for f in files {
+        let imports = parse_crate_imports(&f);
+        assert!(
+            !imports.iter().any(|i| i == "cli"),
+            "Architecture contract violated: {} must not depend on cli (driving adapter)",
+            f.display()
+        );
+    }
+}
+
+#[test]
+fn test_subsystems_do_not_depend_on_orchestration_or_cli() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let subsystems = [
+        "types.rs",
+        "db.rs",
+        "geo.rs",
+        "classifier.rs",
+        "burst.rs",
+        "scanner.rs",
+        "scanner/probe.rs",
+        "location/mod.rs",
+        "location/parser.rs",
+        "location/resolver.rs",
+    ];
+    let forbidden = ["organizer", "catalog", "cli"];
+
+    for sub in &subsystems {
+        let path = manifest_dir.join("src").join(sub);
+        if path.exists() {
+            let imports = parse_crate_imports(&path);
+            for imp in &imports {
+                assert!(
+                    !forbidden.contains(&imp.as_str()),
+                    "Architecture contract violated: src/{} must not depend on '{}'",
+                    sub,
+                    imp
+                );
+            }
+        }
+    }
+}

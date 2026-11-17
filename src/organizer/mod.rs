@@ -892,7 +892,7 @@ pub fn regenerate_catalog_from_manifest_ext(
 ///
 /// # Errors
 /// Returns an error if the manifest database cannot be located or catalog emission fails.
-pub fn render_catalog_standalone(args: &crate::cli::RenderCatalogArgs) -> Result<PathBuf> {
+pub fn render_catalog_standalone(args: &crate::types::RenderCatalogArgs) -> Result<PathBuf> {
     let db_path = if args.input.is_file() {
         args.input.clone()
     } else {

@@ -14,7 +14,6 @@
 use crate::burst::{smooth_burst_consensus, ClassifiedBundleItem};
 use crate::catalog::{generate_html_catalog, CatalogItem, DEFAULT_CATALOG_FILENAME};
 use crate::classifier::{MockSpeciesClassifier, OrtSpeciesClassifier, SpeciesClassifier};
-use crate::cli::OrganizeArgs;
 use crate::db::{ExistingBundleMap, ManifestDb};
 use crate::detector::{select_and_pad_bird_crop, BirdDetector, MockBirdDetector, OrtBirdDetector};
 use crate::geo::resolve_locations;
@@ -32,6 +31,7 @@ use crate::types::{
     AssetBundle, AssetCategory, ConfidenceMode, GpsCoordinate, LocationSource, OrganizationMode,
     RoutingTier,
 };
+use crate::types::{OrganizeArgs, ReclassifyMode};
 use anyhow::{anyhow, bail, Context, Result};
 use image::DynamicImage;
 use std::fs::File;
@@ -639,7 +639,7 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
         return Ok(());
     }
 
-    if args.reclassify && args.reclassify_mode == crate::cli::ReclassifyMode::Fast {
+    if args.reclassify && args.reclassify_mode == ReclassifyMode::Fast {
         reclassify_from_cached_embeddings(&db, &operating_root, args)?;
         return Ok(());
     }
@@ -1560,7 +1560,7 @@ pub fn run_organize(args: &OrganizeArgs) -> Result<()> {
 pub fn reclassify_from_cached_embeddings(
     db: &ManifestDb,
     operating_root: &Path,
-    args: &crate::cli::OrganizeArgs,
+    args: &crate::types::OrganizeArgs,
 ) -> Result<()> {
     let existing_records = db.get_all_bundles(None)?;
     if existing_records.is_empty() {
