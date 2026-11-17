@@ -148,7 +148,7 @@ class InferencePrediction:
     visual_prob: float = 0.0
     geo_prior: float = 1.0
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *args: Any,
         species_code: str = "",
@@ -584,18 +584,11 @@ class AvianInferenceEngine:
         )
         return crop, conf, dict_detections
 
-    def process_image(
-        self,
-        image_path: str,
-        min_detect: float = 0.25,
-        geo_prior_weight: float = 1.0,
-        trip_name: str = "",
-        lat: float | None = None,
-        lon: float | None = None,
-        region_code: str = "",
-    ) -> dict[str, Any]:
+    def _load_and_preprocess_image(
+        self, image_path: str
+    ) -> tuple[Image.Image | None, dict[str, Any] | None]:
         if not os.path.exists(image_path):
-            return {
+            return None, {
                 "error": f"File not found: {image_path}",
                 "category": AssetCategory.UNKNOWN.value,
                 "detected": False,
@@ -607,15 +600,13 @@ class AvianInferenceEngine:
             }
 
         try:
-            # Handle EXIF orientation properly
             raw_img = Image.open(image_path)
             img = ImageOps.exif_transpose(raw_img).convert("RGB")
-            # Downsample huge full-frame camera RAWs/JPEGs to 1600 max dim for fast localization
             max_dim = max(img.size)
             if max_dim > 1600:
                 img.thumbnail((1600, 1600), Image.Resampling.BILINEAR)
         except (OSError, ValueError) as e:
-            return {
+            return None, {
                 "error": f"Failed to open image: {e}",
                 "category": AssetCategory.UNKNOWN.value,
                 "detected": False,
@@ -625,203 +616,168 @@ class AvianInferenceEngine:
                 "top_predictions": [],
                 "embedding": [0.0] * 512,
             }
-
-        crop, det_conf, detections = self.detect_and_crop(img, min_detect=min_detect)
-
-        is_fallback_crop = False
-        img_emb: torch.Tensor | None = None
-        all_sims: torch.Tensor | None = None
-
-        if crop is not None:
-            crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                crop_emb = self.vision_model(crop_tensor)
-                crop_emb = crop_emb / crop_emb.norm(dim=-1, keepdim=True)
-                crop_sims = (crop_emb @ self.species_embeddings.T)[0]
-                peak_crop_sim = float(crop_sims.max().item())
-
-            # Visual relevance floor:
-            # If peak visual similarity across all 11,000+ species is below 0.23
-            # (or below 0.25 when detection confidence is weak < 0.35), the crop
-            # does not visually represent any biological subject. Reject the crop
-            # as a false positive detector hallucination (e.g. rocks, statues, waterfalls).
-            if peak_crop_sim < 0.23 or (det_conf < 0.35 and peak_crop_sim < 0.25):
-                crop = None
-            else:
-                img_emb = crop_emb
-                all_sims = crop_sims
-
-        if crop is None:
-            # Detector fallback: 0 animals detected (or crop rejected by relevance floor)
-            # Embed full frame to distinguish scenery from empty/blurry frames
-            full_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
-            with torch.no_grad():
-                full_emb = self.vision_model(full_tensor)
-                full_emb = full_emb / full_emb.norm(dim=-1, keepdim=True)
-
-            anchor_res = classify_category_anchors(
-                full_emb[0], self.category_centroids, margin=0.03
-            )
-
-            # Evaluate natural visual entropy to reject pure black/synthetic uniform images
-            visual_entropy = calculate_visual_entropy(img)
-
-            # Robust non-animal genre fallback:
-            # Require higher threshold and peak confidence so unlabeled frames or low-confidence
-            # noise do not falsely classify into other genres. Fall back to No Subject.
-            non_animal_genres = ("Scenery", "Architecture", "Abstract")
-            with torch.no_grad():
-                full_sims = (full_emb @ self.species_embeddings.T)[0]
-
-            # Evaluate the top candidate scores and peak score per non-animal genre
-            genre_top_scores: dict[str, float] = {}
-            genre_peak_scores: dict[str, float] = {}
-            for g in non_animal_genres:
-                g_indices = [i for i, sp in enumerate(self.taxonomy) if sp.get("category") == g]
-                if g_indices:
-                    k_top = min(2, len(g_indices))
-                    top_vals = torch.topk(full_sims[g_indices], k_top).values
-                    genre_top_scores[g] = float(top_vals.mean().item())
-                    genre_peak_scores[g] = float(top_vals[0].item())
-
-            best_genre = (
-                max(genre_top_scores.items(), key=lambda x: x[1])[0]
-                if genre_top_scores
-                else anchor_res.category
-            )
-            best_genre_score = genre_top_scores.get(best_genre, 0.0)
-            best_genre_peak = genre_peak_scores.get(best_genre, 0.0)
-
-            # Robust classification gate:
-            # - For Scenery (e.g. mountain valleys, waterfalls): top-2 mean >= 0.16, peak >= 0.18
-            # - For Architecture, Abstract: top-2 mean >= 0.18 and peak >= 0.22.
-            # Frames below these gates cleanly fall back to _No_Subject_Detected.
-            min_mean_thresh = 0.16 if best_genre == "Scenery" else 0.18
-            min_peak_thresh = 0.18 if best_genre == "Scenery" else 0.22
-
-            is_valid_genre = (
-                best_genre in non_animal_genres
-                and visual_entropy >= 1.0
-                and best_genre_score >= min_mean_thresh
-                and best_genre_peak >= min_peak_thresh
-            )
-
-            if not is_valid_genre:
-                # Ambiguous or no confident subject -> fallback to _No_Subject_Detected
-                return {
-                    "image_path": image_path,
-                    "category": AssetCategory.NO_SUBJECT_DETECTED.value,
-                    "detected": False,
-                    "detection_confidence": 0.0,
-                    "assigned_species_slug": "_No_Subject_Detected",
-                    "frame_confidence": 0.0,
-                    "final_confidence": 0.0,
-                    "top_predictions": [],
-                    "embedding": [round(float(v), 5) for v in full_emb[0].tolist()[:512]],
-                }
-
-            # Confirmed natural genre (Scenery, Architecture, or Abstract)
-            crop = img
-            det_conf = best_genre_score
-            img_emb = full_emb
-            all_sims = full_sims
-            is_fallback_crop = False
-            best_cat_name = (
-                best_genre.value if isinstance(best_genre, AssetCategory) else str(best_genre)
-            )
-            target_category = (
-                AssetCategory(best_cat_name)
-                if best_cat_name in AssetCategory._value2member_map_
-                else AssetCategory(anchor_res.category)
-            )
         else:
-            assert img_emb is not None
-            assert all_sims is not None
+            return img, None
 
-            # Detect whether YOLO specifically localized a person, mammal or bird
-            detected_person = any(det.get("class_id") == COCO_PERSON_CLASS_ID for det in detections)
-            detected_mammal = any(
-                det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections
+    def _evaluate_detected_crop(
+        self, crop: Image.Image | None, det_conf: float
+    ) -> tuple[Image.Image | None, torch.Tensor | None, torch.Tensor | None]:
+        if crop is None:
+            return None, None, None
+
+        crop_tensor = self.preprocess(crop).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            crop_emb = self.vision_model(crop_tensor)
+            crop_emb = crop_emb / crop_emb.norm(dim=-1, keepdim=True)
+            crop_sims = (crop_emb @ self.species_embeddings.T)[0]
+            peak_crop_sim = float(crop_sims.max().item())
+
+        if peak_crop_sim < 0.23 or (det_conf < 0.35 and peak_crop_sim < 0.25):
+            return None, None, None
+        return crop, crop_emb, crop_sims
+
+    def _evaluate_non_animal_fallback(
+        self, img: Image.Image, image_path: str
+    ) -> tuple[
+        dict[str, Any] | None,
+        tuple[Image.Image, float, torch.Tensor, torch.Tensor, AssetCategory] | None,
+    ]:
+        full_tensor = self.preprocess(img).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            full_emb = self.vision_model(full_tensor)
+            full_emb = full_emb / full_emb.norm(dim=-1, keepdim=True)
+            full_sims = (full_emb @ self.species_embeddings.T)[0]
+
+        anchor_res = classify_category_anchors(full_emb[0], self.category_centroids, margin=0.03)
+        visual_entropy = calculate_visual_entropy(img)
+
+        non_animal_genres = ("Scenery", "Architecture", "Abstract")
+        genre_top_scores: dict[str, float] = {}
+        genre_peak_scores: dict[str, float] = {}
+        for g in non_animal_genres:
+            g_indices = [i for i, sp in enumerate(self.taxonomy) if sp.get("category") == g]
+            if g_indices:
+                k_top = min(2, len(g_indices))
+                top_vals = torch.topk(full_sims[g_indices], k_top).values
+                genre_top_scores[g] = float(top_vals.mean().item())
+                genre_peak_scores[g] = float(top_vals[0].item())
+
+        best_genre = (
+            max(genre_top_scores.items(), key=lambda x: x[1])[0]
+            if genre_top_scores
+            else anchor_res.category
+        )
+        best_genre_score = genre_top_scores.get(best_genre, 0.0)
+        best_genre_peak = genre_peak_scores.get(best_genre, 0.0)
+
+        min_mean_thresh = 0.16 if best_genre == "Scenery" else 0.18
+        min_peak_thresh = 0.18 if best_genre == "Scenery" else 0.22
+
+        is_valid_genre = (
+            best_genre in non_animal_genres
+            and visual_entropy >= 1.0
+            and best_genre_score >= min_mean_thresh
+            and best_genre_peak >= min_peak_thresh
+        )
+
+        if not is_valid_genre:
+            return {
+                "image_path": image_path,
+                "category": AssetCategory.NO_SUBJECT_DETECTED.value,
+                "detected": False,
+                "detection_confidence": 0.0,
+                "assigned_species_slug": "_No_Subject_Detected",
+                "frame_confidence": 0.0,
+                "final_confidence": 0.0,
+                "top_predictions": [],
+                "embedding": [round(float(v), 5) for v in full_emb[0].tolist()[:512]],
+            }, None
+
+        best_cat_name = (
+            best_genre.value if isinstance(best_genre, AssetCategory) else str(best_genre)
+        )
+        target_category = (
+            AssetCategory(best_cat_name)
+            if best_cat_name in AssetCategory._value2member_map_
+            else AssetCategory(anchor_res.category)
+        )
+        return None, (img, best_genre_score, full_emb, full_sims, target_category)
+
+    def _resolve_detection_target_category(
+        self,
+        img_emb: torch.Tensor,
+        all_sims: torch.Tensor,
+        detections: list[dict[str, Any]],
+    ) -> AssetCategory:
+        detected_person = any(det.get("class_id") == COCO_PERSON_CLASS_ID for det in detections)
+        detected_mammal = any(det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections)
+        detected_bird = any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections)
+
+        top_sp_idx = int(torch.argmax(all_sims).item())
+        top_sp_cat = self.taxonomy[top_sp_idx].get("category", "Bird")
+        if top_sp_cat not in CANONICAL_CATEGORIES:
+            top_sp_cat = "Bird"
+
+        bird_indices = [
+            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
+        ]
+        mammal_indices = [
+            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Mammalia"
+        ]
+        non_bird_indices = [
+            i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") != "Bird"
+        ]
+
+        max_bird_sim = float(all_sims[bird_indices].max().item()) if bird_indices else -1.0
+        max_mammal_sim = float(all_sims[mammal_indices].max().item()) if mammal_indices else -1.0
+        max_non_bird_sim = (
+            float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
+        )
+
+        if detected_person and not detected_bird and not detected_mammal:
+            return AssetCategory.PORTRAIT
+        if detected_mammal and not detected_bird:
+            return (
+                AssetCategory.BIRD
+                if max_bird_sim - max_mammal_sim >= 0.15
+                else AssetCategory.MAMMALIA
             )
-            detected_bird = any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections)
-
-            # Avoid centroid dilution: evaluate top candidates directly across all species
-            top_sp_idx = int(torch.argmax(all_sims).item())
-            top_sp_cat = self.taxonomy[top_sp_idx].get("category", "Bird")
-            if top_sp_cat not in CANONICAL_CATEGORIES:
-                top_sp_cat = "Bird"
-
-            bird_indices = [
-                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Bird"
-            ]
-            mammal_indices = [
-                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == "Mammalia"
-            ]
-            non_bird_indices = [
-                i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") != "Bird"
-            ]
-
-            max_bird_sim = float(all_sims[bird_indices].max().item()) if bird_indices else -1.0
-            max_mammal_sim = (
-                float(all_sims[mammal_indices].max().item()) if mammal_indices else -1.0
+        if detected_bird and not detected_mammal:
+            top_cat_enum = (
+                AssetCategory(top_sp_cat)
+                if top_sp_cat in AssetCategory._value2member_map_
+                else AssetCategory.BIRD
             )
-            max_non_bird_sim = (
-                float(all_sims[non_bird_indices].max().item()) if non_bird_indices else -1.0
+            return top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
+        if detected_bird and detected_mammal:
+            top_cat_enum = (
+                AssetCategory(top_sp_cat)
+                if top_sp_cat in AssetCategory._value2member_map_
+                else AssetCategory.BIRD
             )
+            return top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
 
-            if detected_person and not detected_bird and not detected_mammal:
-                target_category = AssetCategory.PORTRAIT
-            elif detected_mammal and not detected_bird:
-                # If YOLO detected a mammal with high confidence and no bird, route
-                # target_category = "Mammalia" unless a bird candidate has overwhelming
-                # visual similarity margin exceeding the top mammal prediction by >= 0.15.
-                target_category = (
-                    AssetCategory.BIRD
-                    if max_bird_sim - max_mammal_sim >= 0.15
-                    else AssetCategory.MAMMALIA
-                )
-            elif detected_bird and not detected_mammal:
-                # Default target_category = "Bird" unless non-bird has margin >= 0.05.
-                top_cat_enum = (
-                    AssetCategory(top_sp_cat)
-                    if top_sp_cat in AssetCategory._value2member_map_
-                    else AssetCategory.BIRD
-                )
-                target_category = (
-                    top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
-                )
-            elif detected_bird and detected_mammal:
-                top_cat_enum = (
-                    AssetCategory(top_sp_cat)
-                    if top_sp_cat in AssetCategory._value2member_map_
-                    else AssetCategory.BIRD
-                )
-                target_category = (
-                    top_cat_enum if max_non_bird_sim - max_bird_sim >= 0.05 else AssetCategory.BIRD
-                )
-            else:
-                # If YOLO detected an animal (cat, dog, etc.) or open-set entity:
-                # Never blindly default to Bird. If top candidate is not Bird, honor it.
-                # If ambiguous, use category centroids.
-                if any(det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections):
-                    target_category = AssetCategory.MAMMALIA
-                elif any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections):
-                    target_category = AssetCategory.BIRD
-                elif top_sp_cat != "Bird" and top_sp_cat in AssetCategory._value2member_map_:
-                    target_category = AssetCategory(top_sp_cat)
-                else:
-                    anchor_res = classify_category_anchors(
-                        img_emb[0], self.category_centroids, margin=0.02
-                    )
-                    target_category = (
-                        anchor_res.category
-                        if not anchor_res.is_ambiguous
-                        else AssetCategory.NO_SUBJECT_DETECTED
-                    )
+        if any(det.get("class_id") in COCO_MAMMAL_CLASS_IDS for det in detections):
+            return AssetCategory.MAMMALIA
+        if any(det.get("class_id") == COCO_BIRD_CLASS_ID for det in detections):
+            return AssetCategory.BIRD
+        if top_sp_cat != "Bird" and top_sp_cat in AssetCategory._value2member_map_:
+            return AssetCategory(top_sp_cat)
 
-            is_fallback_crop = False
+        anchor_res = classify_category_anchors(img_emb[0], self.category_centroids, margin=0.02)
+        return (
+            anchor_res.category
+            if not anchor_res.is_ambiguous
+            else AssetCategory.NO_SUBJECT_DETECTED
+        )
 
-        # Stage 2: Fine-grained ranking within target_category
+    def _rank_category_predictions(
+        self,
+        img_emb: torch.Tensor,
+        target_category: AssetCategory,
+        geo_prior_weight: float,
+        region_code: str,
+    ) -> list[InferencePrediction]:
         target_cat_str = (
             target_category.value
             if isinstance(target_category, AssetCategory)
@@ -830,17 +786,14 @@ class AvianInferenceEngine:
         cat_indices = [
             i for i, sp in enumerate(self.taxonomy) if sp.get("category", "Bird") == target_cat_str
         ]
-
         if not cat_indices:
             cat_indices = list(range(len(self.taxonomy)))
 
         with torch.no_grad():
             category_embeddings = self.species_embeddings[cat_indices]
-            # Cosine similarity logits with temperature scaling 100.0
             logits = 100.0 * (img_emb @ category_embeddings.T)
             visual_probs = torch.softmax(logits, dim=-1)[0]
 
-            # Apply Bayesian Spatio-Temporal Prior (for Bird category only)
             regional_prior = (
                 self.get_regional_prior_tensor(region_code)
                 if (region_code and target_category == "Bird")
@@ -850,12 +803,6 @@ class AvianInferenceEngine:
             if geo_prior_weight > 0.0 and regional_prior is not None:
                 priors = regional_prior[cat_indices]
                 effective_priors = (priors**geo_prior_weight).clone()
-
-                # Visual dominance override (captive zoo / rare vagrant escape):
-                # When a candidate has strong visual confidence (prob >= 0.15) and
-                # is overwhelmingly higher than any in-region species (> 5.0x max in-region),
-                # bypass the geographic penalty so zoo exhibits (e.g. Toucan in Seattle)
-                # or unmistakable vagrants are not overridden by random local noise.
                 top_vis_idx = int(torch.argmax(visual_probs).item())
                 top_vis_prob = float(visual_probs[top_vis_idx].item())
                 in_region_mask = priors >= 0.99
@@ -864,22 +811,18 @@ class AvianInferenceEngine:
                     if in_region_mask.any()
                     else 0.0
                 )
-
                 if top_vis_prob >= 0.15 and top_vis_prob > 5.0 * max_in_region_prob:
                     effective_priors[top_vis_idx] = 1.0
-
                 posterior_scores = visual_probs * effective_priors
             else:
                 effective_priors = torch.ones_like(visual_probs)
                 posterior_scores = visual_probs
 
-            # Select Top species based on fused posterior scores (capped at category species count)
             k = min(5, len(cat_indices))
             top_posteriors, top_sub_indices = torch.topk(posterior_scores, k=k)
 
+        raw_scores: list[float] = []
         predictions: list[InferencePrediction] = []
-        raw_scores = []
-
         for post_val, sub_idx_val in zip(top_posteriors, top_sub_indices, strict=False):
             sub_idx = int(sub_idx_val.item())
             global_idx = cat_indices[sub_idx]
@@ -887,7 +830,6 @@ class AvianInferenceEngine:
             vis_prob = float(visual_probs[sub_idx].item())
             geo_pr = float(effective_priors[sub_idx].item())
             sp = self.taxonomy[global_idx]
-
             raw_val = (
                 float(logits[sub_idx].item())
                 if logits.ndim == 1
@@ -909,14 +851,13 @@ class AvianInferenceEngine:
                 )
             )
 
-        # Calibrated normalization of top-5 posterior distribution
         score_sum = sum(raw_scores)
         if score_sum > 0:
             calibration_scale = min(1.0, score_sum / 0.15)
-            normalized_predictions = []
+            normalized = []
             for i, p in enumerate(predictions):
                 norm_score = (raw_scores[i] / score_sum) * calibration_scale
-                normalized_predictions.append(
+                normalized.append(
                     InferencePrediction(
                         species_code=p.species_code,
                         common_name=p.common_name,
@@ -931,27 +872,66 @@ class AvianInferenceEngine:
                         geo_prior=p.geo_prior,
                     )
                 )
-            predictions = normalized_predictions
+            predictions = normalized
+        return predictions
 
-        top_predictions_dict = [p.to_dict() for p in predictions]
+    def process_image(  # noqa: PLR0913
+        self,
+        image_path: str,
+        min_detect: float = 0.25,
+        geo_prior_weight: float = 1.0,
+        trip_name: str = "",
+        lat: float | None = None,
+        lon: float | None = None,
+        region_code: str = "",
+    ) -> dict[str, Any]:
+        # Silence unused parameter warnings for backward compatibility
+        _ = (trip_name, lat, lon)
+
+        img, error_dict = self._load_and_preprocess_image(image_path)
+        if error_dict is not None or img is None:
+            return error_dict if error_dict is not None else {}
+
+        crop, det_conf, detections = self.detect_and_crop(img, min_detect=min_detect)
+        crop, img_emb, all_sims = self._evaluate_detected_crop(crop, det_conf)
+
+        if crop is None:
+            fallback_err, fallback_res = self._evaluate_non_animal_fallback(img, image_path)
+            if fallback_err is not None:
+                return fallback_err
+            assert fallback_res is not None
+            crop, det_conf, img_emb, all_sims, target_category = fallback_res
+        else:
+            assert img_emb is not None
+            assert all_sims is not None
+            target_category = self._resolve_detection_target_category(img_emb, all_sims, detections)
+
+        predictions = self._rank_category_predictions(
+            img_emb=img_emb,
+            target_category=target_category,
+            geo_prior_weight=geo_prior_weight,
+            region_code=region_code,
+        )
+
         top1 = predictions[0] if predictions else None
         top1_slug = top1.folder_slug or top1.common_name.replace(" ", "_") if top1 else "Unknown"
         top1_conf = top1.confidence if top1 else 0.0
-
-        # Calibrated final confidence:
-        # A cropped animal identification can never be more confident than
-        # the detector's confidence in that crop.
-        final_conf = min(top1_conf, det_conf) if top1 and not is_fallback_crop else det_conf
+        final_conf = min(top1_conf, det_conf) if top1 and crop is not img else det_conf
+        target_cat_str = (
+            target_category.value
+            if isinstance(target_category, AssetCategory)
+            else str(target_category)
+        )
 
         return {
             "image_path": image_path,
             "category": target_cat_str,
-            "detected": not is_fallback_crop and det_conf >= min_detect,
+            "detected": det_conf >= min_detect,
             "detection_confidence": round(det_conf, 4),
             "assigned_species_slug": top1_slug,
             "frame_confidence": round(top1_conf, 4),
             "final_confidence": round(final_conf, 4),
-            "top_predictions": top_predictions_dict,
+            "top_predictions": [p.to_dict() for p in predictions],
             "embedding": [round(float(v), 5) for v in img_emb[0].tolist()[:512]],
         }
 
