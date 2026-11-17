@@ -92,7 +92,7 @@ else
 fi
 
 # 6. Cargo Deny Check (Supply-Chain Security, Bans & Licenses)
-echo -e "${BOLD}[6/7] Checking dependency supply-chain security and licenses (cargo deny check)...${NC}"
+echo -e "${BOLD}[6/8] Checking dependency supply-chain security and licenses (cargo deny check)...${NC}"
 if command -v cargo-deny >/dev/null 2>&1 || cargo deny --version >/dev/null 2>&1; then
     if cargo deny check; then
         echo -e "${GREEN}✓ cargo deny check passed.${NC}\n"
@@ -105,8 +105,21 @@ else
     echo -e "${YELLOW}  Install via: brew install cargo-deny (or: cargo install --locked cargo-deny)${NC}\n"
 fi
 
-# 7. Rust Documentation Verification
-echo -e "${BOLD}[7/7] Checking Rust documentation (RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps)...${NC}"
+# 7. Playwright E2E UI Smoke Test
+echo -e "${BOLD}[7/8] Running Playwright E2E UI smoke test...${NC}"
+if command -v npm >/dev/null 2>&1 && [ -d "tests/e2e/node_modules" ]; then
+    if npm --prefix tests/e2e test -- bird_catalog.spec.ts --project=chromium; then
+        echo -e "${GREEN}✓ Playwright E2E UI smoke test passed.${NC}\n"
+    else
+        echo -e "${RED}✗ Playwright E2E UI smoke test failed.${NC}\n"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⚠ Playwright e2e tests skipped (tests/e2e/node_modules missing or npm not found).${NC}\n"
+fi
+
+# 8. Rust Documentation Verification
+echo -e "${BOLD}[8/8] Checking Rust documentation (RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps)...${NC}"
 if RUSTDOCFLAGS="-D warnings" cargo doc --no-deps; then
     echo -e "${GREEN}✓ Rust documentation check passed (zero warnings).${NC}\n"
 else
