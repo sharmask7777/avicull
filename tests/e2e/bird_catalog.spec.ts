@@ -576,4 +576,36 @@ test.describe('Avicull Bird Photo Catalog E2E Tests', () => {
       expect(src).not.toMatch(/\.nef$/i);
     });
   });
+
+  test.describe('Asset Access Inspector Drawer', () => {
+    test('opens inspector drawer on clicking card path pill and displays high-res access details', async ({ page }) => {
+      const firstCard = page.locator('#galleryGrid .card').first();
+      const pathPill = firstCard.locator('.card-path');
+      await expect(pathPill).toBeVisible();
+
+      // Click the path pill
+      await pathPill.click();
+
+      // Inspector drawer should be visible and have open class
+      const drawer = page.locator('#assetInspectorDrawer');
+      await expect(drawer).toBeVisible();
+      await expect(drawer).toHaveClass(/open/);
+
+      // Verify inspector sections exist
+      await expect(drawer.locator('.inspector-storage-badge')).toBeVisible();
+      await expect(drawer.locator('.inspector-path-text')).toBeVisible();
+      await expect(drawer.locator('.inspector-cmd-box')).toBeVisible();
+
+      // Verify clicking another card switches the inspector to that card
+      const secondCard = page.locator('#galleryGrid .card').nth(1);
+      const secondPath = await secondCard.locator('.card-path span').first().innerText();
+      await secondCard.click();
+      await expect(drawer.locator('.inspector-path-text')).toHaveText(secondPath.trim());
+
+      // Verify closing with Escape key
+      await page.keyboard.press('Escape');
+      await expect(drawer).not.toHaveClass(/open/);
+    });
+  });
 });
+
