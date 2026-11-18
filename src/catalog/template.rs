@@ -546,6 +546,257 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       white-space: nowrap;
       margin-top: 6px;
       border: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }}
+
+    .card-path:hover {{
+      border-color: #3b82f6;
+      color: #38bdf8;
+      background: #111827;
+    }}
+
+    .card-path .path-icon {{
+      font-size: 0.75rem;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }}
+
+    .card-path:hover .path-icon {{
+      opacity: 1;
+    }}
+
+    /* Asset Access Inspector Drawer */
+    .inspector-drawer {{
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 400px;
+      max-width: 90vw;
+      height: 100vh;
+      background: var(--bg-card);
+      border-left: 1px solid var(--border-color);
+      box-shadow: -8px 0 25px rgba(0, 0, 0, 0.6);
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }}
+
+    .inspector-drawer.open {{
+      right: 0;
+    }}
+
+    .inspector-header {{
+      padding: 16px 20px;
+      background: #111827;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }}
+
+    .inspector-header-info {{
+      min-width: 0;
+    }}
+
+    .inspector-title {{
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }}
+
+    .inspector-subtitle {{
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }}
+
+    .inspector-close {{
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.4rem;
+      cursor: pointer;
+      padding: 4px;
+      line-height: 1;
+      border-radius: 6px;
+    }}
+
+    .inspector-close:hover {{
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.1);
+    }}
+
+    .inspector-body {{
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }}
+
+    .inspector-section {{
+      background: #0b0f19;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 14px;
+    }}
+
+    .inspector-section-label {{
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+
+    .inspector-storage-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }}
+
+    .inspector-storage-badge.badge-local {{
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid #059669;
+    }}
+
+    .inspector-storage-badge.badge-cloud {{
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid #d97706;
+    }}
+
+    .inspector-storage-badge.badge-nas {{
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid #2563eb;
+    }}
+
+    .inspector-desc {{
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin: 0;
+    }}
+
+    .inspector-path-text {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.73rem;
+      color: #f1f5f9;
+      background: #151d30;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 8px 10px;
+      word-break: break-all;
+      margin-top: 6px;
+      line-height: 1.4;
+    }}
+
+    .inspector-companion-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+    }}
+
+    .inspector-companion-item {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #151d30;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+    }}
+
+    .inspector-cmd-box {{
+      background: #151d30;
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 6px 6px 0;
+      padding: 8px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.72rem;
+      color: #38bdf8;
+      word-break: break-all;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }}
+
+    .btn-inspector-action {{
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease;
+    }}
+
+    .btn-inspector-action:hover {{
+      background: #1d4ed8;
+    }}
+
+    .btn-inspector-action.btn-secondary-action {{
+      background: #334155;
+      color: #cbd5e1;
+    }}
+
+    .btn-inspector-action.btn-secondary-action:hover {{
+      background: #475569;
+    }}
+
+    /* Global Toast Notification */
+    .catalog-toast {{
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }}
+
+    .catalog-toast.visible {{
+      opacity: 1;
+      transform: translateY(0);
     }}
 
     .card-actions {{
@@ -1509,6 +1760,23 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
   </div>
 </div>
 
+<!-- Asset Access Inspector Drawer -->
+<div class="inspector-drawer" id="assetInspectorDrawer">
+  <div class="inspector-header">
+    <div class="inspector-header-info">
+      <div class="inspector-title" id="inspectorTitle">Asset Access Details</div>
+      <div class="inspector-subtitle" id="inspectorSubtitle">-</div>
+    </div>
+    <button class="inspector-close" onclick="closeAssetInspector()" title="Close Inspector (Esc)">&times;</button>
+  </div>
+  <div class="inspector-body" id="inspectorBody">
+    <!-- Populated by JavaScript -->
+  </div>
+</div>
+
+<!-- Global Toast Notification -->
+<div class="catalog-toast" id="catalogToast">Copied to clipboard</div>
+
 <!-- Embedded JSON Data for Offline Interactivity -->
 <script id="catalog-data" type="application/json">
 {json_data}
@@ -1516,6 +1784,168 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
 
 <script>
   let CATALOG_DATA = {{}};
+  let activeInspectorItemId = null;
+  let toastTimeoutId = null;
+
+  function showToast(message) {{
+    const toast = document.getElementById('catalogToast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('visible');
+    if (toastTimeoutId) clearTimeout(toastTimeoutId);
+    toastTimeoutId = setTimeout(() => {{
+      toast.classList.remove('visible');
+      toastTimeoutId = null;
+    }}, 2200);
+  }}
+
+  function copyTextToClipboard(text, successMsg) {{
+    navigator.clipboard.writeText(text).then(() => {{
+      showToast(successMsg || 'Copied to clipboard!');
+    }}).catch(() => {{
+      prompt('Copy text:', text);
+    }});
+  }}
+
+  function openAssetInspector(itemId) {{
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    activeInspectorItemId = itemId;
+    const drawer = document.getElementById('assetInspectorDrawer');
+    if (!drawer) return;
+
+    const titleEl = document.getElementById('inspectorTitle');
+    const subtitleEl = document.getElementById('inspectorSubtitle');
+    const bodyEl = document.getElementById('inspectorBody');
+
+    if (titleEl) titleEl.textContent = item.assigned_species || item.original_stem || 'Asset Details';
+    if (subtitleEl) subtitleEl.textContent = 'Stem: ' + (item.original_stem || '') + ' • ' + (item.category || 'Photo');
+
+    // Determine storage state
+    const isLocal = item.is_local !== false;
+    const pathLower = (item.current_path || '').toLowerCase();
+    const isCloudPath = pathLower.includes('mobile documents') || pathLower.includes('clouddocs') || pathLower.includes('dropbox') || pathLower.includes('onedrive');
+    const isNasPath = (item.current_path || '').startsWith('/Volumes/') && !isCloudPath;
+
+    let storageBadgeClass = 'badge-local';
+    let storageBadgeText = '🟢 Local APFS';
+    let storageDescription = 'High-resolution primary image and metadata sidecars are present and immediately available on your local drive.';
+
+    if (!isLocal || isCloudPath) {{
+      if (!isLocal) {{
+        storageBadgeClass = 'badge-cloud';
+        storageBadgeText = '☁️ Cloud Evicted (Darwin SF_DATALESS)';
+        storageDescription = 'Local payload has been evicted to save space. Previews render from the local catalog cache. The original file can be hydrated on demand.';
+      }} else if (isCloudPath) {{
+        storageBadgeClass = 'badge-cloud';
+        storageBadgeText = '☁️ Cloud Storage (Synced Local)';
+        storageDescription = 'File is synced locally via cloud drive (iCloud/Dropbox/OneDrive).';
+      }}
+    }} else if (isNasPath) {{
+      storageBadgeClass = 'badge-nas';
+      storageBadgeText = '🌐 NAS Directory Mount';
+      storageDescription = 'File is hosted on an external or network-attached storage volume under /Volumes.';
+    }}
+
+    // Companion files markup
+    const companions = item.companion_files || [];
+    const sidecars = item.sidecar_files || [];
+    const allCompanions = companions.concat(sidecars);
+
+    let companionSection = '';
+    if (allCompanions.length > 0) {{
+      const companionItems = allCompanions.map(f => {{
+        const escapedFile = escapeShellArg(f);
+        return `
+          <div class="inspector-companion-item">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">${{f}}</span>
+            <button class="btn-inspector-action btn-secondary-action" onclick="copyTextToClipboard('${{escapedFile}}', 'Copied companion path!')">Copy</button>
+          </div>
+        `;
+      }}).join('');
+
+      const allPathsText = [item.current_path].concat(allCompanions).join('\\n');
+      const escapedAllPaths = escapeShellArg(allPathsText);
+
+      companionSection = `
+        <div class="inspector-section">
+          <div class="inspector-section-label">
+            <span>Companion & Sidecars (${{allCompanions.length}})</span>
+            <button class="btn-inspector-action btn-secondary-action" onclick="copyTextToClipboard('${{escapedAllPaths}}', 'Copied all bundle paths!')">Copy All</button>
+          </div>
+          <div class="inspector-companion-list">
+            ${{companionItems}}
+          </div>
+        </div>
+      `;
+    }}
+
+    // Shell commands
+    const targetPath = item.current_path || item.primary_filename;
+    const escTarget = escapeShellArg(targetPath);
+    const finderCmd = `open -R "${{targetPath}}"`;
+    const escFinderCmd = escapeShellArg(finderCmd);
+
+    let actionsMarkup = `
+      <div style="margin-bottom: 8px;">
+        <div style="font-size: 0.68rem; color: #94a3b8; margin-bottom: 2px;">Reveal in macOS Finder:</div>
+        <div class="inspector-cmd-box">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${{finderCmd}}</span>
+          <button class="btn-inspector-action btn-secondary-action" onclick="copyTextToClipboard('${{escFinderCmd}}', 'Copied Finder reveal command!')">Copy</button>
+        </div>
+      </div>
+    `;
+
+    if (!isLocal) {{
+      const hydrateCmd = `head -c 1 "${{targetPath}}" > /dev/null 2>&1`;
+      const escHydrateCmd = escapeShellArg(hydrateCmd);
+      actionsMarkup += `
+        <div>
+          <div style="font-size: 0.68rem; color: #94a3b8; margin-bottom: 2px;">⚡ Hydrate this RAW from Cloud without downloading entire trip:</div>
+          <div class="inspector-cmd-box">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${{hydrateCmd}}</span>
+            <button class="btn-inspector-action" onclick="copyTextToClipboard('${{escHydrateCmd}}', 'Copied cloud hydration command!')">Copy</button>
+          </div>
+        </div>
+      `;
+    }}
+
+    if (bodyEl) {{
+      bodyEl.innerHTML = `
+        <div class="inspector-section">
+          <div class="inspector-section-label">Storage Health & Location</div>
+          <div class="inspector-storage-badge ${{storageBadgeClass}}">${{storageBadgeText}}</div>
+          <p class="inspector-desc">${{storageDescription}}</p>
+        </div>
+
+        <div class="inspector-section">
+          <div class="inspector-section-label">
+            <span>Primary Master Path</span>
+            <button class="btn-inspector-action" onclick="copyTextToClipboard('${{escTarget}}', 'Copied primary file path!')">Copy Path</button>
+          </div>
+          <div class="inspector-path-text">${{targetPath}}</div>
+        </div>
+
+        ${{companionSection}}
+
+        <div class="inspector-section">
+          <div class="inspector-section-label">One-Click Terminal / Finder Actions</div>
+          ${{actionsMarkup}}
+        </div>
+      `;
+    }}
+
+    drawer.classList.add('open');
+  }}
+
+  function closeAssetInspector() {{
+    activeInspectorItemId = null;
+    const drawer = document.getElementById('assetInspectorDrawer');
+    if (drawer) {{
+      drawer.classList.remove('open');
+    }}
+  }}
 
   const AssetCategory = Object.freeze({{
     BIRD: 'Bird',
@@ -1804,6 +2234,11 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
       lastSelectedId = itemId;
     }}
 
+    // If inspector drawer is currently open, live-update it to the clicked card
+    if (activeInspectorItemId !== null) {{
+      openAssetInspector(itemId);
+    }}
+
     updateSelectionUI();
   }}
 
@@ -2068,7 +2503,10 @@ pub fn render_catalog_html(payload: &CatalogPayload) -> String {
             ${{scientificMarkup}}
             ${{dateMarkup}}
             ${{locationMarkup}}
-            <div class="card-path" title="${{item.current_path}}">${{item.current_path}}</div>
+            <div class="card-path" title="Click to inspect asset access details&#10;${{item.current_path}}" onclick="event.stopPropagation(); openAssetInspector('${{item.id}}')">
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${{item.current_path}}</span>
+              <span class="path-icon" title="Inspect Asset Access Details">🔍</span>
+            </div>
             <div class="card-actions">
               <button class="btn-correct" onclick="event.stopPropagation(); handleCorrectButtonClick('${{item.id}}')">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
@@ -3675,8 +4113,13 @@ fi
 
   // Keyboard shortcuts for selection
   document.addEventListener('keydown', (e) => {{
-    // Escape clears selection or closes modal
+    // Escape clears selection, closes inspector, or closes modal
     if (e.key === 'Escape') {{
+      const drawer = document.getElementById('assetInspectorDrawer');
+      if (drawer && drawer.classList.contains('open')) {{
+        closeAssetInspector();
+        return;
+      }}
       const locModal = document.getElementById('locationModal');
       if (locModal && locModal.classList.contains('open')) {{
         closeLocationModal();
@@ -3836,6 +4279,10 @@ fi
     window.downloadEvictedBatchScript = downloadEvictedBatchScript;
     window.copyEvictedMaterializeCmd = copyEvictedMaterializeCmd;
     window.copyRenderCatalogCmd = copyRenderCatalogCmd;
+    window.openAssetInspector = openAssetInspector;
+    window.closeAssetInspector = closeAssetInspector;
+    window.copyTextToClipboard = copyTextToClipboard;
+    window.showToast = showToast;
   }}
 
   // Initialize on load
