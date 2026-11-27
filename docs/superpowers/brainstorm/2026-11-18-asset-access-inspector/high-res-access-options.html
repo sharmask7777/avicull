@@ -1,0 +1,192 @@
+<h2>High-Res Asset Access: UX Options</h2>
+<p class="subtitle">Clicking the file path on an image card should reveal full access details across <strong>Local Disk</strong>, <strong>Evicted Cloud</strong> (iCloud/Dropbox dataless), and <strong>NAS Mount</strong>.</p>
+
+<div class="options" data-multiselect="false">
+  <!-- OPTION A -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem;">
+        <h3>Right-Side Inspector Drawer (Lightroom-Style)</h3>
+        <span class="label" style="color: var(--accent); font-weight: 600;">Recommended for Multi-Photo Workflows</span>
+      </div>
+      <p style="margin-bottom: 0.75rem;">Clicking the path slides open a persistent right-hand drawer. It stays open as you click between photos in the gallery, making it effortless to inspect several assets without modal fatigue.</p>
+      
+      <!-- Visual Mockup for Option A -->
+      <div class="mockup" style="background: #0f172a; border-radius: 8px; border: 1px solid #334155; padding: 1rem; color: #f8fafc; font-family: system-ui, sans-serif;">
+        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+          <!-- Left: Gallery Card fragment -->
+          <div style="width: 200px; background: #1e293b; border-radius: 8px; border: 1px solid #3b82f6; padding: 0.75rem;">
+            <div style="background: #334155; height: 100px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94a3b8; position: relative;">
+              <span>[Photo Preview]</span>
+              <span style="position: absolute; top: 4px; right: 4px; background: rgba(59, 130, 246, 0.9); font-size: 0.65rem; padding: 2px 5px; border-radius: 4px; color: #fff;">Selected</span>
+            </div>
+            <div style="margin-top: 6px; font-weight: 600; font-size: 0.85rem;">Black-billed Magpie</div>
+            <!-- The clicked path -->
+            <div style="font-family: monospace; font-size: 0.7rem; color: #60a5fa; background: #090d16; padding: 4px 6px; border-radius: 4px; margin-top: 6px; border: 1px solid #3b82f6; display: flex; justify-content: space-between; align-items: center;">
+              <span>.../IMG_8421.CR2</span>
+              <span>👉</span>
+            </div>
+          </div>
+
+          <!-- Right: Drawer Panel -->
+          <div style="flex: 1; background: #151d30; border: 1px solid #24324f; border-radius: 8px; padding: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #24324f; padding-bottom: 0.5rem; margin-bottom: 0.75rem;">
+              <span style="font-weight: 600; font-size: 0.95rem;">Asset Access & Storage Inspector</span>
+              <span style="font-size: 0.75rem; background: #3b82f6; color: white; padding: 2px 8px; border-radius: 12px;">Active</span>
+            </div>
+
+            <!-- Dynamic State Badge -->
+            <div style="margin-bottom: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <span style="font-size: 0.72rem; background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; padding: 3px 8px; border-radius: 4px; font-weight: 500;">☁️ Cloud Evicted (Darwin SF_DATALESS)</span>
+              <span style="font-size: 0.72rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid #3b82f6; padding: 3px 8px; border-radius: 4px;">Volume: iCloud Drive</span>
+            </div>
+
+            <!-- Primary High-Res Path -->
+            <div style="margin-bottom: 0.75rem;">
+              <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 3px;">Full Asset Path</div>
+              <div style="background: #0b0f19; font-family: monospace; font-size: 0.75rem; padding: 6px 8px; border-radius: 4px; color: #e2e8f0; word-break: break-all; border: 1px solid #334155;">
+                /Users/shaleen/Library/Mobile Documents/com~apple~CloudDocs/Pictures/Leh/IMG_8421.CR2
+              </div>
+            </div>
+
+            <!-- Companion Files -->
+            <div style="margin-bottom: 0.75rem;">
+              <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 3px;">Companion & Sidecars</div>
+              <div style="font-size: 0.75rem; color: #cbd5e1; background: #0b0f19; padding: 6px 8px; border-radius: 4px; border: 1px solid #1e293b;">
+                <div>📸 <strong>IMG_8421.JPG</strong> (Embedded JPEG Preview, 4.2 MB)</div>
+                <div>📝 <strong>IMG_8421.CR2.xmp</strong> (Darktable/Lightroom metadata, 3.8 KB)</div>
+              </div>
+            </div>
+
+            <!-- Action Buttons / Command Box -->
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button style="background: #2563eb; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">📋 Copy Path</button>
+              <button style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">⚡ Copy On-Demand Hydration Cmd</button>
+              <button style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">📂 Reveal in Finder (open -R)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION B -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem;">
+        <h3>Central Modal Dialog ("Asset Access Hub")</h3>
+        <span class="label">Consistent with Existing Modals</span>
+      </div>
+      <p style="margin-bottom: 0.75rem;">Clicking the path opens a focused, centered modal (dimming the gallery). Contains full diagnostic tabs: storage state (Local / Cloud / NAS mount status), ready-to-run shell commands, and companion file tree.</p>
+
+      <!-- Visual Mockup for Option B -->
+      <div class="mockup" style="background: #0f172a; border-radius: 8px; border: 1px solid #334155; padding: 1.25rem; color: #f8fafc; font-family: system-ui, sans-serif;">
+        <div style="max-width: 580px; margin: 0 auto; background: #151d30; border: 1px solid #3b82f6; border-radius: 10px; padding: 1.25rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <div style="font-weight: 600; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+              <span>🌐 High-Res Asset Location</span>
+              <span style="font-size: 0.7rem; background: #059669; color: white; padding: 2px 8px; border-radius: 10px;">NAS Mounted</span>
+            </div>
+            <span style="cursor: pointer; color: #94a3b8; font-size: 1.2rem;">✕</span>
+          </div>
+
+          <!-- Storage Details Grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; font-size: 0.78rem;">
+            <div style="background: #0b0f19; padding: 8px; border-radius: 6px;">
+              <span style="color: #64748b; display: block; font-size: 0.68rem; text-transform: uppercase;">Storage Volume</span>
+              <span style="font-weight: 600; color: #e2e8f0;">/Volumes/PhotoStorage_NAS</span>
+            </div>
+            <div style="background: #0b0f19; padding: 8px; border-radius: 6px;">
+              <span style="color: #64748b; display: block; font-size: 0.68rem; text-transform: uppercase;">Mount Status</span>
+              <span style="color: #34d399; font-weight: 600;">● Online (smb://synology.local)</span>
+            </div>
+          </div>
+
+          <!-- Path with Quick Copy -->
+          <div style="margin-bottom: 1rem;">
+            <span style="color: #64748b; display: block; font-size: 0.68rem; text-transform: uppercase; margin-bottom: 4px;">Primary RAW File</span>
+            <div style="display: flex; gap: 6px;">
+              <input readonly value="/Volumes/PhotoStorage_NAS/Birding/2026/Ladakh/RAW/IMG_8421.CR2" style="flex: 1; background: #0b0f19; border: 1px solid #334155; color: #93c5fd; padding: 6px 8px; border-radius: 4px; font-family: monospace; font-size: 0.75rem;"/>
+              <button style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; white-space: nowrap;">Copy</button>
+            </div>
+          </div>
+
+          <!-- Shell Command Helper -->
+          <div style="background: #090d16; border-left: 3px solid #3b82f6; padding: 8px 10px; border-radius: 0 4px 4px 0; font-size: 0.72rem; color: #94a3b8; font-family: monospace; margin-bottom: 1rem;">
+            # Open directly in macOS Finder or Editor:<br/>
+            <span style="color: #38bdf8;">open -R "/Volumes/PhotoStorage_NAS/Birding/2026/Ladakh/RAW/IMG_8421.CR2"</span>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+            <button style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">Close</button>
+            <button style="background: #2563eb; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.8rem; cursor: pointer;">Copy Full Bundle Paths</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPTION C -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.25rem;">
+        <h3>Floating Context Popover (Compact & Zero Screen Clutter)</h3>
+        <span class="label">Fastest & Lightest</span>
+      </div>
+      <p style="margin-bottom: 0.75rem;">Clicking the path pops up a compact floating menu anchored directly to the pill. No sidebars or page-dimming modals. Click outside or press Esc to dismiss.</p>
+
+      <!-- Visual Mockup for Option C -->
+      <div class="mockup" style="background: #0f172a; border-radius: 8px; border: 1px solid #334155; padding: 1.5rem; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; justify-content: center;">
+        <div style="position: relative; display: inline-block;">
+          <!-- Floating Popover Bubble -->
+          <div style="width: 320px; background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-weight: 600; font-size: 0.8rem;">📍 Asset Access Info</span>
+              <span style="font-size: 0.68rem; background: #10b981; color: white; padding: 1px 6px; border-radius: 4px;">🟢 Local APFS</span>
+            </div>
+            <div style="background: #0b0f19; font-family: monospace; font-size: 0.7rem; color: #94a3b8; padding: 6px; border-radius: 4px; word-break: break-all; margin-bottom: 8px;">
+              /Users/shaleen/Pictures/Leh/IMG_8421.CR2
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem;">
+              <button style="background: #334155; color: #f8fafc; border: none; padding: 5px 8px; border-radius: 4px; text-align: left; cursor: pointer; display: flex; justify-content: space-between;">
+                <span>📋 Copy Absolute Path</span>
+                <span style="color: #94a3b8;">⌘C</span>
+              </button>
+              <button style="background: #334155; color: #f8fafc; border: none; padding: 5px 8px; border-radius: 4px; text-align: left; cursor: pointer;">
+                📂 Reveal in Finder (open -R)
+              </button>
+              <button style="background: #334155; color: #94a3b8; border: none; padding: 5px 8px; border-radius: 4px; text-align: left; cursor: pointer;">
+                📦 Copy Companion Sidecar Paths (2 files)
+              </button>
+            </div>
+          </div>
+          <!-- The card path pill triggering it -->
+          <div style="font-family: monospace; font-size: 0.72rem; color: #38bdf8; background: #0b0f19; padding: 5px 10px; border-radius: 6px; border: 1px solid #38bdf8; text-align: center; width: 220px; margin: 0 auto;">
+            📸 /Pictures/Leh/IMG_8421.CR2
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;">
+  <h3>How the 3 Storage Scenarios Are Handled Across All Options</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 0.75rem;">
+    <div style="background: var(--bg-tertiary); padding: 0.75rem; border-radius: 8px;">
+      <h4 style="color: #10b981; font-size: 0.85rem; margin-bottom: 4px;">🟢 1. Local Disk (APFS)</h4>
+      <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0;">File is present on disk. Instant copy path, open in default app, or reveal in Finder. Zero latency, 100% offline.</p>
+    </div>
+    <div style="background: var(--bg-tertiary); padding: 0.75rem; border-radius: 8px;">
+      <h4 style="color: #f59e0b; font-size: 0.85rem; margin-bottom: 4px;">☁️ 2. Cloud Evicted (Darwin SF_DATALESS)</h4>
+      <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0;">File is a dataless cloud pointer (iCloud/Dropbox/OneDrive). Provides a 1-click shell command (e.g. <code>open -R</code> or on-demand stream) to safely hydrate only that specific RAW without downloading gigabytes of adjacent archive.</p>
+    </div>
+    <div style="background: var(--bg-tertiary); padding: 0.75rem; border-radius: 8px;">
+      <h4 style="color: #3b82f6; font-size: 0.85rem; margin-bottom: 4px;">🌐 3. NAS Directory Mount</h4>
+      <p style="font-size: 0.78rem; color: var(--text-secondary); margin: 0;">File lives on SMB/NFS share (e.g. <code>/Volumes/PhotoNAS/...</code>). Shows mount status (Mounted vs Unmounted), NAS share URI (<code>smb://nas.local/...</code>), and 1-click terminal mount / open command.</p>
+    </div>
+  </div>
+</div>

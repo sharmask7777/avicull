@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Design Evaluation: Multi-Category Human Overrides</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #131b2e;
+      --surface-border: #1e293b;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-sub: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+    }
+    h1 {
+      font-size: 1.85rem;
+      margin: 0 0 8px 0;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .badge-status {
+      font-size: 0.75rem;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--surface-border);
+      margin-bottom: 24px;
+    }
+    .nav-tab {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .nav-tab:hover {
+      color: var(--text);
+    }
+    .nav-tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    .section-content {
+      display: none;
+    }
+    .section-content.active {
+      display: block;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    h2 {
+      font-size: 1.3rem;
+      margin: 0 0 16px 0;
+      color: #ffffff;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 16px 0 8px 0;
+      color: #38bdf8;
+    }
+    p, li {
+      color: #cbd5e1;
+      font-size: 0.925rem;
+    }
+    ul { margin: 8px 0; padding-left: 20px; }
+    code {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85em;
+      color: #38bdf8;
+    }
+    pre {
+      background: #0a0f1d;
+      border: 1px solid #1e293b;
+      padding: 14px 18px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      color: #f1f5f9;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border: 1px solid var(--surface-border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th {
+      background: #172033;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    td {
+      background: var(--surface);
+      color: #cbd5e1;
+    }
+
+    /* Interactive Sandbox Styles */
+    .sandbox-wrap {
+      background: #0a0f1d;
+      border: 1px solid #293548;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+    }
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .cat-pill {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .cat-pill:hover {
+      border-color: #475569;
+      color: #ffffff;
+    }
+    .cat-pill.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
+    }
+    .cat-pill.danger {
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .cat-pill.danger.active {
+      background: #dc2626;
+      border-color: #ef4444;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+    }
+    .input-box {
+      width: 100%;
+      background: #131b2e;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #ffffff;
+      font-size: 0.925rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .input-box:focus {
+      border-color: var(--primary);
+    }
+    .suggestions {
+      background: #131b2e;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      margin-top: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .sug-item {
+      padding: 8px 14px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1e293b;
+    }
+    .sug-item:last-child { border-bottom: none; }
+    .sug-item:hover {
+      background: #1e293b;
+      color: var(--primary);
+    }
+    .cmd-preview {
+      background: #070b14;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      margin-top: 14px;
+      word-break: break-all;
+    }
+    .mode-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      align-items: center;
+    }
+    .mode-radio {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>
+        Multi-Category Human Overrides
+        <span class="badge-status">Interactive Evaluation</span>
+      </h1>
+      <div class="meta">
+        Specification Document: <code>docs/superpowers/specs/2026-11-11-multi-category-override-design.md</code> &bull; Target: <code>avicull</code> v0.2.40
+      </div>
+    </header>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('interactive')">🎮 Live Modal Sandbox</button>
+      <button class="nav-tab" onclick="switchTab('architecture')">🏛️ Architectural Design</button>
+      <button class="nav-tab" onclick="switchTab('modes')">🔄 3-Mode Matrix</button>
+      <button class="nav-tab" onclick="switchTab('testing')">🧪 Testing & Invariants</button>
+    </div>
+
+    <!-- TAB 1: LIVE INTERACTIVE SANDBOX -->
+    <div id="tab-interactive" class="section-content active">
+      <div class="card">
+        <h2>Interactive Correction Modal Sandbox</h2>
+        <p>Try out the proposed Option A experience below. Click category pills, start typing species or genres in the search box, and observe the live generated shell and manifest commands update across the 3 organization modes.</p>
+
+        <div class="sandbox-wrap">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div style="width: 56px; height: 56px; background: #1e293b; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 1px solid #334155;">
+                🐆
+              </div>
+              <div>
+                <div style="font-weight: 600; font-size: 1rem; color: #ffffff;" id="sandboxTargetPhoto">DSC_4921.CR2</div>
+                <div style="font-size: 0.8rem; color: #94a3b8;">Original: <code>Leh/Pangong/DSC_4921.CR2</code> &bull; Detected: <span id="currentStatusBadge" style="color: #f59e0b;">Bird (Unconfirmed)</span></div>
+              </div>
+            </div>
+            <div class="mode-selector">
+              <span style="font-size: 0.8rem; font-weight: 600; color: #94a3b8;">Active Mode:</span>
+              <label class="mode-radio"><input type="radio" name="orgMode" value="in-place" checked onchange="updateCommand()"/> in-place (default)</label>
+              <label class="mode-radio"><input type="radio" name="orgMode" value="in-place-rename" onchange="updateCommand()"/> in-place-rename</label>
+              <label class="mode-radio"><input type="radio" name="orgMode" value="hierarchy" onchange="updateCommand()"/> hierarchy</label>
+            </div>
+          </div>
+
+          <!-- Step 1: Category Pills -->
+          <div style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">1. Select Category:</div>
+          <div class="pill-group" id="pillGroup">
+            <span class="cat-pill active" onclick="selectCat('Bird')">🐦 Bird</span>
+            <span class="cat-pill" onclick="selectCat('Mammalia')">🐆 Mammalia</span>
+            <span class="cat-pill" onclick="selectCat('Reptilia')">🦎 Reptilia</span>
+            <span class="cat-pill" onclick="selectCat('Amphibia')">🐸 Amphibia</span>
+            <span class="cat-pill" onclick="selectCat('Insecta')">🦋 Insecta</span>
+            <span class="cat-pill" onclick="selectCat('Scenery')">🏔️ Scenery</span>
+            <span class="cat-pill" onclick="selectCat('Portrait')">👤 Portrait</span>
+            <span class="cat-pill" onclick="selectCat('Architecture')">🏛️ Architecture</span>
+            <span class="cat-pill" onclick="selectCat('Abstract')">🎨 Abstract</span>
+            <span class="cat-pill danger" onclick="selectCat('NoSubject')">🚫 No Subject</span>
+          </div>
+
+          <!-- Step 2: Granular Autocomplete Input -->
+          <div style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px;" id="inputLabel">
+            2. Granular Species / Subject:
+          </div>
+          <div id="autocompleteWrap">
+            <input type="text" id="searchInput" class="input-box" placeholder="Start typing bird name (e.g. Painted Stork)..." oninput="handleSearch()"/>
+            <div id="sugList" class="suggestions" style="display: none;"></div>
+          </div>
+
+          <!-- Burst propagation checkbox -->
+          <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="burstCheck" onchange="updateCommand()"/>
+            <label for="burstCheck" style="font-size: 0.825rem; color: #94a3b8; cursor: pointer;">
+              Propagate correction to all 3 frames in this burst (<code>burst_0912</code>)
+            </label>
+          </div>
+
+          <!-- Command Preview Output -->
+          <div style="margin-top: 18px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">
+            Generated CLI Command &amp; Shell Script Preview:
+          </div>
+          <div class="cmd-preview" id="cmdOutput">
+            avicull correct --category "Bird" --species "House_Sparrow" --file "Leh/Pangong/DSC_4921.CR2"
+          </div>
+          <div style="font-size: 0.78rem; color: #64748b; margin-top: 6px;" id="modeHelpText">
+            In default <code>in-place</code> mode: original files on disk remain strictly untouched; correction is recorded permanently in <code>.avicull/manifest.sqlite</code>.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: ARCHITECTURAL DESIGN -->
+    <div id="tab-architecture" class="section-content">
+      <div class="card">
+        <h2>Architectural Design &amp; Data Flow</h2>
+        <p>Extending human overrides from avian-only to multi-category preserves the core zero-cost, high-performance architecture of <code>avicull</code> while removing taxonomic hardcoding.</p>
+
+        <h3>1. Strongly-Typed Domain Model Refactor (<code>src/types.rs</code>)</h3>
+        <p>Replaces stringly-typed reverse-engineering with a first-class <code>Classification</code> domain struct on <code>BundleDecision</code>:</p>
+        <pre><code>pub struct Classification {
+    pub category: AssetCategory,
+    pub entity_slug: Option<String>, // Some("Snow_Leopard") or None for top-level kingdom/genre
+}
+
+pub struct BundleDecision {
+    pub bundle_id: String,
+    pub classification: Classification,
+    pub routing_tier: RoutingTier,
+    pub is_user_override: bool,
+    ...
+}</code></pre>
+        <h3>2. Catalog Data Serialization (<code>src/catalog/mod.rs</code>)</h3>
+        <p>Zero-bloat JSON: retains <code>species_list: Vec&lt;String&gt;</code> for birds (100% backward-compatible) and adds compact <code>multi_taxa: Vec&lt;CuratedTaxonEntry&gt;</code> (~40 KB) for non-avian categories.</p>
+
+        <h3>2. CLI &amp; Manifest Dispatch (<code>src/organizer/correct.rs</code>)</h3>
+        <p>The CLI command <code>avicull correct --category &lt;CAT&gt; --species &lt;SLUG&gt; --file &lt;TARGET&gt;</code>:</p>
+        <ul>
+          <li>Normalizes <code>--category</code> into the strong Rust enum <code>AssetCategory</code>.</li>
+          <li>Disables avian typo suggestions when category is non-avian, preventing false bird prompt warnings on mammals or landscapes.</li>
+          <li>Allows freeform custom species/genre names so users are never blocked.</li>
+          <li>Transactionally updates <code>BundleDecision</code> in <code>.avicull/manifest.sqlite</code> with <code>is_user_override = 1</code>.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- TAB 3: 3-MODE MATRIX -->
+    <div id="tab-modes" class="section-content">
+      <div class="card">
+        <h2>Three-Mode Invariant Enforcement</h2>
+        <p>As confirmed during brainstorming, subfolder routing and disk modifications vary strictly by mode to honor source immutability:</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Organization Mode</th>
+              <th>Source Disk Modification</th>
+              <th>Filesystem Action</th>
+              <th>SQLite Manifest Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong><code>--mode in-place</code></strong><br/><em>(Default Preferred)</em></td>
+              <td><strong>Strictly Read-Only (0 bytes)</strong></td>
+              <td>No moving, copying, or renaming. Files remain untouched.</td>
+              <td>Records <code>category</code>, <code>assigned_species</code>, and <code>is_user_override = 1</code> in manifest.sqlite.</td>
+            </tr>
+            <tr>
+              <td><strong><code>--mode in-place-rename</code></strong><br/><em>(Cosmetic Opt-In)</em></td>
+              <td><strong>Atomic In-Place Rename</strong></td>
+              <td>Renames image &amp; sidecars with <code>..._&lt;Category&gt;_&lt;Species&gt;...</code> tokens.</td>
+              <td>Records new stems in manifest and transactionally logs rollback entries in <code>in_place_rename</code> table.</td>
+            </tr>
+            <tr>
+              <td><strong><code>--mode hierarchy</code></strong><br/><em>(Zero-Byte Projection)</em></td>
+              <td><strong>Zero Bytes (Hard Links)</strong></td>
+              <td>Creates <code>birds_hierarchy/&lt;Category&gt;/&lt;Species&gt;/</code> (or <code>&lt;Category&gt;/</code> for root genres) via hard links.</td>
+              <td>Updates <code>birds_hierarchy</code> links and updates decision in manifest.sqlite.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 4: TESTING & INVARIANTS -->
+    <div id="tab-testing" class="section-content">
+      <div class="card">
+        <h2>Verification Strategy &amp; Invariants</h2>
+        <ul>
+          <li><strong>Unit Tests</strong>: Validate category slug normalization, non-avian typo matching, and freeform slug sanitation in <code>tests/test_suite/test_correct.rs</code>.</li>
+          <li><strong>Filesystem Integration Tests</strong>: Verify across all three modes that:
+            <ul>
+              <li><code>in-place</code> keeps source archive completely bit-for-bit unchanged while updating SQLite.</li>
+              <li><code>in-place-rename</code> atomically renames files with <code>Mammalia_Snow_Leopard</code> tokens and verifies rollback via <code>avicull clean</code>.</li>
+              <li><code>hierarchy</code> creates correct APFS hard links in <code>birds_hierarchy/Mammalia/Snow_Leopard/</code> sharing inode numbers.</li>
+            </ul>
+          </li>
+          <li><strong>Playwright E2E Tests</strong>: Automated browser test verifying:
+            <ul>
+              <li>Clicking "Correct Species" opens the multi-category modal.</li>
+              <li>Clicking "Mammalia" switches autocomplete suggestions to mammals.</li>
+              <li>Typing "Snow Leopard" and submitting queues the command into <code>apply_corrections.sh</code>.</li>
+              <li>Multi-select batch correction queues multiple files lockstep.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.section-content').forEach(s => s.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.nav-tab')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      const target = document.getElementById('tab-' + tabId);
+      if (target) target.classList.add('active');
+    }
+
+    // Sample embedded taxonomies for the sandbox
+    const TAXA = {
+      Bird: [
+        { name: "House Sparrow", sci: "Passer domesticus" },
+        { name: "Common Ostrich", sci: "Struthio camelus" },
+        { name: "Painted Stork", sci: "Mycteria leucocephala" },
+        { name: "Black-necked Crane", sci: "Grus nigricollis" },
+        { name: "Lammergeier", sci: "Gypaetus barbatus" },
+        { name: "Tibetan Snowcock", sci: "Tetraogallus tibetanus" }
+      ],
+      Mammalia: [
+        { name: "Snow Leopard", sci: "Panthera uncia" },
+        { name: "Himalayan Brown Bear", sci: "Ursus arctos isabellinus" },
+        { name: "Himalayan Ibex", sci: "Capra sibirica" },
+        { name: "Tibetan Wolf", sci: "Canis lupus chanco" },
+        { name: "Kiang (Tibetan Wild Ass)", sci: "Equus kiang" },
+        { name: "Bengal Tiger", sci: "Panthera tigris" },
+        { name: "Indian Leopard", sci: "Panthera pardus" }
+      ],
+      Reptilia: [
+        { name: "Indian Cobra", sci: "Naja naja" },
+        { name: "Russell's Viper", sci: "Daboia russelii" },
+        { name: "Common Krait", sci: "Bungarus caeruleus" },
+        { name: "Indian Rock Python", sci: "Python molurus" },
+        { name: "Mugger Crocodile", sci: "Crocodylus palustris" }
+      ],
+      Amphibia: [
+        { name: "Indian Bullfrog", sci: "Hoplobatrachus tigerinus" },
+        { name: "Common Indian Toad", sci: "Duttaphrynus melanostictus" },
+        { name: "Himalayan Salamander", sci: "Tylototriton verrucosus" }
+      ],
+      Insecta: [
+        { name: "Atlas Moth", sci: "Attacus atlas" },
+        { name: "Common Mormon Butterfly", sci: "Papilio polytes" },
+        { name: "Blue Mormon", sci: "Papilio polymnestor" },
+        { name: "Honey Bee", sci: "Apis cerana" }
+      ],
+      Scenery: [
+        { name: "Mountain Landscape", sci: "Scenery/Mountain" },
+        { name: "Lake & Wetland", sci: "Scenery/Waterbody" },
+        { name: "High Altitude Desert", sci: "Scenery/Desert" },
+        { name: "Forest Canopy", sci: "Scenery/Forest" },
+        { name: "Sunrise / Sunset", sci: "Scenery/Sky" }
+      ],
+      Portrait: [
+        { name: "Environmental Portrait", sci: "Portrait/Environmental" },
+        { name: "Street & Cultural Portrait", sci: "Portrait/Street" },
+        { name: "Close-up Headshot", sci: "Portrait/Studio" },
+        { name: "Candid Group", sci: "Portrait/Candid" }
+      ],
+      Architecture: [
+        { name: "Historic Monastery", sci: "Architecture/Historic" },
+        { name: "Mountain Bridge", sci: "Architecture/Bridge" },
+        { name: "Traditional Village Dwelling", sci: "Architecture/Traditional" }
+      ],
+      Abstract: [
+        { name: "Rock Texture & Mineral Patterns", sci: "Abstract/Texture" },
+        { name: "Water Reflection & Ripples", sci: "Abstract/Reflection" },
+        { name: "Minimalist Shadow Geometry", sci: "Abstract/Minimalist" }
+      ]
+    };
+
+    let activeCategory = 'Bird';
+    let selectedSpecies = 'House Sparrow';
+
+    function selectCat(cat) {
+      activeCategory = cat;
+      document.querySelectorAll('#pillGroup .cat-pill').forEach(p => p.classList.remove('active'));
+      const activeEl = Array.from(document.querySelectorAll('#pillGroup .cat-pill')).find(p => p.textContent.includes(cat) || (cat === 'NoSubject' && p.textContent.includes('No Subject')));
+      if (activeEl) activeEl.classList.add('active');
+
+      const wrap = document.getElementById('autocompleteWrap');
+      const input = document.getElementById('searchInput');
+      const label = document.getElementById('inputLabel');
+
+      if (cat === 'NoSubject') {
+        wrap.style.display = 'none';
+        label.textContent = '2. Granular Subject: (Disabled for No Subject Sentinel)';
+        selectedSpecies = '_No_Subject_Detected';
+      } else {
+        wrap.style.display = 'block';
+        label.textContent = cat === 'Scenery' || cat === 'Portrait' || cat === 'Architecture' || cat === 'Abstract'
+          ? '2. Granular Sub-folder or Genre Tag (Optional):'
+          : '2. Granular Species / Subject:';
+        input.placeholder = cat === 'Scenery' || cat === 'Portrait'
+          ? `Enter sub-folder (e.g. Mountain) or leave empty for root ${cat}...`
+          : `Start typing ${cat.toLowerCase()} name...`;
+        
+        // Reset species to first item or empty
+        const sampleList = TAXA[cat] || [];
+        selectedSpecies = sampleList.length > 0 ? sampleList[0].name : cat;
+        input.value = selectedSpecies;
+      }
+      document.getElementById('sugList').style.display = 'none';
+      updateCommand();
+    }
+
+    function handleSearch() {
+      const input = document.getElementById('searchInput');
+      const sugList = document.getElementById('sugList');
+      const q = input.value.trim().toLowerCase();
+      selectedSpecies = input.value.trim() || activeCategory;
+
+      if (!q || activeCategory === 'NoSubject') {
+        sugList.style.display = 'none';
+        updateCommand();
+        return;
+      }
+
+      const pool = TAXA[activeCategory] || [];
+      const matches = pool.filter(item => item.name.toLowerCase().includes(q) || (item.sci && item.sci.toLowerCase().includes(q)));
+
+      if (matches.length === 0) {
+        sugList.innerHTML = `<div class="sug-item" style="color:#94a3b8;cursor:default;"><em>No preset match. Using custom entry: "${escapeHtml(input.value)}"</em></div>`;
+        sugList.style.display = 'block';
+      } else {
+        sugList.innerHTML = matches.map(m => `
+          <div class="sug-item" onclick="pickSuggestion('${escapeHtml(m.name)}')">
+            <span>${escapeHtml(m.name)}</span>
+            <span style="font-size:0.75rem;color:#64748b;">${escapeHtml(m.sci || '')}</span>
+          </div>
+        `).join('');
+        sugList.style.display = 'block';
+      }
+      updateCommand();
+    }
+
+    function pickSuggestion(name) {
+      document.getElementById('searchInput').value = name;
+      selectedSpecies = name;
+      document.getElementById('sugList').style.display = 'none';
+      updateCommand();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function updateCommand() {
+      const mode = document.querySelector('input[name="orgMode"]:checked').value;
+      const isBurst = document.getElementById('burstCheck').checked;
+      const cat = activeCategory === 'NoSubject' ? 'No_Subject_Detected' : activeCategory;
+      const slug = activeCategory === 'NoSubject' ? '_No_Subject_Detected' : selectedSpecies.replace(/\s+/g, '_');
+      const file = "Leh/Pangong/DSC_4921.CR2";
+
+      let cmd = `avicull correct --category "${cat}" --species "${slug}" --file "${file}"`;
+      if (isBurst) {
+        cmd += ` --burst`;
+      }
+
+      let help = "";
+      if (mode === 'in-place') {
+        help = "In default <code>in-place</code> mode: original files on disk remain strictly untouched; correction is recorded permanently in <code>.avicull/manifest.sqlite</code>.";
+      } else if (mode === 'in-place-rename') {
+        help = `In <code>in-place-rename</code> mode: source file will be atomically renamed to <code>2024-05-12_143022_Leh_${cat}_${slug}_DSC_4921.CR2</code> with rollback logging in SQLite.`;
+      } else if (mode === 'hierarchy') {
+        help = `In <code>hierarchy</code> mode: zero-byte hard link projected into <code>birds_hierarchy/${cat}/${slug}/DSC_4921.CR2</code>.`;
+      }
+
+      document.getElementById('cmdOutput').textContent = cmd;
+      document.getElementById('modeHelpText').innerHTML = help;
+    }
+
+    // Initial setup
+    selectCat('Bird');
+  </script>
+</body>
+</html>

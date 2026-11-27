@@ -1,231 +1,44 @@
-# AGENTS.md — Developer Guidelines & Preferences for `avicull`
+# `AGENTS.md` — Agent Instructions for `avicull`
 
-Welcome to `avicull`. This document defines the engineering standards, architectural invariants, code documentation guidelines, and non-negotiable user preferences that **all future AI agent iterations and developers must follow**.
+Operational guide for AI coding agents working in `avicull` (local-first Rust + Python photo organizer for macOS Apple Silicon). Keep changes minimal, safe, and strictly verified.
 
----
+## 1. Canonical Reference Map
 
-## 1. Non-Negotiable Core Invariants
+Read the relevant source-of-truth document before designing, editing, or reviewing:
 
-1. **Strict Source Immutability in Default Preferred Mode (`--mode in-place`)**:
-   `--mode in-place` is the default and preferred mode of operation for `avicull`. The input archive (`--input`) is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`.
-   Everything is completely self-contained within `<input>/avicull_catalog_files/` (and backward-compatible `.avicull/`: SQLite manifest, precomputed previews/thumbnails) and `<input>/catalog.html`.
-2. **Cosmetic Renaming via Explicit Opt-In (`--mode in-place-rename`)**:
-   Renaming source files is purely a cosmetic change. When explicitly requested via `--mode in-place-rename`, source files and companion sidecars are atomically renamed in-place with descriptive species, date, and location tokens. All in-place renames are transactionally journaled in SQLite for lossless rollback via `avicull clean`.
-3. **Zero-Byte Output Tree via Hard Links (`--mode hierarchy`)**:
-   When requested via `--mode hierarchy`, files are projected into `<input>/birds_hierarchy` (or `--output <PATH>`) on the same APFS volume using POSIX hard links (`std::fs::hard_link`). Both trees reference identical underlying inodes (`dst_meta.ino() == src_ino`), consuming 0 additional disk bytes for image payloads.
-4. **Default Output Directory in Hierarchy Mode (`birds_hierarchy`)**:
-   If `--mode hierarchy` is specified and `--output` is omitted, `avicull` defaults to `<input>/birds_hierarchy`. The tool remains customizable via `--output <PATH>`.
-5. **Skipped Paths During Traversal**:
-   Recursive scans of `--input` must always skip:
-   - Any directory named `birds_hierarchy` (preventing infinite loops or scanning previous output).
-   - Any directory named `avicull_catalog_files` or `.avicull` (preventing scanning internal SQLite manifests).
-   - Any directory ending with `.photoslibrary` (preventing scanning Apple Photos library packages).
-   - Any directory starting with `.` (hidden directories like `.DS_Store`) or `@eaDir`.
-6. **Parent & Child Multi-Level Coexistence**:
-   A trip subdirectory (e.g. `Pictures/Leh/birds_hierarchy`) and its parent directory (e.g. `Pictures/birds_hierarchy`) can both co-exist simultaneously via hard links. The inode link count (`st_nlink`) increments appropriately without conflict.
-7. **macOS FileProvider / iCloud Dataless Protection**:
-   Files marked with Darwin `SF_DATALESS` (`0x40000000`) must never be opened eagerly during pre-scans to prevent unwanted on-demand cloud hydration.
-8. **Decoupled State and View Architecture (`render-catalog`)**:
-   Domain state is strictly isolated inside `<input>/avicull_catalog_files/manifest.sqlite`. The presentation layer (`catalog.html`) is a pure offline projection rendered in $<1.5\text{s}$ with zero image I/O via `avicull render-catalog` (or `organize-all --view-only`).
-9. **Dual Thumbnail Strategy & High-Volume NAS Scalability**:
-   In single-trip catalogs ($\le 2{,}500$ photos), embedded base64 micro-thumbnails provide self-contained offline portability. In parent rollup catalogs ($50{,}000–100{,}000+$ photos), base64 micro-thumbnails must be strictly suppressed, linking to disk previews `{child}/avicull_catalog_files/previews/{stem}.jpg` with `loading="lazy"` and `decoding="async"` to prevent multi-gigabyte HTML bloat and browser OOM crashes.
-10. **Deep Directory-Only Signature Probes**:
-    Change detection on NAS (SMB/NFS) must use directory-only traversals down to depth 8, computing composite signatures $(\max(\text{mtime}), \sum(\text{readdir\_count}))$ in $<20\text{ms}$ without scanning or statting individual image files.
-11. **Fast Software Re-classification as Default (`--reclassify-mode fast`)**:
-    Default reclassification must re-evaluate species routing tiers and priors directly from stored 512-d visual embeddings in SQLite in pure Rust, reserving full neural network inference (`--reclassify-mode forced`) for explicit opt-in.
+| Document | Scope |
+|---|---|
+| [`CONCEPTS.md`](CONCEPTS.md) | Shared domain vocabulary (`AssetBundle`, `CatalogFilesDirectory`, `DecoupledViewProjection`, etc.) — consult before naming or refactoring types |
+| [`CODING_STANDARDS.md`](CODING_STANDARDS.md) | Mandatory Rust, Python, ML inference, build, and UI defect-prevention rules |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Dev setup, 8-tier testing strategy, CI checks, taxonomy/gazetteer updates, and release process |
+| [`REVIEW.md`](REVIEW.md) | Code review severity definitions, evidence requirements, and explicit exclusions |
+| [`docs/README.md`](docs/README.md) | Index of designs, specs, plans, SDD ledgers, UI brainstorms, and [`docs/solutions/`](docs/solutions/) (check before debugging known issues) |
+| [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md) | Workflow for upgrading neural backbones, detectors, taxonomies, and spatial priors |
 
----
+## 2. Non-Negotiable Tripwires
 
-## 2. Mandatory Engineering Methodologies
+- **Default `--mode in-place` is read-only**: Never move, rename, modify, or unlink source photos/sidecars in `--input`; write only to `<input>/avicull_catalog_files/` (`.avicull/` compat) and `<input>/catalog.html`.
+- **Opt-in `--mode in-place-rename` & `--mode hierarchy`**: Rename primary+sidecar pairs atomically with SQLite journaling (`avicull clean` rollback); in `hierarchy`, use zero-byte `std::fs::hard_link` (`dst_meta.ino() == src_ino`) supporting parent/child coexistence.
+- **Traversal & Dataless Guards**: Always skip `birds_hierarchy`, `avicull_catalog_files`, `.avicull`, `*.photoslibrary`, `@eaDir`, and `.*`; never eagerly open Darwin `SF_DATALESS` (`0x40000000`) files during pre-scans.
+- **Decoupled View & Performance Modes**: Keep `render-catalog` / `organize-all --view-only` pure SQLite->HTML with zero image I/O, honoring `DualThumbnailStrategy` (`CONCEPTS.md`), depth-8 directory-only NAS probes, incremental bundle caching, and `--reclassify-mode fast` as default.
+- **Clean & Generic Code**: No hardcoded personal paths, trip names, or regional heuristics; no procedural AI meta-comments (`// Step 1: ...`).
 
-### A. Test-Driven Development (TDD) is Mandatory & Non-Negotiable
-- **Iron Law**: **NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST.**
-- Never write or edit implementation code before writing tests.
-- This rule applies equally to Rust core code, CLI options, Python inference scripts, and data pipeline helpers.
-- **Workflow**:
-  1. **RED**: Write a failing unit or integration test that reproduces the defect, tests the edge case, or defines the new behavior.
-  2. **Verify Failure**: Run `cargo test` (or `pytest`) and verify the test fails for the expected reason. Do not proceed until you have observed the failure.
-  3. **GREEN**: Write the minimal implementation code necessary to make the test pass.
-  4. **Verify Green**: Re-run the test suite and confirm the new test passes and all existing tests stay green.
-  5. **REFACTOR**: Clean up, optimize, format (`cargo fmt`), lint (`cargo clippy --all-targets --all-features -- -D warnings`), audit dependencies (`cargo deny check`), document, and verify docs (`RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`).
+## 3. Workflow & Verification Commands
 
-### B. Multi-Pronged Testing Strategy
-Every pull request or enhancement must be verified across eight distinct tiers:
-1. **Unit Tests**:
-   - Verify pure algorithmic functions in isolation (Bayesian posterior math, temperature scaling, slug sanitization, DMS conversion).
-2. **Filesystem & Spec Integration Tests (`tests/test_suite/`)**:
-   - All unit-like and integration test modules are consolidated under `tests/test_suite/` (declared in `tests/test_suite/main.rs`). This eliminates Mach-O linking contention on macOS Apple Silicon, linking a single test binary instead of dozens.
-   - Use `tempfile::tempdir` to verify real filesystem operations on disk: APFS inode parity (`st_nlink >= 2`), atomic rollbacks, idempotency, sidecar bundling, and collision resolution.
-   - Spec conformance checks inside `tests/test_suite/test_spec_conformance.rs` verify nested & parent coexistence via hard links, incremental auto-detection of newer files, and `_No_Bird_Detected` routing tier.
-3. **Committed Mini-Dataset Mock Directory Structure Tests (`tests/test_mock_directory_structure_e2e.rs`)**:
-   - The repository includes a lightweight, fully anonymized mini-dataset in `tests/fixtures/local_user_samples/` (~260 KB total) containing representative trip hierarchies, sidecars, and images. Sensitive EXIF tags (artist, copyright, owner) have been scrubbed.
-   - Developers can also refresh or populate custom local datasets via `cargo run -- create-mock-dataset --source "<PATH_TO_PERSONAL_PHOTOS>"`.
-   - This mock directory structure test runs on every test suite invocation and pre-push hook (`[5/8]` and `[6/8]`) to verify full pipeline execution, APFS zero-byte hardlink integrity, HTML catalog generation, and sub-second delta re-runs locally.
-4. **Playwright End-to-End Visual & Interaction Tests (`tests/e2e/`)**:
-   - Every catalog UI, card rendering, and interactive modal flow must be covered by automated Playwright specs.
-   - Agents and developers MUST visually and interactively validate catalog changes with bespoke Playwright test scripts (e.g. `tests/e2e/bird_catalog.spec.ts` and `tests/e2e/mock_directory_catalog.spec.ts`).
-   - Run `cd tests/e2e && npx playwright test` to exercise all UI flows: multi-select (Cmd/Ctrl+Click, Shift+Click, Cmd+A), search filtering, card display line layout, correction modal autocompletion, and bulk subdirectory location overrides.
-   - Commit relevant Playwright specs alongside catalog features to prevent UI and interactive regressions.
-5. **Real-World Verification on `/Users/shaleensharma/Pictures/Leh`**:
-   - Smoke-test the release binary against real Canon `.CR2` RAW files, `.CR2.xmp` sidecars, and embedded JPEG preview streams (`tests/test_e2e_real_samples.rs`).
-6. **Gazetteer & Regional Checklist Integrity Check (`pytest`)**:
-   - Validate geographic waypoint schema, regional checklist ISO codes, and coordinate consistency in `tests/test_build_gazetteer.py`.
-7. **Build-Time Blocking Code Coverage Metric Gate (`cargo-llvm-cov`)**:
-   - Every pull request and push is gated on a minimum blocking line coverage threshold (`cargo llvm-cov --fail-under-lines 80 --lib --test test_suite --test test_mock_directory_structure_e2e`).
-   - Aspire to >95% coverage, with 100% target on core domain modules (`types.rs`, `storage/local.rs`, `catalog/template.rs`, `help.rs`).
-8. **Rustdoc Documentation Gate**:
-   - Must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with 0 warnings.
+- **TDD Iron Law**: Never write production code without a failing test first. Register all Rust integration tests in `tests/test_suite/main.rs` (never standalone `tests/test_*.rs` root files unless isolated process env is required).
+- **Inner-Loop Tests**:
+  ```bash
+  cargo test --test test_suite -- <test_name>
+  uv run pytest <test_file>
+  ```
+- **Language & Asset Rules**: Follow `CODING_STANDARDS.md` and `CONTRIBUTING.md` (`Cargo.toml` denies `unsafe_code`, `pedantic`, `unwrap_used`, `panic`, `todo`, `redundant_clone`, `cognitive_complexity`; Python via `uv run` with `ruff`, `mypy scripts/`, `lint-imports`, `pytest --cov-fail-under=80`; taxonomy/gazetteer via `uv run python scripts/build_gazetteer.py` & `uv run pytest tests/test_build_gazetteer.py`).
+- **Pre-Commit / Pre-Push Gates**:
+  ```bash
+  ./scripts/verify.sh          # 8-stage Rust, Python, cargo-deny, Playwright, and rustdoc gate
+  ./.githooks/pre-push         # Full gate including >=80% llvm-cov and real/mock binary E2E
+  ```
 
-### C. Strict Compiler & Clippy Lints
-All production and test code must satisfy strict compiler and Clippy linter rules configured in `Cargo.toml`:
-- `unsafe_code = "deny"`: No `unsafe` code blocks permitted anywhere in the codebase.
-- `pedantic = { level = "deny", priority = -1 }`: Strict idiomatic Rust practices enforced across all crates.
-- `unwrap_used = "deny"`: Explicit unwrap calls are denied in production code; use idiomatic error propagation (`?`), `unwrap_or_else`, or structured error matching.
-- `panic = "deny"`, `todo = "deny"`: No unhandled panics or temporary stubs.
-- `redundant_clone = "deny"`: Disallows unnecessary heap allocations and clones.
-- Allowed overrides are limited to sensible noise suppressions (e.g., `doc_markdown` for LaTeX notation, `similar_names` for coordinate pairs, and numeric casts in image coordinate transformations).
+## 4. Pre-Completion Review & Compounding
 
-### D. Supply-Chain Security & License Auditing (`cargo-deny`)
-The repository enforces strict supply-chain and dependency auditing via `deny.toml` and `cargo deny check`:
-- **Advisories**: Warns on yanked crates and denies security vulnerabilities or unmaintained dependencies.
-- **Licenses**: Allows only permissive open-source licenses compatible with GPL-3.0-or-later (e.g., MIT, Apache-2.0, BSD-3-Clause, ISC, 0BSD).
-- **Bans**: Warns on duplicate dependency versions and bans unapproved tree branches.
-
-### E. Unified Verification Pipeline (`scripts/verify.sh` & `scripts/verify_python.sh`)
-Contributors and agents can verify the complete codebase in one command using `scripts/verify.sh`:
-```bash
-./scripts/verify.sh
-```
-This runs the canonical 8-stage verification pipeline:
-1. `cargo fmt --check`
-2. `cargo check --all-targets`
-3. `cargo clippy --all-targets --all-features -- -D warnings` (including `clippy::cognitive_complexity`)
-4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e` (including architectural contract tests)
-5. Python verification suite (`scripts/verify_python.sh`: ruff lint/format with complexity gates, mypy type checks, pytest with $\ge 80\%$ coverage gate)
-6. `cargo deny check`
-7. Playwright E2E UI smoke test (`npm --prefix tests/e2e test -- bird_catalog.spec.ts`)
-8. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
-
-### F. The Verification Agent Crew Loop
-Before concluding any feature, refactor, or optimization, the implementing agent MUST dispatch a multi-agent review crew running concurrently:
-- **Agent 1 (`correctness-safety-reviewer`)**: Audits source immutability, APFS hard link invariants, thread safety in Rayon iterations, error handling, and bounds checking.
-- **Agent 2 (`rust-readability-reviewer`)**: Audits idiomatic Rust design, function modularity, self-documenting naming, type system ergonomics, and documentation.
-- **Agent 3 (`spec-conformance-reviewer`)**: Cross-examines line-by-line compliance against specifications.
-
-Synthesize all crew findings and remediate any flagged issues before reporting completion.
-
----
-
-## 3. Mandatory Python Engineering Standards
-
-All Python scripts (under `scripts/`, `tests/`, and `tests_python/`) are subject to the same engineering rigor as the Rust core:
-
-1. **Pure Functions & Immutable Data Structures**:
-   - Replace mutable ad-hoc dictionaries with `@dataclass(frozen=True)` or `NamedTuple` data structures.
-   - Functions performing mathematical transformations, coordinate normalizations, bounding box operations, slug sanitation, and posterior scaling must be pure and free of side effects.
-2. **Blocking Build-Time Code Coverage Gate ($\ge 80\%$)**:
-   - Automated test coverage across all Python modules under `scripts/` is enforced by `pytest-cov` with `--cov-fail-under=80`.
-   - Any pull request or commit dropping Python coverage below 80% is blocked by pre-push hooks and CI.
-3. **Static Analysis, Type Rigor & Architectural Contracts**:
-   - Code must pass `ruff check .` with zero errors across strict rulesets (`E, F, W, I, UP, B, SIM, BLE, ERA, RUF, PIE, T10, FA, TRY, C901, PLR0912, PLR0913, PLR0915`).
-   - Monolithic sprawl is strictly forbidden: McCabe cyclomatic complexity $\le 15$, max statements $\le 50$, and max branches $\le 12$ are computational gating sensors.
-   - Code must be formatted via `ruff format --check .`.
-   - Strict static type checking must pass with `mypy scripts/` with zero type errors.
-   - Declarative architectural contracts must pass via `import-linter` (`lint-imports`), ensuring offline data prep pipelines (`build_gazetteer`, `build_taxonomy_embeddings`, `export_models`) remain strictly decoupled and cycle-free from runtime inference (`infer.py`).
-4. **Environment Isolation via `uv`**:
-   - Python tools, linter execution, and test runners must use `uv run` for deterministic, ephemeral dependency resolution without system environment pollution.
-5. **Clean Codebase (Zero Agent Meta-Artifacts)**:
-   - Python files must contain clear, descriptive comments instructing human developers on domain logic and invariants. Procedural agent meta-comments are strictly prohibited.
-
----
-
-## 4. Rustdoc Standards & Best Practices
-
-1. **Zero-Warning Rustdoc Compilation**:
-   - Code must pass `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` with zero warnings.
-   - Never leave unclosed HTML tags (e.g., `<script>`, `<OUTPUT>`, `<OriginalStem>`). Always escape them in code spans (`` `<OUTPUT>` ``) or HTML entities.
-2. **Module-Level (`//!`) Headers**:
-   - Every module file in `src/` must begin with a `//!` documentation header explaining:
-     - The module's role in the pipeline.
-     - Key architectural invariants guaranteed by the module.
-     - Algorithms and domain logic implemented.
-     - Concrete examples or usage patterns where appropriate.
-3. **Item-Level (`///`) Documentation**:
-   - All `pub` structs, enums, variants, traits, methods, and functions must have `///` doc comments.
-   - Include sections:
-     - `# Arguments`: Parameter explanations.
-     - `# Returns`: Return value description.
-     - `# Errors`: Conditions under which the function returns `Err`.
-     - `# Invariants` / `# Panics`: Any failure guarantees or preconditions.
-4. **Tricky Algorithms & Math Rendering**:
-   - Complex domain algorithms (e.g., Bayesian posterior fusion, logit temperature scaling, burst consensus pooling) must include mathematical formulations using LaTeX notation (`$...$` and `$$...$$`) and clear prose explanations.
-
----
-
-## 5. Performance & Build Guidelines
-
-1. **Unified Test Harness Layout**:
-   - Always place integration and spec conformance tests under `tests/test_suite/` with their submodules exposed in `tests/test_suite/main.rs`.
-   - Never create individual one-off `tests/test_*.rs` root files unless they require isolated external process environments (e.g. `test_mock_directory_structure_e2e.rs` and `test_e2e_real_samples.rs`). This prevents linker (`ld64`) contention, thermal throttling, and multi-gigabyte build directory bloat.
-2. **Apple Silicon CPU & Core Preservation**:
-   - Pre-push scripts and development tasks should dynamically cap `CARGO_BUILD_JOBS` to physical performance cores (`hw.perflevel0.logicalcpu`, e.g. 6 cores on 6P+4E Apple Silicon), leaving efficiency cores free for macOS desktop and window server responsiveness. Avoid committing fixed machine-specific core counts in `.cargo/config.toml` so CI runners and different machines are not constrained.
-3. **Build Time Optimizations**:
-   - Always maintain `split-debuginfo = "unpacked"` in `.cargo/config.toml` and `Cargo.toml` to eliminate `dsymutil` overhead on macOS Apple Silicon.
-   - Keep crate feature dependencies minimal (e.g., `image` with `default-features = false` and only `["jpeg", "png", "tiff"]`).
-   - Use tiered dev profile optimization (`[profile.dev.package."*"] opt-level = 1` for broad dependency cold-build speedup, paired with `opt-level = 2` for compute-heavy crates `image` and `blake3`).
-4. **Incremental Auto-Detection**:
-   - When running `organize` on an existing directory, query SQLite for existing bundles.
-   - Only execute neural network detection and classification on newly added or modified bundles.
-   - Reuse cached predictions and embeddings for previously processed bundles.
-
-
----
-
-## 6. Updating Models, Taxonomies & Regional Checklists
-
-When upgrading neural network backbones, bird detectors, taxonomies, regional checklists, or spatial-temporal priors to current cutting-edge architectures:
-
-1. **Model Upgrades**:
-   Follow the instructions in [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
-2. **Taxonomy & Name Changes Handling**:
-   - Cornell eBird / Clements and IOC revise common and scientific species names annually (e.g. splits, lumps, renamings).
-   - In `models/taxonomy.json`, each taxon is permanently keyed by its immutable eBird 6-letter `taxon_id` (e.g. `paisto1`, `brakit1`, `gnwtea`).
-   - When species are renamed, updated `common_name` and `folder_slug` values are mapped without altering primary keys, preserving user historical tags and filesystem backward compatibility.
-   - Run `python3 scripts/build_taxonomy.py` to ingest updated eBird checklists into `models/taxonomy.json`.
-3. **Regional Checklists & iNaturalist Place IDs Updating**:
-   - `scripts/build_gazetteer.py` compiles `data/gazetteer.json` (geographic waypoints) and `data/regional_checklists.json` (taxa present in each administrative region).
-   - `INATURALIST_PLACE_IDS` in `scripts/build_gazetteer.py` maps ISO 3166-1/2 codes to standard iNaturalist place identifiers.
-   - Run the builder whenever gazetteer waypoints, taxonomy, or checklist coverage expands:
-     ```bash
-     python3 scripts/build_gazetteer.py
-     uv run pytest tests/test_build_gazetteer.py
-     ```
-   - All taxon IDs referenced in `scripts/build_gazetteer.py` are strictly validated against `models/taxonomy.json`; invalid IDs immediately abort the build.
-4. **Automated Monthly Synchronization**:
-   - `.github/workflows/update_gazetteer.yml` automatically triggers on the 1st of every month to re-run `scripts/build_gazetteer.py`, execute tests, and open automated pull requests when upstream checklists change.
-
----
-
-## 7. Clean, Professional Codebase Standards (No Agent Meta-Artifacts)
-
-1. **Meaningful In-Code Comments Only**:
-   - Comments in code MUST instruct the human reader on what the code does, its architectural invariants, algorithms, and non-obvious domain logic.
-   - **Strictly Prohibited**: Never include procedural agent meta-comments like `// Step 1: ...`, `// Step 2: ...`, `// Step 3: Implement ...`, or descriptions of an AI agent's internal planning phases.
-2. **Generic Architecture & Zero Context Leaks**:
-   - Code and algorithms must be completely generic and globally representative. Never implement features, taxonomies, or regional lists tailored narrowly to one specific user trip or local personal archive.
-   - All multi-taxa categories (Mammalia, Insecta, Scenery, and avifauna) must encompass comprehensive global biodiversity across continents (e.g. Felidae, Canidae, Ursidae, Bovidae, Cervidae, Primates, Marsupialia, Pinnipedia, Cetacea, etc.), rather than only local datasets.
-   - Never hardcode specific trip names, photographer personal directories, or ad-hoc regional heuristics. All spatial and regional prior behavior must be data-driven (e.g. via eBird regional checklists and embedded gazetteers).
-3. **End-to-End Mock Testing**:
-   - Any new validation behavior (such as location resolution, gazetteer matching, and regional checklist prior filtering) must be covered in end-to-end mock test suites (`tests/test_e2e_*.rs` and `tests/test_mock_directory_structure_e2e.rs`).
-
----
-
-## 8. Compound Engineering & Knowledge Compounding
-
-- `CONCEPTS.md`: Defines shared domain vocabulary for this project (entities, named processes, and status concepts). Consult before authoring or refactoring domain structures.
-- `CODING_STANDARDS.md`: Defines mandatory coding standards and defect classes to avoid. Read before writing or reviewing code, and update when a change establishes or retires a rule.
-- `REVIEW.md`: Defines review policy, severity definitions, evidence requirements, and review exclusions.
-- `docs/solutions/`: Documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Check here before debugging known issues or designing architecture extensions.
-
-### Compounding Directive
-After a solved, verified problem, offer once to invoke the `ce-compound` skill at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not offer. Completion, effort, and diff size alone are not enough. Offer at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
+- **Concurrent Review Crew**: Before concluding any feature, refactor, or optimization, dispatch `correctness-safety-reviewer`, `rust-readability-reviewer`, and `spec-conformance-reviewer` as concurrent review subagents (governed by [`REVIEW.md`](REVIEW.md)) and remediate all findings.
+- **Compounding**: Offer once at completion to invoke `ce-compound` only when non-obvious, durable project reasoning emerged that is absent from code, tests, or docs.

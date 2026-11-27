@@ -1,0 +1,29 @@
+<h2>Asset Access Inspector: Final Agreed Design</h2>
+<p class="subtitle">Complete specification for the Right-Side Inspector Drawer in <code>catalog.html</code>.</p>
+
+<div class="mockup" style="background: #0b0f19; border: 1px solid #24324f; border-radius: 12px; padding: 1.5rem; color: #f8fafc; font-family: system-ui, sans-serif;">
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <!-- Column 1: Triggers & Behavior -->
+    <div style="background: #151d30; padding: 1.25rem; border-radius: 8px; border: 1px solid #24324f;">
+      <h3 style="color: #38bdf8; font-size: 0.95rem; margin-bottom: 0.75rem;">🎯 Triggers & Interaction Model</h3>
+      <ul style="font-size: 0.8rem; color: #cbd5e1; line-height: 1.6; padding-left: 1.2rem;">
+        <li><strong>Open Drawer:</strong> Click the black path pill on any photo card.</li>
+        <li><strong>Live Switching:</strong> While drawer is open, clicking <em>anywhere</em> on any photo card immediately switches the inspector to that photo.</li>
+        <li><strong>Dismiss:</strong> Click ✕ button, press <kbd style="background: #334155; padding: 2px 6px; border-radius: 4px;">Esc</kbd>, or click the active card's path again.</li>
+        <li><strong>Card Affordance:</strong> The path pill has a pointer cursor, subtle blue hover border, and <code>🔍</code> icon with tooltip.</li>
+      </ul>
+    </div>
+
+    <!-- Column 2: Content Sections -->
+    <div style="background: #151d30; padding: 1.25rem; border-radius: 8px; border: 1px solid #24324f;">
+      <h3 style="color: #38bdf8; font-size: 0.95rem; margin-bottom: 0.75rem;">📋 Inspector Drawer Content</h3>
+      <ul style="font-size: 0.8rem; color: #cbd5e1; line-height: 1.6; padding-left: 1.2rem;">
+        <li><strong>Header:</strong> Photo thumbnail + species name + original stem + close button.</li>
+        <li><strong>Storage Status:</strong> Auto-detects 🟢 Local APFS, ☁️ Cloud Evicted (Darwin <code>SF_DATALESS</code>), or 🌐 NAS Directory Mount.</li>
+        <li><strong>Primary RAW Path:</strong> Full absolute path with 1-click clipboard copy.</li>
+        <li><strong>Companion Bundle:</strong> Lists paired JPEGs, RAWs, and <code>.xmp</code> sidecars with copy buttons.</li>
+        <li><strong>One-Click Commands:</strong> <code>open -R</code> (Finder reveal), on-demand cloud hydration (<code>cat &gt; /dev/null</code>), and NAS mount commands.</li>
+      </ul>
+    </div>
+  </div>
+</div>

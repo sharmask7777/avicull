@@ -1,0 +1,149 @@
+<h2>Option A Deep Dive: Right-Side Asset Inspector Drawer</h2>
+<p class="subtitle">Detailed breakdown of how the inspector behaves, interacts with the gallery, and surfaces high-res access across Local, Evicted Cloud, and NAS.</p>
+
+<div class="mockup" style="background: #0b0f19; border: 1px solid #24324f; border-radius: 12px; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; color: #f8fafc;">
+  <!-- Mock Browser Window Chrome -->
+  <div style="background: #151d30; border-bottom: 1px solid #24324f; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span>
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></span>
+      <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></span>
+      <span style="margin-left: 12px; font-size: 0.8rem; color: #94a3b8; font-weight: 500;">catalog.html — Leh 2026 (Avicull)</span>
+    </div>
+    <span style="font-size: 0.75rem; color: #64748b;">Inspector Open (Press Esc to close)</span>
+  </div>
+
+  <!-- Main View: Split Gallery (Left) + Drawer (Right) -->
+  <div style="display: flex; min-height: 520px;">
+    <!-- LEFT: Gallery Area (Stays fully interactive!) -->
+    <div style="flex: 1; padding: 1.25rem; background: #0b0f19; overflow-y: auto;">
+      <div style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; display: flex; justify-content: space-between;">
+        <span>Showing 42 photos • <strong>Clicking any card path updates the inspector instantly</strong></span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem;">
+        <!-- Card 1 (Active/Inspected) -->
+        <div style="background: #151d30; border: 2px solid #3b82f6; border-radius: 8px; padding: 0.6rem; position: relative; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);">
+          <div style="background: #1e293b; height: 110px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94a3b8; position: relative;">
+            <span>📸 Preview</span>
+            <span style="position: absolute; top: 4px; left: 4px; background: rgba(16, 185, 129, 0.9); font-size: 0.6rem; padding: 1px 5px; border-radius: 3px; color: white;">BIRD</span>
+            <span style="position: absolute; bottom: 4px; right: 4px; background: #3b82f6; font-size: 0.6rem; padding: 1px 5px; border-radius: 3px; color: white;">INSPECTING</span>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Black-billed Magpie</div>
+          <!-- Clicked path with active styling -->
+          <div style="font-family: monospace; font-size: 0.68rem; color: #60a5fa; background: #090d16; padding: 4px 6px; border-radius: 4px; margin-top: 5px; border: 1px solid #3b82f6; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">.../IMG_8421.CR2</span>
+            <span>🔍</span>
+          </div>
+        </div>
+
+        <!-- Card 2 (Unselected, hoverable) -->
+        <div style="background: #151d30; border: 1px solid #24324f; border-radius: 8px; padding: 0.6rem; opacity: 0.85;">
+          <div style="background: #1e293b; height: 110px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94a3b8;">
+            <span>📸 Preview</span>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tibetan Snowcock</div>
+          <!-- Normal path pill with hover hint -->
+          <div style="font-family: monospace; font-size: 0.68rem; color: #94a3b8; background: #090d16; padding: 4px 6px; border-radius: 4px; margin-top: 5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">.../IMG_8422.CR2</span>
+            <span style="opacity: 0.5;">🔍</span>
+          </div>
+        </div>
+
+        <!-- Card 3 (Unselected) -->
+        <div style="background: #151d30; border: 1px solid #24324f; border-radius: 8px; padding: 0.6rem; opacity: 0.85;">
+          <div style="background: #1e293b; height: 110px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94a3b8;">
+            <span>📸 Preview</span>
+          </div>
+          <div style="font-size: 0.8rem; font-weight: 600; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Bearded Vulture</div>
+          <div style="font-family: monospace; font-size: 0.68rem; color: #94a3b8; background: #090d16; padding: 4px 6px; border-radius: 4px; margin-top: 5px; cursor: pointer;">
+            .../IMG_8423.CR2
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Inspector Drawer (380px wide) -->
+    <div style="width: 380px; background: #131a2c; border-left: 1px solid #24324f; display: flex; flex-direction: column; box-shadow: -6px 0 20px rgba(0,0,0,0.4);">
+      <!-- Drawer Header -->
+      <div style="padding: 1rem; border-bottom: 1px solid #24324f; display: flex; justify-content: space-between; align-items: center; background: #172036;">
+        <div>
+          <div style="font-weight: 600; font-size: 0.95rem; color: #f8fafc;">Asset Access Inspector</div>
+          <div style="font-size: 0.72rem; color: #94a3b8;">Stem: <strong>IMG_8421</strong> • Canon EOS R5</div>
+        </div>
+        <button style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 2px 6px;">✕</button>
+      </div>
+
+      <!-- Drawer Scrollable Body -->
+      <div style="padding: 1rem; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 1rem;">
+        
+        <!-- Section 1: Storage Diagnostic Status -->
+        <div style="background: #0b0f19; border: 1px solid #24324f; border-radius: 8px; padding: 0.85rem;">
+          <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">Storage Health & Status</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;">
+            <span style="font-size: 0.75rem; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid #d97706; padding: 3px 8px; border-radius: 4px; font-weight: 500;">
+              ☁️ Evicted Cloud (Darwin SF_DATALESS)
+            </span>
+          </div>
+          <p style="font-size: 0.75rem; color: #94a3b8; margin: 0; line-height: 1.4;">
+            Payload is evicted from local SSD to save space. Previews render from the local SQLite cache; fetching the RAW requires hydration.
+          </p>
+        </div>
+
+        <!-- Section 2: Full Absolute Path with Quick Copy -->
+        <div style="background: #0b0f19; border: 1px solid #24324f; border-radius: 8px; padding: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Primary RAW Path</span>
+            <button style="background: #2563eb; color: white; border: none; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;">📋 Copy Path</button>
+          </div>
+          <div style="font-family: monospace; font-size: 0.72rem; color: #e2e8f0; background: #131a2c; padding: 6px 8px; border-radius: 4px; word-break: break-all; border: 1px solid #1e293b;">
+            /Users/shaleensharma/Pictures/Leh/IMG_8421.CR2
+          </div>
+          <div style="font-size: 0.7rem; color: #64748b; margin-top: 5px;">Volume: Macintosh HD (APFS) • Size on disk: 0 B (Logical: 45.2 MB)</div>
+        </div>
+
+        <!-- Section 3: Companion Files & Sidecars -->
+        <div style="background: #0b0f19; border: 1px solid #24324f; border-radius: 8px; padding: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Companion Files (2)</span>
+            <button style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; cursor: pointer;">Copy All</button>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.73rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #131a2c; padding: 5px 8px; border-radius: 4px;">
+              <span>📸 <strong>IMG_8421.JPG</strong> (4.2 MB)</span>
+              <span style="color: #60a5fa; cursor: pointer;">📋</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #131a2c; padding: 5px 8px; border-radius: 4px;">
+              <span>📝 <strong>IMG_8421.CR2.xmp</strong> (3.8 KB)</span>
+              <span style="color: #60a5fa; cursor: pointer;">📋</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: One-Click Shell Commands -->
+        <div style="background: #0b0f19; border: 1px solid #24324f; border-radius: 8px; padding: 0.85rem;">
+          <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 6px;">One-Click Terminal / Finder Actions</div>
+          
+          <!-- Cloud Hydrate Command -->
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 0.68rem; color: #94a3b8; margin-bottom: 2px;">⚡ Hydrate this RAW from Cloud without downloading entire trip:</div>
+            <div style="background: #131a2c; padding: 5px 8px; border-radius: 4px; font-family: monospace; font-size: 0.7rem; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
+              <span>cat "/Users/shaleensharma/Pictures/Leh/IMG_8421.CR2" &gt; /dev/null</span>
+              <button style="background: #334155; color: white; border: none; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; cursor: pointer;">Copy</button>
+            </div>
+          </div>
+
+          <!-- Finder Reveal Command -->
+          <div>
+            <div style="font-size: 0.68rem; color: #94a3b8; margin-bottom: 2px;">📂 Reveal in macOS Finder:</div>
+            <div style="background: #131a2c; padding: 5px 8px; border-radius: 4px; font-family: monospace; font-size: 0.7rem; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
+              <span>open -R "/Users/shaleensharma/Pictures/Leh/IMG_8421.CR2"</span>
+              <button style="background: #334155; color: white; border: none; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; cursor: pointer;">Copy</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
