@@ -616,17 +616,35 @@ pub struct BundleDecision {
         cmd += ` --burst`;
       }
 
-      let help = "";
+      const helpEl = document.getElementById('modeHelpText');
+      const appendCode = (text) => {
+        const code = document.createElement('code');
+        code.textContent = text;
+        helpEl.appendChild(code);
+      };
+      const appendText = (text) => helpEl.appendChild(document.createTextNode(text));
+      helpEl.replaceChildren();
       if (mode === 'in-place') {
-        help = "In default <code>in-place</code> mode: original files on disk remain strictly untouched; correction is recorded permanently in <code>.avicull/manifest.sqlite</code>.";
+        appendText('In default ');
+        appendCode('in-place');
+        appendText(' mode: original files on disk remain strictly untouched; correction is recorded permanently in ');
+        appendCode('.avicull/manifest.sqlite');
+        appendText('.');
       } else if (mode === 'in-place-rename') {
-        help = `In <code>in-place-rename</code> mode: source file will be atomically renamed to <code>2024-05-12_143022_Leh_${cat}_${slug}_DSC_4921.CR2</code> with rollback logging in SQLite.`;
+        appendText('In ');
+        appendCode('in-place-rename');
+        appendText(' mode: source file will be atomically renamed to ');
+        appendCode(`2024-05-12_143022_Leh_${cat}_${slug}_DSC_4921.CR2`);
+        appendText(' with rollback logging in SQLite.');
       } else if (mode === 'hierarchy') {
-        help = `In <code>hierarchy</code> mode: zero-byte hard link projected into <code>birds_hierarchy/${cat}/${slug}/DSC_4921.CR2</code>.`;
+        appendText('In ');
+        appendCode('hierarchy');
+        appendText(' mode: zero-byte hard link projected into ');
+        appendCode(`birds_hierarchy/${cat}/${slug}/DSC_4921.CR2`);
+        appendText('.');
       }
 
       document.getElementById('cmdOutput').textContent = cmd;
-      document.getElementById('modeHelpText').innerHTML = help;
     }
 
     // Initial setup
