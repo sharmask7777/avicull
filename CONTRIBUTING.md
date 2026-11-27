@@ -17,7 +17,7 @@ Every contributor and AI agent must adhere strictly to these core invariants:
 2. **Zero-Byte Output Tree via APFS Hard Links**:
    The generated `birds_hierarchy/` must reference original files using POSIX hard links (`std::fs::hard_link`), asserting `dst_meta.ino() == src_ino`. 0 additional disk bytes must be consumed for image payloads.
 3. **Traverse Exclusions**:
-   Directory scans must skip `birds_hierarchy`, `.avicull`, `*.photoslibrary`, `@eaDir`, and hidden directories (`.*`).
+   Directory scans must skip `birds_hierarchy`, `avicull_catalog_files`, `.avicull`, `*.photoslibrary`, `@eaDir`, and hidden directories (`.*`).
 4. **Parent & Child Multi-Level Coexistence**:
    Trip subdirectory hierarchies and parent output directories must coexist simultaneously without collision.
 5. **Dataless File Protection**:
@@ -100,18 +100,19 @@ We follow strict **Test-Driven Development (TDD)**:
 ## 4. Verification & Testing Tiers
 
 ### Fast Verification Pipeline (`scripts/verify.sh`)
-For rapid local checks during development, run the canonical 7-stage verification script:
+For rapid local checks during development, run the canonical 8-stage verification script:
 ```bash
 ./scripts/verify.sh
 ```
 This executes:
 1. `cargo fmt --check`
 2. `cargo check --all-targets`
-3. `cargo clippy --all-targets --all-features -- -D warnings`
+3. `cargo clippy --all-targets --all-features -- -D warnings` (including `clippy::cognitive_complexity`)
 4. `cargo test --lib --test test_suite --test test_mock_directory_structure_e2e`
 5. Python verification suite (`./scripts/verify_python.sh`: ruff check, ruff format --check, mypy, pytest with $\ge 80\%$ coverage gate)
 6. `cargo deny check`
-7. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
+7. Playwright E2E UI smoke test (`npm --prefix tests/e2e test -- bird_catalog.spec.ts --project=chromium`)
+8. `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps`
 
 ### Full Pre-Push Verification Suite (`.githooks/pre-push`)
 Before pushing code or submitting a Pull Request, all verification tiers must pass:
@@ -168,3 +169,41 @@ When submitting a pull request:
 - [ ] Local `./.githooks/pre-push` passes all 8 checks.
 - [ ] Code coverage remains $\ge 80\%$ (target $>95\%$).
 - [ ] Clear PR title and description outlining the changes and test evidence.
+
+---
+
+## 8. Updating Models, Taxonomies & Regional Checklists
+
+- **Model Upgrades**: Follow [`skills/avian-model-updater/SKILL.md`](skills/avian-model-updater/SKILL.md).
+- **Taxonomy Updates**: `models/taxonomy.json` keys every taxon by its immutable eBird 6-letter `taxon_id` (e.g., `paisto1`, `brakit1`). Run `uv run python scripts/build_taxonomy.py` to ingest updated eBird checklists while preserving historical `taxon_id` keys.
+- **Regional Checklists & Gazetteer**: `scripts/build_gazetteer.py` compiles `data/gazetteer.json` and `data/regional_checklists.json` using `INATURALIST_PLACE_IDS` and validates all taxon IDs against `models/taxonomy.json`:
+  ```bash
+  uv run python scripts/build_gazetteer.py
+  uv run pytest tests/test_build_gazetteer.py
+  ```
+  `.github/workflows/update_gazetteer.yml` runs this monthly on the 1st and opens a PR if upstream checklists change.
+
+---
+
+## 9. Continuous Integration & Creating a Release
+
+### CI Sanity Checks
+Every PR targeting `main` is gated by [`.github/workflows/pr_checks.yml`](.github/workflows/pr_checks.yml) on macOS Apple Silicon (`macos-14`), running formatting, Clippy, Rust tests (`cargo test --locked`), Python/gazetteer checks, and `cargo build --release --locked`.
+
+### Automated Releases on Merge to `main` (Recommended)
+[`.github/workflows/release_on_merge.yml`](.github/workflows/release_on_merge.yml) automatically extracts `version` from `Cargo.toml`, auto-increments the patch version if tag `v${VERSION}` exists, builds on `macos-14`, packages `avicull-v${VERSION}-aarch64-apple-darwin.tar.gz` with its `.sha256`, and publishes a GitHub Release.
+
+### Manual Release Process
+1. Run `./.githooks/pre-push`.
+2. Bump `version` in `Cargo.toml` and run `cargo build --release`.
+3. Package and tag:
+   ```bash
+   VERSION="X.Y.Z"
+   DIST_NAME="avicull-v${VERSION}-aarch64-apple-darwin"
+   mkdir -p "dist/${DIST_NAME}"
+   cp target/release/avicull LICENSE README.md "dist/${DIST_NAME}/"
+   tar -czf "dist/${DIST_NAME}.tar.gz" -C dist "${DIST_NAME}"
+   shasum -a 256 "dist/${DIST_NAME}.tar.gz" > "dist/${DIST_NAME}.tar.gz.sha256"
+   git tag -a "v${VERSION}" -m "Release v${VERSION}" && git push origin "v${VERSION}"
+   gh release create "v${VERSION}" "dist/${DIST_NAME}.tar.gz" "dist/${DIST_NAME}.tar.gz.sha256"
+   ```

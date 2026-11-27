@@ -1,0 +1,125 @@
+<h2>Multi-Category Human Override: Modal Experience</h2>
+<p class="subtitle">Choose the interaction flow that best matches the speed and feel of the current bird correction modal while extending to Mammals, Reptiles, and Photographic Genres.</p>
+
+<div class="options">
+  <!-- Option A -->
+  <div class="option" data-choice="pills" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Category Selector Pills + Dynamic Species Autocomplete (Recommended)</h3>
+      <p>Clean category pills pre-selected to the photo's current category. Clicking a pill (e.g. <em>Mammalia</em> or <em>Reptilia</em>) filters autocomplete to that taxon. Genre categories (e.g. <em>Scenery</em>, <em>Portrait</em>) let you keep the top-level genre or optionally specify a granular sub-folder.</p>
+      
+      <div style="margin-top: 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">1. Select Category:</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">Bird</span>
+          <span style="background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; box-shadow: 0 0 8px rgba(37,99,235,0.4);">Mammalia ✓</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">Reptilia</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">Insecta</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">Scenery</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">Portrait</span>
+          <span style="background: #1e293b; color: #ef4444; border: 1px solid rgba(239,68,68,0.3); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 500;">No Subject</span>
+        </div>
+
+        <div style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">2. Granular Species / Subject:</div>
+        <div style="position: relative; margin-bottom: 10px;">
+          <input type="text" readonly value="Snow Leopard" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #3b82f6; border-radius: 6px; padding: 8px 12px; color: #f8fafc; font-size: 0.85rem;">
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; margin-top: 4px; overflow: hidden;">
+            <div style="padding: 7px 12px; font-size: 0.82rem; background: #334155; color: #f8fafc; display: flex; justify-content: space-between;">
+              <span>Snow Leopard <em>(Panthera uncia)</em></span>
+              <span style="background: #1d4ed8; color: #bfdbfe; font-size: 0.7rem; padding: 1px 6px; border-radius: 4px;">Mammalia</span>
+            </div>
+            <div style="padding: 7px 12px; font-size: 0.82rem; color: #cbd5e1; display: flex; justify-content: space-between;">
+              <span>Himalayan Ibex <em>(Capra sibirica)</em></span>
+              <span style="background: #1d4ed8; color: #bfdbfe; font-size: 0.7rem; padding: 1px 6px; border-radius: 4px;">Mammalia</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: #64748b; margin-top: 6px;">
+          Command preview: <code>avicull correct --category Mammalia --species Snow_Leopard --file "DSC_1042.JPG"</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="option" data-choice="unified" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Unified Smart Search (Auto-Category Detection)</h3>
+      <p>Zero clicks to change category. A single search input indexes all 11,000+ birds, mammals, reptiles, insects, and photography genres. Typing a name immediately matches across all kingdoms with color-coded category badges. Selecting the match automatically sets the category.</p>
+      
+      <div style="margin-top: 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="font-size: 0.85rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">Select New Classification (All Taxa &amp; Genres):</div>
+        <div style="position: relative; margin-bottom: 10px;">
+          <input type="text" readonly value="Leop" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #38bdf8; border-radius: 6px; padding: 8px 12px; color: #f8fafc; font-size: 0.85rem;">
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; margin-top: 4px; overflow: hidden;">
+            <div style="padding: 7px 12px; font-size: 0.82rem; background: #334155; color: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
+              <span><strong>Leop</strong>ard <em>(Panthera pardus)</em></span>
+              <span style="background: #0284c7; color: #e0f2fe; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Mammalia</span>
+            </div>
+            <div style="padding: 7px 12px; font-size: 0.82rem; color: #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+              <span>Snow <strong>Leop</strong>ard <em>(Panthera uncia)</em></span>
+              <span style="background: #0284c7; color: #e0f2fe; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Mammalia</span>
+            </div>
+            <div style="padding: 7px 12px; font-size: 0.82rem; color: #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+              <span><strong>Leop</strong>ard Gecko <em>(Eublepharis macularius)</em></span>
+              <span style="background: #16a34a; color: #dcfce7; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Reptilia</span>
+            </div>
+            <div style="padding: 7px 12px; font-size: 0.82rem; color: #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+              <span>African <strong>Leop</strong>ard's-bane <em>(Doronicum)</em></span>
+              <span style="background: #d97706; color: #fef3c7; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Botanical</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: #64748b; margin-top: 6px;">
+          Command preview: <code>avicull correct --category Mammalia --species Leopard --file "DSC_1042.JPG"</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="option" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Unified Autocomplete with Quick-Filter Category Scope</h3>
+      <p>The best of both worlds: by default, searching indexes everything across all categories. If you want to narrow down your search or explore what is available in a specific kingdom (like only <em>Reptilia</em> or only <em>Scenery</em>), clicking a filter pill filters the autocomplete results immediately.</p>
+      
+      <div style="margin-top: 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.85rem; font-weight: 600; color: #94a3b8;">Filter Scope:</span>
+          <span style="font-size: 0.75rem; color: #64748b;">(Optional: narrows suggestions)</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px;">
+          <span style="background: #3b82f6; color: #fff; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem; font-weight: 600;">All Categories</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem;">Birds</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem;">Mammals</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem;">Reptiles</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem;">Insects</span>
+          <span style="background: #1e293b; color: #94a3b8; border: 1px solid #334155; padding: 3px 8px; border-radius: 5px; font-size: 0.75rem;">Genres</span>
+        </div>
+
+        <div style="position: relative; margin-bottom: 10px;">
+          <input type="text" readonly value="Mountain Landscape" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #10b981; border-radius: 6px; padding: 8px 12px; color: #f8fafc; font-size: 0.85rem;">
+          <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; margin-top: 4px; overflow: hidden;">
+            <div style="padding: 7px 12px; font-size: 0.82rem; background: #334155; color: #f8fafc; display: flex; justify-content: space-between; align-items: center;">
+              <span>Mountain Landscape</span>
+              <span style="background: #059669; color: #d1fae5; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Scenery</span>
+            </div>
+            <div style="padding: 7px 12px; font-size: 0.82rem; color: #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
+              <span>Mountain Hare <em>(Lepus timidus)</em></span>
+              <span style="background: #0284c7; color: #e0f2fe; font-size: 0.7rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">Mammalia</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.78rem; color: #64748b; margin-top: 6px;">
+          Command preview: <code>avicull correct --category Scenery --species Mountain_Landscape --file "DSC_1042.JPG"</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

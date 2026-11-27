@@ -5,10 +5,10 @@ Rules governing code written in `avicull`. Reviewers and automated review passes
 ## Filesystem & Source Immutability
 
 ### Source Preservation in Default Mode
-In default `--mode in-place`, the input archive is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`. All state and previews must remain isolated within `<input>/.avicull/` and `<input>/catalog.html`. Neither filename reconciliation nor client-side catalog scripts may execute physical renames on disk in this mode.
+In default `--mode in-place`, the input archive is strictly read-only: never move, rename, modify, or unlink any image, RAW, companion, or sidecar file inside `--input`. All state and previews must remain isolated within `<input>/avicull_catalog_files/` (`.avicull/` backward-compatible) and `<input>/catalog.html`. Neither filename reconciliation nor client-side catalog scripts may execute physical renames on disk in this mode.
 
 ### Cosmetic Renaming Opt-In
-Renaming source files is purely cosmetic. Only when explicitly requested via `--mode in-place-rename` may files and sidecars be atomically renamed in place. All in-place renames must be transactionally journaled in `.avicull/manifest.sqlite` for lossless rollback via `avicull clean`.
+Renaming source files is purely cosmetic. Only when explicitly requested via `--mode in-place-rename` may files and sidecars be atomically renamed in place. All in-place renames must be transactionally journaled in `avicull_catalog_files/manifest.sqlite` (`.avicull/manifest.sqlite` backward-compatible) for lossless rollback via `avicull clean`.
 
 ### Zero-Byte Hard Link Parity
 Organized output hierarchies on the same APFS volume must share underlying storage inodes using POSIX hard links (`std::fs::hard_link`). Never copy or duplicate raw image payloads. Verify inode parity (`dst_meta.ino() == src_ino`) in filesystem operations.
@@ -19,7 +19,7 @@ Never eagerly open or read files marked with the Darwin `SF_DATALESS` flag (`0x4
 ### Traversal Boundary Isolation
 Recursive directory discovery must strictly ignore:
 - Generated hierarchy folders (`birds_hierarchy`)
-- Internal manifest directories (`.avicull`)
+- Internal manifest directories (`avicull_catalog_files`, `.avicull`)
 - Apple Photos libraries (`*.photoslibrary`)
 - Hidden folders (`.*`) and thumbnail caches (`@eaDir`)
 
@@ -32,7 +32,7 @@ Support simultaneous coexistence of nested trip hierarchies and root hierarchies
 Never create new top-level `tests/test_*.rs` root files for integration tests. Consolidate all test modules under `tests/test_suite/` registered in `tests/test_suite/main.rs`. This prevents Mach-O linker (`ld64`) contention, Apple clang process bloat, and thermal throttling on macOS Apple Silicon.
 
 ### Hardware-Conscious Concurrency
-Dynamic build job configurations and test execution must respect physical performance cores (`hw.perflevel0.logicalcpu`), leaving efficiency cores free for operating system responsiveness. Never hardcode machine-specific core counts in `.cargo/config.toml`.
+Dynamic build job configurations and test execution must respect physical performance cores (`hw.perflevel0.logicalcpu`), leaving efficiency cores free for operating system responsiveness. Keep `split-debuginfo = "unpacked"` and minimal crate features in `Cargo.toml`, and never hardcode machine-specific core counts in `.cargo/config.toml`.
 
 ## Rust Language & Idiomatic Engineering
 
