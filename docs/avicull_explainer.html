@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>avicull — Local AI Bird & Multi-Taxa Photo Organizer | In-Place Renaming & Zero-Byte Hard Links | Interactive Animated Explainer & Audio Guide</title>
+  <title>avicull — Local-First AI Photo Organizer | Interactive Explainer &amp; Audio Guide</title>
   <style>
     :root {
       --bg-base: #0a0e17;
@@ -1016,15 +1016,105 @@
       font-size: 0.75rem;
     }
 
+    
+    .scene-header { margin-bottom: 1.5rem; }
+    .scene-subtitle { color: var(--text-muted); font-size: 0.96rem; max-width: 78ch; margin-top: 0.35rem; }
+    .perspective-card.card-bird::before { background: var(--accent-bird); }
+    .perspective-card.card-tech::before { background: var(--accent-tech); }
+    .perspective-card.card-bird h3 { color: #34d399; margin-bottom: 0.65rem; font-size: 1.02rem; }
+    .perspective-card.card-tech h3 { color: #22d3ee; margin-bottom: 0.65rem; font-size: 1.02rem; }
+    .card-badge { display: flex; align-items: center; gap: 0.45rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 700; }
+    .feature-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+    .feature-list li { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: #cbd5e1; line-height: 1.5; }
+    .feature-list .bullet { color: #38bdf8; font-weight: 700; flex-shrink: 0; }
+    .stage-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.85rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border); }
+    .stage-title { font-size: 0.92rem; font-weight: 700; color: #f8fafc; }
+    .tree-header { font-size: 0.8rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.55rem; display: flex; align-items: center; gap: 0.4rem; }
+    .tree-node { font-family: var(--font-mono); font-size: 0.76rem; color: #cbd5e1; padding: 0.28rem 0.45rem; border-radius: 6px; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+    .tree-node.indent-1 { padding-left: 1.35rem; }
+    .inode-center { display: flex; align-items: center; justify-content: center; }
+    .inode-disk { background: rgba(15, 23, 42, 0.88); border: 1px solid rgba(16, 185, 129, 0.45); border-radius: 10px; padding: 0.85rem 1rem; text-align: center; }
+    .fs-card.fs-supported { border-left: 3px solid var(--accent-bird); }
+    .fs-card.fs-trap { border-left: 3px solid var(--accent-rose); background: rgba(244, 63, 94, 0.08); }
+    .fs-card h5 { font-size: 0.84rem; margin-bottom: 0.3rem; color: #f8fafc; }
+    .fs-card p { font-size: 0.76rem; color: var(--text-muted); line-height: 1.45; }
+    .mode-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.85rem;
+      margin-top: 0.75rem;
+    }
+    .mode-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+      margin-top: 0.75rem;
+    }
+    .bayesian-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .mode-card {
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem;
+      font-size: 0.82rem;
+    }
+    .mode-card.is-default {
+      border-color: rgba(16, 185, 129, 0.65);
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.12);
+    }
+    .mode-card h4 {
+      font-size: 0.88rem;
+      margin-bottom: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+    }
+    .pill-tag {
+      font-size: 0.66rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+    .pill-green { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .pill-cyan { background: rgba(6, 182, 212, 0.18); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4); }
+    .pill-amber { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .pill-rose { background: rgba(244, 63, 94, 0.18); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.4); }
+    .inspector-box {
+      margin-top: 1rem;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      font-size: 0.8rem;
+    }
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.7rem;
+      margin-top: 0.75rem;
+    }
+    .arch-box {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem;
+      font-size: 0.78rem;
+    }
+    .arch-box code { color: #38bdf8; font-size: 0.75rem; }
+
     /* Responsive adjustments */
     @media (max-width: 900px) {
-      .perspective-grid { grid-template-columns: 1fr; }
-      .inode-viz { grid-template-columns: 1fr; }
-      .cache-hierarchy { grid-template-columns: 1fr; }
-      .fs-matrix { grid-template-columns: 1fr; }
+      .perspective-grid, .inode-viz, .cache-hierarchy, .fs-matrix, .mode-grid-3, .mode-grid-4, .bayesian-grid { grid-template-columns: 1fr; }
       header { flex-wrap: wrap; }
       .audio-controls { margin-left: auto; }
-      .subtitle-box { display: none; }
+      .narration-bar { flex-wrap: wrap; gap: 0.6rem; }
+      .subtitle-box { order: 3; flex: 1 1 100%; max-width: 100%; }
     }
   </style>
 </head>
@@ -1033,998 +1123,545 @@
   <!-- Top Header -->
   <header>
     <div class="brand">
-      <div class="brand-icon">
+      <div class="brand-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
         </svg>
       </div>
       <div class="brand-text">
         <h1>avicull <span class="badge">Apple Silicon • Rust</span> <span class="badge badge-ebird">11,167 Species + Multi-Taxa</span></h1>
-        <p>Local AI Bird & Multi-Taxa Photo Organizer • In-Place Renaming & Zero-Byte Hard Links</p>
+        <p>Local-First AI Photo Organizer • Non-Destructive In-Place Cataloging, Cosmetic Rename &amp; Zero-Byte Hard Links</p>
       </div>
     </div>
 
     <!-- Perspective / Audience Selector -->
-    <div class="lens-switcher" id="lensSwitcher" role="tablist">
-      <button class="lens-btn active" data-lens="all" title="View complete deep dive">
+    <div class="lens-switcher" id="lensSwitcher" role="tablist" aria-label="Audience Lens">
+      <button class="lens-btn active" role="tab" aria-selected="true" data-lens="all" title="View complete deep dive">
         <span>🌟</span> Both Lenses
       </button>
-      <button class="lens-btn bird-lens" data-lens="bird" title="Tailored for birders & photographers">
+      <button class="lens-btn bird-lens" role="tab" aria-selected="false" data-lens="bird" title="Tailored for birders & photographers">
         <span>🔭</span> Birding Lens
       </button>
-      <button class="lens-btn tech-lens" data-lens="tech" title="Tailored for Systems & AI/GenAI engineers">
-        <span>⚡</span> Systems & AI Lens
+      <button class="lens-btn tech-lens" role="tab" aria-selected="false" data-lens="tech" title="Tailored for Systems & AI engineers">
+        <span>⚡</span> Systems &amp; AI Lens
       </button>
     </div>
 
     <!-- Audio / Voiceover Bar -->
     <div class="audio-controls">
-      <div class="audio-wave" id="audioWave" title="Narration Status">
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
-        <div class="bar"></div>
+      <div class="audio-wave" id="audioWave" title="Narration Status" aria-hidden="true">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
       </div>
-
       <button class="btn btn-primary" id="btnPlayPause" title="Play / Pause Voiceover (Space)">
         <span id="playIcon">▶</span>
         <span id="playText">Voiceover</span>
       </button>
-
       <button class="rate-btn" id="btnRate" title="Playback Speed">1.0x</button>
-      
-      <select class="voice-select" id="voiceSelect" title="Select Speech Voice">
+      <select class="voice-select" id="voiceSelect" title="Select Speech Voice" aria-label="Select Speech Voice">
         <option value="">Default Voice</option>
       </select>
-
-      <button class="btn" id="btnTranscript" title="View Full Text Transcript">
-        📝 Transcript
-      </button>
+      <button class="btn" id="btnTranscript" title="View Full Text Transcript">📝 Transcript</button>
     </div>
   </header>
 
   <!-- Interactive Timeline / Stepper -->
   <div class="scene-timeline-container">
-    <ul class="scene-timeline" id="sceneTimeline">
-      <!-- Generated via JS -->
-    </ul>
+    <ul class="scene-timeline" id="sceneTimeline"></ul>
   </div>
 
-  <!-- Main Content Slides Area -->
   <main>
 
-    <!-- SCENE 1: The Problem & Vision -->
-    <section class="scene-slide active" id="scene-0" data-index="0">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 1 of 9 • Overview</span>
-            <span class="scene-duration">⏱ ~65 sec audio</span>
-          </div>
-          <h2 class="scene-title">The Expedition Photo Crisis & The Two Zero-Byte Solutions</h2>
-          <p class="scene-desc">Why wildlife photographers are trapped between chronological expedition archives and taxonomic species catalogs—and how avicull solves it through universal in-place renaming and zero-byte hard links across 11,167 birds and multi-taxa biodiversity.</p>
-        </div>
+    <!-- SCENE 1: Overview & Hexagonal Architecture -->
+    <section class="scene-slide active" id="scene-0">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 1 • Overview &amp; Architecture</span>
+        <h2 class="scene-title">The Expedition Photo Crisis &amp; Three Safe Organization Modes</h2>
+        <p class="scene-subtitle">How a local-first Rust + Python engine turns 50,000+ unorganized RAW bursts across local, NAS, and cloud drives into an offline catalog without duplicating a single byte.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> The Photographer's Reality</h3>
-            <span class="pill pill-green">Field Workflow</span>
-          </div>
-          <div class="perspective-card-body">
-            You return from Keoladeo, Costa Rica, or Leh with 10,000 photos. You shot at 20–30 frames per second on continuous burst mode. You have massive RAW files (.CR3, .ARW, .NEF) paired with Lightroom .XMP and DxO .DOP sidecar edits.
-            <ul>
-              <li><strong>The Catch-22:</strong> You want to browse <em>by trip</em> ("What did I see in Leh?") AND <em>by species</em> ("Show me all my Snow Leopards and Bar-headed Geese!").</li>
-              <li><strong>The Two Zero-Byte Solutions:</strong>
-                <ul>
-                  <li><strong>In-Place Renaming (Default):</strong> Standardizes filenames directly where they live (<code>&lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;...</code>) while keeping companion sidecars synchronized. Works everywhere, including exFAT travel SSDs!</li>
-                  <li><strong>Hierarchy Tree (Optional):</strong> Projects photos into taxonomic species folders via APFS hard links, consuming 0 extra bytes.</li>
-                </ul>
-              </li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>For Birders &amp; Wildlife Photographers</span></div>
+          <h3>Zero-Risk Curation for Massive Expeditions</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Your originals stay untouched by default:</strong> Running <code>avicull organize</code> leaves every RAW, JPEG, <code>.xmp</code>, and <code>.dop</code> file intact, writing only to <code>avicull_catalog_files/</code> and <code>catalog.html</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>11,167 eBird Species + Multi-Taxa:</strong> Classifies birds, mammals, insects, reptiles, amphibians, scenery, architecture, portraits, and abstract frames—no more forcing landscapes into bird species.</div></li>
+            <li><span class="bullet">•</span><div><strong>Works on Cloud &amp; NAS Drives:</strong> Processes iCloud, Google Drive, Proton Drive, OneDrive, Dropbox, and SMB/NFS shares in bounded batches without filling your Mac's SSD.</div></li>
+          </ul>
         </div>
 
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> Systems & AI Architecture</h3>
-            <span class="pill pill-blue">Design Invariants</span>
-          </div>
-          <div class="perspective-card-body">
-            <code>avicull</code> is a local-first, deterministic command-line system written in Rust specifically targeting macOS on Apple Silicon (M1/M2/M3/M4).
-            <ul>
-              <li><strong>Comprehensive Multi-Taxa Classification:</strong> Covers 11,167 eBird avian species plus 224+ curated global species across 9 singular categories: <code>Bird</code>, <code>Mammalia</code>, <code>Insecta</code>, <code>Reptilia</code>, <code>Amphibia</code>, <code>Scenery</code>, <code>Architecture</code>, <code>Portrait</code>, <code>Abstract</code>.</li>
-              <li><strong>Universal In-Place or Zero-Byte APFS Links:</strong> Reorganizes files with zero data bloat using POSIX hard links (<code>std::fs::hard_link</code>) or deterministic in-place renames.</li>
-              <li><strong>Decoupled Neural Pipeline:</strong> Multi-stage YOLO11 subject detector + BioCLIP 2 vision embeddings + Bayesian spatial-temporal priors.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>For Systems &amp; AI Engineers</span></div>
+          <h3>Hexagonal Rust Core + Decoupled ML Inference</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Strict Safety Boundaries:</strong> <code>src/lib.rs</code> enforces <code>#![deny(unsafe_code)]</code> (<code>#![forbid(unsafe_code)]</code> in <code>main.rs</code>), isolating FFI/syscall storage adapters in <code>src/storage/</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>6-Stage Pipeline:</strong> Scanner &amp; depth-8 probe → Geolocation cascade → YOLO11 crop → BioCLIP 512-d embedding + Bayesian regional priors → Burst consensus → SQLite manifest &amp; decoupled HTML projection.</div></li>
+            <li><span class="bullet">•</span><div><strong>Pure-Rust Reclassification:</strong> Stored 512-d embeddings (2,048-byte blobs) let <code>--reclassify-mode fast</code> re-score thresholds and priors in milliseconds with zero Python/ONNX overhead.</div></li>
+          </ul>
         </div>
       </div>
 
-      <!-- Visual Stage -->
       <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">Transformation Pipeline Overview</h4>
-        <div class="pipeline-flow">
-          <div class="pipeline-node active-stage">
-            <div class="node-icon">📁</div>
-            <div class="node-title">Trip Archive</div>
-            <div class="node-subtitle">RAW + XMP sidecars</div>
-          </div>
-          <div class="pipeline-arrow">➔</div>
-          <div class="pipeline-node">
-            <div class="node-icon">📍</div>
-            <div class="node-title">Geo Cascade</div>
-            <div class="node-subtitle">EXIF + Sibling + Gazetteer</div>
-          </div>
-          <div class="pipeline-arrow">➔</div>
-          <div class="pipeline-node">
-            <div class="node-icon">🎯</div>
-            <div class="node-title">YOLO11 Crop</div>
-            <div class="node-subtitle">15% Context Padding</div>
-          </div>
-          <div class="pipeline-arrow">➔</div>
-          <div class="pipeline-node">
-            <div class="node-icon">🧬</div>
-            <div class="node-title">BioCLIP + Prior</div>
-            <div class="node-subtitle">11,167 Birds + Multi-Taxa</div>
-          </div>
-          <div class="pipeline-arrow">➔</div>
-          <div class="pipeline-node">
-            <div class="node-icon">🌊</div>
-            <div class="node-title">Burst Smooth</div>
-            <div class="node-subtitle">Cosine Pooling</div>
-          </div>
-          <div class="pipeline-arrow">➔</div>
-          <div class="pipeline-node active-stage">
-            <div class="node-icon">✨</div>
-            <div class="node-title">In-Place / Tree</div>
-            <div class="node-subtitle">0 Extra Disk Bytes!</div>
-          </div>
+        <div class="stage-header">
+          <span class="stage-title">Hexagonal Codebase Map (<code>src/</code>) &amp; End-to-End Pipeline</span>
+          <span class="pill-tag pill-cyan">Click any module to inspect</span>
         </div>
-      </div>
-    </section>
-
-    <!-- SCENE 2: Inode Magic, In-Place vs Hierarchy & The exFAT Trap -->
-    <section class="scene-slide" id="scene-1" data-index="1">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 2 of 9 • Filesystem Strategies & Portability</span>
-            <span class="scene-duration">⏱ ~85 sec audio</span>
-          </div>
-          <h2 class="scene-title">In-Place Universal Renaming vs APFS Hard Links & The exFAT Trap</h2>
-          <p class="scene-desc">Why in-place renaming works universally on any travel drive (exFAT, FAT32, APFS, NTFS), how POSIX hard links enable zero-byte hierarchy trees, and how to avoid disk duplication traps.</p>
-        </div>
-      </div>
-
-      <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> For the Photographer</h3>
-            <span class="pill pill-green">Storage & Portability</span>
-          </div>
-          <div class="perspective-card-body">
-            Normally, copying a 50MB Sony or Canon RAW file into species folders costs another 50MB.
-            <code>avicull</code> offers two distinct, storage-safe strategies:
-            <ul>
-              <li><strong>In-Place Renaming (Universal Default):</strong> Renames files directly where they live (<code>&lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;...</code>) while keeping .XMP and .DOP edits synchronized. Works on <em>any</em> portable SSD or SD card, including exFAT!</li>
-              <li><strong>Zero-Byte Hierarchy Tree:</strong> On APFS or NTFS drives, projects files into <code>birds_hierarchy/</code> via POSIX hard links. Opening the file from either folder opens the <em>exact same physical bits</em>!</li>
-              <li><strong>⚠️ The exFAT Trap:</strong> Portable SSDs (SanDisk Extreme, Samsung T7) are typically pre-formatted as <strong>exFAT</strong>, which does <em>not</em> support hard links. Drag-and-drop copying hardlink trees to exFAT duplicates all payloads. Use <strong>in-place mode</strong> on exFAT, or format the drive as <strong>APFS</strong> or <strong>NTFS</strong> (with <code>rsync -avH</code>)!</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> Under The Hood: Inodes, VFS & NTFS</h3>
-            <span class="pill pill-blue">VFS & Filesystem Internals</span>
-          </div>
-          <div class="perspective-card-body">
-            Hard links are a universal POSIX VFS concept (<code>link(2)</code>), not unique to APFS:
-            <ul>
-              <li><strong>UNIX Extensibility:</strong> ext4, Btrfs, XFS, ZFS, F2FS, and UFS all implement directory entries as mappings to an inode number (<code>st_ino</code>), incrementing <code>st_nlink</code> with <strong>0 additional disk payload</strong>.</li>
-              <li><strong>NTFS Support:</strong> Windows NTFS natively supports hard links via Master File Table (MFT) record reference counts (up to 1,024 links per file).</li>
-              <li><strong>In-Place Mode (Filesystem Agnostic):</strong> Renames parent and sidecar dentries atomically via <code>std::fs::rename</code>, bypassing hard link limitations on non-POSIX filesystems.</li>
-              <li><strong>The Copy Trap:</strong> Standard <code>cp -r</code> or macOS Finder reads each dentry as a new file, inflating links into duplicates. To preserve zero-byte links across drives, use <code>rsync -avH</code> or pipe <code>tar</code>.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Inode Simulator Widget -->
-      <div class="interactive-stage">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Interactive APFS Inode Simulator</h4>
-          <button class="btn btn-primary" id="btnToggleHardLink" style="font-size:0.75rem; padding: 0.3rem 0.7rem;">
-            🔗 Simulate `avicull organize`
+        <div class="arch-grid" id="archGrid">
+          <button class="arch-box" type="button" data-arch="types" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>Domain Core</strong><br><code>src/types.rs</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;"><code>AssetBundle</code>, <code>AssetCategory</code>, <code>OrganizationMode</code>, <code>ReclassifyMode</code></div>
+          </button>
+          <button class="arch-box" type="button" data-arch="scanner" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>Scanner &amp; Probe</strong><br><code>src/scanner.rs</code>, <code>probe.rs</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;">Sidecar bundling, depth-8 dir-only NAS probe, embedded JPEG extraction</div>
+          </button>
+          <button class="arch-box" type="button" data-arch="storage" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>Storage Adapters</strong><br><code>src/storage/*</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;"><code>LocalVolume</code>, <code>MacOSCloudStorage</code> (<code>SF_DATALESS</code>), <code>NetworkShare</code>, WebDAV/OpenDAL</div>
+          </button>
+          <button class="arch-box" type="button" data-arch="ml" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>ML &amp; Spatial Priors</strong><br><code>detector.rs</code>, <code>classifier.rs</code>, <code>location/</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;">YOLO11 + BioCLIP (<code>scripts/infer.py</code>), <code>GazetteerEngine</code>, eBird checklists</div>
+          </button>
+          <button class="arch-box" type="button" data-arch="organizer" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>Organizer &amp; SQLite</strong><br><code>src/organizer/*</code>, <code>src/db.rs</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;"><code>engine.rs</code>, <code>batch.rs</code>, <code>chunk.rs</code>, <code>reconcile.rs</code>, <code>correct.rs</code></div>
+          </button>
+          <button class="arch-box" type="button" data-arch="catalog" style="text-align:left;cursor:pointer;color:inherit;">
+            <strong>Decoupled View</strong><br><code>src/catalog/*</code>
+            <div style="color:var(--text-muted);margin-top:0.25rem;">Pure SQLite → <code>catalog.html</code> projection, <code>DualThumbnailStrategy</code>, Inspector</div>
           </button>
         </div>
+        <div class="inspector-box" id="archDetail">
+          <strong>Module Inspector:</strong> Click any module card above to see its exact responsibilities and invariants.
+        </div>
+      </div>
+    </section>
 
+    <!-- SCENE 2: Three Organization Modes & Filesystem Portability -->
+    <section class="scene-slide" id="scene-1">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 2 • Organization Modes &amp; Filesystem Invariants</span>
+        <h2 class="scene-title">Three Modes: Read-Only Cataloging, Cosmetic Rename &amp; Zero-Byte Hard Links</h2>
+        <p class="scene-subtitle"><code>--mode in-place</code> is the safe read-only default. Opt into <code>in-place-rename</code> for descriptive filenames or <code>hierarchy</code> for POSIX hard-linked species folders.</p>
+      </div>
+
+      <div class="mode-grid-3">
+        <div class="mode-card is-default">
+          <h4><span>1. <code>--mode in-place</code></span><span class="pill-tag pill-green">DEFAULT</span></h4>
+          <p style="color:var(--text-muted);margin-bottom:0.4rem;">Strictly read-only on your source photos and sidecars.</p>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div>Zero files moved, renamed, or deleted in <code>--input</code>.</div></li>
+            <li><span class="bullet">•</span><div>Writes only to <code>avicull_catalog_files/</code> and <code>catalog.html</code>.</div></li>
+            <li><span class="bullet">•</span><div>Works on APFS, exFAT, NTFS, SMB/NFS, and cloud drives.</div></li>
+          </ul>
+        </div>
+        <div class="mode-card">
+          <h4><span>2. <code>--mode in-place-rename</code></span><span class="pill-tag pill-cyan">OPT-IN</span></h4>
+          <p style="color:var(--text-muted);margin-bottom:0.4rem;">Cosmetic, journaled renaming of primary + sidecar pairs.</p>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div>Pattern: <code>&lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_YYYYMMDD][_Loc].ext</code></div></li>
+            <li><span class="bullet">•</span><div>Transactionally journaled in <code>manifest.sqlite</code>.</div></li>
+            <li><span class="bullet">•</span><div>Lossless rollback via <code>avicull clean</code>.</div></li>
+          </ul>
+        </div>
+        <div class="mode-card">
+          <h4><span>3. <code>--mode hierarchy</code></span><span class="pill-tag pill-amber">OPT-IN</span></h4>
+          <p style="color:var(--text-muted);margin-bottom:0.4rem;">Zero-byte POSIX hard links into <code>birds_hierarchy/</code>.</p>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><code>std::fs::hard_link</code> shares identical disk inodes (<code>dst_ino == src_ino</code>).</div></li>
+            <li><span class="bullet">•</span><div>Supports simultaneous trip + parent hierarchies (<code>st_nlink ≥ 2</code>).</div></li>
+            <li><span class="bullet">•</span><div>Local POSIX/APFS/NTFS volumes only (same <code>st_dev</code>).</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="interactive-stage" style="margin-top:1.1rem;">
+        <div class="stage-header">
+          <span class="stage-title">Interactive APFS Inode Simulator (<code>--mode hierarchy</code>)</span>
+          <button class="btn btn-primary" id="btnToggleHardLink" type="button">🔗 Simulate avicull organize --mode hierarchy</button>
+        </div>
         <div class="inode-viz">
-          <!-- Source Trip Box -->
           <div class="tree-box">
-            <div class="tree-box-title">
-              <span>Source Trip Archive (--input)</span>
-              <span class="pill pill-green">Read-Only</span>
+            <div class="tree-header"><span>📁</span> Source Archive (Strictly Read-Only)</div>
+            <div class="tree-node">📂 /Volumes/Photos/Leh/</div>
+            <div class="tree-node indent-1" style="color:#fff;">
+              <span>📷</span> <strong>DSC_4011.CR2</strong> <span class="inode-badge">ino: #90421</span>
             </div>
-            <div class="tree-line highlight">
-              <span>📁 Bharatpur/</span>
-            </div>
-            <div class="tree-line highlight" style="margin-left: 1rem;">
-              <span>DSC_4011.CR2</span>
-              <span class="inode-chip">ino: 849201</span>
-            </div>
-            <div class="tree-line highlight" style="margin-left: 1rem;">
-              <span>DSC_4011.xmp</span>
-              <span class="inode-chip">ino: 849202</span>
+            <div class="tree-node indent-1">
+              <span>📄</span> DSC_4011.xmp <span class="inode-badge">ino: #90422</span>
             </div>
           </div>
 
-          <!-- Physical APFS Inode Block -->
-          <div class="inode-block-card">
-            <div class="inode-badge">APFS Inode #849201</div>
-            <div class="data-size-stat">48.2 MB</div>
-            <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">Physical Flash Block On Disk</div>
-            <div class="link-count-pill" id="inodeLinkCounter">
-              <span>st_nlink = </span><strong id="linkCountNum">1</strong>
-            </div>
-            <div style="font-size: 0.7rem; color: #34d399; margin-top: 0.5rem;" id="additionalBytesLabel">
-              +0 disk bytes added
+          <div class="inode-center">
+            <div class="inode-disk">
+              <div style="font-size:0.75rem;color:var(--text-muted);">Physical APFS Blocks</div>
+              <div style="font-size:1.05rem;font-weight:700;color:#fff;">Inode #90421 (45 MB)</div>
+              <div style="font-size:0.78rem;color:#34d399;">Link Count (st_nlink): <strong id="linkCountNum">1</strong></div>
+              <div style="font-size:0.74rem;color:#94a3b8;margin-top:0.25rem;" id="additionalBytesLabel">Output not linked yet; source intact</div>
             </div>
           </div>
 
-          <!-- Destination Species Tree -->
           <div class="tree-box">
-            <div class="tree-box-title">
-              <span>Species Output Tree</span>
-              <span class="pill pill-blue">birds_hierarchy</span>
+            <div class="tree-header"><span>🌳</span> Organized Hierarchy (<code>birds_hierarchy/</code>)</div>
+            <div class="tree-node" id="dstTreeFolder" style="opacity:0.35;">📂 birds_hierarchy/Bird/Painted_Stork/</div>
+            <div class="tree-node indent-1" id="dstTreeFile" style="opacity:0.35;color:#fff;">
+              <span>🔗</span> <strong>2025-11-15_DSC_4011.CR2</strong> <span class="inode-badge">ino: #90421</span>
             </div>
-            <div class="tree-line" id="dstTreeFolder">
-              <span>📁 Painted_Stork/</span>
-            </div>
-            <div class="tree-line" id="dstTreeFile" style="margin-left: 1rem;">
-              <span id="dstFileNameLabel">DSC_4011_0.96.CR2</span>
-              <span class="inode-chip" id="dstInodeChip">ino: 849201</span>
-            </div>
-            <div class="tree-line" id="dstTreeSidecar" style="margin-left: 1rem;">
-              <span id="dstSidecarNameLabel">DSC_4011_0.96.xmp</span>
-              <span class="inode-chip">ino: 849202</span>
+            <div class="tree-node indent-1" id="dstTreeSidecar" style="opacity:0.35;">
+              <span>🔗</span> 2025-11-15_DSC_4011.xmp <span class="inode-badge">ino: #90422</span>
             </div>
           </div>
         </div>
 
-        <!-- Filesystem Portability Matrix -->
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.5rem;">
-          Cross-Filesystem Portability & Backup Compatibility Matrix
-        </h4>
         <div class="fs-matrix">
-          <div class="fs-card supported">
-            <div class="fs-card-head">
-              <span class="fs-card-name">APFS (macOS Native)</span>
-              <span class="pill pill-green">Native</span>
-            </div>
-            <div style="color:#34d399; font-weight:600;">Zero-Byte Hard Links</div>
-            <p style="color:var(--text-muted);">Default target for avicull. Directory entries share <code>st_ino</code>. Up to 2^31 links per inode.</p>
+          <div class="fs-card fs-supported">
+            <h5>macOS APFS / HFS+</h5>
+            <p>Native hard links &amp; <code>SF_DATALESS</code> cloud flags. Trip + parent hierarchies coexist at 0 extra bytes.</p>
           </div>
-
-          <div class="fs-card supported">
-            <div class="fs-card-head">
-              <span class="fs-card-name">ext4 / Btrfs / ZFS (Linux)</span>
-              <span class="pill pill-green">Full POSIX</span>
-            </div>
-            <div style="color:#34d399; font-weight:600;">link(2) VFS Architecture</div>
-            <p style="color:var(--text-muted);">Fully supported. Extensible to Linux workstations, NAS (NFSv4), and SAN storage without payload duplication.</p>
+          <div class="fs-card fs-supported">
+            <h5>Linux ext4 / Btrfs / XFS / ZFS</h5>
+            <p>Full POSIX <code>link(2)</code> support within the same mount (<code>st_dev</code>).</p>
           </div>
-
-          <div class="fs-card caution">
-            <div class="fs-card-head">
-              <span class="fs-card-name">NTFS (Windows)</span>
-              <span class="pill pill-yellow">Requires rsync -H</span>
-            </div>
-            <div style="color:#fbbf24; font-weight:600;">MFT Record Hard Links</div>
-            <p style="color:var(--text-muted);">NTFS natively supports hard links (max 1,024). Copying via Finder inflates files; use <code>rsync -avH</code> or <code>tar</code> pipe to preserve links!</p>
+          <div class="fs-card fs-supported">
+            <h5>Windows NTFS</h5>
+            <p>MFT hard links supported. Copy with <code>rsync -avH</code> or POSIX <code>tar</code> (Finder/<code>cp -r</code> duplicates bytes).</p>
           </div>
-
-          <div class="fs-card unsupported">
-            <div class="fs-card-head">
-              <span class="fs-card-name">exFAT / FAT32</span>
-              <span class="pill" style="background:rgba(244,63,94,0.2); color:#f43f5e;">No Hard Links</span>
-            </div>
-            <div style="color:#f43f5e; font-weight:600;">Inflates to Duplicates</div>
-            <p style="color:var(--text-muted);">Common format on portable SSDs & SD cards. Has no inode table. Copying here doubles storage!</p>
+          <div class="fs-card fs-trap">
+            <h5>exFAT / FAT32 (The SSD Trap)</h5>
+            <p>No inode link counts. Never copy <code>birds_hierarchy</code> to exFAT; use default <code>--mode in-place</code> instead.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 3: Stage 1 & 2 - Discovery & Location Intelligence -->
-    <section class="scene-slide" id="scene-2" data-index="2">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 3 of 9 • Discovery, Bundling & Geo</span>
-            <span class="scene-duration">⏱ ~75 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 1 & 2: Discovery, Sidecar Bundling, Dataless Protection & Geo Cascade</h2>
-          <p class="scene-desc">Scanning large photo trees in milliseconds, bundling RAWs with XMP/DOP sidecars, safeguarding Darwin dataless files from cloud hydration, extracting embedded previews, and inferring GPS coordinates.</p>
-        </div>
+    <!-- SCENE 3: Discovery, Cloud Dataless Guard, NAS Probe & Geo Cascade -->
+    <section class="scene-slide" id="scene-2">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 3 • Stage 1 &amp; 2: Discovery, Cloud/NAS Safety &amp; Geolocation</span>
+        <h2 class="scene-title">Dataless Cloud Protection, &lt;2ms NAS Probes &amp; 4-Tier Geo Cascade</h2>
+        <p class="scene-subtitle">Before touching pixels, <code>avicull</code> guards against accidental cloud downloads, skips unchanged NAS trips in milliseconds, and resolves coordinates.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Camera Bodies, Sidecars & GPS</h3>
-            <span class="pill pill-green">Real Fieldwork</span>
-          </div>
-          <div class="perspective-card-body">
-            Professional wildlife cameras (Canon EOS R5, Sony A1, Nikon Z9, Fuji X-T5) often have GPS disabled to conserve battery, or lose signal under dense canopy.
-            <ul>
-              <li><strong>Zero Lost Edits:</strong> RAW files are bundled with companion JPEGs, Lightroom <code>.xmp</code>, DxO PhotoLab <code>.dop</code>, and companion live burst videos (<code>.mov</code>). Edits and metadata always stay synchronized!</li>
-              <li><strong>Sibling Propagation:</strong> If only <em>one</em> photo in your entire trip folder has GPS (like a quick iPhone shot), <code>avicull</code> automatically propagates those coordinates to every shot in that trip folder!</li>
-              <li><strong>Folder Gazetteer:</strong> If your folder is named <code>2025-11_Keoladeo_Bharatpur</code>, avicull recognizes the sanctuary name and applies its coordinates automatically.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Cloud &amp; DSLR Location Comfort</span></div>
+          <h3>Zero Accidental Cloud Downloads</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Works with Cloud-Only Libraries:</strong> iCloud, Google Drive, Proton Drive, OneDrive, and Dropbox files stay cloud-only until their bounded <code>--max-cache-size 5GB</code> batch runs, then newly hydrated stubs are evicted back.</div></li>
+            <li><span class="bullet">•</span><div><strong>Pre-Existing Local Files Stay Local:</strong> Any photo you marked "Keep Offline" is tracked via <code>pre_existing_local</code> and is <strong>never</strong> evicted.</div></li>
+            <li><span class="bullet">•</span><div><strong>No Camera GPS? No Problem:</strong> Folder names like <code>2025-11_Bharatpur_Keoladeo</code> match the offline <code>GazetteerEngine</code> via trigram fuzzy matching.</div></li>
+          </ul>
         </div>
 
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> High-Throughput I/O & Cloud Safety</h3>
-            <span class="pill pill-blue">High Performance I/O</span>
-          </div>
-          <div class="perspective-card-body">
-            <code>src/scanner.rs</code> and <code>src/geo.rs</code> prioritize safety and high-throughput execution:
-            <ul>
-              <li><strong>Darwin `SF_DATALESS` Protection:</strong> Detects macOS FileProvider flags (<code>0x40000000</code>). Eager opening of dataless cloud files is strictly blocked, preventing unwanted on-demand cloud hydration from iCloud Drive or Dropbox!</li>
-              <li><strong>In-Memory RAW Preview:</strong> Scans raw bytes for embedded JPEG markers (<code>0xFFD8..0xFFD9</code>). This extracts 4K JPEG previews in 15ms—10x faster than dcraw or full raw demosaicing.</li>
-              <li><strong>AssetBundle Contract:</strong> Bundles primary RAW, companion JPEG, sidecars (<code>.xmp</code>, <code>.dop</code>), and companion videos under a deterministic BLAKE3 hash.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Systems Engineering Mechanics</span></div>
+          <h3>Dataless Guard, Depth-8 Probe &amp; Geo Cascade</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong><code>DatalessFaultGuard</code>:</strong> <code>src/geo.rs</code> &amp; <code>src/storage/local.rs</code> inspect BSD <code>meta.st_flags() &amp; 0x4000_0000</code> (<code>SF_DATALESS</code>) before opening descriptors.</div></li>
+            <li><span class="bullet">•</span><div><strong><code>DirectoryOnlySignatureProbe</code>:</strong> <code>src/scanner/probe.rs</code> hashes directory-only <code>(max_mtime, sum(readdir_count))</code> down to depth 8 in <code>&lt;2ms</code>, skipping unchanged SMB/NFS trip folders.</div></li>
+            <li><span class="bullet">•</span><div><strong><code>GeolocationNormalizer</code>:</strong> Parses decimal coords, DMS, cardinal N/S/E/W, Google Maps URLs, and swaps inverted <code>(lon, lat)</code> when <code>|lon| &gt; 90°</code>.</div></li>
+          </ul>
         </div>
       </div>
 
       <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
-          4-Tier Location Resolution Cascade
-        </h4>
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #10b981;">
-            <div style="font-size:0.75rem; color:#34d399; font-weight:700;">PRIORITY 1</div>
-            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">EXIF GPS</div>
-            <p style="font-size:0.75rem; color:var(--text-muted);">Direct camera coordinates via <code>nom-exif</code>.</p>
+        <div class="stage-header">
+          <span class="stage-title">Strict Location Precedence Cascade (<code>src/location/resolver.rs</code>)</span>
+          <span class="pill-tag pill-cyan">Highest → Lowest Priority</span>
+        </div>
+        <div class="mode-grid-4">
+          <div class="mode-card is-default">
+            <h4><span>1. EXIF GPS</span><span class="pill-tag pill-green">IMMUTABLE</span></h4>
+            <p style="color:var(--text-muted);">Hardware GPS tags embedded in RAW/JPEG are never overwritten by folder or CLI overrides.</p>
           </div>
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #06b6d4;">
-            <div style="font-size:0.75rem; color:#38bdf8; font-weight:700;">PRIORITY 2</div>
-            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Sibling Propagation</div>
-            <p style="font-size:0.75rem; color:var(--text-muted);">Inherits median GPS from neighboring photos in same trip.</p>
+          <div class="mode-card">
+            <h4><span>2. Image Override</span><span class="pill-tag pill-cyan">SQLITE</span></h4>
+            <p style="color:var(--text-muted);">Per-file override via <code>avicull location --file ...</code> or <code>catalog.html</code> selection.</p>
           </div>
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #f59e0b;">
-            <div style="font-size:0.75rem; color:#fbbf24; font-weight:700;">PRIORITY 3</div>
-            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Trip Gazetteer</div>
-            <p style="font-size:0.75rem; color:var(--text-muted);">Matches folder name ("Ranganathittu") against offline database.</p>
+          <div class="mode-card">
+            <h4><span>3. Subdir Override</span><span class="pill-tag pill-cyan">DEEPEST</span></h4>
+            <p style="color:var(--text-muted);">Deepest matching subfolder location override or gazetteer folder-token match.</p>
           </div>
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid #8b5cf6;">
-            <div style="font-size:0.75rem; color:#c084fc; font-weight:700;">PRIORITY 4</div>
-            <div style="font-weight:600; margin:0.3rem 0; font-size:0.9rem;">Default / CLI</div>
-            <p style="font-size:0.75rem; color:var(--text-muted);">Configured fallback coordinates or neutral prior.</p>
+          <div class="mode-card">
+            <h4><span>4. Parent / Default</span><span class="pill-tag pill-amber">FALLBACK</span></h4>
+            <p style="color:var(--text-muted);">Parent trip override or <code>--default-lat</code> / <code>--default-lon</code> when unlocated.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 4: Stage 3 - YOLO11 Detection & Context Padding -->
-    <section class="scene-slide" id="scene-3" data-index="3">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 4 of 9 • Detection & Padding</span>
-            <span class="scene-duration">⏱ ~75 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 3: Ultralytics YOLO11 Subject Localization & 15% Padding</h2>
-          <p class="scene-desc">Why background clutter confuses species classifiers, and how hardware-accelerated localization isolates birds, mammals, and insects while preserving diagnostic field marks.</p>
-        </div>
+    <!-- SCENE 4: Stage 3 YOLO11 Detection & Visual Relevance Floor -->
+    <section class="scene-slide" id="scene-3">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 4 • Stage 3: Subject Detection &amp; Relevance Floor</span>
+        <h2 class="scene-title">Ultralytics YOLO11, 15% Context Padding &amp; Hallucination Rejection</h2>
+        <p class="scene-subtitle"><code>scripts/infer.py</code> isolates the primary subject with 15% padding, then guards against rock/water/statue false positives before species classification.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Field Marks & Heavy Foliage</h3>
-            <span class="pill pill-green">Wildlife Nuance</span>
-          </div>
-          <div class="perspective-card-body">
-            Animals rarely pose in clean open skies. Birds lurk behind reed beds; snow leopards camouflage against scree; insects perch on flower petals.
-            <ul>
-              <li>If you feed the whole image to an AI, it might classify the <em>tree or rock</em> instead of the subject!</li>
-              <li><strong>The 15% Context Padding:</strong> Tight bounding boxes often cut off beak tips, crest feathers, horn curves, or tail shapes—critical diagnostic field marks. avicull intelligently expands the crop by 15% on all four sides.</li>
-              <li>If no subject is present (missed flight shot or landscape), it routes cleanly to <code>No_Subject_Detected</code> (preserving <code>_No_Bird_Detected</code> compatibility).</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Subject Focus</span></div>
+          <h3>Separating Birds from Busy Foliage</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Primary Subject Selection:</strong> When flocks or clutter appear, YOLO11 selects the detection maximizing <code>confidence × area</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>15% Context Halo:</strong> Expands the bounding box by 15% on each side so wingtips, tail feathers, and bills aren't clipped.</div></li>
+            <li><span class="bullet">•</span><div><strong>No Ghost Birds on Rocks:</strong> If a rock or branch triggers a weak box, the visual relevance floor rejects it and classifies the full frame as Scenery or No Subject.</div></li>
+          </ul>
         </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> CoreML Acceleration & Heuristics</h3>
-            <span class="pill pill-blue">ONNX on Apple Neural Engine</span>
-          </div>
-          <div class="perspective-card-body">
-            <code>src/detector.rs</code> executes Ultralytics YOLO11m via <code>ort</code> on Apple Silicon Metal/ANE:
-            <ul>
-              <li><strong>Multi-Subject Targeting:</strong> When multiple candidates appear, it chooses the box maximizing:
-                <div class="formula-box">Score = Confidence × Area</div>
-                This reliably locks onto the foreground subject rather than background flocks.
-              </li>
-              <li><strong>Clamped Resampling:</strong> The 15% padding is safely clamped to image boundaries, followed by high-quality Lanczos3 resampling to 224x224.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Detector &amp; Floor Mechanics</span></div>
+          <h3>YOLO11n (<code>imgsz=640</code>) + BioCLIP Relevance Gate</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Class Filter:</strong> Filters <code>COCO_ANIMAL_CLASS_IDS</code> (person <code>0</code>, bird <code>14</code>, mammals <code>15..=23</code>) with <code>conf ≥ 0.25</code> and <code>area_ratio ≥ 0.001</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Visual Relevance Floor:</strong> Rejects crops with <code>peak_crop_sim &lt; 0.23</code> (or <code>det_conf &lt; 0.35</code> and <code>peak_crop_sim &lt; 0.25</code>).</div></li>
+            <li><span class="bullet">•</span><div><strong>Genre Fallback:</strong> Rejected crops fall back to full-frame <code>Scenery</code>, <code>Architecture</code>, <code>Abstract</code> (with <code>visual_entropy ≥ 1.0</code>), or <code>No_Subject_Detected</code>.</div></li>
+          </ul>
         </div>
       </div>
 
-      <!-- Interactive Detector Visualizer -->
       <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">Interactive YOLO11 Bounding Box & 15% Padding</h4>
-        <div style="display: flex; gap: 2rem; align-items: center; justify-content: center; flex-wrap: wrap;">
-          <!-- Simulated Image Canvas -->
-          <div style="position: relative; width: 340px; height: 220px; background: #0c1424; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center;">
-            <svg viewBox="0 0 340 220" style="width:100%; height:100%;">
-              <!-- Background foliage -->
-              <path d="M0 220 Q 80 140 140 220 Q 220 160 340 220 Z" fill="#142823"/>
-              <path d="M20 220 Q 90 90 200 220" stroke="#1f4136" stroke-width="6" fill="none"/>
-              <!-- Bird vector -->
-              <g transform="translate(140, 70)">
-                <ellipse cx="40" cy="40" rx="30" ry="20" fill="#e2e8f0"/>
-                <circle cx="65" cy="30" r="14" fill="#cbd5e1"/>
-                <polygon points="76,28 95,32 76,36" fill="#f59e0b"/>
-                <circle cx="68" cy="27" r="2.5" fill="#0f172a"/>
-                <path d="M15 40 Q -10 50 -15 65" stroke="#94a3b8" stroke-width="4"/>
-              </g>
-              <!-- Raw YOLO Box (red dotted) -->
-              <rect id="rawBox" x="125" y="85" width="110" height="70" fill="none" stroke="#f43f5e" stroke-width="2" stroke-dasharray="4"/>
-              <!-- Padded 15% Box (green solid) -->
-              <rect id="paddedBox" x="110" y="75" width="140" height="90" fill="rgba(16, 185, 129, 0.15)" stroke="#10b981" stroke-width="2"/>
-            </svg>
-            <div style="position:absolute; bottom:8px; left:8px; font-size:0.7rem; font-family:var(--font-mono); background:rgba(0,0,0,0.7); padding:2px 6px; border-radius:4px;">
-              Bird Detected: 94.2% (YOLO11m)
-            </div>
+        <div class="stage-header">
+          <span class="stage-title">Interactive Detection &amp; Relevance Floor Inspector</span>
+          <div style="display:flex;gap:0.4rem;">
+            <button class="btn" type="button" data-yolo-mode="padded">15% Padded Crop</button>
+            <button class="btn" type="button" data-yolo-mode="raw">Raw YOLO Box</button>
+            <button class="btn" type="button" data-yolo-mode="rejected">Hallucination Rejected</button>
           </div>
+        </div>
+        <div class="inspector-box" id="yoloInspector">
+          <strong>15% Padded Crop (Active):</strong> YOLO11 detected <code>class=14 (bird)</code>, <code>det_conf=0.88</code>. Box expanded by <code>0.15 × w</code> and <code>0.15 × h</code>. BioCLIP <code>peak_crop_sim = 0.34 ≥ 0.23</code> → passed to species classifier.
+        </div>
+      </div>
+    </section>
 
-          <div style="max-width: 380px;">
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
-              <span style="display:inline-block; width:12px; height:12px; background:#f43f5e; border-radius:2px;"></span>
-              <span style="font-size:0.8rem; color:#cbd5e1;">Raw YOLO11 Box (Cuts off bill & tail feathers)</span>
+    <!-- SCENE 5: Stage 4 BioCLIP + Bayesian Spatial-Temporal Priors -->
+    <section class="scene-slide" id="scene-4">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 5 • Stage 4: BioCLIP &amp; Bayesian Spatial-Temporal Priors</span>
+        <h2 class="scene-title">512-d BioCLIP Embeddings + Regional Checklist Priors</h2>
+        <p class="scene-subtitle">Visual similarity across 11,167 eBird species &amp; non-avian taxa fused with regional occurrence priors—plus an override guard for rare vagrants.</p>
+      </div>
+
+      <div class="perspective-grid">
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Solving Lookalikes</span></div>
+          <h3>Separating Identical Plumage by Geography</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Lookalike Disambiguation:</strong> Visually similar species (e.g., Blyth's vs. European Reed Warbler) are cleanly separated when regional eBird checklists are applied.</div></li>
+            <li><span class="bullet">•</span><div><strong>Vagrants &amp; Zoos Protected:</strong> An unmistakable visual match (e.g., a Macaw photographed in a zoo) is never erased by a local checklist.</div></li>
+          </ul>
+        </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Scoring Math</span></div>
+          <h3>Temperature-Scaled Logits + Soft-Bounded Priors</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>L₂-Normalized 512-d Vector:</strong> BioCLIP (<code>hf-hub:imageomics/bioclip</code>) encodes crops into <code>v ∈ ℝ⁵¹²</code>, scored via <code>softmax(100.0 × v · Eᵀ)</code> against <code>[11167, 512]</code> embeddings.</div></li>
+            <li><span class="bullet">•</span><div><strong>Checklist Multiplier:</strong> In-region species receive <code>1.0</code>; out-of-region species are attenuated (<code>0.05</code> in <code>infer.py</code>, <code>0.001</code> in <code>src/classifier.rs</code>) scaled by <code>--geo-prior-weight</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Strong-Visual-Override Guard:</strong> Bypassed when <code>top_vis_prob ≥ 0.15</code> and <code>top_vis_prob &gt; 5.0 × max_in_region_prob</code>.</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="interactive-stage">
+        <div class="stage-header">
+          <span class="stage-title">Interactive Bayesian Lookalike Demo (Keoladeo, India)</span>
+          <span id="geoLocLabel" class="pill-tag pill-cyan">0% Geo Prior (Pure Visual)</span>
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label for="geoSlider" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:0.35rem;">Adjust Spatial Prior Weight (0% = Visual Only → 100% = Full Regional Checklist):</label>
+          <input type="range" id="geoSlider" min="0" max="100" value="0" style="width:100%;accent-color:#06b6d4;">
+        </div>
+        <div class="bayesian-grid">
+          <div class="mode-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <strong>Blyth's Reed Warbler</strong>
+              <span class="pill-tag pill-green" id="blythBadge">P_post: 51%</span>
             </div>
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem;">
-              <span style="display:inline-block; width:12px; height:12px; background:#10b981; border-radius:2px;"></span>
-              <span style="font-size:0.8rem; color:#cbd5e1;"><strong>avicull 15% Context Pad</strong> (Preserves field marks)</span>
+            <div style="background:#0f172a;height:10px;border-radius:6px;margin:0.5rem 0;overflow:hidden;">
+              <div id="blythBar" style="width:51%;height:100%;background:#10b981;transition:width 0.2s;"></div>
             </div>
-            <p style="font-size:0.78rem; color:var(--text-muted); line-height:1.5;">
-              By preserving plumage margins, the downstream BioCLIP transformer sees full bill shape, crown pattern, and wing bars without surrounding background clutter.
-            </p>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Visual: 51% • <span id="blythGeo">Checklist Prior: 1.00 (off)</span></div>
+          </div>
+          <div class="mode-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <strong>European Reed Warbler</strong>
+              <span class="pill-tag pill-amber" id="eurBadge">P_post: 49%</span>
+            </div>
+            <div style="background:#0f172a;height:10px;border-radius:6px;margin:0.5rem 0;overflow:hidden;">
+              <div id="eurBar" style="width:49%;height:100%;background:#f59e0b;transition:width 0.2s;"></div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted);">Visual: 49% • <span id="eurGeo">Checklist Prior: 1.00 (off)</span></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 5: Stage 4 - BioCLIP 2 & Bayesian Prior across 11,167 Species + Multi-Taxa -->
-    <section class="scene-slide" id="scene-4" data-index="4">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 5 of 9 • AI & Bayesian Math</span>
-            <span class="scene-duration">⏱ ~85 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 4: BioCLIP 2, Curated Multi-Taxa & Bayesian Spatial-Temporal Priors</h2>
-          <p class="scene-desc">Why pure visual AI models hallucinate on lookalikes—and how Bayesian geographical priors and eBird/iNaturalist checklists eliminate out-of-range false positives across 11,167 birds and curated wildlife.</p>
-        </div>
+    <!-- SCENE 6: Stage 5 Burst Consensus & Fast Reclassification -->
+    <section class="scene-slide" id="scene-5">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 6 • Stage 5: Burst Consensus &amp; Fast Reclassification</span>
+        <h2 class="scene-title">Anti-Flicker Burst Pooling &amp; Millisecond Software Re-Scoring</h2>
+        <p class="scene-subtitle">Consecutive burst frames pool their posteriors, and stored 512-d SQLite embeddings allow instant threshold re-runs without touching neural models.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Lookalikes & Global Multi-Taxa</h3>
-            <span class="pill pill-green">Merlin AI Parallel</span>
-          </div>
-          <div class="perspective-card-body">
-            Cornell's Merlin Bird ID is world-famous because it asks: <em>"Where and when was this photo taken?"</em>
-            <ul>
-              <li>A Blyth's Reed Warbler in India looks almost indistinguishable from a European Reed Warbler in Germany.</li>
-              <li>Without location, a pure vision model might guess 50/50 and assign your Indian photo to a European species!</li>
-              <li>With <code>avicull</code>, the AI checks eBird regional checklists: European Reed Warblers are statistically non-existent in Keoladeo in November. The lookalike is suppressed, and the native bird surges to 98% confidence!</li>
-              <li><strong>Multi-Taxa Biodiversity:</strong> Mammals (Snow Leopard, Bengal Tiger, Asian Elephant), insects, reptiles, and scenery are recognized via curated global taxonomy without inappropriate bird checklist penalties.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Burst Stability</span></div>
+          <h3>Consistent Species Across 20-fps Bursts</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>No Split Bursts:</strong> If frame 3 of a 5-shot kingfisher burst has motion blur, the other 4 sharp frames carry the entire burst to the same species.</div></li>
+            <li><span class="bullet">•</span><div><strong>Instant Threshold Tweaks:</strong> Raising <code>--min-confidence</code> from <code>0.65</code> to <code>0.85</code> re-evaluates 50,000 photos in milliseconds using cached embeddings.</div></li>
+          </ul>
         </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> The Bayesian Math: BioCLIP + Checklist Prior</h3>
-            <span class="pill pill-blue">Probabilistic Formulation</span>
-          </div>
-          <div class="perspective-card-body">
-            We fuse multimodal vision embeddings with neural range maps and administrative checklists across 11,167 avian species and 224+ curated multi-taxa species:
-            <ul>
-              <li><strong>BioCLIP 2:</strong> Computes $L_2$-normalized image vector $v \in \mathbb{R}^d$ and temperature-scaled logits over precomputed taxonomic text matrix $T$:
-                <div class="formula-box">P_vis(s | I) = softmax(τ · v T^T)_s</div>
-              </li>
-              <li><strong>Bayesian Geo & Checklist Prior:</strong> Evaluates $P_geo(s | lat, lon, week)$. Rare vagrants are kept possible via floor $\epsilon = 0.001$:
-                <div class="formula-box">P_post(s) ∝ P_vis(s) · max(P_geo(s), ε)^α</div>
-              </li>
-              <li>Non-avian species bypass avian checklist multipliers, ensuring accurate classification across all 9 photographic categories.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interactive Bayesian Slider -->
-      <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
-          Interactive Bayesian Lookalike Demo: Blyth's vs. European Reed Warbler
-        </h4>
-
-        <div class="sim-controls">
-          <div class="sim-control-group">
-            <label for="geoSlider"><strong>Simulate Location:</strong></label>
-            <input type="range" class="sim-slider" id="geoSlider" min="0" max="100" value="0">
-            <span id="geoLocLabel" style="font-family:var(--font-mono); color:#38bdf8;">0% Geo Prior (Pure Visual)</span>
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:1.25rem;">
-          <!-- Species A -->
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid var(--border);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <strong style="color:#fff;">Blyth's Reed Warbler</strong>
-                <div style="font-size:0.75rem; color:var(--text-muted);">Acrocephalus dumetorum (Native in India)</div>
-              </div>
-              <span class="pill pill-green" id="blythBadge">P_post: 52%</span>
-            </div>
-            <div style="height:12px; background:#0f172a; border-radius:6px; margin-top:0.75rem; overflow:hidden;">
-              <div id="blythBar" style="height:100%; width:52%; background:linear-gradient(90deg, #10b981, #06b6d4); transition:width 0.3s;"></div>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-dim); margin-top:0.35rem;">
-              <span>Visual: 51%</span>
-              <span id="blythGeo">SINR Geo Prior: 0.00</span>
-            </div>
-          </div>
-
-          <!-- Species B -->
-          <div style="background:var(--bg-card); padding:1rem; border-radius:8px; border:1px solid var(--border);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div>
-                <strong style="color:#fff;">European Reed Warbler</strong>
-                <div style="font-size:0.75rem; color:var(--text-muted);">Acrocephalus scirpaceus (Vagrant in India)</div>
-              </div>
-              <span class="pill pill-yellow" id="eurBadge">P_post: 48%</span>
-            </div>
-            <div style="height:12px; background:#0f172a; border-radius:6px; margin-top:0.75rem; overflow:hidden;">
-              <div id="eurBar" style="height:100%; width:48%; background:linear-gradient(90deg, #f59e0b, #ef4444); transition:width 0.3s;"></div>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-dim); margin-top:0.35rem;">
-              <span>Visual: 49%</span>
-              <span id="eurGeo">SINR Geo Prior: 0.00</span>
-            </div>
-          </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Clustering &amp; Reclassification</span></div>
+          <h3><code>src/burst.rs</code> &amp; <code>--reclassify-mode fast</code></h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Burst Gate:</strong> Same trip &amp; category, <code>|Δt| ≤ 3000 ms</code> (<code>--burst-window-ms</code>), and embedding cosine similarity <code>cos(vᵢ, vⱼ) ≥ 0.80</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Confidence-Weighted Pooling:</strong> Posteriors weighted by <code>max(0.01, det_conf)</code> route to <code>ConfirmedSpecies</code>, <code>NeedsReview</code>, or <code>NoBirdDetected</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Default <code>--reclassify-mode fast</code>:</strong> <code>reclassify_from_cached_embeddings</code> reads 2,048-byte 512-d blobs from SQLite (use <code>forced</code> to re-run YOLO11 + BioCLIP).</div></li>
+          </ul>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 6: Stage 5 - Burst Consensus Smoothing -->
-    <section class="scene-slide" id="scene-5" data-index="5">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 6 of 9 • Burst Engine</span>
-            <span class="scene-duration">⏱ ~80 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 5: Burst Consensus Smoothing (Anti-Flicker)</h2>
-          <p class="scene-desc">High-speed motor drives capture 10 to 30 frames a second. Here is how avicull guarantees an entire burst stays together without mid-sequence flickering.</p>
-        </div>
+    <!-- SCENE 7: Stage 6 SQLite Manifest, Eviction & Multi-Trip Rollup -->
+    <section class="scene-slide" id="scene-6">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 7 • Stage 6: SQLite Manifest, Cloud Eviction &amp; Batch Rollup</span>
+        <h2 class="scene-title">Portable <code>avicull_catalog_files/manifest.sqlite</code> &amp; Safe Eviction Ordering</h2>
+        <p class="scene-subtitle">Self-contained SQLite state travels with your archive across machines, journals optional renames, and aggregates multi-trip folders with zero network RAW reads.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> High-Speed Motor Drives (20 FPS)</h3>
-            <span class="pill pill-green">Camera Science</span>
-          </div>
-          <div class="perspective-card-body">
-            When tracking a bird in flight, your camera fires off a burst of 5 to 20 shots:
-            <ul>
-              <li>Frame 1 is crisp and clear. Frame 3 might have wing motion blur. Frame 4 might have a brief autofocus hunt.</li>
-              <li><strong>The Annoyance:</strong> Without consensus smoothing, Frame 3 might fall below confidence or be misidentified, splitting your burst across multiple folders!</li>
-              <li><code>avicull</code> pools the whole burst together. The sharpest frame carries the blurred frames, keeping your sequence intact.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Portable &amp; Multi-Trip</span></div>
+          <h3>Move Drives Between Macs Without Re-Scanning</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Self-Contained Folder:</strong> Every trip stores its database and JPEG previews in <code>avicull_catalog_files/</code> (with <code>.avicull/</code> backward compatibility).</div></li>
+            <li><span class="bullet">•</span><div><strong>Permanent Human Overrides:</strong> Manual corrections via CLI, <code>catalog.html</code>, Finder moves, or manual renames are locked with <code>is_user_override = 1</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Parent Archive Rollup:</strong> <code>avicull organize-all</code> organizes each trip folder and builds a unified root <code>catalog.html</code>.</div></li>
+          </ul>
         </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> Cosine Similarity Graph Clustering</h3>
-            <span class="pill pill-blue">src/burst.rs Algorithm</span>
-          </div>
-          <div class="perspective-card-body">
-            Frames are clustered into a burst using two strict conditions:
-            <ul>
-              <li><strong>Temporal Proximity:</strong> $|\Delta t| \le 3000\text{ ms}$.</li>
-              <li><strong>Visual Cosine Similarity:</strong> $v_i \cdot v_j \ge 0.80$. This prevents errors when a photographer rapidly pans to a different species!</li>
-              <li><strong>Confidence-Weighted Pooling:</strong>
-                <div class="formula-box">P_burst(s) = (∑ w_m · P_post_m(s)) / (∑ w_m), where w_m = det_conf_m</div>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Filmstrip Widget -->
-      <div class="interactive-stage">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
-            Continuous 5-Frame Burst Sequence (Keoladeo Trip)
-          </h4>
-          <span class="pill pill-blue">Delta t = 200ms per frame</span>
-        </div>
-
-        <div class="filmstrip">
-          <div class="frame-card winner">
-            <div class="frame-thumb">
-              <span style="font-size:1.8rem;">🦅</span>
-              <div class="frame-bbox" style="width:50px; height:50px; top:12px; left:50px;"></div>
-            </div>
-            <div><strong>DSC_4011.CR2</strong></div>
-            <div style="color:var(--text-dim);">Frame 1 (Crisp)</div>
-            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.96</div>
-          </div>
-
-          <div class="frame-card winner">
-            <div class="frame-thumb">
-              <span style="font-size:1.8rem;">🦅</span>
-              <div class="frame-bbox" style="width:48px; height:48px; top:14px; left:52px;"></div>
-            </div>
-            <div><strong>DSC_4012.CR2</strong></div>
-            <div style="color:var(--text-dim);">Frame 2 (Good)</div>
-            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.94</div>
-          </div>
-
-          <div class="frame-card winner" style="border: 1px dashed #f59e0b;">
-            <div class="frame-thumb" style="filter: blur(1.5px);">
-              <span style="font-size:1.8rem;">🦅</span>
-              <div class="frame-bbox" style="width:45px; height:45px; top:16px; left:54px; border-color:#f59e0b;"></div>
-            </div>
-            <div><strong>DSC_4013.CR2</strong></div>
-            <div style="color:#fbbf24;">Frame 3 (Motion Blur)</div>
-            <div style="color:#fbbf24; font-weight:700; margin-top:4px;">Raw: 0.52 ➔ <span style="color:#34d399;">0.93</span></div>
-          </div>
-
-          <div class="frame-card winner">
-            <div class="frame-thumb">
-              <span style="font-size:1.8rem;">🦅</span>
-              <div class="frame-bbox" style="width:52px; height:52px; top:10px; left:48px;"></div>
-            </div>
-            <div><strong>DSC_4014.CR2</strong></div>
-            <div style="color:var(--text-dim);">Frame 4 (Refocused)</div>
-            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.91</div>
-          </div>
-
-          <div class="frame-card winner">
-            <div class="frame-thumb">
-              <span style="font-size:1.8rem;">🦅</span>
-              <div class="frame-bbox" style="width:50px; height:50px; top:12px; left:50px;"></div>
-            </div>
-            <div><strong>DSC_4015.CR2</strong></div>
-            <div style="color:var(--text-dim);">Frame 5 (Banking)</div>
-            <div style="color:#34d399; font-weight:700; margin-top:4px;">Conf: 0.89</div>
-          </div>
-        </div>
-
-        <div style="margin-top:1rem; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:0.85rem; color:#e2e8f0;">
-            <strong>Burst Consensus Result:</strong> All 5 frames assigned to <code>Painted_Stork/</code> with smoothed confidence <strong>0.93</strong>.
-          </div>
-          <span class="pill pill-green">Zero Split Sequences</span>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Persistence &amp; Cloud Ordering</span></div>
+          <h3><code>src/db.rs</code> Schema &amp; Eviction-Before-Rename</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Core Tables:</strong> <code>runs</code>, <code>bundles</code>, <code>bundle_decisions</code> (with 512-d embeddings), <code>bundle_thumbnails</code>, <code>hardlink_operations</code>, <code>directory_locations</code>, <code>bundle_locations</code>, <code>directory_sync_state</code>, <code>parent_child_sync</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Eviction-Before-Rename:</strong> For cloud stubs in <code>--mode in-place-rename</code>: (1) classify &amp; extract preview, (2) evict newly hydrated blocks (<code>SF_DATALESS</code>), (3) rename stub cleanly to avoid FileProvider sync lockouts.</div></li>
+          </ul>
         </div>
       </div>
     </section>
 
-    <!-- SCENE 7: Stage 6 - In-Place Renaming & SQLite Manifest -->
-    <section class="scene-slide" id="scene-6" data-index="6">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 7 of 9 • Execution & Manifest</span>
-            <span class="scene-duration">⏱ ~75 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 6: In-Place Renaming, SQLite Two-Phase Manifest & Cache Eviction</h2>
-          <p class="scene-desc">Deterministic in-place naming standards, synchronized companion sidecars, transactional SQLite safety, and automatic cloud cache eviction.</p>
-        </div>
+    <!-- SCENE 8: Stage 7 Offline HTML Catalog, Dual Thumbnails & Asset Inspector -->
+    <section class="scene-slide" id="scene-7">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 8 • Stage 7: Decoupled Offline Catalog (<code>catalog.html</code>)</span>
+        <h2 class="scene-title">Dual Thumbnail Strategy, Asset Access Inspector &amp; Zero-Dependency UI</h2>
+        <p class="scene-subtitle"><code>avicull render-catalog</code> projects SQLite state into <code>catalog.html</code> in &lt;1.5s with zero image I/O, scaling cleanly from 100-photo trips to 100,000-photo archives.</p>
       </div>
 
       <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Rich In-Place Stems & Sidecars</h3>
-            <span class="pill pill-green">Curator's Dream</span>
-          </div>
-          <div class="perspective-card-body">
-            Your photos are cleanly organized according to your chosen mode:
-            <ul>
-              <li><strong>In-Place Standard (Default):</strong> Renames your files directly in place with rich, readable stems:
-                <div style="font-family:var(--font-mono); font-size:0.75rem; background:#0b1120; padding:0.4rem 0.6rem; border-radius:4px; margin:0.4rem 0; color:#38bdf8;">
-                  &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;YYYYMMDD&gt;][_&lt;Location_Slug&gt;].&lt;ext&gt;
-                </div>
-                Example: <code>DSC_4011_Bird_Painted_Stork_20251114_Bharatpur.CR2</code>
-              </li>
-              <li><strong>Sidecar Parity:</strong> Companion JPEGs, Lightroom <code>.CR2.xmp</code>, DxO <code>.dop</code>, and live videos <code>.mov</code> receive identical stems!</li>
-              <li><strong>Hierarchy Tiers (Optional):</strong> If <code>--mode hierarchy</code> is selected, files link to <code>birds_hierarchy/</code> under Confirmed, Needs Review, or No Subject Detected.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-bird" data-lens="bird">
+          <div class="card-badge"><span>🔭</span><span>Instant Offline Review</span></div>
+          <h3>Filter, Multi-Select, Inspect &amp; Export Corrections</h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong>Finder-Style Multi-Select:</strong> Use <code>Cmd+Click</code>, <code>Shift+Click</code>, or <code>Cmd+A</code> to queue batch species/category or location overrides and export <code>apply_corrections.sh</code>.</div></li>
+            <li><span class="bullet">•</span><div><strong>Asset Access Inspector:</strong> Click any card to inspect local vs. cloud/NAS paths, companion sidecars, and one-click hydration commands for cloud-evicted files.</div></li>
+          </ul>
         </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> SQLite Transactions & Cache Eviction</h3>
-            <span class="pill pill-blue">Transactional DB</span>
-          </div>
-          <div class="perspective-card-body">
-            All operations are backed by <code>.avicull/manifest.sqlite</code>:
-            <ul>
-              <li><strong>Two-Phase Commit Safety:</strong> SQLite WAL mode records bundle hashes, GPS coordinates, bounding boxes, predictions, and filesystem operations before committing. Crashes cannot corrupt state!</li>
-              <li><strong>Automated Cache Eviction:</strong> Passing <code>--max-cache-size 5GB</code> automatically monitors disk usage and purges oldest cached preview tiles while safely retaining prediction records.</li>
-              <li><strong>Sub-Second Relink:</strong> Reads cached predictions from SQLite and executes filesystem <code>unlink()</code> and <code>hard_link()</code> in milliseconds without loading neural nets.</li>
-            </ul>
-          </div>
+        <div class="perspective-card card-tech" data-lens="tech">
+          <div class="card-badge"><span>⚡</span><span>Scalability Architecture</span></div>
+          <h3><code>DecoupledViewProjection</code> &amp; <code>DualThumbnailStrategy</code></h3>
+          <ul class="feature-list">
+            <li><span class="bullet">•</span><div><strong><code>ThumbnailEmbeddingPolicy::Auto</code>:</strong> Single-trip catalogs (<code>≤ 2,500</code> items) embed base64 micro-thumbnails; parent rollups &amp; archives <code>&gt; 2,500</code> items suppress base64 and link to <code>avicull_catalog_files/previews/</code> with lazy loading (keeping HTML <code>&lt; 30 MB</code>).</div></li>
+            <li><span class="bullet">•</span><div><strong><code>ClientEvictionRemediation</code>:</strong> Distinguishes <code>item.is_local === false</code> (<code>SF_DATALESS</code>) from missing previews, generating <code>head -c 1 "$filepath" &gt; /dev/null 2&gt;&amp;1</code> and <code>materialize_evicted.sh</code>.</div></li>
+          </ul>
         </div>
       </div>
 
-      <!-- SQLite Schema & In-Place Specification -->
       <div class="interactive-stage">
-        <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.75rem;">
-          SQLite Manifest State Schema & In-Place Standard (.avicull/manifest.sqlite)
-        </h4>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.25rem;">
-          <div class="code-term">
-            <span class="term-comment">-- Database Manifest Tables</span><br>
-            <span class="term-prompt">CREATE TABLE</span> runs (run_id, started_at, input_root...);<br><br>
-            <span class="term-prompt">CREATE TABLE</span> bundles (<br>
-            &nbsp;&nbsp;bundle_id TEXT PRIMARY KEY,<br>
-            &nbsp;&nbsp;source_inode INTEGER,<br>
-            &nbsp;&nbsp;assigned_species_slug TEXT,<br>
-            &nbsp;&nbsp;final_conf REAL,<br>
-            &nbsp;&nbsp;routing_tier TEXT<br>
-            );<br><br>
-            <span class="term-prompt">CREATE TABLE</span> hardlink_operations (<br>
-            &nbsp;&nbsp;source_path, dest_path, source_inode, status<br>
-            );
-          </div>
-
-          <div style="background:var(--bg-card); border-radius:8px; padding:1rem; border:1px solid var(--border);">
-            <div style="font-size:0.8rem; font-weight:700; color:#38bdf8; margin-bottom:0.5rem;">
-              Universal File Naming Standards
-            </div>
-            <div style="font-family:var(--font-mono); font-size:0.75rem; color:#fff; background:#0b1120; padding:0.5rem 0.75rem; border-radius:4px; margin-bottom:0.75rem;">
-              In-Place: &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;Date&gt;][_&lt;Loc&gt;].&lt;ext&gt;<br>
-              Hierarchy: &lt;Output&gt;/&lt;Category&gt;/&lt;Subject&gt;/&lt;Stem&gt;.&lt;ext&gt;
-            </div>
-            <ul style="font-size:0.78rem; color:var(--text-muted); margin-left:1.2rem; line-height:1.6;">
-              <li>Preserves original casing: <code>.CR2</code> and <code>.xmp</code> stay exact.</li>
-              <li>Sidecars mirror stems: <code>DSC_4011_Bird_Painted_Stork.xmp</code></li>
-              <li>Multi-extension supported: <code>DSC_4011_Bird_Painted_Stork.CR2.xmp</code></li>
-              <li><code>avicull clean</code> safely rolls back operations using the manifest.</li>
-            </ul>
+        <div class="stage-header">
+          <span class="stage-title">Interactive Catalog &amp; Asset Access Inspector Simulator</span>
+          <div id="catalogPills" style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            <button class="catalog-pill active" type="button" data-cat="all">All (5)</button>
+            <button class="catalog-pill" type="button" data-cat="Bird">Bird (2)</button>
+            <button class="catalog-pill" type="button" data-cat="Mammalia">Mammalia (1)</button>
+            <button class="catalog-pill" type="button" data-cat="Scenery">Scenery (1)</button>
+            <button class="catalog-pill" type="button" data-cat="No_Subject_Detected">No_Subject_Detected (1)</button>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- SCENE 8: Interactive HTML5 Photo Catalog (catalog.html) & Decoupled Models -->
-    <section class="scene-slide" id="scene-7" data-index="7">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 8 of 9 • HTML5 Photo Catalog</span>
-            <span class="scene-duration">⏱ ~75 sec audio</span>
-          </div>
-          <h2 class="scene-title">Stage 7: Interactive Standalone HTML5 Photo Catalog (catalog.html)</h2>
-          <p class="scene-desc">Zero-dependency, offline visual catalog with 9 singular category filter pills, fast multi-selection, interactive reclassification modal, and bulk subdirectory location overrides.</p>
-        </div>
-      </div>
-
-      <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Visual Curation in the Browser</h3>
-            <span class="pill pill-green">Zero-Dependency</span>
-          </div>
-          <div class="perspective-card-body">
-            Every run of <code>avicull organize</code> writes a standalone <code>catalog.html</code> directly into your trip folder:
-            <ul>
-              <li><strong>100% Offline & Private:</strong> Zero server or internet connection required. Open in Safari or Chrome anytime.</li>
-              <li><strong>9 Category Filter Pills:</strong> Instant toggle across <code>All</code>, <code>Bird</code>, <code>Mammalia</code>, <code>Insecta</code>, <code>Reptilia</code>, <code>Amphibia</code>, <code>Scenery</code>, <code>Architecture</code>, <code>Portrait</code>, <code>Abstract</code>.</li>
-              <li><strong>Multi-Select Power:</strong> <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+Click to pick individuals, <kbd>Shift</kbd>+Click for ranges, or <kbd>Cmd</kbd>+<kbd>A</kbd> to select all.</li>
-              <li><strong>Interactive Reclassification:</strong> Autocomplete search across 11,167 bird species + 224+ curated wildlife species, with instant <code>avicull correct</code> commands!</li>
-              <li><strong>Subdirectory GPS Overrides:</strong> Bulk update coordinates for mislocated folders and trigger Bayesian prior recalculation with one click.</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> Decoupled Cache & Web Architecture</h3>
-            <span class="pill pill-blue">SafeTensors & Single-File HTML</span>
-          </div>
-          <div class="perspective-card-body">
-            Clean decoupling between client catalog and underlying system models:
-            <ul>
-              <li><strong>Decoupled Model Cache:</strong> Neural weights and eBird taxonomy live in <code>~/.cache/avicull/models/</code>. Precomputed 512-dim BioCLIP text embeddings for 11,167 species are stored in a 23MB SafeTensors file on Apple Silicon Metal MPS.</li>
-              <li><strong>Dynamic Multi-Taxa Dictionary:</strong> The catalog embeds the complete 224+ curated multi-taxa dataset, automatically resolving categories for mammals, insects, reptiles, and amphibians without hardcoding.</li>
-              <li><strong>Safe Command Generation:</strong> The web UI generates copyable, non-destructive CLI commands (<code>avicull correct</code>) that update the SQLite manifest and rename files transactionally.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interactive Catalog Visualizer -->
-      <div class="interactive-stage">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
-          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
-            Interactive Standalone Catalog Simulator (catalog.html Preview)
-          </h4>
-          <span class="pill pill-green">Generated in Trip Folder</span>
-        </div>
-
-        <!-- Filter Pill Bar -->
-        <div class="catalog-pill-bar" id="catalogPillBar">
-          <button class="catalog-pill active" onclick="filterCatalogPill('all')">All (4)</button>
-          <button class="catalog-pill" onclick="filterCatalogPill('Bird')">Bird (1)</button>
-          <button class="catalog-pill" onclick="filterCatalogPill('Mammalia')">Mammalia (1)</button>
-          <button class="catalog-pill" onclick="filterCatalogPill('Insecta')">Insecta (1)</button>
-          <button class="catalog-pill" onclick="filterCatalogPill('Scenery')">Scenery (1)</button>
-        </div>
-
-        <!-- Sample Cards Grid -->
-        <div class="catalog-grid" id="catalogSampleGrid">
-          <div class="catalog-card selected" data-cat="Bird" id="cardBird1">
-            <div class="catalog-card-img">
-              <span style="font-size:2.5rem;">🦩</span>
-              <span class="pill pill-green" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">96%</span>
-            </div>
+        <div class="catalog-grid" id="catalogGrid">
+          <div class="catalog-card" data-cat="Bird" data-local="true" data-path="/Volumes/Photos/Leh/DSC_4011.CR2" data-sidecar="DSC_4011.xmp">
             <div class="catalog-card-body">
-              <strong style="color:#fff; display:block; font-size:0.8rem;">Painted Stork</strong>
-              <span style="color:#34d399; font-size:0.7rem; font-weight:600;">Category: Bird</span>
-              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">DSC_4011_Bird_Painted_Stork.CR2</div>
+              <strong>Painted Stork</strong> <span class="pill-tag pill-green">96%</span>
+              <div style="color:var(--text-muted);margin-top:0.2rem;">Bird • DSC_4011.CR2</div>
+              <div style="color:#34d399;font-size:0.7rem;margin-top:0.2rem;">● Local Resident</div>
             </div>
           </div>
-
-          <div class="catalog-card" data-cat="Mammalia" id="cardMammal1">
-            <div class="catalog-card-img">
-              <span style="font-size:2.5rem;">🐆</span>
-              <span class="pill pill-green" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">94%</span>
-            </div>
+          <div class="catalog-card" data-cat="Bird" data-local="false" data-path="~/Library/CloudStorage/GoogleDrive/Birds/DSC_4015.ARW" data-sidecar="DSC_4015.dop">
             <div class="catalog-card-body">
-              <strong style="color:#fff; display:block; font-size:0.8rem;">Snow Leopard</strong>
-              <span style="color:#38bdf8; font-size:0.7rem; font-weight:600;">Category: Mammalia</span>
-              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">IMG_0924_Mammalia_Snow_Leopard.CR2</div>
+              <strong>Streak-throated Swallow</strong> <span class="pill-tag pill-amber">72%</span>
+              <div style="color:var(--text-muted);margin-top:0.2rem;">Bird • DSC_4015.ARW</div>
+              <div style="color:#38bdf8;font-size:0.7rem;margin-top:0.2rem;">☁️ Cloud Evicted (SF_DATALESS)</div>
             </div>
           </div>
-
-          <div class="catalog-card" data-cat="Insecta" id="cardInsect1">
-            <div class="catalog-card-img">
-              <span style="font-size:2.5rem;">🦋</span>
-              <span class="pill pill-yellow" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">89%</span>
-            </div>
+          <div class="catalog-card" data-cat="Mammalia" data-local="true" data-path="/Volumes/Photos/Leh/IMG_1002.CR2" data-sidecar="None">
             <div class="catalog-card-body">
-              <strong style="color:#fff; display:block; font-size:0.8rem;">Blue Pansy</strong>
-              <span style="color:#fbbf24; font-size:0.7rem; font-weight:600;">Category: Insecta</span>
-              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">DSC_4102_Insecta_Blue_Pansy.JPG</div>
+              <strong>Snow Leopard</strong> <span class="pill-tag pill-green">94%</span>
+              <div style="color:var(--text-muted);margin-top:0.2rem;">Mammalia • IMG_1002.CR2</div>
+              <div style="color:#34d399;font-size:0.7rem;margin-top:0.2rem;">● Local Resident</div>
             </div>
           </div>
-
-          <div class="catalog-card" data-cat="Scenery" id="cardScenery1">
-            <div class="catalog-card-img">
-              <span style="font-size:2.5rem;">🏔️</span>
-              <span class="pill pill-purple" style="position:absolute; top:6px; right:6px; font-size:0.65rem;">98%</span>
-            </div>
+          <div class="catalog-card" data-cat="Scenery" data-local="true" data-path="/Volumes/Photos/Leh/IMG_1006.JPG" data-sidecar="None">
             <div class="catalog-card-body">
-              <strong style="color:#fff; display:block; font-size:0.8rem;">Pangong Tso</strong>
-              <span style="color:#c084fc; font-size:0.7rem; font-weight:600;">Category: Scenery</span>
-              <div style="color:var(--text-dim); font-size:0.68rem; margin-top:2px;">IMG_1020_Scenery_Pangong_Tso.CR2</div>
+              <strong>Arid Mountain Valley</strong> <span class="pill-tag pill-cyan">89%</span>
+              <div style="color:var(--text-muted);margin-top:0.2rem;">Scenery • IMG_1006.JPG</div>
+              <div style="color:#34d399;font-size:0.7rem;margin-top:0.2rem;">● Local Resident</div>
+            </div>
+          </div>
+          <div class="catalog-card" data-cat="No_Subject_Detected" data-local="true" data-path="/Volumes/Photos/Leh/IMG_1010.CR2" data-sidecar="None">
+            <div class="catalog-card-body">
+              <strong>No Subject Detected</strong> <span class="pill-tag pill-rose">0%</span>
+              <div style="color:var(--text-muted);margin-top:0.2rem;">No_Subject_Detected • IMG_1010.CR2</div>
+              <div style="color:#34d399;font-size:0.7rem;margin-top:0.2rem;">● Local Resident</div>
             </div>
           </div>
         </div>
-
-        <!-- Interactive Correction Output -->
-        <div style="margin-top:1rem; background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-          <div style="font-size:0.82rem; color:#e2e8f0;">
-            <strong>Reclassify Modal CLI Generator:</strong> <code>avicull correct --input /Volumes/Photos/Leh --bundle b3a8f9 --species "Snow_Leopard"</code>
-          </div>
-          <span class="pill pill-blue">Zero-Risk Web Corrections</span>
+        <div class="inspector-box" id="catalogInspector">
+          <strong>Asset Access Inspector:</strong> Click any card above to inspect its locality, sidecar pairing, and cloud hydration command.
         </div>
       </div>
     </section>
 
-    <!-- SCENE 9: How to Use It - Interactive CLI Simulator -->
-    <section class="scene-slide" id="scene-8" data-index="8">
-      <div class="scene-head">
-        <div>
-          <div class="scene-meta">
-            <span class="scene-tag">Scene 9 of 9 • Hands-On CLI</span>
-            <span class="scene-duration">⏱ ~80 sec audio</span>
-          </div>
-          <h2 class="scene-title">How to Use avicull: CLI & Complete Workflow</h2>
-          <p class="scene-desc">Building the binary, managing model weights, in-place organizing, hard-link hierarchies, catalog corrections, and safe rollback.</p>
-        </div>
+    <!-- SCENE 9: Complete CLI Suite & Workflow Simulator -->
+    <section class="scene-slide" id="scene-8">
+      <div class="scene-header">
+        <span class="scene-tag">Scene 9 • CLI Reference &amp; Workflow Simulator</span>
+        <h2 class="scene-title">Complete <code>avicull</code> Subcommand Suite</h2>
+        <p class="scene-subtitle">Explore every production subcommand—from default read-only cataloging and multi-trip rollups to instant reclassification, corrections, WebDAV mounts, and rollback.</p>
       </div>
 
-      <div class="perspective-grid">
-        <div class="perspective-card birding" data-audience="bird">
-          <div class="perspective-card-head">
-            <h3><span>🔭</span> Everyday Commands for Photographers</h3>
-            <span class="pill pill-green">Effortless</span>
-          </div>
-          <div class="perspective-card-body">
-            You don't need to be a developer to run <code>avicull</code>:
-            <ol style="margin-left:1.2rem; margin-top:0.4rem; line-height:1.6;">
-              <li><strong>Scan:</strong> <code>avicull scan -i /Volumes/Photos/Leh</code> (dry run inspection)</li>
-              <li><strong>Organize (In-Place):</strong> <code>avicull organize -i /Volumes/Photos/Leh</code> (renames in-place &amp; generates <code>catalog.html</code>)</li>
-              <li><strong>Hierarchy Tree:</strong> <code>avicull organize -i /Volumes/Photos/Leh --mode hierarchy</code> (creates zero-byte tree)</li>
-              <li><strong>Force Recompute:</strong> <code>avicull organize -i /Volumes/Photos/Leh --force</code> (re-run all photos)</li>
-              <li><strong>Apply Corrections:</strong> <code>avicull correct -i /Volumes/Photos/Leh --bundle &lt;ID&gt; --species "Snow_Leopard"</code></li>
-              <li><strong>Report:</strong> <code>avicull report -i /Volumes/Photos/Leh</code> (checklist across all 9 categories!)</li>
-              <li><strong>Safe Clean:</strong> <code>avicull clean -i /Volumes/Photos/Leh</code> (reverts changes safely)</li>
-            </ol>
-          </div>
-        </div>
-
-        <div class="perspective-card engineering" data-audience="tech">
-          <div class="perspective-card-head">
-            <h3><span>⚡</span> Complete Subcommand Suite</h3>
-            <span class="pill pill-blue">High Customizability</span>
-          </div>
-          <div class="perspective-card-body">
-            Fine-tune every parameter to match your workflow and storage:
-            <ul>
-              <li><code>--mode [in-place | hierarchy]</code> (default: in-place)</li>
-              <li><code>--max-cache-size &lt;SIZE&gt;</code> (e.g. 5GB cloud cache eviction)</li>
-              <li><code>avicull correct --bundle &lt;ID&gt; --species &lt;NAME&gt;</code></li>
-              <li><code>avicull organize --force</code> (bypass SQLite cache and recompute)</li>
-              <li><code>--min-confidence &lt;FLOAT&gt;</code> (default: 0.65)</li>
-              <li><code>--geo-prior-weight &lt;0.0..2.0&gt;</code> (default: 1.0)</li>
-              <li><code>--threads &lt;INT&gt;</code> (Rayon thread pool allocation)</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interactive Terminal -->
       <div class="interactive-stage">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
-          <h4 style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">
-            Interactive CLI Simulator (Click to Test Subcommands)
-          </h4>
-          <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-            <button class="btn" onclick="runSimCommand('status')">models status</button>
-            <button class="btn" onclick="runSimCommand('update')">models update</button>
-            <button class="btn" onclick="runSimCommand('scan')">scan</button>
-            <button class="btn" onclick="runSimCommand('organize')">organize (in-place)</button>
-            <button class="btn" onclick="runSimCommand('hierarchy')">organize --mode hierarchy</button>
-            <button class="btn" onclick="runSimCommand('force')">organize --force</button>
-            <button class="btn" onclick="runSimCommand('correct')">correct</button>
-            <button class="btn" onclick="runSimCommand('relink')">relink</button>
-            <button class="btn" onclick="runSimCommand('report')">report</button>
-            <button class="btn" onclick="runSimCommand('clean')">clean</button>
-            <button class="btn" onclick="runSimCommand('rsync')" style="border-color:#38bdf8; color:#38bdf8;">rsync -avH (NTFS Backup)</button>
-          </div>
+        <div class="stage-header">
+          <span class="stage-title">Interactive CLI Simulator</span>
+          <span class="pill-tag pill-cyan">Select a command</span>
         </div>
-
-        <div class="code-term" id="termOutput" style="min-height: 220px; white-space: pre-wrap;">
-<span class="term-prompt">$ avicull models status</span>
-== avicull models ==
-Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
-  - Taxonomy (taxonomy.json):             <span class="term-success">Present (1.82 MB, 11,167 species)</span>
-  - Embeddings (species_embeddings.safetensors): <span class="term-success">Present (22.84 MB, BioCLIP Metal MPS)</span>
-  - Last Updated:                         4 day(s) ago
-<span class="term-success">✓ Cache healthy and ready for zero-copy organization.</span>
+        <div id="cliButtons" style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-bottom:0.85rem;">
+          <button class="btn btn-primary" type="button" data-cmd="organize">organize (default)</button>
+          <button class="btn" type="button" data-cmd="rename">organize --mode in-place-rename</button>
+          <button class="btn" type="button" data-cmd="hierarchy">organize --mode hierarchy</button>
+          <button class="btn" type="button" data-cmd="organize-all">organize-all --view-only</button>
+          <button class="btn" type="button" data-cmd="render-catalog">render-catalog</button>
+          <button class="btn" type="button" data-cmd="reclassify">reclassify (fast)</button>
+          <button class="btn" type="button" data-cmd="correct">correct --file --burst</button>
+          <button class="btn" type="button" data-cmd="location">location</button>
+          <button class="btn" type="button" data-cmd="scan">scan / report / relink / clean</button>
+          <button class="btn" type="button" data-cmd="models">models / update / mount / help</button>
         </div>
+        <pre id="cliTerminal" style="background:#05080f;border:1px solid var(--border);border-radius:8px;padding:1rem;font-family:var(--font-mono);font-size:0.78rem;color:#e2e8f0;overflow-x:auto;min-height:175px;line-height:1.55;"></pre>
       </div>
     </section>
 
@@ -2037,18 +1674,11 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
       <button class="btn btn-primary" id="btnPlayPauseBottom">▶ Listen</button>
       <button class="btn" id="btnNext" title="Next Scene (Right Arrow)">Next ▶</button>
     </div>
-
-    <!-- Active Synchronized Subtitle Area -->
     <div class="subtitle-box">
-      <div class="subtitle-speaker" id="subtitleSpeaker">
-        <span>🎙️</span> AI NARRATOR (SYNCHRONIZED VOICEOVER)
-      </div>
-      <div class="subtitle-text" id="subtitleText">
-        Welcome to avicull. Press Play to start the guided audio walkthrough.
-      </div>
+      <div class="subtitle-speaker" id="subtitleSpeaker">🎙️ AI NARRATOR (SYNCHRONIZED VOICEOVER)</div>
+      <div class="subtitle-text" id="subtitleText" aria-live="polite">Welcome to avicull. Press Play to start the guided audio walkthrough.</div>
     </div>
-
-    <div style="display: flex; align-items: center; gap: 1rem;">
+    <div style="display:flex;align-items:center;gap:1rem;">
       <label class="autoplay-toggle">
         <input type="checkbox" id="chkAutoAdvance" checked>
         <span>Auto-Advance</span>
@@ -2058,146 +1688,139 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
   </footer>
 
   <!-- Full Transcript Modal -->
-  <div class="transcript-drawer" id="transcriptDrawer">
+  <div class="transcript-drawer" id="transcriptDrawer" role="dialog" aria-modal="true" aria-labelledby="transcriptModalTitle">
     <div class="transcript-content">
       <div class="transcript-head">
-        <h3 style="color:#fff;">Complete Voiceover Narration Script</h3>
-        <button class="btn" id="btnCloseTranscript">✕ Close</button>
+        <h3 id="transcriptModalTitle" style="color:#fff;">Complete Voiceover Narration Script</h3>
+        <button class="btn" id="btnCloseTranscript" type="button">✕ Close</button>
       </div>
-      <div id="fullTranscriptBody" style="font-size:0.88rem; color:#cbd5e1; line-height:1.7;">
-        <!-- Filled by JS -->
-      </div>
+      <div id="fullTranscriptBody" style="font-size:0.88rem;color:#cbd5e1;line-height:1.7;"></div>
     </div>
   </div>
 
   <script>
-    /* Narration Script Data for All 9 Scenes */
     const SCENES = [
       {
         id: "scene-0",
-        tag: "Scene 1 • Overview",
-        title: "The Expedition Photo Crisis & The Two Zero-Byte Solutions",
+        tag: "Scene 1 • Overview & Architecture",
+        title: "The Expedition Photo Crisis & Three Safe Organization Modes",
         narration: [
-          "Welcome to avicull, a local-first, deterministic AI photo organizer built in Rust for Apple Silicon macOS, supporting over eleven thousand bird species and comprehensive multi-taxa biodiversity.",
-          "Every wildlife photographer knows the archive dilemma: returning from expeditions with thousands of high-speed burst shots, massive RAW files, and Lightroom sidecars.",
-          "You want to browse your photos chronologically by trip, but also taxonomically by species across birds, mammals, insects, reptiles, and scenery.",
-          "Traditionally, copying files doubles your storage and wastes hundreds of gigabytes.",
-          "avicull solves this with two complementary modes: universal in-place descriptive renaming that works on any storage including exFAT, and zero-byte APFS hard links that project multi-trip hierarchies without consuming a single extra byte."
+          "Welcome to avicull, a local-first AI photo organizer built in Rust for Apple Silicon macOS.",
+          "It classifies 11,167 Cornell eBird species alongside mammals, insects, reptiles, amphibians, and photographic genres without copying a single byte of RAW data.",
+          "By default, avicull runs in strictly read-only in-place mode, keeping your original photos and sidecars untouched while storing state inside avicull_catalog_files."
         ]
       },
       {
         id: "scene-1",
-        tag: "Scene 2 • Filesystem Invariants & Portability",
-        title: "In-Place Universal Renaming vs APFS Hard Links & The exFAT Trap",
+        tag: "Scene 2 • Modes & Filesystem Portability",
+        title: "Read-Only In-Place, Cosmetic Rename & Zero-Byte Hard Links",
         narration: [
-          "avicull gives you two distinct architectural strategies for organizing your photo archive.",
-          "In-place renaming is the universal default. It enriches your original files and companion sidecars with rich taxonomic stems directly within your existing folder structure, working seamlessly across exFAT portable SSDs, FAT32, APFS, and network drives.",
-          "Alternatively, hierarchy mode creates a taxonomic species tree using POSIX hard links pointing to the identical underlying inode on disk.",
-          "The link count increments, but zero additional storage bytes are consumed on APFS, ext4, Btrfs, and Windows NTFS.",
-          "However, photographers must beware the exFAT trap: exFAT drives lack inode hard links, so drag-and-drop copies will inflate and duplicate your files. For external exFAT SSDs, always rely on in-place renaming or use rsync with the hyphen H flag on NTFS."
+          "avicull offers three organization modes: default read-only in-place cataloging, opt-in transactional in-place-rename with SQLite rollback, and opt-in hierarchy mode using zero-byte POSIX hard links.",
+          "On APFS, ext4, Btrfs, ZFS, and NTFS, hard links share identical inodes with zero extra disk usage. For exFAT portable SSDs, stick to default in-place mode."
         ]
       },
       {
         id: "scene-2",
-        tag: "Scene 3 • Discovery, Bundling & Geo",
-        title: "Stage 1 & 2: Discovery, Sidecar Bundling, Dataless Protection & Geo Cascade",
+        tag: "Scene 3 • Discovery, Cloud/NAS & Geo",
+        title: "Dataless Cloud Protection, Fast NAS Probes & Geolocation Cascade",
         narration: [
-          "Stage 1 recursively traverses your photo archive in milliseconds, discovering RAW files across all major camera manufacturers including Canon, Nikon, Sony, and Fujifilm.",
-          "It bundles primary RAW files with companion JPEGs, Lightroom XMP sidecars, and DxO PhotoLab DOP files under a deterministic BLAKE3 hash.",
-          "Crucially, avicull respects macOS FileProvider flags: files marked with Darwin dataless attributes are protected from eager opening, preventing unwanted on-demand cloud hydration from iCloud or Dropbox.",
-          "To achieve maximum throughput, avicull extracts embedded 4K JPEG preview streams directly in memory, running ten times faster than full RAW demosaicing.",
-          "Next, Stage 2 resolves geographic coordinates through a four-tier cascade: direct camera EXIF GPS, sibling propagation across the trip folder, an offline sanctuary gazetteer, and user defaults."
+          "During discovery, avicull inspects Darwin SF_DATALESS flags before opening files so cloud-only iCloud or Google Drive photos are never downloaded unexpectedly.",
+          "On network shares, a depth-8 directory-only signature probe skips unchanged trip folders in under two milliseconds, and a four-tier cascade resolves GPS and gazetteer locations."
         ]
       },
       {
         id: "scene-3",
-        tag: "Scene 4 • Detection & Padding",
-        title: "Stage 3: Ultralytics YOLO11 Subject Localization & 15% Context Padding",
+        tag: "Scene 4 • YOLO11 & Relevance Floor",
+        title: "YOLO11 Subject Localization, 15% Padding & Hallucination Rejection",
         narration: [
-          "Stage 3 focuses the AI's attention directly on the subject, whether it is an avian species, a mammal, an insect, or a person.",
-          "Subjects often hide behind dense foliage, messy branches, or distant backgrounds. Feeding the whole frame into a classifier causes the model to hallucinate on background foliage.",
-          "avicull runs Ultralytics YOLO11 on the Apple Neural Engine to detect subject bounding boxes.",
-          "When multiple subjects appear, it selects the box maximizing confidence multiplied by area to isolate the primary subject.",
-          "Crucially, avicull expands the bounding box with fifteen percent context padding on all four sides so diagnostic field marks like bills, crests, tails, and ears are never clipped off."
+          "Stage 3 runs Ultralytics YOLO11 with 15 percent context padding around the primary subject.",
+          "A visual relevance floor rejects false detections on rocks or water, routing them to full-frame genre classification or No_Subject_Detected."
         ]
       },
       {
         id: "scene-4",
-        tag: "Scene 5 • AI & Bayesian Priors",
-        title: "Stage 4: BioCLIP 2, Curated Multi-Taxa & Bayesian Spatial-Temporal Priors",
+        tag: "Scene 5 • BioCLIP & Spatial Priors",
+        title: "512-d BioCLIP Embeddings & Bayesian Checklist Priors",
         narration: [
-          "Stage 4 performs species identification across the complete global taxonomy.",
-          "avicull evaluates BioCLIP 2 vision transformer embeddings against eleven thousand one hundred and sixty-seven bird species, plus hundreds of curated multi-taxa species spanning mammals, insects, reptiles, and amphibians.",
-          "Because visual lookalikes can deceive pure vision models, avicull combines image features with eBird and iNaturalist regional checklists and SINR neural spatial-temporal priors.",
-          "Using Bayesian posterior mathematics with a vagrant probability floor, avicull suppresses statistically impossible out-of-range lookalikes while elevating genuine regional species.",
-          "Non-avian wildlife and scenery are seamlessly resolved without inappropriate bird checklist penalties."
+          "Stage 4 encodes each crop into a 512-dimensional BioCLIP vector and fuses visual similarity with regional eBird checklists.",
+          "A strong-visual-override guard ensures rare vagrants and captive zoo species are never erased by local checklists."
         ]
       },
       {
         id: "scene-5",
-        tag: "Scene 6 • Burst Engine",
-        title: "Stage 5: Burst Consensus Smoothing (Anti-Flicker)",
+        tag: "Scene 6 • Burst & Fast Reclassify",
+        title: "Burst Consensus Smoothing & Fast Software Reclassification",
         narration: [
-          "Wildlife photography relies on continuous high-speed bursts at twenty to thirty frames per second.",
-          "Across a burst of five shots, frame one might be razor sharp, but frame three might suffer motion blur or focus breathing.",
-          "Without consensus smoothing, that single sequence could get split across different species folders or confidence tiers.",
-          "avicull groups consecutive frames when their time gap is under three seconds and their visual cosine similarity is eighty percent or higher.",
-          "It then performs confidence-weighted posterior pooling across all frames, allowing the sharpest keyframe to anchor the sequence and keep your entire burst unified under the consensus taxon."
+          "Stage 5 pools posteriors across consecutive burst frames within three seconds and 0.80 cosine similarity.",
+          "Because 512-d embeddings are saved in SQLite, reclassify-mode fast re-evaluates thresholds and priors in milliseconds with zero neural network overhead."
         ]
       },
       {
         id: "scene-6",
-        tag: "Scene 7 • Execution & Manifest",
-        title: "Stage 6: In-Place Renaming, SQLite Two-Phase Manifest & Cache Eviction",
+        tag: "Scene 7 • SQLite & Cloud Eviction",
+        title: "Portable SQLite Manifest, Eviction-Before-Rename & Batch Rollup",
         narration: [
-          "Stage 6 executes your chosen organization strategy.",
-          "In in-place mode, it renames files and sidecars to a descriptive standard including original stem, category, subject, date, and location.",
-          "In hierarchy mode, it links files into Confirmed, Needs Review, or No Subject Detected folders without adding disk bytes.",
-          "Every operation is recorded in an SQLite two-phase transactional manifest, guaranteeing atomic rollbacks and crash resilience.",
-          "Furthermore, avicull features automatic cloud cache eviction: passing max cache size automatically trims oldest cached preview tiles while safely preserving all prediction metadata."
+          "All decisions, embeddings, and rename journals live in avicull_catalog_files/manifest.sqlite.",
+          "For cloud archives, avicull extracts persistent previews, evicts only newly hydrated stubs back to dataless state, and then executes renames safely."
         ]
       },
       {
         id: "scene-7",
-        tag: "Scene 8 • HTML5 Photo Catalog",
-        title: "Stage 7: Interactive Standalone HTML5 Photo Catalog (catalog.html)",
+        tag: "Scene 8 • Offline Catalog & Inspector",
+        title: "Decoupled catalog.html, Dual Thumbnails & Asset Access Inspector",
         narration: [
-          "Stage 7 generates catalog.html, a lightning-fast, offline HTML5 visual explorer written directly into your photo directory.",
-          "It features zero external dependencies, loading instantly in any modern browser with instant search and multi-taxa category filter pills.",
-          "You can multi-select photos using Command-Click, Shift-Click, or Command-A to review and batch-process your keepers.",
-          "The interactive correction modal lets you search across all eleven thousand species, previewing corrections and generating immediate avicull correct commands.",
-          "You can even override GPS coordinates for entire subdirectories and trigger Bayesian recomputation directly from the web interface."
+          "render-catalog projects SQLite state into a zero-dependency catalog.html in under 1.5 seconds.",
+          "Single-trip catalogs embed micro-thumbnails, while large rollups link to disk previews. The Asset Access Inspector identifies cloud-evicted files and generates one-click hydration scripts."
         ]
       },
       {
         id: "scene-8",
-        tag: "Scene 9 • Hands-On CLI",
-        title: "How to Use avicull: CLI & Everyday Workflow",
+        tag: "Scene 9 • CLI & Workflow",
+        title: "Complete avicull Subcommand Suite",
         narration: [
-          "Using avicull in your daily photography workflow is simple and intuitive.",
-          "Run avicull scan to inspect photo bundles, verify volume compatibility, and check GPS cascades.",
-          "Run avicull organize to process your photos with in-place renaming by default, or add mode hierarchy to create zero-byte hard link species trees.",
-          "Use the force flag whenever you want to bypass cached SQLite predictions and recompute neural inference from scratch.",
-          "Run avicull report to view checklists across all categories, and avicull clean to safely undo changes while leaving your source RAW archives completely untouched.",
-          "Experience the power of local, private, zero-copy avian and wildlife curation on Apple Silicon!"
+          "Use organize, organize-all, render-catalog, reclassify, correct with --file and --burst, location, scan, report, relink, clean, models, update, and mount to manage your entire wildlife archive."
         ]
       }
     ];
 
-    /* Application State */
+    const ARCH_DETAILS = {
+      types: "src/types.rs: Defines AssetBundle, AssetCategory (9 domains + NoSubjectDetected + Other), OrganizationMode (InPlace, InPlaceRename, HierarchicalHardlinkHierarchy), ReclassifyMode (Fast, Forced), and embeds taxonomy.json + curated_multi_taxa.json.",
+      scanner: "src/scanner.rs & probe.rs: Discovers RAW+JPEG+sidecar bundles, skips birds_hierarchy / avicull_catalog_files / .avicull / *.photoslibrary / @eaDir / .*, extracts embedded JPEGs, and runs depth-8 directory-only NAS probes.",
+      storage: "src/storage/*: Hexagonal StorageBackend port with LocalVolumeBackend, MacOSCloudStorageBackend (SF_DATALESS hydration + selective eviction), NetworkShareBackend (SMB/NFS), OpenDalBackend (S3), and AvicullDavFs loopback WebDAV mount.",
+      ml: "src/detector.rs, classifier.rs & location/*: Bridges to embedded scripts/infer.py (YOLO11 + BioCLIP on Apple Silicon MPS), enforces regional checklist multipliers, and resolves EXIF GPS > Image > Subdir > Parent location overrides.",
+      organizer: "src/organizer/* & src/db.rs: Orchestrates chunked execution (chunk.rs), multi-trip rollups (batch.rs), transactional renames (inplace.rs), manual overrides (correct.rs), Finder reconciliation (reconcile.rs), and SQLite persistence (ManifestDb).",
+      catalog: "src/catalog/*: Pure SQLite-to-HTML projection (DecoupledViewProjection) with DualThumbnailStrategy (<=2,500 embedded base64 vs >2,500 lazy disk previews), Asset Access Inspector, and apply_corrections.sh / materialize_evicted.sh."
+    };
+
+    const YOLO_DETAILS = {
+      padded: "15% Padded Crop (Active): YOLO11 detected class=14 (bird), det_conf=0.88. Box expanded by 0.15 * w and 0.15 * h. BioCLIP peak_crop_sim = 0.34 >= 0.23 -> passed to species classifier.",
+      raw: "Raw YOLO Box: Tight bounding box around body without 15% halo risks clipping tail tips or bill proportions needed for fine-grained BioCLIP discrimination.",
+      rejected: "Hallucination Rejected: Weak rock/branch detection (det_conf=0.28, peak_crop_sim=0.19 < 0.25 floor) is rejected; falls back to full-frame Scenery / Architecture / Abstract or No_Subject_Detected."
+    };
+
+    const CLI_OUTPUTS = {
+      organize: "$ avicull organize --input /Volumes/Photos/Leh\n[mode] in-place (default: source files untouched)\n[probe] 142 bundles discovered, 0 dataless faults\n[ml] YOLO11 + BioCLIP (mps) -> 138 Bird, 2 Mammalia, 2 Scenery\n[out] /Volumes/Photos/Leh/avicull_catalog_files/manifest.sqlite\n[out] /Volumes/Photos/Leh/catalog.html (rendered in 0.42s)",
+      rename: "$ avicull organize --input /Volumes/Photos/Leh --mode in-place-rename\n[rename] DSC_4011.CR2 -> DSC_4011_Bird_Painted_Stork_20251115_Leh.CR2\n[rename] DSC_4011.xmp -> DSC_4011_Bird_Painted_Stork_20251115_Leh.xmp\n[journal] Committed to avicull_catalog_files/manifest.sqlite (rollback via `avicull clean`)",
+      hierarchy: "$ avicull organize --input /Volumes/Photos/Leh --mode hierarchy\n[preflight] Same st_dev verified (APFS), disjointness OK\n[hardlink] birds_hierarchy/Bird/Painted_Stork/DSC_4011.CR2 (ino #90421, st_nlink=2, +0 bytes)",
+      "organize-all": "$ avicull organize-all --input /Volumes/Pictures --view-only\n[probe] Depth-8 dir-only probe skipped 11 unchanged trips (<2ms each)\n[rollup] Aggregated 64,200 items into /Volumes/Pictures/catalog.html (<30 MB, lazy disk previews)",
+      "render-catalog": "$ avicull render-catalog --input /Volumes/Photos/Leh\n# Alias: avicull catalog --input /Volumes/Photos/Leh\n[view] Loaded manifest.sqlite with 0 image I/O -> catalog.html in 0.38s",
+      reclassify: "$ avicull reclassify --input /Volumes/Photos/Leh --min-confidence 0.85\n# Default: --reclassify-mode fast (pass --reclassify-mode forced for full neural re-run)\n[fast] Re-scored 1,240 cached 512-d embeddings in 18ms (0 ONNX calls)",
+      correct: "$ avicull correct --input /Volumes/Photos/Leh --file \"DSC_4011\" --species \"Painted Stork\" --burst\n[burst] Propagated override across 4 frames (is_user_override=1, final_confidence=1.0)\n[view] Regenerated catalog.html",
+      location: "$ avicull location --dir \"Leh\" --location \"34.1526, 77.5771\"\n[geo] Resolved IN-LA (Ladakh); EXIF GPS on individual frames remains immutable",
+      scan: "$ avicull scan --input /Volumes/Photos/Leh        # Preflight bundle & sidecar check\n$ avicull report --input /Volumes/Photos/Leh --format table\n$ avicull relink --input /Volumes/Photos/Leh --min-confidence 0.80\n$ avicull clean --input /Volumes/Photos/Leh       # Roll back renames or unlink hierarchy",
+      models: "$ avicull models status | update                  # Manage ~/.cache/avicull/models\n$ avicull update --check                          # Check GitHub Releases (SHA-256 verified)\n$ avicull mount / unmount                         # Read-only WebDAV virtual taxonomic tree\n$ avicull help [quickstart|organize|invariants]   # Built-in terminal manual"
+    };
+
     let currentSceneIndex = 0;
     let isPlaying = false;
-    let currentUtterance = null;
     let speechRate = 1.0;
     let selectedVoice = null;
     let autoAdvance = true;
-    let availableVoices = [];
     let currentSentenceIndex = 0;
     let speechSentences = [];
-
-    /* Web Audio API for Chimes & Sound Feedback */
     let audioCtx = null;
-    function playChime(freq = 440, type = 'sine', duration = 0.15) {
+
+    function playChime(freq = 440, type = 'sine', duration = 0.12) {
       try {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -2205,539 +1828,344 @@ Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
         const gain = audioCtx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start();
         osc.stop(audioCtx.currentTime + duration);
-      } catch (e) {
-        // AudioContext disabled or blocked
-      }
+      } catch (_) {}
     }
 
-    /* Initialize Voice Selection */
     function initVoices() {
+      const select = document.getElementById('voiceSelect');
       if (!('speechSynthesis' in window)) {
-        document.getElementById('voiceSelect').innerHTML = '<option>Voice unavailable</option>';
+        const opt = document.createElement('option');
+        opt.textContent = 'Voice unavailable';
+        select.replaceChildren(opt);
         return;
       }
-
       function populate() {
-        availableVoices = window.speechSynthesis.getVoices();
-        const select = document.getElementById('voiceSelect');
-        select.innerHTML = '';
-        
-        // Prefer natural English voices
-        const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
-        const voicesToUse = englishVoices.length > 0 ? englishVoices : availableVoices;
-
-        voicesToUse.forEach((voice, i) => {
+        const all = window.speechSynthesis.getVoices();
+        const eng = all.filter(v => v.lang.startsWith('en'));
+        const list = eng.length > 0 ? eng : all;
+        select.replaceChildren();
+        list.forEach(v => {
           const opt = document.createElement('option');
-          opt.value = voice.name;
-          opt.textContent = `${voice.name} (${voice.lang})`;
-          // Prefer Samantha, Daniel, Karen, or Google US English
-          if (voice.name.includes('Samantha') || voice.name.includes('Daniel') || voice.name.includes('Natural') || voice.name.includes('Google US English')) {
+          opt.value = v.name;
+          opt.textContent = `${v.name} (${v.lang})`;
+          if (v.name.includes('Samantha') || v.name.includes('Daniel') || v.name.includes('Natural')) {
             opt.selected = true;
-            selectedVoice = voice;
+            selectedVoice = v;
           }
           select.appendChild(opt);
         });
-
-        if (!selectedVoice && voicesToUse.length > 0) {
-          selectedVoice = voicesToUse[0];
-        }
+        if (!selectedVoice && list.length > 0) selectedVoice = list[0];
       }
-
       populate();
-      if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = populate;
-      }
+      if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = populate;
     }
 
-    /* Build Timeline Header */
     function buildTimeline() {
       const timeline = document.getElementById('sceneTimeline');
-      timeline.innerHTML = '';
+      timeline.replaceChildren();
       SCENES.forEach((scene, index) => {
         const li = document.createElement('li');
-        li.className = `step-item ${index === 0 ? 'active' : ''}`;
-        li.dataset.index = index;
-        li.innerHTML = `
-          <span class="step-num">${index + 1}</span>
-          <span>${scene.title.split(':')[0]}</span>
-        `;
-        li.addEventListener('click', () => {
+        li.className = index === 0 ? 'step-item active' : 'step-item';
+        li.tabIndex = 0;
+        li.setAttribute('role', 'button');
+        const num = document.createElement('span');
+        num.className = 'step-num';
+        num.textContent = String(index + 1);
+        const label = document.createElement('span');
+        label.textContent = scene.tag.split('•')[1] ? scene.tag.split('•')[1].trim() : scene.tag;
+        li.append(num, label);
+        const activate = () => {
           goToScene(index);
-          if (isPlaying) {
-            playSceneAudio(index);
-          }
+          if (isPlaying) playSceneAudio(index);
+        };
+        li.addEventListener('click', activate);
+        li.addEventListener('keydown', (e) => {
+          if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); activate(); }
         });
         timeline.appendChild(li);
       });
     }
 
-    /* Build Transcript Text */
     function buildTranscript() {
       const body = document.getElementById('fullTranscriptBody');
-      body.innerHTML = '';
-      SCENES.forEach((scene, idx) => {
-        const div = document.createElement('div');
-        div.style.marginBottom = '1.5rem';
-        div.innerHTML = `
-          <h4 style="color:#38bdf8; margin-bottom:0.4rem; font-size:0.95rem;">${scene.tag}: ${scene.title}</h4>
-          <p style="margin-bottom:0.5rem;">${scene.narration.join(' ')}</p>
-        `;
-        body.appendChild(div);
+      body.replaceChildren();
+      SCENES.forEach(scene => {
+        const wrap = document.createElement('div');
+        wrap.style.marginBottom = '1.25rem';
+        const h4 = document.createElement('h4');
+        h4.style.color = '#38bdf8';
+        h4.style.marginBottom = '0.35rem';
+        h4.textContent = `${scene.tag}: ${scene.title}`;
+        const p = document.createElement('p');
+        p.textContent = scene.narration.join(' ');
+        wrap.append(h4, p);
+        body.appendChild(wrap);
       });
     }
 
-    /* Scene Navigation */
-    function goToScene(index) {
-      if (index < 0 || index >= SCENES.length) return;
-      currentSceneIndex = index;
-
-      // Update Slides
-      document.querySelectorAll('.scene-slide').forEach((slide, i) => {
-        slide.classList.toggle('active', i === index);
-      });
-
-      // Update Timeline Stepper
-      document.querySelectorAll('.step-item').forEach((item, i) => {
-        item.classList.toggle('active', i === index);
-        item.classList.toggle('completed', i < index);
-      });
-
-      // Update Subtitle text placeholder
-      const scene = SCENES[index];
-      document.getElementById('subtitleText').textContent = scene.narration[0];
-      document.getElementById('subtitleSpeaker').innerHTML = `<span>🎙️</span> ${scene.tag.toUpperCase()}`;
-
-      // Audio Chime
-      playChime(520, 'sine', 0.12);
+    function updatePlayButtonUI() {
+      document.getElementById('playIcon').textContent = isPlaying ? '⏸' : '▶';
+      document.getElementById('playText').textContent = isPlaying ? 'Pause' : 'Voiceover';
+      document.getElementById('btnPlayPauseBottom').textContent = isPlaying ? '⏸ Pause' : '▶ Listen';
+      document.getElementById('audioWave').classList.toggle('active', isPlaying);
     }
 
-    /* Speech Synthesis Voiceover Engine */
-    function playSceneAudio(index) {
-      if (!('speechSynthesis' in window)) {
-        alert("Speech synthesis is not supported in this browser.");
-        return;
-      }
-
-      window.speechSynthesis.cancel();
-      const scene = SCENES[index];
-      speechSentences = scene.narration;
-      currentSentenceIndex = 0;
-      isPlaying = true;
+    function stopAudio() {
+      isPlaying = false;
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
       updatePlayButtonUI();
-
-      speakNextSentence();
     }
 
     function speakNextSentence() {
       if (!isPlaying) return;
-
       if (currentSentenceIndex >= speechSentences.length) {
-        // Finished current scene
         if (autoAdvance && currentSceneIndex < SCENES.length - 1) {
           setTimeout(() => {
             if (!isPlaying) return;
             goToScene(currentSceneIndex + 1);
             playSceneAudio(currentSceneIndex);
-          }, 800);
+          }, 700);
         } else {
           stopAudio();
         }
         return;
       }
-
       const text = speechSentences[currentSentenceIndex];
       const subEl = document.getElementById('subtitleText');
-      subEl.innerHTML = `<span class="highlight-word">${text}</span>`;
+      const span = document.createElement('span');
+      span.className = 'highlight-word';
+      span.textContent = text;
+      subEl.replaceChildren(span);
 
       const utter = new SpeechSynthesisUtterance(text);
       if (selectedVoice) utter.voice = selectedVoice;
       utter.rate = speechRate;
-      utter.pitch = 1.0;
-
-      utter.onstart = () => {
-        document.getElementById('audioWave').classList.add('active');
-      };
-
-      utter.onend = () => {
-        currentSentenceIndex++;
-        speakNextSentence();
-      };
-
-      utter.onerror = (e) => {
-        console.warn("Speech error:", e);
-        currentSentenceIndex++;
-        speakNextSentence();
-      };
-
-      currentUtterance = utter;
+      utter.onend = () => { currentSentenceIndex++; speakNextSentence(); };
+      utter.onerror = () => stopAudio();
       window.speechSynthesis.speak(utter);
     }
 
-    function stopAudio() {
-      isPlaying = false;
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+    function playSceneAudio(index) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      speechSentences = SCENES[index].narration;
+      currentSentenceIndex = 0;
+      isPlaying = true;
       updatePlayButtonUI();
-      document.getElementById('audioWave').classList.remove('active');
+      speakNextSentence();
     }
 
     function toggleAudio() {
-      if (isPlaying) {
-        stopAudio();
-      } else {
-        playSceneAudio(currentSceneIndex);
-      }
+      if (isPlaying) stopAudio();
+      else playSceneAudio(currentSceneIndex);
     }
 
-    function updatePlayButtonUI() {
-      const btn = document.getElementById('btnPlayPause');
-      const btnBottom = document.getElementById('btnPlayPauseBottom');
-      const icon = document.getElementById('playIcon');
-      const text = document.getElementById('playText');
-
-      if (isPlaying) {
-        btn.classList.add('is-playing');
-        btnBottom.classList.add('is-playing');
-        icon.textContent = '⏸';
-        text.textContent = 'Pause';
-        btnBottom.textContent = '⏸ Pause';
-      } else {
-        btn.classList.remove('is-playing');
-        btnBottom.classList.remove('is-playing');
-        icon.textContent = '▶';
-        text.textContent = 'Voiceover';
-        btnBottom.textContent = '▶ Listen';
-      }
+    function goToScene(index) {
+      if (index < 0 || index >= SCENES.length) return;
+      currentSceneIndex = index;
+      document.querySelectorAll('.scene-slide').forEach((s, i) => s.classList.toggle('active', i === index));
+      document.querySelectorAll('.step-item').forEach((item, i) => {
+        item.classList.toggle('active', i === index);
+        item.classList.toggle('completed', i < index);
+      });
+      const scene = SCENES[index];
+      document.getElementById('subtitleText').textContent = scene.narration[0];
+      document.getElementById('subtitleSpeaker').textContent = `🎙️ ${scene.tag.toUpperCase()}`;
+      playChime(520, 'sine', 0.1);
     }
 
-    /* Event Listeners & Interactive Handlers */
     document.addEventListener('DOMContentLoaded', () => {
+      initVoices();
       buildTimeline();
       buildTranscript();
-      initVoices();
 
-      // Play/Pause button
-      document.getElementById('btnPlayPause').addEventListener('click', toggleAudio);
-      document.getElementById('btnPlayPauseBottom').addEventListener('click', toggleAudio);
-
-      // Next / Prev buttons
-      document.getElementById('btnNext').addEventListener('click', () => {
-        if (currentSceneIndex < SCENES.length - 1) {
-          goToScene(currentSceneIndex + 1);
-          if (isPlaying) playSceneAudio(currentSceneIndex);
-        }
-      });
-
-      document.getElementById('btnPrev').addEventListener('click', () => {
-        if (currentSceneIndex > 0) {
-          goToScene(currentSceneIndex - 1);
-          if (isPlaying) playSceneAudio(currentSceneIndex);
-        }
-      });
-
-      document.getElementById('btnRestartAudio').addEventListener('click', () => {
-        playSceneAudio(currentSceneIndex);
-      });
-
-      // Rate button
-      const rates = [1.0, 1.25, 1.5, 0.85];
-      let rateIdx = 0;
-      document.getElementById('btnRate').addEventListener('click', () => {
-        rateIdx = (rateIdx + 1) % rates.length;
-        speechRate = rates[rateIdx];
-        document.getElementById('btnRate').textContent = `${speechRate}x`;
-        if (isPlaying) playSceneAudio(currentSceneIndex);
-      });
-
-      // Voice selection
-      document.getElementById('voiceSelect').addEventListener('change', (e) => {
-        const found = availableVoices.find(v => v.name === e.target.value);
-        if (found) {
-          selectedVoice = found;
-          if (isPlaying) playSceneAudio(currentSceneIndex);
-        }
-      });
-
-      // Auto-advance toggle
-      const autoAdv = document.getElementById('chkAutoAdvance');
-      autoAdvance = autoAdv.checked;
-      autoAdv.addEventListener('change', (e) => {
-        autoAdvance = e.target.checked;
-      });
-
-      // Transcript Drawer
-      document.getElementById('btnTranscript').addEventListener('click', () => {
-        document.getElementById('transcriptDrawer').classList.add('open');
-      });
-      document.getElementById('btnCloseTranscript').addEventListener('click', () => {
-        document.getElementById('transcriptDrawer').classList.remove('open');
-      });
-
-      // Audience / Lens Filter Switcher
+      // Lens switcher
       document.querySelectorAll('.lens-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          document.querySelectorAll('.lens-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+        btn.addEventListener('click', () => {
           const lens = btn.dataset.lens;
-
+          document.querySelectorAll('.lens-btn').forEach(b => {
+            const active = b === btn;
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-selected', String(active));
+          });
           document.querySelectorAll('.perspective-card').forEach(card => {
-            if (lens === 'all') {
-              card.style.display = 'block';
-            } else if (lens === 'bird') {
-              card.style.display = card.classList.contains('birding') ? 'block' : 'none';
-            } else if (lens === 'tech') {
-              card.style.display = card.classList.contains('engineering') ? 'block' : 'none';
-            }
+            card.style.display = (lens === 'all' || card.dataset.lens === lens) ? 'block' : 'none';
           });
         });
       });
 
-      // Keyboard navigation
-      window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-        if (e.code === 'Space') {
-          e.preventDefault();
-          toggleAudio();
-        } else if (e.code === 'ArrowRight') {
-          document.getElementById('btnNext').click();
-        } else if (e.code === 'ArrowLeft') {
-          document.getElementById('btnPrev').click();
-        }
+      // Audio & navigation controls
+      document.getElementById('btnPlayPause').addEventListener('click', toggleAudio);
+      document.getElementById('btnPlayPauseBottom').addEventListener('click', toggleAudio);
+      document.getElementById('btnPrev').addEventListener('click', () => {
+        goToScene(currentSceneIndex - 1);
+        if (isPlaying) playSceneAudio(currentSceneIndex);
+      });
+      document.getElementById('btnNext').addEventListener('click', () => {
+        goToScene(currentSceneIndex + 1);
+        if (isPlaying) playSceneAudio(currentSceneIndex);
+      });
+      document.getElementById('btnRestartAudio').addEventListener('click', () => playSceneAudio(currentSceneIndex));
+      document.getElementById('chkAutoAdvance').addEventListener('change', (e) => { autoAdvance = e.target.checked; });
+
+      const rates = [1.0, 1.25, 1.5, 0.85];
+      let rateIdx = 0;
+      document.getElementById('btnRate').addEventListener('click', (e) => {
+        rateIdx = (rateIdx + 1) % rates.length;
+        speechRate = rates[rateIdx];
+        e.target.textContent = `${speechRate}x`;
       });
 
-      // Scene 2: Interactive Inode Simulator
-      let hardLinkActive = true;
+      document.getElementById('voiceSelect').addEventListener('change', (e) => {
+        const all = 'speechSynthesis' in window ? window.speechSynthesis.getVoices() : [];
+        selectedVoice = all.find(v => v.name === e.target.value) || null;
+      });
+
+      // Transcript drawer with Escape & backdrop close
+      const drawer = document.getElementById('transcriptDrawer');
+      document.getElementById('btnTranscript').addEventListener('click', () => drawer.classList.add('open'));
+      document.getElementById('btnCloseTranscript').addEventListener('click', () => drawer.classList.remove('open'));
+      drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.classList.remove('open'); });
+      document.addEventListener('keydown', (e) => {
+        const tag = e.target.tagName;
+        if (e.code === 'Escape' && drawer.classList.contains('open')) drawer.classList.remove('open');
+        else if (e.code === 'Space' && !['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && e.target.getAttribute('role') !== 'button') {
+          e.preventDefault();
+          toggleAudio();
+        } else if (e.code === 'ArrowRight' && e.target.type !== 'range' && tag !== 'SELECT') document.getElementById('btnNext').click();
+        else if (e.code === 'ArrowLeft' && e.target.type !== 'range' && tag !== 'SELECT') document.getElementById('btnPrev').click();
+      });
+
+      // Scene 1: Hexagonal module inspector
+      document.querySelectorAll('#archGrid [data-arch]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('archDetail').textContent = ARCH_DETAILS[btn.dataset.arch] || '';
+          playChime(580, 'sine', 0.08);
+        });
+      });
+
+      // Scene 2: Interactive Inode Simulator (starts unlinked = false)
+      let hardLinkActive = false;
       document.getElementById('btnToggleHardLink').addEventListener('click', () => {
         hardLinkActive = !hardLinkActive;
         const btn = document.getElementById('btnToggleHardLink');
         const linkCount = document.getElementById('linkCountNum');
-        const dstTreeFolder = document.getElementById('dstTreeFolder');
-        const dstTreeFile = document.getElementById('dstTreeFile');
-        const dstTreeSidecar = document.getElementById('dstTreeSidecar');
+        const dstNodes = ['dstTreeFolder', 'dstTreeFile', 'dstTreeSidecar'].map(id => document.getElementById(id));
         const bytesLabel = document.getElementById('additionalBytesLabel');
 
         if (hardLinkActive) {
-          btn.textContent = '✂ Simulate `avicull clean`';
+          btn.textContent = '✂ Simulate avicull clean';
           linkCount.textContent = '2';
-          dstTreeFolder.style.opacity = '1';
-          dstTreeFile.style.opacity = '1';
-          dstTreeSidecar.style.opacity = '1';
+          dstNodes.forEach(n => { n.style.opacity = '1'; });
           bytesLabel.textContent = '+0 disk bytes added (APFS hard link)';
           bytesLabel.style.color = '#34d399';
-          playChime(660, 'triangle', 0.15);
+          playChime(660, 'triangle', 0.14);
         } else {
-          btn.textContent = '🔗 Simulate `avicull organize`';
+          btn.textContent = '🔗 Simulate avicull organize --mode hierarchy';
           linkCount.textContent = '1';
-          dstTreeFolder.style.opacity = '0.3';
-          dstTreeFile.style.opacity = '0.3';
-          dstTreeSidecar.style.opacity = '0.3';
+          dstNodes.forEach(n => { n.style.opacity = '0.35'; });
           bytesLabel.textContent = 'Output unlinked; source intact';
           bytesLabel.style.color = '#94a3b8';
-          playChime(330, 'triangle', 0.15);
+          playChime(330, 'triangle', 0.14);
         }
       });
 
-      // Scene 5: Interactive Geo Slider
-      const geoSlider = document.getElementById('geoSlider');
-      if (geoSlider) {
-        geoSlider.addEventListener('input', (e) => {
-          const val = parseInt(e.target.value);
-          const lbl = document.getElementById('geoLocLabel');
-          const blythBar = document.getElementById('blythBar');
-          const blythBadge = document.getElementById('blythBadge');
-          const blythGeo = document.getElementById('blythGeo');
-          const eurBar = document.getElementById('eurBar');
-          const eurBadge = document.getElementById('eurBadge');
-          const eurGeo = document.getElementById('eurGeo');
-
-          if (val === 0) {
-            lbl.textContent = '0% Geo Prior (Pure Visual)';
-            blythBar.style.width = '52%';
-            blythBadge.textContent = 'P_post: 52%';
-            blythGeo.textContent = 'SINR Geo Prior: 0.00';
-            eurBar.style.width = '48%';
-            eurBadge.textContent = 'P_post: 48%';
-            eurGeo.textContent = 'SINR Geo Prior: 0.00';
-          } else {
-            lbl.textContent = `${val}% Geo Prior (Keoladeo, India)`;
-            // Calculate simulated Bayesian shift
-            const blythPrior = 0.95 * (val / 100);
-            const eurPrior = 0.01 * (val / 100) + 0.01; // floor
-            const postBlyth = (0.51 * Math.pow(Math.max(blythPrior, 0.01), 1.0));
-            const postEur = (0.49 * Math.pow(Math.max(eurPrior, 0.01), 1.0));
-            const normBlyth = Math.round((postBlyth / (postBlyth + postEur)) * 100);
-            const normEur = 100 - normBlyth;
-
-            blythBar.style.width = `${normBlyth}%`;
-            blythBadge.textContent = `P_post: ${normBlyth}%`;
-            blythGeo.textContent = `SINR Geo Prior: ${(blythPrior).toFixed(2)}`;
-
-            eurBar.style.width = `${normEur}%`;
-            eurBadge.textContent = `P_post: ${normEur}%`;
-            eurGeo.textContent = `SINR Geo Prior: ${(eurPrior).toFixed(2)}`;
-          }
+      // Scene 4: YOLO relevance floor inspector
+      document.querySelectorAll('[data-yolo-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById('yoloInspector').textContent = YOLO_DETAILS[btn.dataset.yoloMode] || '';
+          playChime(540, 'sine', 0.08);
         });
-      }
-    });
+      });
 
-    /* Interactive Catalog Pill Filter Handler */
-    function filterCatalogPill(cat) {
-      document.querySelectorAll('.catalog-pill').forEach(p => p.classList.remove('active'));
-      event.target.classList.add('active');
-      document.querySelectorAll('.catalog-card').forEach(card => {
-        if (cat === 'all' || card.dataset.cat === cat) {
-          card.style.display = 'flex';
+      // Scene 5: Interactive Bayesian Geo Slider
+      const geoSlider = document.getElementById('geoSlider');
+      geoSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        const lbl = document.getElementById('geoLocLabel');
+        const blythBar = document.getElementById('blythBar');
+        const blythBadge = document.getElementById('blythBadge');
+        const blythGeo = document.getElementById('blythGeo');
+        const eurBar = document.getElementById('eurBar');
+        const eurBadge = document.getElementById('eurBadge');
+        const eurGeo = document.getElementById('eurGeo');
+
+        if (val === 0) {
+          lbl.textContent = '0% Geo Prior (Pure Visual)';
+          blythBar.style.width = '51%';
+          blythBadge.textContent = 'P_post: 51%';
+          blythGeo.textContent = 'Checklist Prior: 1.00 (off)';
+          eurBar.style.width = '49%';
+          eurBadge.textContent = 'P_post: 49%';
+          eurGeo.textContent = 'Checklist Prior: 1.00 (off)';
         } else {
-          card.style.display = 'none';
+          lbl.textContent = `${val}% Geo Prior (Keoladeo, India)`;
+          const w = val / 100;
+          const blythPrior = 1.0;
+          const eurPrior = 1.0 - (0.95 * w); // interpolates 1.0 -> 0.05
+          const postBlyth = 0.51 * blythPrior;
+          const postEur = 0.49 * eurPrior;
+          const normBlyth = Math.round((postBlyth / (postBlyth + postEur)) * 100);
+          const normEur = 100 - normBlyth;
+
+          blythBar.style.width = `${normBlyth}%`;
+          blythBadge.textContent = `P_post: ${normBlyth}%`;
+          blythGeo.textContent = `Checklist Prior: ${blythPrior.toFixed(2)} (in-region)`;
+          eurBar.style.width = `${normEur}%`;
+          eurBadge.textContent = `P_post: ${normEur}%`;
+          eurGeo.textContent = `Checklist Prior: ${eurPrior.toFixed(2)} (out-of-region)`;
         }
       });
-      playChime(520, 'sine', 0.08);
-    }
 
-    /* Interactive Terminal Simulator */
-    function runSimCommand(cmd) {
-      const term = document.getElementById('termOutput');
-      playChime(580, 'sine', 0.08);
+      // Scene 8: Catalog filter pills & Asset Access Inspector
+      document.querySelectorAll('#catalogPills .catalog-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          document.querySelectorAll('#catalogPills .catalog-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          const cat = pill.dataset.cat;
+          document.querySelectorAll('#catalogGrid .catalog-card').forEach(card => {
+            card.style.display = (cat === 'all' || card.dataset.cat === cat) ? 'flex' : 'none';
+          });
+          playChime(520, 'sine', 0.08);
+        });
+      });
 
-      switch (cmd) {
-        case 'status':
-          term.innerHTML = `<span class="term-prompt">$ avicull models status</span>
-== avicull models ==
-Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
-  - Taxonomy (taxonomy.json):             <span class="term-success">Present (1.82 MB, 11,167 species)</span>
-  - Embeddings (species_embeddings.safetensors): <span class="term-success">Present (22.84 MB, BioCLIP Metal MPS)</span>
-  - Last Updated:                         4 day(s) ago
-<span class="term-success">✓ Cache healthy and ready for zero-copy organization.</span>`;
-          break;
+      document.querySelectorAll('#catalogGrid .catalog-card').forEach(card => {
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        const inspectCard = () => {
+          document.querySelectorAll('#catalogGrid .catalog-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          const isLocal = card.dataset.local === 'true';
+          const path = card.dataset.path;
+          const sidecar = card.dataset.sidecar;
+          const status = isLocal ? 'Local Resident (ready for full-res read)' : 'Cloud Evicted (Darwin SF_DATALESS) — Hydrate via: head -c 1 "' + path + '" > /dev/null 2>&1';
+          document.getElementById('catalogInspector').textContent = `Asset Access Inspector | Path: ${path} | Sidecar: ${sidecar} | Locality: ${status}`;
+        };
+        card.addEventListener('click', inspectCard);
+        card.addEventListener('keydown', (e) => {
+          if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); inspectCard(); }
+        });
+      });
 
-        case 'update':
-          term.innerHTML = `<span class="term-prompt">$ avicull models update</span>
-== avicull models ==
-Avian Model & Taxonomy Cache: '/Users/photographer/.cache/avicull/models'
-Fetching latest Cornell eBird global taxonomy from https://api.ebird.org/v2/ref/taxonomy/ebird...
-Loaded 11,167 valid avian species.
-Saved taxonomy to /Users/photographer/.cache/avicull/models/taxonomy.json
-Loading BioCLIP model (imageomics/bioclip)...
-Computing embeddings for 11,167 species on Apple Silicon Metal (mps)...
-  Processed 2560/11167 species...
-  Processed 5120/11167 species...
-  Processed 7680/11167 species...
-  Processed 10240/11167 species...
-Finished embedding calculation in 8.42s. Shape: torch.Size([11167, 512])
-Saved embeddings to species_embeddings.safetensors (22.84 MB)
-<span class="term-success">✓ Successfully updated model and taxonomy cache in '~/.cache/avicull/models'</span>`;
-          break;
-
-        case 'scan':
-          term.innerHTML = `<span class="term-prompt">$ avicull scan --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[Preflight] Checking filesystem volume compatibility...</span>
-<span class="term-success">✔ Same-volume APFS hardlink compatibility verified (st_dev: 16777220)</span>
-<span class="term-comment">[Discovery] Found 1,420 bundles (primary RAW + sidecars .xmp, .dop, .mov)</span>
-<span class="term-comment">[Geo Engine] 1,380 EXIF GPS parsed, 40 inherited via sibling propagation</span>
-<span class="term-success">✔ Scan complete. Ready to run 'avicull organize'.</span>`;
-          break;
-
-        case 'organize':
-          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[Models] Resolved cache from '~/.cache/avicull/models' (11,167 species + multi-taxa)</span>
-<span class="term-comment">[Mode] In-place descriptive renaming (default, non-destructive)</span>
-<span class="term-comment">[1/5] Scanned 1,420 bundles (Darwin SF_DATALESS checks passed)</span>
-<span class="term-comment">[2/5] Location resolved: 1,380 EXIF GPS, 40 Sibling Propagation</span>
-<span class="term-comment">[3/5] YOLO11m CoreML: 1,392 subjects localized, 28 no-subject</span>
-<span class="term-comment">[4/5] BioCLIP 2 + Prior: 84 bird species + 12 curated multi-taxa (Snow Leopard, Blue Pansy)</span>
-<span class="term-comment">[5/5] In-place renaming & catalog generation complete</span>
-<span class="term-success">✔ Renamed 1,420 bundles in-place: &lt;Stem&gt;_&lt;Category&gt;_&lt;Subject&gt;[_&lt;Date&gt;][_&lt;Loc&gt;].&lt;ext&gt;</span>
-<span class="term-success">✔ Sidecars synchronized (.xmp, .dop, .mov)</span>
-<span class="term-success">✔ Generated standalone offline catalog: /Volumes/Photos/Leh/catalog.html</span>`;
-          break;
-
-        case 'hierarchy':
-          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh --mode hierarchy</span>
-<span class="term-comment">[Mode] APFS Zero-Byte Hard Link Tree</span>
-<span class="term-comment">[1/4] Verified same APFS volume: st_dev 16777220</span>
-<span class="term-comment">[2/4] Materializing species folders in /Volumes/Photos/Leh/birds_hierarchy/</span>
-<span class="term-comment">[3/4] POSIX link(2): Confirmed (1,280 files), _Needs_Review (112), _No_Bird_Detected (28)</span>
-<span class="term-success">✔ Hard-linked 1,420 files into birds_hierarchy (0 disk bytes added, st_nlink >= 2)</span>
-<span class="term-success">✔ Source archive /Volumes/Photos/Leh is 100% immutable and untouched.</span>`;
-          break;
-
-        case 'force':
-          term.innerHTML = `<span class="term-prompt">$ avicull organize --input /Volumes/Photos/Leh --force</span>
-<span class="term-comment">[Cache Bypass] --force specified: Bypassing cached SQLite predictions</span>
-<span class="term-comment">[Inference] Re-running YOLO11m & BioCLIP 2 across all 1,420 bundles...</span>
-<span class="term-comment">[Inference] 100% computed across 11,167 species + multi-taxa on Apple Silicon Metal</span>
-<span class="term-comment">[Database] Updated .avicull/manifest.sqlite with fresh predictions</span>
-<span class="term-success">✔ Recomputed all predictions and refreshed catalog.html.</span>`;
-          break;
-
-        case 'correct':
-          term.innerHTML = `<span class="term-prompt">$ avicull correct --input /Volumes/Photos/Leh --bundle b3a8f9 --species "Snow_Leopard"</span>
-<span class="term-comment">[Manifest] Located bundle b3a8f9 in .avicull/manifest.sqlite</span>
-<span class="term-comment">[Taxonomy] Resolved species: "Snow_Leopard" -> Category: Mammalia</span>
-<span class="term-comment">[Filesystem] Atomic rename: IMG_0924_Bird_Unknown.CR2 ➔ IMG_0924_Mammalia_Snow_Leopard.CR2</span>
-<span class="term-comment">[Sidecar] Synchronized: IMG_0924_Mammalia_Snow_Leopard.xmp</span>
-<span class="term-success">✔ Correction committed to manifest.sqlite and reflected in catalog.html.</span>`;
-          break;
-
-        case 'relink':
-          term.innerHTML = `<span class="term-prompt">$ avicull relink --input /Volumes/Photos/Leh --min-confidence 0.80</span>
-<span class="term-comment">[Manifest] Querying cached decisions from .avicull/manifest.sqlite...</span>
-<span class="term-comment">[Relink] Re-evaluating routing tiers with new threshold: 0.80</span>
-<span class="term-comment">[Filesystem] Atomic unlinking and re-linking in progress...</span>
-<span class="term-success">✔ Relinked 1,420 entries in 28ms (0 neural network inference runs required)</span>
-<span class="term-success">  - Confirmed (>= 0.80): 1,120 files</span>
-<span class="term-warn">  - _Needs_Review (< 0.80): 272 files</span>`;
-          break;
-
-        case 'report':
-          term.innerHTML = `<span class="term-prompt">$ avicull report --input /Volumes/Photos/Leh --format table</span>
-┌────────────────────────────┬─────────────┬───────────┬──────────────┬────────────┐
-│ Species / Subject          │ Category    │ Count     │ Mean Conf    │ Tier       │
-├────────────────────────────┼─────────────┼───────────┼──────────────┼────────────┤
-│ Black-necked Crane         │ Bird        │ 142       │ 0.97         │ Confirmed  │
-│ Bar-headed Goose           │ Bird        │ 320       │ 0.95         │ Confirmed  │
-│ Snow Leopard               │ Mammalia    │ 18        │ 0.94         │ Confirmed  │
-│ Blue Pansy                 │ Insecta     │ 24        │ 0.89         │ Confirmed  │
-│ Pangong Tso                │ Scenery     │ 85        │ 0.98         │ Confirmed  │
-│ Blyth's Reed Warbler       │ Bird        │ 38        │ 0.62         │ Review     │
-│ [No Subject Detected]      │ No_Subject  │ 28        │ 0.12         │ Review     │
-└────────────────────────────┴─────────────┴───────────┴──────────────┴────────────┘`;
-          break;
-
-        case 'clean':
-          term.innerHTML = `<span class="term-prompt">$ avicull clean --input /Volumes/Photos/Leh</span>
-<span class="term-comment">[Safety] Querying operations from manifest.sqlite...</span>
-<span class="term-comment">[Filesystem] Safely unlinking destination links in birds_hierarchy...</span>
-<span class="term-comment">[Filesystem] Pruned empty species directories</span>
-<span class="term-success">✔ Clean complete. Operations rolled back.</span>
-<span class="term-success">✔ Source photo archive /Volumes/Photos/Leh is 100% intact.</span>`;
-          break;
-
-        case 'rsync':
-          term.innerHTML = `<span class="term-prompt">$ rsync -avH /Volumes/Photos/Leh /Volumes/NTFS_Drive/Photos/</span>
-<span class="term-comment">sending incremental file list (with -H: maintaining inode hard link table)</span>
-Photos/Leh/
-Photos/Leh/birds_hierarchy/
-Photos/Leh/birds_hierarchy/Painted_Stork/
-<span class="term-success">Photos/Leh/birds_hierarchy/Painted_Stork/DSC_4011_0.96.CR2 => Photos/Leh/DSC_4011.CR2 (hardlink created on NTFS)</span>
-<span class="term-success">Photos/Leh/birds_hierarchy/Painted_Stork/DSC_4011_0.96.xmp => Photos/Leh/DSC_4011.xmp (hardlink created on NTFS)</span>
-Photos/Leh/birds_hierarchy/Streak-throated_Swallow/
-<span class="term-success">Photos/Leh/birds_hierarchy/Streak-throated_Swallow/DSC_4015_0.91.ARW => Photos/Leh/DSC_4015.ARW (hardlink created on NTFS)</span>
-...
-sent 48.20M bytes  received 1.42K bytes  18.40M bytes/sec
-total size is 96.40G  speedup is 1.99 (<span class="term-success">50% storage saved via native NTFS MFT hard links!</span>)
-<span class="term-success">✔ Successfully preserved zero-byte hard links on target NTFS volume!</span>
-<span class="term-warn">⚠ Note: On exFAT, use 'avicull organize' (in-place mode) to avoid hardlink file inflation.</span>`;
-          break;
-      }
-    }
+      // Scene 9: CLI Simulator
+      const terminal = document.getElementById('cliTerminal');
+      terminal.textContent = CLI_OUTPUTS.organize;
+      document.querySelectorAll('#cliButtons [data-cmd]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#cliButtons [data-cmd]').forEach(b => b.classList.remove('btn-primary'));
+          btn.classList.add('btn-primary');
+          terminal.textContent = CLI_OUTPUTS[btn.dataset.cmd] || '';
+          playChime(600, 'sine', 0.07);
+        });
+      });
+    });
   </script>
 </body>
 </html>
